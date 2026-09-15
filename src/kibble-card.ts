@@ -273,6 +273,7 @@ export class KibbleCard extends LitElement {
     .root {
       display: grid;
       height: 100%;
+      overflow-y: auto;
       gap: 10px;
       padding-bottom: 10px;
       grid-template-columns: 1fr;
@@ -282,7 +283,8 @@ export class KibbleCard extends LitElement {
       grid-area: hero;
       position: relative;
       overflow: hidden;
-      aspect-ratio: 16 / 9;
+      height: 0;
+      padding-bottom: 42%;
       background: #1c1c1c;
       border-radius: var(--ha-card-border-radius, 12px) var(--ha-card-border-radius, 12px) 0 0;
     }
@@ -360,7 +362,8 @@ export class KibbleCard extends LitElement {
     }
     .bowl-block {
       grid-area: bowl;
-      padding: 4px 14px 0;
+      padding: 8px 14px 0;
+      --kibble-bowl-max-width: 170px;
     }
     .feed-controls {
       grid-area: feed;
@@ -394,38 +397,6 @@ export class KibbleCard extends LitElement {
       padding: 0 10px;
     }
 
-    /* 360-640px: hero grows, bowl + feed overlay its bottom corners on a soft scrim chip. */
-    @container (min-width: 360px) {
-      .root {
-        grid-template-areas: "hero" "schedule" "footer";
-      }
-      .hero {
-        aspect-ratio: 4 / 3;
-      }
-      .bowl-block,
-      .feed-controls {
-        grid-area: hero;
-        align-self: end;
-        z-index: 2;
-        margin: 12px;
-        padding: 10px;
-        background: color-mix(in srgb, var(--ha-card-background, var(--card-background-color)) 82%, transparent);
-        border-radius: calc(var(--ha-card-border-radius, 12px) * 0.7);
-      }
-      .bowl-block {
-        justify-self: start;
-        width: 130px;
-        --kibble-bowl-max-width: 108px;
-        --kibble-number-size: 22px;
-        --kibble-catname-size: 11px;
-        --kibble-status-size: 12px;
-      }
-      .feed-controls {
-        justify-self: end;
-        width: min(190px, 55%);
-      }
-    }
-
     /* >=640px: two columns, camera left full height, bowl/feed/schedule stacked on the right. */
     @container (min-width: 640px) {
       .root {
@@ -437,7 +408,7 @@ export class KibbleCard extends LitElement {
       }
       .hero {
         grid-area: hero;
-        aspect-ratio: auto;
+        padding-bottom: 0;
         height: 100%;
         border-radius: var(--ha-card-border-radius, 12px) 0 0 var(--ha-card-border-radius, 12px);
       }
@@ -454,9 +425,8 @@ export class KibbleCard extends LitElement {
       }
       .bowl-block {
         grid-area: bowl;
-        padding: 6px 16px 0;
-        --kibble-bowl-max-width: 130px;
-        --kibble-number-size: unset;
+        padding: 4px 16px 0;
+        --kibble-bowl-max-width: 210px;
         --kibble-catname-size: unset;
         --kibble-status-size: unset;
       }

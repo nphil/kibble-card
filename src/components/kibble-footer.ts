@@ -60,8 +60,6 @@ export class KibbleFooter extends LitElement {
               </button>
             `
           : nothing}
-        <span class="spacer"></span>
-        <button type="button" class="glance settings" title="Settings" @click=${this._openSettings}>${mdiIcon("cog")}</button>
       </div>
     `;
   }

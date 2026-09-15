@@ -17,9 +17,9 @@
     <rect x="0" y="380" width="640" height="2" fill="#59452f"/>
     <rect x="0" y="430" width="640" height="2" fill="#59452f"/>
   </g>
-  <ellipse cx="320" cy="420" rx="150" ry="26" fill="#000" opacity="0.18"/>
-  <ellipse cx="320" cy="410" rx="120" ry="34" fill="#efe3d0"/>
-  <ellipse cx="320" cy="404" rx="96" ry="24" fill="#d8c7a8"/>
+  <ellipse cx="320" cy="270" rx="150" ry="26" fill="#000" opacity="0.18"/>
+  <ellipse cx="320" cy="260" rx="120" ry="34" fill="#efe3d0"/>
+  <ellipse cx="320" cy="254" rx="96" ry="24" fill="#d8c7a8"/>
   <circle cx="120" cy="120" r="46" fill="#efe3d0" opacity="0.5"/>
   <rect x="500" y="60" width="90" height="130" rx="6" fill="#efe3d0" opacity="0.35"/>
 </svg>

@@ -1,4 +1,4 @@
-// node_modules/@lit/reactive-element/css-tag.js
+// dist/kibble-card.js
 var t = globalThis;
 var e = t.ShadowRoot && (void 0 === t.ShadyCSS || t.ShadyCSS.nativeShadow) && "adoptedStyleSheets" in Document.prototype && "replace" in CSSStyleSheet.prototype;
 var s = Symbol();
@@ -42,8 +42,6 @@ var c = e ? (t5) => t5 : (t5) => t5 instanceof CSSStyleSheet ? ((t6) => {
   for (const s5 of t6.cssRules) e6 += s5.cssText;
   return r(e6);
 })(t5) : t5;
-
-// node_modules/@lit/reactive-element/reactive-element.js
 var { is: i2, defineProperty: e2, getOwnPropertyDescriptor: h, getOwnPropertyNames: r2, getOwnPropertySymbols: o2, getPrototypeOf: n2 } = Object;
 var a = globalThis;
 var c2 = a.trustedTypes;
@@ -264,8 +262,6 @@ var y = class extends HTMLElement {
   }
 };
 y.elementStyles = [], y.shadowRootOptions = { mode: "open" }, y[d("elementProperties")] = /* @__PURE__ */ new Map(), y[d("finalized")] = /* @__PURE__ */ new Map(), p?.({ ReactiveElement: y }), (a.reactiveElementVersions ??= []).push("2.1.2");
-
-// node_modules/lit-html/lit-html.js
 var t2 = globalThis;
 var i3 = (t5) => t5;
 var s2 = t2.trustedTypes;
@@ -519,8 +515,6 @@ var D = (t5, i6, s5) => {
   }
   return h5._$AI(t5), h5;
 };
-
-// node_modules/lit-element/lit-element.js
 var s3 = globalThis;
 var i4 = class extends y {
   constructor() {
@@ -548,8 +542,6 @@ i4._$litElement$ = true, i4["finalized"] = true, s3.litElementHydrateSupport?.({
 var o4 = s3.litElementPolyfillSupport;
 o4?.({ LitElement: i4 });
 (s3.litElementVersions ??= []).push("4.2.2");
-
-// src/lib/resolve-entities.ts
 var RULES = {
   feeding: { domain: "binary_sensor", translationKeys: ["feeding"], idSuffixes: ["_feeding"] },
   bowlFill1: { domain: "sensor", translationKeys: ["bowl_fill_1"], idSuffixes: ["_bowl_fill_1", "_bowl_fill_hopper_1"] },
@@ -581,51 +573,51 @@ function domainOf(entityId) {
 function objectIdOf(entityId) {
   return entityId.slice(entityId.indexOf(".") + 1);
 }
-function matchesRule(entry, rule) {
-  if (domainOf(entry.entity_id) !== rule.domain) return false;
-  if (entry.translation_key && rule.translationKeys.includes(entry.translation_key)) return true;
-  const objectId = objectIdOf(entry.entity_id);
+function matchesRule(entry2, rule) {
+  if (domainOf(entry2.entity_id) !== rule.domain) return false;
+  if (entry2.translation_key && rule.translationKeys.includes(entry2.translation_key)) return true;
+  const objectId = objectIdOf(entry2.entity_id);
   return rule.idSuffixes.some((suffix) => objectId.endsWith(suffix));
 }
-function catDisplayName(entry) {
-  const raw = entry.name ?? entry.original_name;
+function catDisplayName(entry2) {
+  const raw = entry2.name ?? entry2.original_name;
   if (raw) {
     return raw.replace(/\s+present$/i, "").trim() || raw;
   }
-  const objectId = objectIdOf(entry.entity_id);
+  const objectId = objectIdOf(entry2.entity_id);
   const slug = objectId.replace(/_present$/, "");
   const lastWord = slug.split("_").filter(Boolean).pop();
   if (!lastWord) return "Cat";
   return lastWord[0].toUpperCase() + lastWord.slice(1);
 }
-function isCatPresenceEntry(entry) {
-  if (domainOf(entry.entity_id) !== "binary_sensor") return false;
-  if (entry.translation_key === "present" || entry.translation_key?.endsWith("_present")) return true;
-  return objectIdOf(entry.entity_id).endsWith("_present");
+function isCatPresenceEntry(entry2) {
+  if (domainOf(entry2.entity_id) !== "binary_sensor") return false;
+  if (entry2.translation_key === "present" || entry2.translation_key?.endsWith("_present")) return true;
+  return objectIdOf(entry2.entity_id).endsWith("_present");
 }
 function resolveKibbleEntities(entities, deviceId) {
   const result = { deviceId, catPresence: [] };
   const forDevice = Object.values(entities).filter(
     (e6) => e6.device_id === deviceId && !e6.disabled_by
   );
-  for (const entry of forDevice) {
-    if (domainOf(entry.entity_id) === "camera" && !result.camera) {
-      result.camera = entry.entity_id;
+  for (const entry2 of forDevice) {
+    if (domainOf(entry2.entity_id) === "camera" && !result.camera) {
+      result.camera = entry2.entity_id;
       continue;
     }
-    if (domainOf(entry.entity_id) === "media_player" && !result.speaker) {
-      result.speaker = entry.entity_id;
+    if (domainOf(entry2.entity_id) === "media_player" && !result.speaker) {
+      result.speaker = entry2.entity_id;
       continue;
     }
-    if (isCatPresenceEntry(entry)) {
-      result.catPresence.push({ entityId: entry.entity_id, name: catDisplayName(entry) });
+    if (isCatPresenceEntry(entry2)) {
+      result.catPresence.push({ entityId: entry2.entity_id, name: catDisplayName(entry2) });
       continue;
     }
     for (const roleEntry of Object.entries(RULES)) {
       const [role, rule] = roleEntry;
       if (result[role]) continue;
-      if (matchesRule(entry, rule)) {
-        result[role] = entry.entity_id;
+      if (matchesRule(entry2, rule)) {
+        result[role] = entry2.entity_id;
         break;
       }
     }
@@ -633,10 +625,8 @@ function resolveKibbleEntities(entities, deviceId) {
   result.catPresence.sort((a3, b3) => a3.name.localeCompare(b3.name));
   return result;
 }
-
-// src/lib/feeding.ts
 function deriveFeederStatus(coreStates, feedingState) {
-  const isDown = (state) => state === void 0 || state === "unavailable" || state === "unknown";
+  const isDown = (state2) => state2 === void 0 || state2 === "unavailable" || state2 === "unknown";
   if (coreStates.length === 0 || coreStates.every(isDown)) {
     return "unreachable";
   }
@@ -656,8 +646,6 @@ function statusText(status, lastFedRelative) {
   if (status === "dispensing") return "Dispensing\u2026";
   return lastFedRelative ? `Fed ${lastFedRelative}` : "Ready to feed";
 }
-
-// src/lib/mdi-icons.ts
 var MDI = {
   cog: "M12,15.5A3.5,3.5 0 0,1 8.5,12A3.5,3.5 0 0,1 12,8.5A3.5,3.5 0 0,1 15.5,12A3.5,3.5 0 0,1 12,15.5M19.43,12.97C19.47,12.65 19.5,12.33 19.5,12C19.5,11.67 19.47,11.34 19.43,11L21.54,9.37C21.73,9.22 21.78,8.95 21.66,8.73L19.66,5.27C19.54,5.05 19.27,4.96 19.05,5.05L16.56,6.05C16.04,5.66 15.5,5.32 14.87,5.07L14.5,2.42C14.46,2.18 14.25,2 14,2H10C9.75,2 9.54,2.18 9.5,2.42L9.13,5.07C8.5,5.32 7.96,5.66 7.44,6.05L4.95,5.05C4.73,4.96 4.46,5.05 4.34,5.27L2.34,8.73C2.21,8.95 2.27,9.22 2.46,9.37L4.57,11C4.53,11.34 4.5,11.67 4.5,12C4.5,12.33 4.53,12.65 4.57,12.97L2.46,14.63C2.27,14.78 2.21,15.05 2.34,15.27L4.34,18.73C4.46,18.95 4.73,19.03 4.95,18.95L7.44,17.94C7.96,18.34 8.5,18.68 9.13,18.93L9.5,21.58C9.54,21.82 9.75,22 10,22H14C14.25,22 14.46,21.82 14.5,21.58L14.87,18.93C15.5,18.67 16.04,18.34 16.56,17.94L19.05,18.95C19.27,19.03 19.54,18.95 19.66,18.73L21.66,15.27C21.78,15.05 21.73,14.78 21.54,14.63L19.43,12.97Z",
   cloudCheck: "M13 19C13 19.34 13.04 19.67 13.09 20H6.5C5 20 3.69 19.5 2.61 18.43C1.54 17.38 1 16.09 1 14.58C1 13.28 1.39 12.12 2.17 11.1S4 9.43 5.25 9.15C5.67 7.62 6.5 6.38 7.75 5.43S10.42 4 12 4C13.95 4 15.6 4.68 16.96 6.04C18.32 7.4 19 9.05 19 11C20.15 11.13 21.1 11.63 21.86 12.5C22.37 13.07 22.7 13.71 22.86 14.42C21.82 13.54 20.5 13 19 13C18.89 13 18.79 13 18.68 13C18.62 13 18.56 13 18.5 13H17V11C17 9.62 16.5 8.44 15.54 7.46C14.56 6.5 13.38 6 12 6S9.44 6.5 8.46 7.46C7.5 8.44 7 9.62 7 11H6.5C5.53 11 4.71 11.34 4.03 12.03C3.34 12.71 3 13.53 3 14.5S3.34 16.29 4.03 17C4.71 17.66 5.53 18 6.5 18H13.09C13.04 18.33 13 18.66 13 19M17.75 19.43L16.16 17.84L15 19L17.75 22L22.5 17.25L21.34 15.84L17.75 19.43Z",
@@ -678,8 +666,6 @@ var MDI = {
 function mdiIcon(name) {
   return w`<svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor" aria-hidden="true"><path d=${MDI[name]}></path></svg>`;
 }
-
-// src/styles/tokens.ts
 var KIOSK_MIN_HEIGHT_PX = 440;
 var HOLD_TO_FEED_MS = 600;
 var KIBBLE_FALL_DURATION_MS = 900;
@@ -689,8 +675,6 @@ var KIBBLE_INK_ON_AMBER = "#3A2C28";
 function prefersReducedMotion() {
   return typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true;
 }
-
-// src/lib/bowl-fill.ts
 var EQUAL_FILL_THRESHOLD = 5;
 function combineBowlFill(hopper1, hopper2) {
   if (hopper1 === null && hopper2 === null) {
@@ -704,8 +688,6 @@ function combineBowlFill(hopper1, hopper2) {
   }
   return { split: true, hopper1, hopper2, combined: null };
 }
-
-// src/lib/brand-shapes.ts
 function catSilhouette() {
   return w`
     <svg viewBox="0 0 256 256" fill="currentColor">
@@ -721,8 +703,6 @@ function kibblePiece(x2, y3, size, rotationDeg) {
   const cy = y3 + size / 2;
   return w`<rect x=${x2} y=${y3} width=${size} height=${size} rx=${r6} transform="rotate(${rotationDeg} ${cx} ${cy})" />`;
 }
-
-// src/components/kibble-bowl.ts
 var VIEW_W = 260;
 var VIEW_H = 200;
 var CX = 130;
@@ -949,8 +929,6 @@ var KibbleBowl = class extends i4 {
   }
 };
 customElements.define("kibble-bowl", KibbleBowl);
-
-// src/components/kibble-segmented-picker.ts
 var QUICK_VALUES = [1, 2, 3, 4, 5];
 var KibbleSegmentedPicker = class extends i4 {
   static {
@@ -1055,8 +1033,6 @@ var KibbleSegmentedPicker = class extends i4 {
   }
 };
 customElements.define("kibble-segmented-picker", KibbleSegmentedPicker);
-
-// src/components/kibble-stepper.ts
 var KibbleStepper = class extends i4 {
   static {
     this.properties = {
@@ -1140,8 +1116,6 @@ var KibbleStepper = class extends i4 {
   }
 };
 customElements.define("kibble-stepper", KibbleStepper);
-
-// src/components/kibble-hold-button.ts
 var KibbleHoldButton = class extends i4 {
   constructor() {
     super();
@@ -1262,8 +1236,6 @@ var KibbleHoldButton = class extends i4 {
   }
 };
 customElements.define("kibble-hold-button", KibbleHoldButton);
-
-// src/components/kibble-footer.ts
 var CLOUD_ICON = {
   connected: "cloudCheck",
   blocked: "cloudLock",
@@ -1358,12 +1330,8 @@ var KibbleFooter = class extends i4 {
   }
 };
 customElements.define("kibble-footer", KibbleFooter);
-
-// node_modules/lit-html/directive-helpers.js
 var { I: t3 } = j;
 var r4 = (o7) => void 0 === o7.strings;
-
-// node_modules/lit-html/directive.js
 var t4 = { ATTRIBUTE: 1, CHILD: 2, PROPERTY: 3, BOOLEAN_ATTRIBUTE: 4, EVENT: 5, ELEMENT: 6 };
 var e4 = (t5) => (...e6) => ({ _$litDirective$: t5, values: e6 });
 var i5 = class {
@@ -1382,8 +1350,6 @@ var i5 = class {
     return this.render(...e6);
   }
 };
-
-// node_modules/lit-html/async-directive.js
 var s4 = (i6, t5) => {
   const e6 = i6._$AN;
   if (void 0 === e6) return false;
@@ -1439,8 +1405,6 @@ var f3 = class extends i5 {
   reconnected() {
   }
 };
-
-// node_modules/lit-html/directives/ref.js
 var e5 = () => new h4();
 var h4 = class {
 };
@@ -1470,8 +1434,6 @@ var n5 = e4(class extends f3 {
     this.rt(this.ct);
   }
 });
-
-// src/lib/schedule.ts
 function parseTimeToMinutes(time) {
   const match = /^(\d{1,2}):(\d{2})$/.exec(time.trim());
   if (!match) {
@@ -1487,12 +1449,12 @@ function parseTimeToMinutes(time) {
 function nextScheduled(entries, now) {
   const nowMinutes = now.getHours() * 60 + now.getMinutes();
   let best = null;
-  for (const entry of entries) {
-    if (!entry.enabled) continue;
-    const entryMinutes = parseTimeToMinutes(entry.time);
+  for (const entry2 of entries) {
+    if (!entry2.enabled) continue;
+    const entryMinutes = parseTimeToMinutes(entry2.time);
     const minutesUntil = ((entryMinutes - nowMinutes) % 1440 + 1440) % 1440;
     if (best === null || minutesUntil < best.minutesUntil) {
-      best = { entry, minutesUntil };
+      best = { entry: entry2, minutesUntil };
     }
   }
   return best;
@@ -1508,8 +1470,6 @@ function scheduleSummary(entries, now) {
   }
   return `${countLabel} \xB7 next ${next.entry.time}`;
 }
-
-// src/components/kibble-schedule-summary.ts
 var DISPENSER_CARD_TAG = "dispenser-schedule-card";
 var KibbleScheduleSummary = class extends i4 {
   constructor() {
@@ -1585,11 +1545,11 @@ var KibbleScheduleSummary = class extends i4 {
     return b2`
       <ul class="entries">
         ${sorted.map(
-      (entry) => b2`
-            <li class=${entry.enabled ? "" : "disabled"}>
-              <span class="time">${entry.time}</span>
-              <span class="amounts">${entry.amount_l}g + ${entry.amount_r}g</span>
-              <span class="state">${entry.enabled ? "On" : "Paused"}</span>
+      (entry2) => b2`
+            <li class=${entry2.enabled ? "" : "disabled"}>
+              <span class="time">${entry2.time}</span>
+              <span class="amounts">${entry2.amount_l}g + ${entry2.amount_r}g</span>
+              <span class="state">${entry2.enabled ? "On" : "Paused"}</span>
             </li>
           `
     )}
@@ -1599,8 +1559,8 @@ var KibbleScheduleSummary = class extends i4 {
   _canEmbed() {
     if (!customElements.get(DISPENSER_CARD_TAG)) return false;
     if (!this.scheduleCardStateEntity) return false;
-    const state = this.hass?.states[this.scheduleCardStateEntity];
-    return state !== void 0 && state.state !== "unavailable";
+    const state2 = this.hass?.states[this.scheduleCardStateEntity];
+    return state2 !== void 0 && state2.state !== "unavailable";
   }
   _toggle() {
     this._expanded = !this._expanded;
@@ -1677,20 +1637,18 @@ var KibbleScheduleSummary = class extends i4 {
   }
 };
 customElements.define("kibble-schedule-summary", KibbleScheduleSummary);
-
-// src/components/kibble-settings-dialog.ts
 var CLOUD_CONFIRM_WINDOW_MS = 3e3;
 function numberAttrs(hass, entityId) {
   if (!entityId) return null;
-  const state = hass.states[entityId];
-  if (!state) return null;
-  const value = Number(state.state);
+  const state2 = hass.states[entityId];
+  if (!state2) return null;
+  const value = Number(state2.state);
   if (Number.isNaN(value)) return null;
   return {
     value,
-    min: Number(state.attributes.min ?? 1),
-    max: Number(state.attributes.max ?? 20),
-    step: Number(state.attributes.step ?? 1)
+    min: Number(state2.attributes.min ?? 1),
+    max: Number(state2.attributes.max ?? 20),
+    step: Number(state2.attributes.step ?? 1)
   };
 }
 var KibbleSettingsDialog = class extends i4 {
@@ -1804,9 +1762,9 @@ var KibbleSettingsDialog = class extends i4 {
     `;
   }
   _renderToggleRow(entityId, icon, label) {
-    const state = this.hass.states[entityId];
-    const on = state?.state === "on";
-    const unavailable = !state || state.state === "unavailable";
+    const state2 = this.hass.states[entityId];
+    const on = state2?.state === "on";
+    const unavailable = !state2 || state2.state === "unavailable";
     return b2`
       <button type="button" class="toggle-row" ?disabled=${unavailable} @click=${() => this._toggleSwitch(entityId)}>
         <span class="toggle-icon">${mdiIcon(icon)}</span>
@@ -1833,8 +1791,8 @@ var KibbleSettingsDialog = class extends i4 {
     `;
   }
   _renderCloud() {
-    const state = this.hass.states[this.entities.cloudSwitch];
-    const on = state?.state === "on";
+    const state2 = this.hass.states[this.entities.cloudSwitch];
+    const on = state2?.state === "on";
     const connection = this.entities.cloudConnection ? this.hass.states[this.entities.cloudConnection]?.state : void 0;
     return b2`
       <section>
@@ -1847,11 +1805,11 @@ var KibbleSettingsDialog = class extends i4 {
     `;
   }
   _renderWifi() {
-    const state = this.hass.states[this.entities.wifiNetwork];
+    const state2 = this.hass.states[this.entities.wifiNetwork];
     return b2`
       <section>
         <h3>Wi-Fi</h3>
-        <p class="hint">${state ? state.state : "Unavailable"}</p>
+        <p class="hint">${state2 ? state2.state : "Unavailable"}</p>
       </section>
     `;
   }
@@ -1870,13 +1828,13 @@ var KibbleSettingsDialog = class extends i4 {
     `;
   }
   _renderSpeaker() {
-    const state = this.hass.states[this.entities.speaker];
-    if (!state) return A;
-    const volume = typeof state.attributes.volume_level === "number" ? state.attributes.volume_level : 0.5;
+    const state2 = this.hass.states[this.entities.speaker];
+    if (!state2) return A;
+    const volume = typeof state2.attributes.volume_level === "number" ? state2.attributes.volume_level : 0.5;
     return b2`
       <section>
         <h3>Speaker</h3>
-        <p class="hint">${state.state}</p>
+        <p class="hint">${state2.state}</p>
         <input
           type="range"
           min="0"
@@ -2130,8 +2088,6 @@ var KibbleSettingsDialog = class extends i4 {
   }
 };
 customElements.define("kibble-settings-dialog", KibbleSettingsDialog);
-
-// src/editor.ts
 var SCHEMA = [
   { name: "device_id", required: true, selector: { device: { filter: { integration: "kibble" } } } },
   { name: "name", selector: { text: {} } }
@@ -2242,8 +2198,6 @@ var KibbleCardEditor = class extends i4 {
   }
 };
 customElements.define("kibble-card-editor", KibbleCardEditor);
-
-// src/kibble-card.ts
 var EMPTY_ENTITIES = { deviceId: "", catPresence: [] };
 var KibbleCard = class extends i4 {
   constructor() {
@@ -2283,7 +2237,7 @@ var KibbleCard = class extends i4 {
     return 6;
   }
   static getStubConfig(hass) {
-    const kibbleEntity = Object.values(hass.entities ?? {}).find((entry) => entry.platform === "kibble");
+    const kibbleEntity = Object.values(hass.entities ?? {}).find((entry2) => entry2.platform === "kibble");
     return { type: "custom:kibble-card", device_id: kibbleEntity?.device_id ?? "" };
   }
   static getConfigElement() {
@@ -2388,9 +2342,9 @@ var KibbleCard = class extends i4 {
     if (customElements.get("hui-image")) {
       return b2`<hui-image .hass=${this.hass} .cameraImage=${cameraId} cameraView="live"></hui-image>`;
     }
-    const state = this.hass.states[cameraId];
-    const src = state?.attributes.entity_picture;
-    if (!state || state.state === "unavailable" || !src) {
+    const state2 = this.hass.states[cameraId];
+    const src = state2?.attributes.entity_picture;
+    if (!state2 || state2.state === "unavailable" || !src) {
       return b2`<div class="hero-placeholder">Camera unavailable</div>`;
     }
     return b2`<img src=${src} alt="Live view of the feeder" />`;
@@ -2403,16 +2357,16 @@ var KibbleCard = class extends i4 {
   _catName() {
     const id = this._entities.lastSeenPet;
     if (!id) return null;
-    const state = this.hass.states[id]?.state;
-    if (!state || state === "unavailable" || state.toLowerCase() === "unknown") return null;
-    return state;
+    const state2 = this.hass.states[id]?.state;
+    if (!state2 || state2 === "unavailable" || state2.toLowerCase() === "unknown") return null;
+    return state2;
   }
   _lastFedRelative(feedingState) {
     const id = this._entities.feeding;
     if (!id || feedingState !== "off") return null;
-    const state = this.hass.states[id];
-    if (!state) return null;
-    return relativeTime(new Date(state.last_changed), /* @__PURE__ */ new Date());
+    const state2 = this.hass.states[id];
+    if (!state2) return null;
+    return relativeTime(new Date(state2.last_changed), /* @__PURE__ */ new Date());
   }
   _scheduleEntries() {
     const id = this._entities.schedule;
@@ -2651,9 +2605,215 @@ window.customCards.push({
   description: "The full daily control surface for a Kibble Petkit feeder: live camera, bowl status, feed, and schedule.",
   preview: true
 });
-export {
-  KibbleCard
+
+// dev/fixtures.ts
+var DEVICE_ID = "kibble-device-1";
+function entry(entityId, translationKey) {
+  return { entity_id: entityId, device_id: DEVICE_ID, platform: "kibble", translation_key: translationKey, disabled_by: null };
+}
+function state(entityId, value, attributes = {}, lastChanged) {
+  const changed = lastChanged ?? (/* @__PURE__ */ new Date()).toISOString();
+  return { entity_id: entityId, state: value, attributes, last_changed: changed, last_updated: changed };
+}
+var SCHEDULE_ENTRIES = [
+  { id: "a1", time: "07:30", amount_l: 5, amount_r: 5, enabled: true },
+  { id: "a2", time: "12:00", amount_l: 3, amount_r: 3, enabled: true },
+  { id: "a3", time: "18:00", amount_l: 5, amount_r: 5, enabled: false }
+];
+function minutesAgo(minutes) {
+  return new Date(Date.now() - minutes * 6e4).toISOString();
+}
+var DEVICE = {
+  id: DEVICE_ID,
+  name: "Cat Feeder",
+  name_by_user: null,
+  model: "YumShare Dual 2",
+  manufacturer: "Petkit"
 };
+var ENTITY_IDS = {
+  camera: "camera.plant_room_cat_feeder",
+  feeding: "binary_sensor.plant_room_cat_feeder_feeding",
+  bowlFill1: "sensor.plant_room_cat_feeder_bowl_fill_1",
+  bowlFill2: "sensor.plant_room_cat_feeder_bowl_fill_2",
+  desiccantDays: "sensor.plant_room_cat_feeder_desiccant_days",
+  schedule: "sensor.plant_room_cat_feeder_schedule",
+  feedButton: "button.plant_room_cat_feeder_feed",
+  feedButtonHopper1: "button.plant_room_cat_feeder_feed_hopper_1",
+  feedButtonHopper2: "button.plant_room_cat_feeder_feed_hopper_2",
+  cancelFeedButton: "button.plant_room_cat_feeder_cancel_feed",
+  feedAmount: "number.plant_room_cat_feeder_feed_amount",
+  feedAmountHopper1: "number.plant_room_cat_feeder_feed_amount_hopper_1",
+  feedAmountHopper2: "number.plant_room_cat_feeder_feed_amount_hopper_2",
+  cloudSwitch: "switch.plant_room_cat_feeder_petkit_cloud",
+  cloudConnection: "sensor.plant_room_cat_feeder_cloud_connection",
+  nightVisionSwitch: "switch.plant_room_cat_feeder_night_vision",
+  statusLedSwitch: "switch.plant_room_cat_feeder_status_led",
+  microphoneSwitch: "switch.plant_room_cat_feeder_microphone",
+  volume: "number.plant_room_cat_feeder_volume",
+  lastSeenPet: "sensor.plant_room_cat_feeder_last_seen_pet",
+  wifiNetwork: "sensor.plant_room_cat_feeder_wifi_network"
+};
+function registryFor(includeWifi) {
+  const registry = {
+    [ENTITY_IDS.camera]: entry(ENTITY_IDS.camera, ""),
+    [ENTITY_IDS.feeding]: entry(ENTITY_IDS.feeding, "feeding"),
+    [ENTITY_IDS.bowlFill1]: entry(ENTITY_IDS.bowlFill1, "bowl_fill_1"),
+    [ENTITY_IDS.bowlFill2]: entry(ENTITY_IDS.bowlFill2, "bowl_fill_2"),
+    [ENTITY_IDS.desiccantDays]: entry(ENTITY_IDS.desiccantDays, "desiccant_days"),
+    [ENTITY_IDS.schedule]: entry(ENTITY_IDS.schedule, "schedule"),
+    [ENTITY_IDS.feedButton]: entry(ENTITY_IDS.feedButton, "feed"),
+    [ENTITY_IDS.feedButtonHopper1]: entry(ENTITY_IDS.feedButtonHopper1, "feed_hopper_1"),
+    [ENTITY_IDS.feedButtonHopper2]: entry(ENTITY_IDS.feedButtonHopper2, "feed_hopper_2"),
+    [ENTITY_IDS.cancelFeedButton]: entry(ENTITY_IDS.cancelFeedButton, "cancel_feed"),
+    [ENTITY_IDS.feedAmount]: entry(ENTITY_IDS.feedAmount, "feed_amount"),
+    [ENTITY_IDS.feedAmountHopper1]: entry(ENTITY_IDS.feedAmountHopper1, "feed_amount_hopper_1"),
+    [ENTITY_IDS.feedAmountHopper2]: entry(ENTITY_IDS.feedAmountHopper2, "feed_amount_hopper_2"),
+    [ENTITY_IDS.cloudSwitch]: entry(ENTITY_IDS.cloudSwitch, "cloud"),
+    [ENTITY_IDS.cloudConnection]: entry(ENTITY_IDS.cloudConnection, "cloud_connection"),
+    [ENTITY_IDS.nightVisionSwitch]: entry(ENTITY_IDS.nightVisionSwitch, "night"),
+    [ENTITY_IDS.statusLedSwitch]: entry(ENTITY_IDS.statusLedSwitch, "light"),
+    [ENTITY_IDS.microphoneSwitch]: entry(ENTITY_IDS.microphoneSwitch, "microphone"),
+    [ENTITY_IDS.volume]: entry(ENTITY_IDS.volume, "volume"),
+    [ENTITY_IDS.lastSeenPet]: entry(ENTITY_IDS.lastSeenPet, "last_seen_pet")
+  };
+  if (includeWifi) {
+    registry[ENTITY_IDS.wifiNetwork] = entry(ENTITY_IDS.wifiNetwork, "wifi_network");
+  }
+  return registry;
+}
+function scheduleState() {
+  const enabledCount = SCHEDULE_ENTRIES.filter((e6) => e6.enabled).length;
+  return state(ENTITY_IDS.schedule, String(SCHEDULE_ENTRIES.length), {
+    entries: SCHEDULE_ENTRIES,
+    last_modified: minutesAgo(180),
+    friendly_name: `${enabledCount} scheduled`
+  });
+}
+function buildIdle() {
+  const states = {
+    [ENTITY_IDS.camera]: state(ENTITY_IDS.camera, "streaming", { entity_picture: "./camera-frame.svg" }),
+    [ENTITY_IDS.feeding]: state(ENTITY_IDS.feeding, "off", {}, minutesAgo(126)),
+    [ENTITY_IDS.bowlFill1]: state(ENTITY_IDS.bowlFill1, "62", { unit_of_measurement: "%" }),
+    [ENTITY_IDS.bowlFill2]: state(ENTITY_IDS.bowlFill2, "65", { unit_of_measurement: "%" }),
+    [ENTITY_IDS.desiccantDays]: state(ENTITY_IDS.desiccantDays, "12", { unit_of_measurement: "d" }),
+    [ENTITY_IDS.schedule]: scheduleState(),
+    [ENTITY_IDS.feedAmount]: state(ENTITY_IDS.feedAmount, "3", { min: 1, max: 20, step: 1 }),
+    [ENTITY_IDS.feedAmountHopper1]: state(ENTITY_IDS.feedAmountHopper1, "2", { min: 1, max: 20, step: 1 }),
+    [ENTITY_IDS.feedAmountHopper2]: state(ENTITY_IDS.feedAmountHopper2, "2", { min: 1, max: 20, step: 1 }),
+    [ENTITY_IDS.cloudSwitch]: state(ENTITY_IDS.cloudSwitch, "on"),
+    [ENTITY_IDS.cloudConnection]: state(ENTITY_IDS.cloudConnection, "connected"),
+    [ENTITY_IDS.nightVisionSwitch]: state(ENTITY_IDS.nightVisionSwitch, "off"),
+    [ENTITY_IDS.statusLedSwitch]: state(ENTITY_IDS.statusLedSwitch, "on"),
+    [ENTITY_IDS.microphoneSwitch]: state(ENTITY_IDS.microphoneSwitch, "on"),
+    [ENTITY_IDS.volume]: state(ENTITY_IDS.volume, "6", { min: 0, max: 9, step: 1 }),
+    [ENTITY_IDS.lastSeenPet]: state(ENTITY_IDS.lastSeenPet, "Rashy", { score: 0.94 }, minutesAgo(126))
+  };
+  return { device: DEVICE, entities: registryFor(false), states };
+}
+function buildDispensing() {
+  const states = {
+    [ENTITY_IDS.camera]: state(ENTITY_IDS.camera, "streaming", { entity_picture: "./camera-frame.svg" }),
+    [ENTITY_IDS.feeding]: state(ENTITY_IDS.feeding, "on", {}, minutesAgo(0)),
+    [ENTITY_IDS.bowlFill1]: state(ENTITY_IDS.bowlFill1, "40", { unit_of_measurement: "%" }),
+    [ENTITY_IDS.bowlFill2]: state(ENTITY_IDS.bowlFill2, "71", { unit_of_measurement: "%" }),
+    [ENTITY_IDS.desiccantDays]: state(ENTITY_IDS.desiccantDays, "3", { unit_of_measurement: "d" }),
+    [ENTITY_IDS.schedule]: scheduleState(),
+    [ENTITY_IDS.feedAmount]: state(ENTITY_IDS.feedAmount, "5", { min: 1, max: 20, step: 1 }),
+    [ENTITY_IDS.feedAmountHopper1]: state(ENTITY_IDS.feedAmountHopper1, "3", { min: 1, max: 20, step: 1 }),
+    [ENTITY_IDS.feedAmountHopper2]: state(ENTITY_IDS.feedAmountHopper2, "3", { min: 1, max: 20, step: 1 }),
+    [ENTITY_IDS.cloudSwitch]: state(ENTITY_IDS.cloudSwitch, "off"),
+    [ENTITY_IDS.cloudConnection]: state(ENTITY_IDS.cloudConnection, "blocked"),
+    [ENTITY_IDS.nightVisionSwitch]: state(ENTITY_IDS.nightVisionSwitch, "off"),
+    [ENTITY_IDS.statusLedSwitch]: state(ENTITY_IDS.statusLedSwitch, "on"),
+    [ENTITY_IDS.microphoneSwitch]: state(ENTITY_IDS.microphoneSwitch, "on"),
+    [ENTITY_IDS.volume]: state(ENTITY_IDS.volume, "6", { min: 0, max: 9, step: 1 }),
+    [ENTITY_IDS.lastSeenPet]: state(ENTITY_IDS.lastSeenPet, "Rashy", { score: 0.88 }, minutesAgo(1)),
+    [ENTITY_IDS.wifiNetwork]: state(ENTITY_IDS.wifiNetwork, "Good (-52 dBm)")
+  };
+  return { device: DEVICE, entities: registryFor(true), states };
+}
+function buildUnreachable() {
+  const states = {
+    [ENTITY_IDS.camera]: state(ENTITY_IDS.camera, "unavailable", {}),
+    [ENTITY_IDS.feeding]: state(ENTITY_IDS.feeding, "unavailable", {}),
+    [ENTITY_IDS.bowlFill1]: state(ENTITY_IDS.bowlFill1, "unavailable", {}),
+    [ENTITY_IDS.bowlFill2]: state(ENTITY_IDS.bowlFill2, "unavailable", {}),
+    [ENTITY_IDS.desiccantDays]: state(ENTITY_IDS.desiccantDays, "unavailable", {}),
+    [ENTITY_IDS.schedule]: state(ENTITY_IDS.schedule, "unavailable", {}),
+    // HA-local (RestoreEntity) state, not device-backed — stays available per number.py.
+    [ENTITY_IDS.feedAmount]: state(ENTITY_IDS.feedAmount, "3", { min: 1, max: 20, step: 1 }),
+    [ENTITY_IDS.feedAmountHopper1]: state(ENTITY_IDS.feedAmountHopper1, "2", { min: 1, max: 20, step: 1 }),
+    [ENTITY_IDS.feedAmountHopper2]: state(ENTITY_IDS.feedAmountHopper2, "2", { min: 1, max: 20, step: 1 }),
+    [ENTITY_IDS.cloudSwitch]: state(ENTITY_IDS.cloudSwitch, "unavailable", {}),
+    [ENTITY_IDS.cloudConnection]: state(ENTITY_IDS.cloudConnection, "unavailable", {}),
+    [ENTITY_IDS.nightVisionSwitch]: state(ENTITY_IDS.nightVisionSwitch, "unavailable", {}),
+    [ENTITY_IDS.statusLedSwitch]: state(ENTITY_IDS.statusLedSwitch, "unavailable", {}),
+    [ENTITY_IDS.microphoneSwitch]: state(ENTITY_IDS.microphoneSwitch, "unavailable", {}),
+    [ENTITY_IDS.volume]: state(ENTITY_IDS.volume, "unavailable", {}),
+    [ENTITY_IDS.lastSeenPet]: state(ENTITY_IDS.lastSeenPet, "unavailable", {})
+  };
+  return { device: DEVICE, entities: registryFor(false), states };
+}
+function buildFixture(scenario) {
+  if (scenario === "idle") return buildIdle();
+  if (scenario === "dispensing") return buildDispensing();
+  return buildUnreachable();
+}
+
+// dev/mock-hass.ts
+function createMockHass(scenario) {
+  const fixture = buildFixture(scenario);
+  const states = { ...fixture.states };
+  const hass = {
+    states,
+    entities: fixture.entities,
+    devices: { [fixture.device.id]: fixture.device },
+    themes: {},
+    language: "en",
+    callService: async (domain, service, data, target) => {
+      console.log("[mock hass] callService", { domain, service, data, target });
+      const entityId = target?.entity_id ?? void 0;
+      if (domain === "number" && service === "set_value" && entityId && states[entityId]) {
+        states[entityId] = { ...states[entityId], state: String(data?.value ?? "") };
+        hass.states = { ...states };
+      }
+      if (domain === "switch" && service === "toggle" && entityId && states[entityId]) {
+        const next = states[entityId].state === "on" ? "off" : "on";
+        states[entityId] = { ...states[entityId], state: next };
+        hass.states = { ...states };
+      }
+      return void 0;
+    }
+  };
+  return hass;
+}
+
+// dev/app.ts
+async function main() {
+  const params = new URLSearchParams(location.search);
+  const scenario = params.get("scenario") ?? "idle";
+  const theme = params.get("theme") ?? "light";
+  const width = Number(params.get("width") ?? "400");
+  const heightParam = params.get("height");
+  const height = heightParam ? Number(heightParam) : null;
+  const name = params.get("name") ?? void 0;
+  document.documentElement.classList.toggle("dark", theme === "dark");
+  const container = document.getElementById("container");
+  if (!container) throw new Error("missing #container");
+  container.style.width = `${width}px`;
+  container.style.height = height ? `${height}px` : "auto";
+  await customElements.whenDefined("kibble-card");
+  const card = document.createElement("kibble-card");
+  const config = { type: "custom:kibble-card", device_id: DEVICE_ID };
+  if (name) config.name = name;
+  card.setConfig(config);
+  card.hass = createMockHass(scenario);
+  container.appendChild(card);
+  await card.updateComplete;
+  await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+  window.__kibbleReady = true;
+}
+void main();
 /*! Bundled license information:
 
 @lit/reactive-element/css-tag.js:
@@ -2719,4 +2879,4 @@ lit-html/directives/ref.js:
    * SPDX-License-Identifier: BSD-3-Clause
    *)
 */
-//# sourceMappingURL=kibble-card.js.map
+//# sourceMappingURL=app.js.map

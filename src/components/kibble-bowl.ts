@@ -1,6 +1,6 @@
-/** The bowl: the card's primary status object. Fill level, the cat silhouette and the feed
- * animation all live here — this is the thing you can read from across a room, per Nitin's
- * squint test. No MDI; every mark is either the brand cat or the brand kibble-piece shape.
+/** The bowl: the card's primary status object. Drawn as an actual bowl seen at a slight angle —
+ * a wide rim, a tapered body, a recessed interior — not a flat lozenge, so fill level, the two-
+ * chamber split, and the cat silhouette all read unmistakably from across a room.
  */
 
 import { LitElement, css, html, nothing, svg } from "lit";
@@ -9,30 +9,38 @@ import { combineBowlFill } from "../lib/bowl-fill";
 import { catSilhouette, kibblePiece } from "../lib/brand-shapes";
 import { KIBBLE_FALL_DURATION_MS, prefersReducedMotion } from "../styles/tokens";
 
-const VIEW_W = 240;
-const VIEW_H = 170;
-const RIM_CENTER_Y = 108;
-const RIM_RY = 42;
+const VIEW_W = 260;
+const VIEW_H = 200;
+const CX = 130;
+const RIM_CY = 66;
+const RIM_RX = 116;
+const RIM_RY = 44;
+const BASE_CY = 168;
+const BASE_RX = 76;
+const BASIN_RX = 96;
+const BASIN_RY = 34;
 
-/** Deterministic scatter offsets for texture kibble + falling kibble, so re-renders (and tests
- * that snapshot markup) don't jitter — this is art direction, not randomness that matters. */
-const SCATTER = [-0.62, -0.31, -0.04, 0.22, 0.48, 0.68, -0.5, 0.08];
+const SCATTER = [-0.62, -0.31, -0.04, 0.22, 0.48, 0.68, -0.5, 0.08, 0.35, -0.18];
 
-function fillEllipse(cx: number, cy: number, rx: number, ry: number, fraction: number) {
+/** The bowl's exterior silhouette: rim's front (lower) arc down to the base, across, and back up
+ * — the classic 2D "looking into a bowl" body shape. */
+const BODY_PATH = `M ${CX + RIM_RX} ${RIM_CY} A ${RIM_RX} ${RIM_RY} 0 0 1 ${CX - RIM_RX} ${RIM_CY} C ${CX - RIM_RX + 8} ${RIM_CY + 58}, ${CX - BASE_RX + 6} ${BASE_CY - 26}, ${CX - BASE_RX} ${BASE_CY} L ${CX + BASE_RX} ${BASE_CY} C ${CX + BASE_RX - 6} ${BASE_CY - 26}, ${CX + RIM_RX - 8} ${RIM_CY + 58}, ${CX + RIM_RX} ${RIM_CY} Z`;
+
+function fillShape(cx: number, rx: number, ry: number, fraction: number) {
   const scale = Math.sqrt(Math.max(0, Math.min(1, fraction)));
   if (scale <= 0) return nothing;
-  return svg`<ellipse cx=${cx} cy=${cy} rx=${rx * scale} ry=${ry * scale} class="fill" />`;
+  return svg`<ellipse cx=${cx} cy=${RIM_CY + 6} rx=${rx * scale} ry=${ry * scale} class="fill" />`;
 }
 
 function textureKibble(cx: number, rx: number, fraction: number, seedOffset: number) {
   if (fraction < 0.15) return nothing;
-  const count = fraction > 0.6 ? 4 : 2;
+  const count = fraction > 0.6 ? 5 : 3;
   const pieces = [];
   for (let i = 0; i < count; i++) {
     const t = SCATTER[(i + seedOffset) % SCATTER.length]!;
-    const x = cx + t * rx * 0.7 - 4;
-    const y = RIM_CENTER_Y - 4 + (i % 2 === 0 ? -3 : 3);
-    pieces.push(kibblePiece(x, y, 8, t * 40));
+    const x = cx + t * rx * 0.72 - 5;
+    const y = RIM_CY + 2 + (i % 2 === 0 ? -4 : 5);
+    pieces.push(kibblePiece(x, y, 10, t * 50));
   }
   return svg`<g class="texture">${pieces}</g>`;
 }
@@ -87,9 +95,11 @@ export class KibbleBowl extends LitElement {
 
     return html`
       <div class="wrap">
-        <svg class="art" viewBox="0 0 ${VIEW_W} ${VIEW_H}" aria-hidden="true">
-          ${this.catName ? html`<g class="cat" transform="translate(88 6) scale(0.25)">${catSilhouette()}</g>` : nothing}
+        <svg class="art" viewBox="0 0 ${VIEW_W} ${VIEW_H}" aria-hidden="true" preserveAspectRatio="xMidYMin meet">
+          ${this.catName ? html`<g class="cat" transform="translate(96 -6) scale(0.27)">${catSilhouette()}</g>` : nothing}
+          <path class="body" d=${BODY_PATH} />
           ${display.split ? this._renderSplitBasin(display.hopper1!, display.hopper2!) : this._renderSingleBasin(display.combined ?? 0)}
+          <ellipse cx=${CX} cy=${RIM_CY} rx=${RIM_RX} ry=${RIM_RY} class="rim" />
           ${this._dropping ? this._renderFallingKibble() : nothing}
         </svg>
         <div class="numbers">
@@ -108,40 +118,38 @@ export class KibbleBowl extends LitElement {
 
   private _renderSingleBasin(fraction0to100: number) {
     const fraction = fraction0to100 / 100;
-    const cx = VIEW_W / 2;
     return svg`
       <g>
-        <ellipse cx=${cx} cy=${RIM_CENTER_Y} rx="100" ry=${RIM_RY} class="basin" />
-        <ellipse cx=${cx} cy=${RIM_CENTER_Y} rx="100" ry=${RIM_RY} class="rim" />
-        ${fillEllipse(cx, RIM_CENTER_Y, 92, RIM_RY - 6, fraction)}
-        ${textureKibble(cx, 92, fraction, 0)}
+        <ellipse cx=${CX} cy=${RIM_CY} rx=${BASIN_RX} ry=${BASIN_RY} class="basin" />
+        ${fillShape(CX, BASIN_RX - 6, BASIN_RY - 6, fraction)}
+        ${textureKibble(CX, BASIN_RX, fraction, 0)}
       </g>
     `;
   }
 
   private _renderSplitBasin(hopper1: number, hopper2: number) {
-    const leftCx = 68;
-    const rightCx = 172;
+    const leftCx = CX - BASIN_RX / 2 - 4;
+    const rightCx = CX + BASIN_RX / 2 + 4;
+    const halfRx = BASIN_RX / 2 - 6;
     return svg`
       <g>
-        <rect x="10" y=${RIM_CENTER_Y - RIM_RY} width="220" height=${RIM_RY * 2} rx=${RIM_RY} class="basin" />
-        <rect x="10" y=${RIM_CENTER_Y - RIM_RY} width="220" height=${RIM_RY * 2} rx=${RIM_RY} class="rim" />
-        <line x1="120" y1=${RIM_CENTER_Y - RIM_RY + 6} x2="120" y2=${RIM_CENTER_Y + RIM_RY - 6} class="divider" />
-        ${fillEllipse(leftCx, RIM_CENTER_Y, 50, RIM_RY - 8, hopper1 / 100)}
-        ${fillEllipse(rightCx, RIM_CENTER_Y, 50, RIM_RY - 8, hopper2 / 100)}
-        ${textureKibble(leftCx, 50, hopper1 / 100, 1)}
-        ${textureKibble(rightCx, 50, hopper2 / 100, 3)}
+        <ellipse cx=${CX} cy=${RIM_CY} rx=${BASIN_RX} ry=${BASIN_RY} class="basin" />
+        ${fillShape(leftCx, halfRx - 4, BASIN_RY - 8, hopper1 / 100)}
+        ${fillShape(rightCx, halfRx - 4, BASIN_RY - 8, hopper2 / 100)}
+        ${textureKibble(leftCx, halfRx, hopper1 / 100, 1)}
+        ${textureKibble(rightCx, halfRx, hopper2 / 100, 4)}
+        <path d="M ${CX} ${RIM_CY - BASIN_RY + 4} L ${CX} ${RIM_CY + BASIN_RY - 4}" class="divider" />
       </g>
     `;
   }
 
   private _renderFallingKibble() {
-    const pieces = SCATTER.slice(0, 6).map((t, i) => {
-      const x = VIEW_W / 2 + t * 90 - 5;
+    const pieces = SCATTER.slice(0, 7).map((t, i) => {
+      const x = CX + t * (BASIN_RX - 10) - 6;
       const delayMs = i * 70;
       const durationMs = 320;
-      const style = `--fall-delay:${delayMs}ms;--fall-duration:${durationMs}ms;--fall-rotate:${(t * 180).toFixed(0)}deg;`;
-      return svg`<g class="drop" style=${style}>${kibblePiece(x, 4, 10, t * 30)}</g>`;
+      const style = `--fall-delay:${delayMs}ms;--fall-duration:${durationMs}ms;--fall-rotate:${(t * 180).toFixed(0)}deg;--fall-to:${RIM_CY - 10}px;`;
+      return svg`<g class="drop" style=${style}>${kibblePiece(x, -20, 12, t * 30)}</g>`;
     });
     return svg`<g class="drops">${pieces}</g>`;
   }
@@ -159,21 +167,30 @@ export class KibbleBowl extends LitElement {
     }
     .art {
       width: 100%;
-      max-width: var(--kibble-bowl-max-width, 280px);
+      max-width: var(--kibble-bowl-max-width, 320px);
       height: auto;
       overflow: visible;
     }
-    .basin {
-      fill: var(--secondary-background-color, rgba(127, 127, 127, 0.12));
+    .body {
+      fill: var(--ha-card-background, var(--card-background-color));
+      stroke: var(--primary-text-color);
+      stroke-width: 3;
+      stroke-linejoin: round;
     }
     .rim {
       fill: none;
-      stroke: var(--divider-color, rgba(127, 127, 127, 0.3));
-      stroke-width: 2.5;
+      stroke: var(--primary-text-color);
+      stroke-width: 3;
+    }
+    .basin {
+      fill: var(--secondary-background-color, rgba(127, 127, 127, 0.16));
+      stroke: var(--divider-color);
+      stroke-width: 1.5;
     }
     .divider {
-      stroke: var(--divider-color, rgba(127, 127, 127, 0.3));
-      stroke-width: 2;
+      stroke: var(--primary-text-color);
+      stroke-width: 4;
+      stroke-linecap: round;
     }
     .fill {
       fill: var(--kibble-amber);
@@ -191,21 +208,21 @@ export class KibbleBowl extends LitElement {
     }
     @keyframes kibble-drop {
       from {
-        transform: translateY(-40px) rotate(0deg);
+        transform: translateY(0) rotate(0deg);
         opacity: 0;
       }
       15% {
         opacity: 1;
       }
       to {
-        transform: translateY(0) rotate(var(--fall-rotate));
+        transform: translateY(var(--fall-to)) rotate(var(--fall-rotate));
         opacity: 1;
       }
     }
     .numbers {
       display: flex;
-      gap: 18px;
-      margin-top: -8px;
+      gap: 22px;
+      margin-top: -6px;
     }
     .fill-number {
       font-size: var(--kibble-number-size, 32px);

@@ -123,7 +123,7 @@ function buildIdle(): Fixture {
     [ENTITY_IDS.statusLedSwitch]: state(ENTITY_IDS.statusLedSwitch, "on"),
     [ENTITY_IDS.microphoneSwitch]: state(ENTITY_IDS.microphoneSwitch, "on"),
     [ENTITY_IDS.volume]: state(ENTITY_IDS.volume, "6", { min: 0, max: 9, step: 1 }),
-    [ENTITY_IDS.lastSeenPet]: state(ENTITY_IDS.lastSeenPet, "Mochi", { score: 0.94 }, minutesAgo(126)),
+    [ENTITY_IDS.lastSeenPet]: state(ENTITY_IDS.lastSeenPet, "Rashy", { score: 0.94 }, minutesAgo(126)),
   };
   return { device: DEVICE, entities: registryFor(false), states };
 }
@@ -145,7 +145,7 @@ function buildDispensing(): Fixture {
     [ENTITY_IDS.statusLedSwitch]: state(ENTITY_IDS.statusLedSwitch, "on"),
     [ENTITY_IDS.microphoneSwitch]: state(ENTITY_IDS.microphoneSwitch, "on"),
     [ENTITY_IDS.volume]: state(ENTITY_IDS.volume, "6", { min: 0, max: 9, step: 1 }),
-    [ENTITY_IDS.lastSeenPet]: state(ENTITY_IDS.lastSeenPet, "Biscuit", { score: 0.88 }, minutesAgo(1)),
+    [ENTITY_IDS.lastSeenPet]: state(ENTITY_IDS.lastSeenPet, "Rashy", { score: 0.88 }, minutesAgo(1)),
     [ENTITY_IDS.wifiNetwork]: state(ENTITY_IDS.wifiNetwork, "Good (-52 dBm)"),
   };
   return { device: DEVICE, entities: registryFor(true), states };

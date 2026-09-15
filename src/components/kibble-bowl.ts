@@ -1,48 +1,72 @@
-/** The bowl: the card's primary status object. Drawn as an actual bowl seen at a slight angle —
- * a wide rim, a tapered body, a recessed interior — not a flat lozenge, so fill level, the two-
- * chamber split, and the cat silhouette all read unmistakably from across a room.
+/** The bowl: the card's primary status object. A single continuous ceramic-dish silhouette
+ * (rim, curved sides, a small foot, a contact shadow), a two-tone recessed interior for depth,
+ * and food drawn as a mound — a convex pile that rises with fill level and carries loose,
+ * individually-shaped kibble pieces on its surface — not a flat tinted disc.
  */
 
-import { LitElement, css, html, nothing, svg } from "lit";
+import { LitElement, css, html, nothing, svg, type SVGTemplateResult } from "lit";
 import type { PropertyValues } from "lit";
 import { combineBowlFill } from "../lib/bowl-fill";
-import { catSilhouette, kibblePiece } from "../lib/brand-shapes";
+import { catSilhouette } from "../lib/brand-shapes";
 import { KIBBLE_FALL_DURATION_MS, prefersReducedMotion } from "../styles/tokens";
 
 const VIEW_W = 260;
 const VIEW_H = 200;
 const CX = 130;
-const RIM_CY = 66;
+const RIM_CY = 60;
 const RIM_RX = 116;
-const RIM_RY = 44;
-const BASE_CY = 168;
-const BASE_RX = 76;
-const BASIN_RX = 96;
-const BASIN_RY = 34;
+const RIM_RY = 40;
+const FOOT_CY = 178;
+const FOOT_RX = 46;
+const FOOT_RY = 10;
+const FLOOR_Y = 78;
+const BASIN_HALF_W = 86;
+const MAX_MOUND_HEIGHT = 46;
 
-const SCATTER = [-0.62, -0.31, -0.04, 0.22, 0.48, 0.68, -0.5, 0.08, 0.35, -0.18];
+/** One continuous silhouette: rim's right point down the curved side to the foot, across the
+ * foot, up the other side, closed along the rim's own near (front) arc. */
+const BODY_PATH = `M ${CX + RIM_RX} ${RIM_CY} C ${CX + RIM_RX} ${RIM_CY + 50}, ${CX + 70} ${FOOT_CY - 13}, ${CX + FOOT_RX} ${FOOT_CY} A ${FOOT_RX} ${FOOT_RY} 0 0 1 ${CX - FOOT_RX} ${FOOT_CY} C ${CX - 70} ${FOOT_CY - 13}, ${CX - RIM_RX} ${RIM_CY + 50}, ${CX - RIM_RX} ${RIM_CY} A ${RIM_RX} ${RIM_RY} 0 0 0 ${CX + RIM_RX} ${RIM_CY} Z`;
 
-/** The bowl's exterior silhouette: rim's front (lower) arc down to the base, across, and back up
- * — the classic 2D "looking into a bowl" body shape. */
-const BODY_PATH = `M ${CX + RIM_RX} ${RIM_CY} A ${RIM_RX} ${RIM_RY} 0 0 1 ${CX - RIM_RX} ${RIM_CY} C ${CX - RIM_RX + 8} ${RIM_CY + 58}, ${CX - BASE_RX + 6} ${BASE_CY - 26}, ${CX - BASE_RX} ${BASE_CY} L ${CX + BASE_RX} ${BASE_CY} C ${CX + BASE_RX - 6} ${BASE_CY - 26}, ${CX + RIM_RX - 8} ${RIM_CY + 58}, ${CX + RIM_RX} ${RIM_CY} Z`;
+const SCATTER = [-0.6, -0.32, -0.06, 0.2, 0.46, 0.66, -0.46, 0.08, 0.34, -0.2];
 
-function fillShape(cx: number, rx: number, ry: number, fraction: number) {
-  const scale = Math.sqrt(Math.max(0, Math.min(1, fraction)));
-  if (scale <= 0) return nothing;
-  return svg`<ellipse cx=${cx} cy=${RIM_CY + 6} rx=${rx * scale} ry=${ry * scale} class="fill" />`;
+/** A quadratic-bezier mound: flat baseline rising to a convex peak — the dome silhouette. */
+function moundPath(left: number, right: number, height: number): string {
+  const cx = (left + right) / 2;
+  return `M ${left} ${FLOOR_Y} Q ${cx} ${FLOOR_Y - 2 * height} ${right} ${FLOOR_Y} Z`;
 }
 
-function textureKibble(cx: number, rx: number, fraction: number, seedOffset: number) {
-  if (fraction < 0.15) return nothing;
-  const count = fraction > 0.6 ? 5 : 3;
-  const pieces = [];
-  for (let i = 0; i < count; i++) {
-    const t = SCATTER[(i + seedOffset) % SCATTER.length]!;
-    const x = cx + t * rx * 0.72 - 5;
-    const y = RIM_CY + 2 + (i % 2 === 0 ? -4 : 5);
-    pieces.push(kibblePiece(x, y, 10, t * 50));
+function moundTopY(t: number, left: number, right: number, height: number): number {
+  const peakControlY = FLOOR_Y - 2 * height;
+  return (1 - t) * (1 - t) * FLOOR_Y + 2 * (1 - t) * t * peakControlY + t * t * FLOOR_Y;
+}
+
+/** The brand's kibble motif as three overlapping lobes — a rounded clover, not a circle. */
+function cloverPiece(x: number, y: number, r: number, rotationDeg: number): SVGTemplateResult {
+  const lobes = [0, 120, 240].map((angle) => {
+    const rad = ((angle + rotationDeg) * Math.PI) / 180;
+    return svg`<circle cx=${(x + Math.cos(rad) * r * 0.55).toFixed(1)} cy=${(y + Math.sin(rad) * r * 0.55).toFixed(1)} r=${(r * 0.62).toFixed(1)} />`;
+  });
+  return svg`<g>${lobes}</g>`;
+}
+
+function mound(left: number, right: number, fraction: number, seed: number) {
+  if (fraction <= 0.02) return nothing;
+  const height = MAX_MOUND_HEIGHT * fraction;
+  const pieceCount = Math.round(6 + 4 * fraction);
+  const pieces: SVGTemplateResult[] = [];
+  for (let i = 0; i < pieceCount; i++) {
+    const t = (i + 0.5) / pieceCount;
+    const x = left + (right - left) * t;
+    const topY = moundTopY(t, left, right, height);
+    const jitter = SCATTER[(i + seed) % SCATTER.length]! * 6;
+    const r = 5.5 + ((i + seed) % 3) * 1.4;
+    const edgeBreak = i === 0 || i === pieceCount - 1 ? (i === 0 ? -3 : 3) : 0;
+    pieces.push(cloverPiece(x + edgeBreak, topY + jitter - 2, r, i * 47 + seed * 13));
   }
-  return svg`<g class="texture">${pieces}</g>`;
+  return svg`
+    <path d=${moundPath(left, right, height)} class="fill" />
+    <g class="texture">${pieces}</g>
+  `;
 }
 
 export class KibbleBowl extends LitElement {
@@ -96,6 +120,7 @@ export class KibbleBowl extends LitElement {
     return html`
       <div class="wrap">
         <svg class="art" viewBox="0 0 ${VIEW_W} ${VIEW_H}" aria-hidden="true" preserveAspectRatio="xMidYMin meet">
+          <ellipse cx=${CX} cy=${FOOT_CY + 14} rx="66" ry="9" class="shadow" />
           ${this.catName ? html`<g class="cat" transform="translate(96 -6) scale(0.27)">${catSilhouette()}</g>` : nothing}
           <path class="body" d=${BODY_PATH} />
           ${display.split ? this._renderSplitBasin(display.hopper1!, display.hopper2!) : this._renderSingleBasin(display.combined ?? 0)}
@@ -120,36 +145,40 @@ export class KibbleBowl extends LitElement {
     const fraction = fraction0to100 / 100;
     return svg`
       <g>
-        <ellipse cx=${CX} cy=${RIM_CY} rx=${BASIN_RX} ry=${BASIN_RY} class="basin" />
-        ${fillShape(CX, BASIN_RX - 6, BASIN_RY - 6, fraction)}
-        ${textureKibble(CX, BASIN_RX, fraction, 0)}
+        <ellipse cx=${CX} cy="62" rx="100" ry="32" class="basin-far" />
+        <ellipse cx=${CX} cy="68" rx="90" ry="25" class="basin-near" />
+        ${mound(CX - BASIN_HALF_W * (0.32 + 0.68 * Math.sqrt(fraction)), CX + BASIN_HALF_W * (0.32 + 0.68 * Math.sqrt(fraction)), fraction, 0)}
       </g>
     `;
   }
 
   private _renderSplitBasin(hopper1: number, hopper2: number) {
-    const leftCx = CX - BASIN_RX / 2 - 4;
-    const rightCx = CX + BASIN_RX / 2 + 4;
-    const halfRx = BASIN_RX / 2 - 6;
+    const leftCenter = CX - 44;
+    const rightCenter = CX + 44;
+    const halfW = 40;
+    const f1 = hopper1 / 100;
+    const f2 = hopper2 / 100;
     return svg`
       <g>
-        <ellipse cx=${CX} cy=${RIM_CY} rx=${BASIN_RX} ry=${BASIN_RY} class="basin" />
-        ${fillShape(leftCx, halfRx - 4, BASIN_RY - 8, hopper1 / 100)}
-        ${fillShape(rightCx, halfRx - 4, BASIN_RY - 8, hopper2 / 100)}
-        ${textureKibble(leftCx, halfRx, hopper1 / 100, 1)}
-        ${textureKibble(rightCx, halfRx, hopper2 / 100, 4)}
-        <path d="M ${CX} ${RIM_CY - BASIN_RY + 4} L ${CX} ${RIM_CY + BASIN_RY - 4}" class="divider" />
+        <ellipse cx=${CX} cy="62" rx="100" ry="32" class="basin-far" />
+        <ellipse cx=${CX} cy="68" rx="90" ry="25" class="basin-near" />
+        ${mound(leftCenter - halfW * (0.35 + 0.65 * Math.sqrt(f1)), leftCenter + halfW * (0.35 + 0.65 * Math.sqrt(f1)), f1, 1)}
+        ${mound(rightCenter - halfW * (0.35 + 0.65 * Math.sqrt(f2)), rightCenter + halfW * (0.35 + 0.65 * Math.sqrt(f2)), f2, 4)}
+        <g class="divider">
+          <line x1=${CX - 3} y1="46" x2=${CX - 3} y2="90" />
+          <line x1=${CX + 3} y1="46" x2=${CX + 3} y2="90" />
+        </g>
       </g>
     `;
   }
 
   private _renderFallingKibble() {
     const pieces = SCATTER.slice(0, 7).map((t, i) => {
-      const x = CX + t * (BASIN_RX - 10) - 6;
+      const x = CX + t * (BASIN_HALF_W - 6);
       const delayMs = i * 70;
       const durationMs = 320;
-      const style = `--fall-delay:${delayMs}ms;--fall-duration:${durationMs}ms;--fall-rotate:${(t * 180).toFixed(0)}deg;--fall-to:${RIM_CY - 10}px;`;
-      return svg`<g class="drop" style=${style}>${kibblePiece(x, -20, 12, t * 30)}</g>`;
+      const style = `--fall-delay:${delayMs}ms;--fall-duration:${durationMs}ms;--fall-rotate:${(t * 180).toFixed(0)}deg;--fall-to:${FLOOR_Y - 30}px;`;
+      return svg`<g class="drop" style=${style}>${cloverPiece(x, 0, 7, t * 60)}</g>`;
     });
     return svg`<g class="drops">${pieces}</g>`;
   }
@@ -167,48 +196,50 @@ export class KibbleBowl extends LitElement {
     }
     .art {
       width: 100%;
-      max-width: var(--kibble-bowl-max-width, 320px);
+      max-width: var(--kibble-bowl-max-width, 280px);
       height: auto;
       overflow: visible;
     }
+    .shadow {
+      fill: rgba(0, 0, 0, 0.16);
+    }
     .body {
-      fill: var(--ha-card-background, var(--card-background-color));
+      fill: var(--secondary-background-color, rgba(127, 127, 127, 0.1));
       stroke: var(--primary-text-color);
-      stroke-width: 3;
+      stroke-width: 2.6;
       stroke-linejoin: round;
     }
     .rim {
       fill: none;
       stroke: var(--primary-text-color);
-      stroke-width: 3;
+      stroke-width: 1.6;
     }
-    .basin {
+    .basin-far {
+      fill: var(--divider-color);
+    }
+    .basin-near {
       fill: var(--secondary-background-color, rgba(127, 127, 127, 0.16));
-      stroke: var(--divider-color);
-      stroke-width: 1.5;
     }
-    .divider {
+    .divider line {
       stroke: var(--primary-text-color);
-      stroke-width: 4;
-      stroke-linecap: round;
+      stroke-width: 1.4;
     }
     .fill {
       fill: var(--kibble-amber);
     }
-    .texture rect {
+    .texture circle {
       fill: var(--kibble-amber-dark);
-      opacity: 0.85;
     }
     .cat {
       fill: var(--secondary-text-color);
     }
-    .drops rect {
+    .drops circle {
       fill: var(--kibble-amber-dark);
       animation: kibble-drop var(--fall-duration) cubic-bezier(0.4, 0, 1, 1) var(--fall-delay) both;
     }
     @keyframes kibble-drop {
       from {
-        transform: translateY(0) rotate(0deg);
+        transform: translateY(-40px) rotate(0deg);
         opacity: 0;
       }
       15% {

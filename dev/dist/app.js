@@ -697,40 +697,53 @@ function catSilhouette() {
     </svg>
   `;
 }
-function kibblePiece(x2, y3, size, rotationDeg) {
-  const r6 = size / 4;
-  const cx = x2 + size / 2;
-  const cy = y3 + size / 2;
-  return w`<rect x=${x2} y=${y3} width=${size} height=${size} rx=${r6} transform="rotate(${rotationDeg} ${cx} ${cy})" />`;
-}
 var VIEW_W = 260;
 var VIEW_H = 200;
 var CX = 130;
-var RIM_CY = 66;
+var RIM_CY = 60;
 var RIM_RX = 116;
-var RIM_RY = 44;
-var BASE_CY = 168;
-var BASE_RX = 76;
-var BASIN_RX = 96;
-var BASIN_RY = 34;
-var SCATTER = [-0.62, -0.31, -0.04, 0.22, 0.48, 0.68, -0.5, 0.08, 0.35, -0.18];
-var BODY_PATH = `M ${CX + RIM_RX} ${RIM_CY} A ${RIM_RX} ${RIM_RY} 0 0 1 ${CX - RIM_RX} ${RIM_CY} C ${CX - RIM_RX + 8} ${RIM_CY + 58}, ${CX - BASE_RX + 6} ${BASE_CY - 26}, ${CX - BASE_RX} ${BASE_CY} L ${CX + BASE_RX} ${BASE_CY} C ${CX + BASE_RX - 6} ${BASE_CY - 26}, ${CX + RIM_RX - 8} ${RIM_CY + 58}, ${CX + RIM_RX} ${RIM_CY} Z`;
-function fillShape(cx, rx, ry, fraction) {
-  const scale = Math.sqrt(Math.max(0, Math.min(1, fraction)));
-  if (scale <= 0) return A;
-  return w`<ellipse cx=${cx} cy=${RIM_CY + 6} rx=${rx * scale} ry=${ry * scale} class="fill" />`;
+var RIM_RY = 40;
+var FOOT_CY = 178;
+var FOOT_RX = 46;
+var FOOT_RY = 10;
+var FLOOR_Y = 78;
+var BASIN_HALF_W = 86;
+var MAX_MOUND_HEIGHT = 46;
+var BODY_PATH = `M ${CX + RIM_RX} ${RIM_CY} C ${CX + RIM_RX} ${RIM_CY + 50}, ${CX + 70} ${FOOT_CY - 13}, ${CX + FOOT_RX} ${FOOT_CY} A ${FOOT_RX} ${FOOT_RY} 0 0 1 ${CX - FOOT_RX} ${FOOT_CY} C ${CX - 70} ${FOOT_CY - 13}, ${CX - RIM_RX} ${RIM_CY + 50}, ${CX - RIM_RX} ${RIM_CY} A ${RIM_RX} ${RIM_RY} 0 0 0 ${CX + RIM_RX} ${RIM_CY} Z`;
+var SCATTER = [-0.6, -0.32, -0.06, 0.2, 0.46, 0.66, -0.46, 0.08, 0.34, -0.2];
+function moundPath(left, right, height) {
+  const cx = (left + right) / 2;
+  return `M ${left} ${FLOOR_Y} Q ${cx} ${FLOOR_Y - 2 * height} ${right} ${FLOOR_Y} Z`;
 }
-function textureKibble(cx, rx, fraction, seedOffset) {
-  if (fraction < 0.15) return A;
-  const count = fraction > 0.6 ? 5 : 3;
+function moundTopY(t5, left, right, height) {
+  const peakControlY = FLOOR_Y - 2 * height;
+  return (1 - t5) * (1 - t5) * FLOOR_Y + 2 * (1 - t5) * t5 * peakControlY + t5 * t5 * FLOOR_Y;
+}
+function cloverPiece(x2, y3, r6, rotationDeg) {
+  const lobes = [0, 120, 240].map((angle) => {
+    const rad = (angle + rotationDeg) * Math.PI / 180;
+    return w`<circle cx=${(x2 + Math.cos(rad) * r6 * 0.55).toFixed(1)} cy=${(y3 + Math.sin(rad) * r6 * 0.55).toFixed(1)} r=${(r6 * 0.62).toFixed(1)} />`;
+  });
+  return w`<g>${lobes}</g>`;
+}
+function mound(left, right, fraction, seed) {
+  if (fraction <= 0.02) return A;
+  const height = MAX_MOUND_HEIGHT * fraction;
+  const pieceCount = Math.round(6 + 4 * fraction);
   const pieces = [];
-  for (let i6 = 0; i6 < count; i6++) {
-    const t5 = SCATTER[(i6 + seedOffset) % SCATTER.length];
-    const x2 = cx + t5 * rx * 0.72 - 5;
-    const y3 = RIM_CY + 2 + (i6 % 2 === 0 ? -4 : 5);
-    pieces.push(kibblePiece(x2, y3, 10, t5 * 50));
+  for (let i6 = 0; i6 < pieceCount; i6++) {
+    const t5 = (i6 + 0.5) / pieceCount;
+    const x2 = left + (right - left) * t5;
+    const topY = moundTopY(t5, left, right, height);
+    const jitter = SCATTER[(i6 + seed) % SCATTER.length] * 6;
+    const r6 = 5.5 + (i6 + seed) % 3 * 1.4;
+    const edgeBreak = i6 === 0 || i6 === pieceCount - 1 ? i6 === 0 ? -3 : 3 : 0;
+    pieces.push(cloverPiece(x2 + edgeBreak, topY + jitter - 2, r6, i6 * 47 + seed * 13));
   }
-  return w`<g class="texture">${pieces}</g>`;
+  return w`
+    <path d=${moundPath(left, right, height)} class="fill" />
+    <g class="texture">${pieces}</g>
+  `;
 }
 var KibbleBowl = class extends i4 {
   constructor() {
@@ -773,6 +786,7 @@ var KibbleBowl = class extends i4 {
     return b2`
       <div class="wrap">
         <svg class="art" viewBox="0 0 ${VIEW_W} ${VIEW_H}" aria-hidden="true" preserveAspectRatio="xMidYMin meet">
+          <ellipse cx=${CX} cy=${FOOT_CY + 14} rx="66" ry="9" class="shadow" />
           ${this.catName ? b2`<g class="cat" transform="translate(96 -6) scale(0.27)">${catSilhouette()}</g>` : A}
           <path class="body" d=${BODY_PATH} />
           ${display.split ? this._renderSplitBasin(display.hopper1, display.hopper2) : this._renderSingleBasin(display.combined ?? 0)}
@@ -794,34 +808,38 @@ var KibbleBowl = class extends i4 {
     const fraction = fraction0to100 / 100;
     return w`
       <g>
-        <ellipse cx=${CX} cy=${RIM_CY} rx=${BASIN_RX} ry=${BASIN_RY} class="basin" />
-        ${fillShape(CX, BASIN_RX - 6, BASIN_RY - 6, fraction)}
-        ${textureKibble(CX, BASIN_RX, fraction, 0)}
+        <ellipse cx=${CX} cy="62" rx="100" ry="32" class="basin-far" />
+        <ellipse cx=${CX} cy="68" rx="90" ry="25" class="basin-near" />
+        ${mound(CX - BASIN_HALF_W * (0.32 + 0.68 * Math.sqrt(fraction)), CX + BASIN_HALF_W * (0.32 + 0.68 * Math.sqrt(fraction)), fraction, 0)}
       </g>
     `;
   }
   _renderSplitBasin(hopper1, hopper2) {
-    const leftCx = CX - BASIN_RX / 2 - 4;
-    const rightCx = CX + BASIN_RX / 2 + 4;
-    const halfRx = BASIN_RX / 2 - 6;
+    const leftCenter = CX - 44;
+    const rightCenter = CX + 44;
+    const halfW = 40;
+    const f1 = hopper1 / 100;
+    const f22 = hopper2 / 100;
     return w`
       <g>
-        <ellipse cx=${CX} cy=${RIM_CY} rx=${BASIN_RX} ry=${BASIN_RY} class="basin" />
-        ${fillShape(leftCx, halfRx - 4, BASIN_RY - 8, hopper1 / 100)}
-        ${fillShape(rightCx, halfRx - 4, BASIN_RY - 8, hopper2 / 100)}
-        ${textureKibble(leftCx, halfRx, hopper1 / 100, 1)}
-        ${textureKibble(rightCx, halfRx, hopper2 / 100, 4)}
-        <path d="M ${CX} ${RIM_CY - BASIN_RY + 4} L ${CX} ${RIM_CY + BASIN_RY - 4}" class="divider" />
+        <ellipse cx=${CX} cy="62" rx="100" ry="32" class="basin-far" />
+        <ellipse cx=${CX} cy="68" rx="90" ry="25" class="basin-near" />
+        ${mound(leftCenter - halfW * (0.35 + 0.65 * Math.sqrt(f1)), leftCenter + halfW * (0.35 + 0.65 * Math.sqrt(f1)), f1, 1)}
+        ${mound(rightCenter - halfW * (0.35 + 0.65 * Math.sqrt(f22)), rightCenter + halfW * (0.35 + 0.65 * Math.sqrt(f22)), f22, 4)}
+        <g class="divider">
+          <line x1=${CX - 3} y1="46" x2=${CX - 3} y2="90" />
+          <line x1=${CX + 3} y1="46" x2=${CX + 3} y2="90" />
+        </g>
       </g>
     `;
   }
   _renderFallingKibble() {
     const pieces = SCATTER.slice(0, 7).map((t5, i6) => {
-      const x2 = CX + t5 * (BASIN_RX - 10) - 6;
+      const x2 = CX + t5 * (BASIN_HALF_W - 6);
       const delayMs = i6 * 70;
       const durationMs = 320;
-      const style = `--fall-delay:${delayMs}ms;--fall-duration:${durationMs}ms;--fall-rotate:${(t5 * 180).toFixed(0)}deg;--fall-to:${RIM_CY - 10}px;`;
-      return w`<g class="drop" style=${style}>${kibblePiece(x2, -20, 12, t5 * 30)}</g>`;
+      const style = `--fall-delay:${delayMs}ms;--fall-duration:${durationMs}ms;--fall-rotate:${(t5 * 180).toFixed(0)}deg;--fall-to:${FLOOR_Y - 30}px;`;
+      return w`<g class="drop" style=${style}>${cloverPiece(x2, 0, 7, t5 * 60)}</g>`;
     });
     return w`<g class="drops">${pieces}</g>`;
   }
@@ -839,48 +857,50 @@ var KibbleBowl = class extends i4 {
     }
     .art {
       width: 100%;
-      max-width: var(--kibble-bowl-max-width, 320px);
+      max-width: var(--kibble-bowl-max-width, 280px);
       height: auto;
       overflow: visible;
     }
+    .shadow {
+      fill: rgba(0, 0, 0, 0.16);
+    }
     .body {
-      fill: var(--ha-card-background, var(--card-background-color));
+      fill: var(--secondary-background-color, rgba(127, 127, 127, 0.1));
       stroke: var(--primary-text-color);
-      stroke-width: 3;
+      stroke-width: 2.6;
       stroke-linejoin: round;
     }
     .rim {
       fill: none;
       stroke: var(--primary-text-color);
-      stroke-width: 3;
+      stroke-width: 1.6;
     }
-    .basin {
+    .basin-far {
+      fill: var(--divider-color);
+    }
+    .basin-near {
       fill: var(--secondary-background-color, rgba(127, 127, 127, 0.16));
-      stroke: var(--divider-color);
-      stroke-width: 1.5;
     }
-    .divider {
+    .divider line {
       stroke: var(--primary-text-color);
-      stroke-width: 4;
-      stroke-linecap: round;
+      stroke-width: 1.4;
     }
     .fill {
       fill: var(--kibble-amber);
     }
-    .texture rect {
+    .texture circle {
       fill: var(--kibble-amber-dark);
-      opacity: 0.85;
     }
     .cat {
       fill: var(--secondary-text-color);
     }
-    .drops rect {
+    .drops circle {
       fill: var(--kibble-amber-dark);
       animation: kibble-drop var(--fall-duration) cubic-bezier(0.4, 0, 1, 1) var(--fall-delay) both;
     }
     @keyframes kibble-drop {
       from {
-        transform: translateY(0) rotate(0deg);
+        transform: translateY(-40px) rotate(0deg);
         opacity: 0;
       }
       15% {

@@ -1,852 +1,45 @@
-// node_modules/@lit/reactive-element/css-tag.js
-var t = globalThis;
-var e = t.ShadowRoot && (void 0 === t.ShadyCSS || t.ShadyCSS.nativeShadow) && "adoptedStyleSheets" in Document.prototype && "replace" in CSSStyleSheet.prototype;
-var s = Symbol();
-var o = /* @__PURE__ */ new WeakMap();
-var n = class {
-  constructor(t5, e6, o7) {
-    if (this._$cssResult$ = true, o7 !== s) throw Error("CSSResult is not constructable. Use `unsafeCSS` or `css` instead.");
-    this.cssText = t5, this.t = e6;
-  }
-  get styleSheet() {
-    let t5 = this.o;
-    const s5 = this.t;
-    if (e && void 0 === t5) {
-      const e6 = void 0 !== s5 && 1 === s5.length;
-      e6 && (t5 = o.get(s5)), void 0 === t5 && ((this.o = t5 = new CSSStyleSheet()).replaceSync(this.cssText), e6 && o.set(s5, t5));
-    }
-    return t5;
-  }
-  toString() {
-    return this.cssText;
-  }
-};
-var r = (t5) => new n("string" == typeof t5 ? t5 : t5 + "", void 0, s);
-var i = (t5, ...e6) => {
-  const o7 = 1 === t5.length ? t5[0] : e6.reduce((e7, s5, o8) => e7 + ((t6) => {
-    if (true === t6._$cssResult$) return t6.cssText;
-    if ("number" == typeof t6) return t6;
-    throw Error("Value passed to 'css' function must be a 'css' function result: " + t6 + ". Use 'unsafeCSS' to pass non-literal values, but take care to ensure page security.");
-  })(s5) + t5[o8 + 1], t5[0]);
-  return new n(o7, t5, s);
-};
-var S = (s5, o7) => {
-  if (e) s5.adoptedStyleSheets = o7.map((t5) => t5 instanceof CSSStyleSheet ? t5 : t5.styleSheet);
-  else for (const e6 of o7) {
-    const o8 = document.createElement("style"), n6 = t.litNonce;
-    void 0 !== n6 && o8.setAttribute("nonce", n6), o8.textContent = e6.cssText, s5.appendChild(o8);
-  }
-};
-var c = e ? (t5) => t5 : (t5) => t5 instanceof CSSStyleSheet ? ((t6) => {
-  let e6 = "";
-  for (const s5 of t6.cssRules) e6 += s5.cssText;
-  return r(e6);
-})(t5) : t5;
-
-// node_modules/@lit/reactive-element/reactive-element.js
-var { is: i2, defineProperty: e2, getOwnPropertyDescriptor: h, getOwnPropertyNames: r2, getOwnPropertySymbols: o2, getPrototypeOf: n2 } = Object;
-var a = globalThis;
-var c2 = a.trustedTypes;
-var l = c2 ? c2.emptyScript : "";
-var p = a.reactiveElementPolyfillSupport;
-var d = (t5, s5) => t5;
-var u = { toAttribute(t5, s5) {
-  switch (s5) {
-    case Boolean:
-      t5 = t5 ? l : null;
-      break;
-    case Object:
-    case Array:
-      t5 = null == t5 ? t5 : JSON.stringify(t5);
-  }
-  return t5;
-}, fromAttribute(t5, s5) {
-  let i6 = t5;
-  switch (s5) {
-    case Boolean:
-      i6 = null !== t5;
-      break;
-    case Number:
-      i6 = null === t5 ? null : Number(t5);
-      break;
-    case Object:
-    case Array:
-      try {
-        i6 = JSON.parse(t5);
-      } catch (t6) {
-        i6 = null;
-      }
-  }
-  return i6;
-} };
-var f = (t5, s5) => !i2(t5, s5);
-var b = { attribute: true, type: String, converter: u, reflect: false, useDefault: false, hasChanged: f };
-Symbol.metadata ??= Symbol("metadata"), a.litPropertyMetadata ??= /* @__PURE__ */ new WeakMap();
-var y = class extends HTMLElement {
-  static addInitializer(t5) {
-    this._$Ei(), (this.l ??= []).push(t5);
-  }
-  static get observedAttributes() {
-    return this.finalize(), this._$Eh && [...this._$Eh.keys()];
-  }
-  static createProperty(t5, s5 = b) {
-    if (s5.state && (s5.attribute = false), this._$Ei(), this.prototype.hasOwnProperty(t5) && ((s5 = Object.create(s5)).wrapped = true), this.elementProperties.set(t5, s5), !s5.noAccessor) {
-      const i6 = Symbol(), h5 = this.getPropertyDescriptor(t5, i6, s5);
-      void 0 !== h5 && e2(this.prototype, t5, h5);
-    }
-  }
-  static getPropertyDescriptor(t5, s5, i6) {
-    const { get: e6, set: r6 } = h(this.prototype, t5) ?? { get() {
-      return this[s5];
-    }, set(t6) {
-      this[s5] = t6;
-    } };
-    return { get: e6, set(s6) {
-      const h5 = e6?.call(this);
-      r6?.call(this, s6), this.requestUpdate(t5, h5, i6);
-    }, configurable: true, enumerable: true };
-  }
-  static getPropertyOptions(t5) {
-    return this.elementProperties.get(t5) ?? b;
-  }
-  static _$Ei() {
-    if (this.hasOwnProperty(d("elementProperties"))) return;
-    const t5 = n2(this);
-    t5.finalize(), void 0 !== t5.l && (this.l = [...t5.l]), this.elementProperties = new Map(t5.elementProperties);
-  }
-  static finalize() {
-    if (this.hasOwnProperty(d("finalized"))) return;
-    if (this.finalized = true, this._$Ei(), this.hasOwnProperty(d("properties"))) {
-      const t6 = this.properties, s5 = [...r2(t6), ...o2(t6)];
-      for (const i6 of s5) this.createProperty(i6, t6[i6]);
-    }
-    const t5 = this[Symbol.metadata];
-    if (null !== t5) {
-      const s5 = litPropertyMetadata.get(t5);
-      if (void 0 !== s5) for (const [t6, i6] of s5) this.elementProperties.set(t6, i6);
-    }
-    this._$Eh = /* @__PURE__ */ new Map();
-    for (const [t6, s5] of this.elementProperties) {
-      const i6 = this._$Eu(t6, s5);
-      void 0 !== i6 && this._$Eh.set(i6, t6);
-    }
-    this.elementStyles = this.finalizeStyles(this.styles);
-  }
-  static finalizeStyles(s5) {
-    const i6 = [];
-    if (Array.isArray(s5)) {
-      const e6 = new Set(s5.flat(1 / 0).reverse());
-      for (const s6 of e6) i6.unshift(c(s6));
-    } else void 0 !== s5 && i6.push(c(s5));
-    return i6;
-  }
-  static _$Eu(t5, s5) {
-    const i6 = s5.attribute;
-    return false === i6 ? void 0 : "string" == typeof i6 ? i6 : "string" == typeof t5 ? t5.toLowerCase() : void 0;
-  }
-  constructor() {
-    super(), this._$Ep = void 0, this.isUpdatePending = false, this.hasUpdated = false, this._$Em = null, this._$Ev();
-  }
-  _$Ev() {
-    this._$ES = new Promise((t5) => this.enableUpdating = t5), this._$AL = /* @__PURE__ */ new Map(), this._$E_(), this.requestUpdate(), this.constructor.l?.forEach((t5) => t5(this));
-  }
-  addController(t5) {
-    (this._$EO ??= /* @__PURE__ */ new Set()).add(t5), void 0 !== this.renderRoot && this.isConnected && t5.hostConnected?.();
-  }
-  removeController(t5) {
-    this._$EO?.delete(t5);
-  }
-  _$E_() {
-    const t5 = /* @__PURE__ */ new Map(), s5 = this.constructor.elementProperties;
-    for (const i6 of s5.keys()) this.hasOwnProperty(i6) && (t5.set(i6, this[i6]), delete this[i6]);
-    t5.size > 0 && (this._$Ep = t5);
-  }
-  createRenderRoot() {
-    const t5 = this.shadowRoot ?? this.attachShadow(this.constructor.shadowRootOptions);
-    return S(t5, this.constructor.elementStyles), t5;
-  }
-  connectedCallback() {
-    this.renderRoot ??= this.createRenderRoot(), this.enableUpdating(true), this._$EO?.forEach((t5) => t5.hostConnected?.());
-  }
-  enableUpdating(t5) {
-  }
-  disconnectedCallback() {
-    this._$EO?.forEach((t5) => t5.hostDisconnected?.());
-  }
-  attributeChangedCallback(t5, s5, i6) {
-    this._$AK(t5, i6);
-  }
-  _$ET(t5, s5) {
-    const i6 = this.constructor.elementProperties.get(t5), e6 = this.constructor._$Eu(t5, i6);
-    if (void 0 !== e6 && true === i6.reflect) {
-      const h5 = (void 0 !== i6.converter?.toAttribute ? i6.converter : u).toAttribute(s5, i6.type);
-      this._$Em = t5, null == h5 ? this.removeAttribute(e6) : this.setAttribute(e6, h5), this._$Em = null;
-    }
-  }
-  _$AK(t5, s5) {
-    const i6 = this.constructor, e6 = i6._$Eh.get(t5);
-    if (void 0 !== e6 && this._$Em !== e6) {
-      const t6 = i6.getPropertyOptions(e6), h5 = "function" == typeof t6.converter ? { fromAttribute: t6.converter } : void 0 !== t6.converter?.fromAttribute ? t6.converter : u;
-      this._$Em = e6;
-      const r6 = h5.fromAttribute(s5, t6.type);
-      this[e6] = r6 ?? this._$Ej?.get(e6) ?? r6, this._$Em = null;
-    }
-  }
-  requestUpdate(t5, s5, i6, e6 = false, h5) {
-    if (void 0 !== t5) {
-      const r6 = this.constructor;
-      if (false === e6 && (h5 = this[t5]), i6 ??= r6.getPropertyOptions(t5), !((i6.hasChanged ?? f)(h5, s5) || i6.useDefault && i6.reflect && h5 === this._$Ej?.get(t5) && !this.hasAttribute(r6._$Eu(t5, i6)))) return;
-      this.C(t5, s5, i6);
-    }
-    false === this.isUpdatePending && (this._$ES = this._$EP());
-  }
-  C(t5, s5, { useDefault: i6, reflect: e6, wrapped: h5 }, r6) {
-    i6 && !(this._$Ej ??= /* @__PURE__ */ new Map()).has(t5) && (this._$Ej.set(t5, r6 ?? s5 ?? this[t5]), true !== h5 || void 0 !== r6) || (this._$AL.has(t5) || (this.hasUpdated || i6 || (s5 = void 0), this._$AL.set(t5, s5)), true === e6 && this._$Em !== t5 && (this._$Eq ??= /* @__PURE__ */ new Set()).add(t5));
-  }
-  async _$EP() {
-    this.isUpdatePending = true;
-    try {
-      await this._$ES;
-    } catch (t6) {
-      Promise.reject(t6);
-    }
-    const t5 = this.scheduleUpdate();
-    return null != t5 && await t5, !this.isUpdatePending;
-  }
-  scheduleUpdate() {
-    return this.performUpdate();
-  }
-  performUpdate() {
-    if (!this.isUpdatePending) return;
-    if (!this.hasUpdated) {
-      if (this.renderRoot ??= this.createRenderRoot(), this._$Ep) {
-        for (const [t7, s6] of this._$Ep) this[t7] = s6;
-        this._$Ep = void 0;
-      }
-      const t6 = this.constructor.elementProperties;
-      if (t6.size > 0) for (const [s6, i6] of t6) {
-        const { wrapped: t7 } = i6, e6 = this[s6];
-        true !== t7 || this._$AL.has(s6) || void 0 === e6 || this.C(s6, void 0, i6, e6);
-      }
-    }
-    let t5 = false;
-    const s5 = this._$AL;
-    try {
-      t5 = this.shouldUpdate(s5), t5 ? (this.willUpdate(s5), this._$EO?.forEach((t6) => t6.hostUpdate?.()), this.update(s5)) : this._$EM();
-    } catch (s6) {
-      throw t5 = false, this._$EM(), s6;
-    }
-    t5 && this._$AE(s5);
-  }
-  willUpdate(t5) {
-  }
-  _$AE(t5) {
-    this._$EO?.forEach((t6) => t6.hostUpdated?.()), this.hasUpdated || (this.hasUpdated = true, this.firstUpdated(t5)), this.updated(t5);
-  }
-  _$EM() {
-    this._$AL = /* @__PURE__ */ new Map(), this.isUpdatePending = false;
-  }
-  get updateComplete() {
-    return this.getUpdateComplete();
-  }
-  getUpdateComplete() {
-    return this._$ES;
-  }
-  shouldUpdate(t5) {
-    return true;
-  }
-  update(t5) {
-    this._$Eq &&= this._$Eq.forEach((t6) => this._$ET(t6, this[t6])), this._$EM();
-  }
-  updated(t5) {
-  }
-  firstUpdated(t5) {
-  }
-};
-y.elementStyles = [], y.shadowRootOptions = { mode: "open" }, y[d("elementProperties")] = /* @__PURE__ */ new Map(), y[d("finalized")] = /* @__PURE__ */ new Map(), p?.({ ReactiveElement: y }), (a.reactiveElementVersions ??= []).push("2.1.2");
-
-// node_modules/lit-html/lit-html.js
-var t2 = globalThis;
-var i3 = (t5) => t5;
-var s2 = t2.trustedTypes;
-var e3 = s2 ? s2.createPolicy("lit-html", { createHTML: (t5) => t5 }) : void 0;
-var h2 = "$lit$";
-var o3 = `lit$${Math.random().toFixed(9).slice(2)}$`;
-var n3 = "?" + o3;
-var r3 = `<${n3}>`;
-var l2 = document;
-var c3 = () => l2.createComment("");
-var a2 = (t5) => null === t5 || "object" != typeof t5 && "function" != typeof t5;
-var u2 = Array.isArray;
-var d2 = (t5) => u2(t5) || "function" == typeof t5?.[Symbol.iterator];
-var f2 = "[ 	\n\f\r]";
-var v = /<(?:(!--|\/[^a-zA-Z])|(\/?[a-zA-Z][^>\s]*)|(\/?$))/g;
-var _ = /-->/g;
-var m = />/g;
-var p2 = RegExp(`>|${f2}(?:([^\\s"'>=/]+)(${f2}*=${f2}*(?:[^ 	
-\f\r"'\`<>=]|("|')|))|$)`, "g");
-var g = /'/g;
-var $ = /"/g;
-var y2 = /^(?:script|style|textarea|title)$/i;
-var x = (t5) => (i6, ...s5) => ({ _$litType$: t5, strings: i6, values: s5 });
-var b2 = x(1);
-var w = x(2);
-var T = x(3);
-var E = Symbol.for("lit-noChange");
-var A = Symbol.for("lit-nothing");
-var C = /* @__PURE__ */ new WeakMap();
-var P = l2.createTreeWalker(l2, 129);
-function V(t5, i6) {
-  if (!u2(t5) || !t5.hasOwnProperty("raw")) throw Error("invalid template strings array");
-  return void 0 !== e3 ? e3.createHTML(i6) : i6;
-}
-var N = (t5, i6) => {
-  const s5 = t5.length - 1, e6 = [];
-  let n6, l3 = 2 === i6 ? "<svg>" : 3 === i6 ? "<math>" : "", c5 = v;
-  for (let i7 = 0; i7 < s5; i7++) {
-    const s6 = t5[i7];
-    let a3, u3, d3 = -1, f4 = 0;
-    for (; f4 < s6.length && (c5.lastIndex = f4, u3 = c5.exec(s6), null !== u3); ) f4 = c5.lastIndex, c5 === v ? "!--" === u3[1] ? c5 = _ : void 0 !== u3[1] ? c5 = m : void 0 !== u3[2] ? (y2.test(u3[2]) && (n6 = RegExp("</" + u3[2], "g")), c5 = p2) : void 0 !== u3[3] && (c5 = p2) : c5 === p2 ? ">" === u3[0] ? (c5 = n6 ?? v, d3 = -1) : void 0 === u3[1] ? d3 = -2 : (d3 = c5.lastIndex - u3[2].length, a3 = u3[1], c5 = void 0 === u3[3] ? p2 : '"' === u3[3] ? $ : g) : c5 === $ || c5 === g ? c5 = p2 : c5 === _ || c5 === m ? c5 = v : (c5 = p2, n6 = void 0);
-    const x2 = c5 === p2 && t5[i7 + 1].startsWith("/>") ? " " : "";
-    l3 += c5 === v ? s6 + r3 : d3 >= 0 ? (e6.push(a3), s6.slice(0, d3) + h2 + s6.slice(d3) + o3 + x2) : s6 + o3 + (-2 === d3 ? i7 : x2);
-  }
-  return [V(t5, l3 + (t5[s5] || "<?>") + (2 === i6 ? "</svg>" : 3 === i6 ? "</math>" : "")), e6];
-};
-var S2 = class _S {
-  constructor({ strings: t5, _$litType$: i6 }, e6) {
-    let r6;
-    this.parts = [];
-    let l3 = 0, a3 = 0;
-    const u3 = t5.length - 1, d3 = this.parts, [f4, v2] = N(t5, i6);
-    if (this.el = _S.createElement(f4, e6), P.currentNode = this.el.content, 2 === i6 || 3 === i6) {
-      const t6 = this.el.content.firstChild;
-      t6.replaceWith(...t6.childNodes);
-    }
-    for (; null !== (r6 = P.nextNode()) && d3.length < u3; ) {
-      if (1 === r6.nodeType) {
-        if (r6.hasAttributes()) for (const t6 of r6.getAttributeNames()) if (t6.endsWith(h2)) {
-          const i7 = v2[a3++], s5 = r6.getAttribute(t6).split(o3), e7 = /([.?@])?(.*)/.exec(i7);
-          d3.push({ type: 1, index: l3, name: e7[2], strings: s5, ctor: "." === e7[1] ? I : "?" === e7[1] ? L : "@" === e7[1] ? z : H }), r6.removeAttribute(t6);
-        } else t6.startsWith(o3) && (d3.push({ type: 6, index: l3 }), r6.removeAttribute(t6));
-        if (y2.test(r6.tagName)) {
-          const t6 = r6.textContent.split(o3), i7 = t6.length - 1;
-          if (i7 > 0) {
-            r6.textContent = s2 ? s2.emptyScript : "";
-            for (let s5 = 0; s5 < i7; s5++) r6.append(t6[s5], c3()), P.nextNode(), d3.push({ type: 2, index: ++l3 });
-            r6.append(t6[i7], c3());
-          }
-        }
-      } else if (8 === r6.nodeType) if (r6.data === n3) d3.push({ type: 2, index: l3 });
-      else {
-        let t6 = -1;
-        for (; -1 !== (t6 = r6.data.indexOf(o3, t6 + 1)); ) d3.push({ type: 7, index: l3 }), t6 += o3.length - 1;
-      }
-      l3++;
-    }
-  }
-  static createElement(t5, i6) {
-    const s5 = l2.createElement("template");
-    return s5.innerHTML = t5, s5;
-  }
-};
-function M(t5, i6, s5 = t5, e6) {
-  if (i6 === E) return i6;
-  let h5 = void 0 !== e6 ? s5._$Co?.[e6] : s5._$Cl;
-  const o7 = a2(i6) ? void 0 : i6._$litDirective$;
-  return h5?.constructor !== o7 && (h5?._$AO?.(false), void 0 === o7 ? h5 = void 0 : (h5 = new o7(t5), h5._$AT(t5, s5, e6)), void 0 !== e6 ? (s5._$Co ??= [])[e6] = h5 : s5._$Cl = h5), void 0 !== h5 && (i6 = M(t5, h5._$AS(t5, i6.values), h5, e6)), i6;
-}
-var R = class {
-  constructor(t5, i6) {
-    this._$AV = [], this._$AN = void 0, this._$AD = t5, this._$AM = i6;
-  }
-  get parentNode() {
-    return this._$AM.parentNode;
-  }
-  get _$AU() {
-    return this._$AM._$AU;
-  }
-  u(t5) {
-    const { el: { content: i6 }, parts: s5 } = this._$AD, e6 = (t5?.creationScope ?? l2).importNode(i6, true);
-    P.currentNode = e6;
-    let h5 = P.nextNode(), o7 = 0, n6 = 0, r6 = s5[0];
-    for (; void 0 !== r6; ) {
-      if (o7 === r6.index) {
-        let i7;
-        2 === r6.type ? i7 = new k(h5, h5.nextSibling, this, t5) : 1 === r6.type ? i7 = new r6.ctor(h5, r6.name, r6.strings, this, t5) : 6 === r6.type && (i7 = new Z(h5, this, t5)), this._$AV.push(i7), r6 = s5[++n6];
-      }
-      o7 !== r6?.index && (h5 = P.nextNode(), o7++);
-    }
-    return P.currentNode = l2, e6;
-  }
-  p(t5) {
-    let i6 = 0;
-    for (const s5 of this._$AV) void 0 !== s5 && (void 0 !== s5.strings ? (s5._$AI(t5, s5, i6), i6 += s5.strings.length - 2) : s5._$AI(t5[i6])), i6++;
-  }
-};
-var k = class _k {
-  get _$AU() {
-    return this._$AM?._$AU ?? this._$Cv;
-  }
-  constructor(t5, i6, s5, e6) {
-    this.type = 2, this._$AH = A, this._$AN = void 0, this._$AA = t5, this._$AB = i6, this._$AM = s5, this.options = e6, this._$Cv = e6?.isConnected ?? true;
-  }
-  get parentNode() {
-    let t5 = this._$AA.parentNode;
-    const i6 = this._$AM;
-    return void 0 !== i6 && 11 === t5?.nodeType && (t5 = i6.parentNode), t5;
-  }
-  get startNode() {
-    return this._$AA;
-  }
-  get endNode() {
-    return this._$AB;
-  }
-  _$AI(t5, i6 = this) {
-    t5 = M(this, t5, i6), a2(t5) ? t5 === A || null == t5 || "" === t5 ? (this._$AH !== A && this._$AR(), this._$AH = A) : t5 !== this._$AH && t5 !== E && this._(t5) : void 0 !== t5._$litType$ ? this.$(t5) : void 0 !== t5.nodeType ? this.T(t5) : d2(t5) ? this.k(t5) : this._(t5);
-  }
-  O(t5) {
-    return this._$AA.parentNode.insertBefore(t5, this._$AB);
-  }
-  T(t5) {
-    this._$AH !== t5 && (this._$AR(), this._$AH = this.O(t5));
-  }
-  _(t5) {
-    this._$AH !== A && a2(this._$AH) ? this._$AA.nextSibling.data = t5 : this.T(l2.createTextNode(t5)), this._$AH = t5;
-  }
-  $(t5) {
-    const { values: i6, _$litType$: s5 } = t5, e6 = "number" == typeof s5 ? this._$AC(t5) : (void 0 === s5.el && (s5.el = S2.createElement(V(s5.h, s5.h[0]), this.options)), s5);
-    if (this._$AH?._$AD === e6) this._$AH.p(i6);
-    else {
-      const t6 = new R(e6, this), s6 = t6.u(this.options);
-      t6.p(i6), this.T(s6), this._$AH = t6;
-    }
-  }
-  _$AC(t5) {
-    let i6 = C.get(t5.strings);
-    return void 0 === i6 && C.set(t5.strings, i6 = new S2(t5)), i6;
-  }
-  k(t5) {
-    u2(this._$AH) || (this._$AH = [], this._$AR());
-    const i6 = this._$AH;
-    let s5, e6 = 0;
-    for (const h5 of t5) e6 === i6.length ? i6.push(s5 = new _k(this.O(c3()), this.O(c3()), this, this.options)) : s5 = i6[e6], s5._$AI(h5), e6++;
-    e6 < i6.length && (this._$AR(s5 && s5._$AB.nextSibling, e6), i6.length = e6);
-  }
-  _$AR(t5 = this._$AA.nextSibling, s5) {
-    for (this._$AP?.(false, true, s5); t5 !== this._$AB; ) {
-      const s6 = i3(t5).nextSibling;
-      i3(t5).remove(), t5 = s6;
-    }
-  }
-  setConnected(t5) {
-    void 0 === this._$AM && (this._$Cv = t5, this._$AP?.(t5));
-  }
-};
-var H = class {
-  get tagName() {
-    return this.element.tagName;
-  }
-  get _$AU() {
-    return this._$AM._$AU;
-  }
-  constructor(t5, i6, s5, e6, h5) {
-    this.type = 1, this._$AH = A, this._$AN = void 0, this.element = t5, this.name = i6, this._$AM = e6, this.options = h5, s5.length > 2 || "" !== s5[0] || "" !== s5[1] ? (this._$AH = Array(s5.length - 1).fill(new String()), this.strings = s5) : this._$AH = A;
-  }
-  _$AI(t5, i6 = this, s5, e6) {
-    const h5 = this.strings;
-    let o7 = false;
-    if (void 0 === h5) t5 = M(this, t5, i6, 0), o7 = !a2(t5) || t5 !== this._$AH && t5 !== E, o7 && (this._$AH = t5);
-    else {
-      const e7 = t5;
-      let n6, r6;
-      for (t5 = h5[0], n6 = 0; n6 < h5.length - 1; n6++) r6 = M(this, e7[s5 + n6], i6, n6), r6 === E && (r6 = this._$AH[n6]), o7 ||= !a2(r6) || r6 !== this._$AH[n6], r6 === A ? t5 = A : t5 !== A && (t5 += (r6 ?? "") + h5[n6 + 1]), this._$AH[n6] = r6;
-    }
-    o7 && !e6 && this.j(t5);
-  }
-  j(t5) {
-    t5 === A ? this.element.removeAttribute(this.name) : this.element.setAttribute(this.name, t5 ?? "");
-  }
-};
-var I = class extends H {
-  constructor() {
-    super(...arguments), this.type = 3;
-  }
-  j(t5) {
-    this.element[this.name] = t5 === A ? void 0 : t5;
-  }
-};
-var L = class extends H {
-  constructor() {
-    super(...arguments), this.type = 4;
-  }
-  j(t5) {
-    this.element.toggleAttribute(this.name, !!t5 && t5 !== A);
-  }
-};
-var z = class extends H {
-  constructor(t5, i6, s5, e6, h5) {
-    super(t5, i6, s5, e6, h5), this.type = 5;
-  }
-  _$AI(t5, i6 = this) {
-    if ((t5 = M(this, t5, i6, 0) ?? A) === E) return;
-    const s5 = this._$AH, e6 = t5 === A && s5 !== A || t5.capture !== s5.capture || t5.once !== s5.once || t5.passive !== s5.passive, h5 = t5 !== A && (s5 === A || e6);
-    e6 && this.element.removeEventListener(this.name, this, s5), h5 && this.element.addEventListener(this.name, this, t5), this._$AH = t5;
-  }
-  handleEvent(t5) {
-    "function" == typeof this._$AH ? this._$AH.call(this.options?.host ?? this.element, t5) : this._$AH.handleEvent(t5);
-  }
-};
-var Z = class {
-  constructor(t5, i6, s5) {
-    this.element = t5, this.type = 6, this._$AN = void 0, this._$AM = i6, this.options = s5;
-  }
-  get _$AU() {
-    return this._$AM._$AU;
-  }
-  _$AI(t5) {
-    M(this, t5);
-  }
-};
-var j = { M: h2, P: o3, A: n3, C: 1, L: N, R, D: d2, V: M, I: k, H, N: L, U: z, B: I, F: Z };
-var B = t2.litHtmlPolyfillSupport;
-B?.(S2, k), (t2.litHtmlVersions ??= []).push("3.3.3");
-var D = (t5, i6, s5) => {
-  const e6 = s5?.renderBefore ?? i6;
-  let h5 = e6._$litPart$;
-  if (void 0 === h5) {
-    const t6 = s5?.renderBefore ?? null;
-    e6._$litPart$ = h5 = new k(i6.insertBefore(c3(), t6), t6, void 0, s5 ?? {});
-  }
-  return h5._$AI(t5), h5;
-};
-
-// node_modules/lit-element/lit-element.js
-var s3 = globalThis;
-var i4 = class extends y {
-  constructor() {
-    super(...arguments), this.renderOptions = { host: this }, this._$Do = void 0;
-  }
-  createRenderRoot() {
-    const t5 = super.createRenderRoot();
-    return this.renderOptions.renderBefore ??= t5.firstChild, t5;
-  }
-  update(t5) {
-    const r6 = this.render();
-    this.hasUpdated || (this.renderOptions.isConnected = this.isConnected), super.update(t5), this._$Do = D(r6, this.renderRoot, this.renderOptions);
-  }
-  connectedCallback() {
-    super.connectedCallback(), this._$Do?.setConnected(true);
-  }
-  disconnectedCallback() {
-    super.disconnectedCallback(), this._$Do?.setConnected(false);
-  }
-  render() {
-    return E;
-  }
-};
-i4._$litElement$ = true, i4["finalized"] = true, s3.litElementHydrateSupport?.({ LitElement: i4 });
-var o4 = s3.litElementPolyfillSupport;
-o4?.({ LitElement: i4 });
-(s3.litElementVersions ??= []).push("4.2.2");
-
-// src/lib/resolve-entities.ts
-var RULES = {
-  feeding: { domain: "binary_sensor", translationKeys: ["feeding"], idSuffixes: ["_feeding"] },
-  bowlFill1: { domain: "sensor", translationKeys: ["bowl_fill_1"], idSuffixes: ["_bowl_fill_1", "_bowl_fill_hopper_1"] },
-  bowlFill2: { domain: "sensor", translationKeys: ["bowl_fill_2"], idSuffixes: ["_bowl_fill_2", "_bowl_fill_hopper_2"] },
-  desiccantDays: { domain: "sensor", translationKeys: ["desiccant_days", "desiccant_left"], idSuffixes: ["_desiccant_days", "_desiccant_left"] },
-  schedule: { domain: "sensor", translationKeys: ["schedule"], idSuffixes: ["_schedule"] },
-  scheduleCardState: { domain: "sensor", translationKeys: ["schedule_card_state"], idSuffixes: ["_schedule_card_state"] },
-  feedButton: { domain: "button", translationKeys: ["feed"], idSuffixes: ["_feed"] },
-  feedButtonHopper1: { domain: "button", translationKeys: ["feed_hopper_1"], idSuffixes: ["_feed_hopper_1"] },
-  feedButtonHopper2: { domain: "button", translationKeys: ["feed_hopper_2"], idSuffixes: ["_feed_hopper_2"] },
-  cancelFeedButton: { domain: "button", translationKeys: ["cancel_feed"], idSuffixes: ["_cancel_feed"] },
-  feedAmount: { domain: "number", translationKeys: ["feed_amount"], idSuffixes: ["_feed_amount"] },
-  feedAmountHopper1: { domain: "number", translationKeys: ["feed_amount_hopper_1"], idSuffixes: ["_feed_amount_hopper_1"] },
-  feedAmountHopper2: { domain: "number", translationKeys: ["feed_amount_hopper_2"], idSuffixes: ["_feed_amount_hopper_2"] },
-  cloudSwitch: { domain: "switch", translationKeys: ["cloud", "petkit_cloud"], idSuffixes: ["_cloud", "_petkit_cloud"] },
-  cloudConnection: { domain: "sensor", translationKeys: ["cloud_connection"], idSuffixes: ["_cloud_connection"] },
-  nightVisionSwitch: { domain: "switch", translationKeys: ["night", "night_vision"], idSuffixes: ["_night", "_night_vision"] },
-  statusLedSwitch: { domain: "switch", translationKeys: ["light", "status_led"], idSuffixes: ["_light", "_status_led"] },
-  microphoneSwitch: { domain: "switch", translationKeys: ["microphone"], idSuffixes: ["_microphone"] },
-  volume: { domain: "number", translationKeys: ["volume"], idSuffixes: ["_volume"] },
-  lastSeenPet: { domain: "sensor", translationKeys: ["last_seen_pet"], idSuffixes: ["_last_seen_pet"] },
-  dishBefore: { domain: "image", translationKeys: ["dish_before"], idSuffixes: ["_dish_before"] },
-  dishAfter: { domain: "image", translationKeys: ["dish_after"], idSuffixes: ["_dish_after"] },
-  wifiNetwork: { domain: "sensor", translationKeys: ["wifi_network", "wifi", "rssi"], idSuffixes: ["_wifi_network", "_wifi", "_rssi"] }
-};
-function domainOf(entityId) {
-  return entityId.slice(0, entityId.indexOf("."));
-}
-function objectIdOf(entityId) {
-  return entityId.slice(entityId.indexOf(".") + 1);
-}
-function matchesRule(entry, rule) {
-  if (domainOf(entry.entity_id) !== rule.domain) return false;
-  if (entry.translation_key && rule.translationKeys.includes(entry.translation_key)) return true;
-  const objectId = objectIdOf(entry.entity_id);
-  return rule.idSuffixes.some((suffix) => objectId.endsWith(suffix));
-}
-function catDisplayName(entry) {
-  const raw = entry.name ?? entry.original_name;
-  if (raw) {
-    return raw.replace(/\s+present$/i, "").trim() || raw;
-  }
-  const objectId = objectIdOf(entry.entity_id);
-  const slug = objectId.replace(/_present$/, "");
-  const lastWord = slug.split("_").filter(Boolean).pop();
-  if (!lastWord) return "Cat";
-  return lastWord[0].toUpperCase() + lastWord.slice(1);
-}
-function isCatPresenceEntry(entry) {
-  if (domainOf(entry.entity_id) !== "binary_sensor") return false;
-  if (entry.translation_key === "present" || entry.translation_key?.endsWith("_present")) return true;
-  return objectIdOf(entry.entity_id).endsWith("_present");
-}
-function resolveKibbleEntities(entities, deviceId) {
-  const result = { deviceId, catPresence: [] };
-  const forDevice = Object.values(entities).filter(
-    (e6) => e6.device_id === deviceId && !e6.disabled_by
-  );
-  for (const entry of forDevice) {
-    if (domainOf(entry.entity_id) === "camera" && !result.camera) {
-      result.camera = entry.entity_id;
-      continue;
-    }
-    if (domainOf(entry.entity_id) === "media_player" && !result.speaker) {
-      result.speaker = entry.entity_id;
-      continue;
-    }
-    if (isCatPresenceEntry(entry)) {
-      result.catPresence.push({ entityId: entry.entity_id, name: catDisplayName(entry) });
-      continue;
-    }
-    for (const roleEntry of Object.entries(RULES)) {
-      const [role, rule] = roleEntry;
-      if (result[role]) continue;
-      if (matchesRule(entry, rule)) {
-        result[role] = entry.entity_id;
-        break;
-      }
-    }
-  }
-  result.catPresence.sort((a3, b3) => a3.name.localeCompare(b3.name));
-  return result;
-}
-
-// src/lib/feeding.ts
-function deriveFeederStatus(coreStates, feedingState) {
-  const isDown = (state) => state === void 0 || state === "unavailable" || state === "unknown";
-  if (coreStates.length === 0 || coreStates.every(isDown)) {
-    return "unreachable";
-  }
-  return feedingState === "on" ? "dispensing" : "idle";
-}
-function relativeTime(from, now) {
-  const diffMinutes = Math.floor(Math.max(0, now.getTime() - from.getTime()) / 6e4);
-  if (diffMinutes < 1) return "just now";
-  if (diffMinutes < 60) return `${diffMinutes}m ago`;
-  const diffHours = Math.floor(diffMinutes / 60);
-  if (diffHours < 24) return `${diffHours}h ago`;
-  const diffDays = Math.floor(diffHours / 24);
-  return `${diffDays}d ago`;
-}
-function statusText(status, lastFedRelative) {
-  if (status === "unreachable") return "Feeder unreachable \u2014 check that kibbled is running";
-  if (status === "dispensing") return "Dispensing\u2026";
-  return lastFedRelative ? `Fed ${lastFedRelative}` : "Ready to feed";
-}
-
-// src/lib/mdi-icons.ts
-var MDI = {
-  cog: "M12,15.5A3.5,3.5 0 0,1 8.5,12A3.5,3.5 0 0,1 12,8.5A3.5,3.5 0 0,1 15.5,12A3.5,3.5 0 0,1 12,15.5M19.43,12.97C19.47,12.65 19.5,12.33 19.5,12C19.5,11.67 19.47,11.34 19.43,11L21.54,9.37C21.73,9.22 21.78,8.95 21.66,8.73L19.66,5.27C19.54,5.05 19.27,4.96 19.05,5.05L16.56,6.05C16.04,5.66 15.5,5.32 14.87,5.07L14.5,2.42C14.46,2.18 14.25,2 14,2H10C9.75,2 9.54,2.18 9.5,2.42L9.13,5.07C8.5,5.32 7.96,5.66 7.44,6.05L4.95,5.05C4.73,4.96 4.46,5.05 4.34,5.27L2.34,8.73C2.21,8.95 2.27,9.22 2.46,9.37L4.57,11C4.53,11.34 4.5,11.67 4.5,12C4.5,12.33 4.53,12.65 4.57,12.97L2.46,14.63C2.27,14.78 2.21,15.05 2.34,15.27L4.34,18.73C4.46,18.95 4.73,19.03 4.95,18.95L7.44,17.94C7.96,18.34 8.5,18.68 9.13,18.93L9.5,21.58C9.54,21.82 9.75,22 10,22H14C14.25,22 14.46,21.82 14.5,21.58L14.87,18.93C15.5,18.67 16.04,18.34 16.56,17.94L19.05,18.95C19.27,19.03 19.54,18.95 19.66,18.73L21.66,15.27C21.78,15.05 21.73,14.78 21.54,14.63L19.43,12.97Z",
-  cloudCheck: "M13 19C13 19.34 13.04 19.67 13.09 20H6.5C5 20 3.69 19.5 2.61 18.43C1.54 17.38 1 16.09 1 14.58C1 13.28 1.39 12.12 2.17 11.1S4 9.43 5.25 9.15C5.67 7.62 6.5 6.38 7.75 5.43S10.42 4 12 4C13.95 4 15.6 4.68 16.96 6.04C18.32 7.4 19 9.05 19 11C20.15 11.13 21.1 11.63 21.86 12.5C22.37 13.07 22.7 13.71 22.86 14.42C21.82 13.54 20.5 13 19 13C18.89 13 18.79 13 18.68 13C18.62 13 18.56 13 18.5 13H17V11C17 9.62 16.5 8.44 15.54 7.46C14.56 6.5 13.38 6 12 6S9.44 6.5 8.46 7.46C7.5 8.44 7 9.62 7 11H6.5C5.53 11 4.71 11.34 4.03 12.03C3.34 12.71 3 13.53 3 14.5S3.34 16.29 4.03 17C4.71 17.66 5.53 18 6.5 18H13.09C13.04 18.33 13 18.66 13 19M17.75 19.43L16.16 17.84L15 19L17.75 22L22.5 17.25L21.34 15.84L17.75 19.43Z",
-  cloudLock: "M6.5 18H13V20H6.5C5 20 3.69 19.5 2.61 18.43C1.54 17.38 1 16.09 1 14.58C1 13.28 1.39 12.12 2.17 11.1S4 9.43 5.25 9.15C5.67 7.62 6.5 6.38 7.75 5.43S10.42 4 12 4C13.95 4 15.6 4.68 16.96 6.04C18.08 7.16 18.73 8.5 18.93 10C18.23 10 17.56 10.19 16.95 10.46C16.84 9.31 16.38 8.31 15.54 7.46C14.56 6.5 13.38 6 12 6S9.44 6.5 8.46 7.46C7.5 8.44 7 9.62 7 11H6.5C5.53 11 4.71 11.34 4.03 12.03C3.34 12.71 3 13.53 3 14.5S3.34 16.29 4.03 17C4.71 17.66 5.53 18 6.5 18M23 17.3V20.8C23 21.4 22.4 22 21.7 22H16.2C15.6 22 15 21.4 15 20.7V17.2C15 16.6 15.6 16 16.2 16V14.5C16.2 13.1 17.6 12 19 12S21.8 13.1 21.8 14.5V16C22.4 16 23 16.6 23 17.3M20.5 14.5C20.5 13.7 19.8 13.2 19 13.2S17.5 13.7 17.5 14.5V16H20.5V14.5Z",
-  cloudAlert: "M21.86 12.5C21.1 11.63 20.15 11.13 19 11C19 9.05 18.32 7.4 16.96 6.04C15.6 4.68 13.95 4 12 4C10.42 4 9 4.47 7.75 5.43S5.67 7.62 5.25 9.15C4 9.43 2.96 10.08 2.17 11.1S1 13.28 1 14.58C1 16.09 1.54 17.38 2.61 18.43C3.69 19.5 5 20 6.5 20H18.5C19.75 20 20.81 19.56 21.69 18.69C22.56 17.81 23 16.75 23 15.5C23 14.35 22.62 13.35 21.86 12.5M20.27 17.27C19.79 17.76 19.2 18 18.5 18H6.5C5.53 18 4.71 17.66 4.03 17C3.34 16.29 3 15.47 3 14.5S3.34 12.71 4.03 12.03C4.71 11.34 5.53 11 6.5 11H7C7 9.62 7.5 8.44 8.46 7.46C9.44 6.5 10.62 6 12 6S14.56 6.5 15.54 7.46C16.5 8.44 17 9.62 17 11V13H18.5C19.2 13 19.79 13.24 20.27 13.73S21 14.8 21 15.5 20.76 16.79 20.27 17.27M11 15H13V17H11V15M11 7H13V13H11V7Z",
-  cloudQuestion: "M21.86 12.5C21.1 11.63 20.15 11.13 19 11C19 9.05 18.32 7.4 16.96 6.04C15.6 4.68 13.95 4 12 4C10.42 4 9 4.47 7.75 5.43S5.67 7.62 5.25 9.15C4 9.43 2.96 10.08 2.17 11.1S1 13.28 1 14.58C1 16.09 1.54 17.38 2.61 18.43C3.69 19.5 5 20 6.5 20H18.5C19.75 20 20.81 19.56 21.69 18.69C22.56 17.81 23 16.75 23 15.5C23 14.35 22.62 13.35 21.86 12.5M20.27 17.27C19.79 17.76 19.2 18 18.5 18H6.5C5.53 18 4.71 17.66 4.03 17C3.34 16.29 3 15.47 3 14.5S3.34 12.71 4.03 12.03C4.71 11.34 5.53 11 6.5 11H7C7 9.62 7.5 8.44 8.46 7.46C9.44 6.5 10.62 6 12 6S14.56 6.5 15.54 7.46C16.5 8.44 17 9.62 17 11V13H18.5C19.2 13 19.79 13.24 20.27 13.73S21 14.8 21 15.5 20.76 16.79 20.27 17.27M11 15H13V17H11V15M14.43 8.68C14.97 9.13 15.24 9.75 15.24 10.5C15.24 11 15.09 11.41 14.8 11.82C14.5 12.21 14.13 12.5 13.67 12.75C13.41 12.91 13.24 13.07 13.15 13.26C13.06 13.45 13 13.69 13 14H11C11 13.45 11.11 13.08 11.3 12.82C11.5 12.56 11.85 12.25 12.37 11.91C12.63 11.75 12.84 11.56 13 11.32C13.15 11.09 13.23 10.81 13.23 10.5C13.23 10.18 13.14 9.94 12.96 9.76C12.78 9.56 12.5 9.47 12.2 9.47C11.93 9.47 11.71 9.55 11.5 9.7C11.35 9.85 11.25 10.08 11.25 10.39H9.28C9.23 9.64 9.5 9 10.06 8.59C10.6 8.2 11.31 8 12.2 8C13.14 8 13.89 8.23 14.43 8.68Z",
-  airFilter: "M19,18.31V20A2,2 0 0,1 17,22H7A2,2 0 0,1 5,20V16.3C4.54,16.12 3.95,16 3,16A1,1 0 0,1 2,15A1,1 0 0,1 3,14C3.82,14 4.47,14.08 5,14.21V12.3C4.54,12.12 3.95,12 3,12A1,1 0 0,1 2,11A1,1 0 0,1 3,10C3.82,10 4.47,10.08 5,10.21V8.3C4.54,8.12 3.95,8 3,8A1,1 0 0,1 2,7A1,1 0 0,1 3,6C3.82,6 4.47,6.08 5,6.21V4A2,2 0 0,1 7,2H17A2,2 0 0,1 19,4V6.16C20.78,6.47 21.54,7.13 21.71,7.29C22.1,7.68 22.1,8.32 21.71,8.71C21.32,9.1 20.8,9.09 20.29,8.71V8.71C20.29,8.71 19.25,8 17,8C15.74,8 14.91,8.41 13.95,8.9C12.91,9.41 11.74,10 10,10C9.64,10 9.31,10 9,9.96V7.95C9.3,8 9.63,8 10,8C11.26,8 12.09,7.59 13.05,7.11C14.09,6.59 15.27,6 17,6V4H7V20H17V18C18.5,18 18.97,18.29 19,18.31M17,10C15.27,10 14.09,10.59 13.05,11.11C12.09,11.59 11.26,12 10,12C9.63,12 9.3,12 9,11.95V13.96C9.31,14 9.64,14 10,14C11.74,14 12.91,13.41 13.95,12.9C14.91,12.42 15.74,12 17,12C19.25,12 20.29,12.71 20.29,12.71V12.71C20.8,13.1 21.32,13.1 21.71,12.71C22.1,12.32 22.1,11.69 21.71,11.29C21.5,11.08 20.25,10 17,10M17,14C15.27,14 14.09,14.59 13.05,15.11C12.09,15.59 11.26,16 10,16C9.63,16 9.3,16 9,15.95V17.96C9.31,18 9.64,18 10,18C11.74,18 12.91,17.41 13.95,16.9C14.91,16.42 15.74,16 17,16C19.25,16 20.29,16.71 20.29,16.71V16.71C20.8,17.1 21.32,17.1 21.71,16.71C22.1,16.32 22.1,15.69 21.71,15.29C21.5,15.08 20.25,14 17,14Z",
-  wifi: "M12,21L15.6,16.2C14.6,15.45 13.35,15 12,15C10.65,15 9.4,15.45 8.4,16.2L12,21M12,3C7.95,3 4.21,4.34 1.2,6.6L3,9C5.5,7.12 8.62,6 12,6C15.38,6 18.5,7.12 21,9L22.8,6.6C19.79,4.34 16.05,3 12,3M12,9C9.3,9 6.81,9.89 4.8,11.4L6.6,13.8C8.1,12.67 9.97,12 12,12C14.03,12 15.9,12.67 17.4,13.8L19.2,11.4C17.19,9.89 14.7,9 12,9Z",
-  chevronDown: "M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z",
-  close: "M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z",
-  weatherNight: "M17.75,4.09L15.22,6.03L16.13,9.09L13.5,7.28L10.87,9.09L11.78,6.03L9.25,4.09L12.44,4L13.5,1L14.56,4L17.75,4.09M21.25,11L19.61,12.25L20.2,14.23L18.5,13.06L16.8,14.23L17.39,12.25L15.75,11L17.81,10.95L18.5,9L19.19,10.95L21.25,11M18.97,15.95C19.8,15.87 20.69,17.05 20.16,17.8C19.84,18.25 19.5,18.67 19.08,19.07C15.17,23 8.84,23 4.94,19.07C1.03,15.17 1.03,8.83 4.94,4.93C5.34,4.53 5.76,4.17 6.21,3.85C6.96,3.32 8.14,4.21 8.06,5.04C7.79,7.9 8.75,10.87 10.95,13.06C13.14,15.26 16.1,16.22 18.97,15.95M17.33,17.97C14.5,17.81 11.7,16.64 9.53,14.5C7.36,12.31 6.2,9.5 6.04,6.68C3.23,9.82 3.34,14.64 6.35,17.66C9.37,20.67 14.19,20.78 17.33,17.97Z",
-  ledOn: "M11,0V4H13V0H11M18.3,2.29L15.24,5.29L16.64,6.71L19.7,3.71L18.3,2.29M5.71,2.29L4.29,3.71L7.29,6.71L8.71,5.29L5.71,2.29M12,6A4,4 0 0,0 8,10V16H6V18H9V23H11V18H13V23H15V18H18V16H16V10A4,4 0 0,0 12,6M2,9V11H6V9H2M18,9V11H22V9H18Z",
-  microphone: "M12,2A3,3 0 0,1 15,5V11A3,3 0 0,1 12,14A3,3 0 0,1 9,11V5A3,3 0 0,1 12,2M19,11C19,14.53 16.39,17.44 13,17.93V21H11V17.93C7.61,17.44 5,14.53 5,11H7A5,5 0 0,0 12,16A5,5 0 0,0 17,11H19Z",
-  volumeHigh: "M14,3.23V5.29C16.89,6.15 19,8.83 19,12C19,15.17 16.89,17.84 14,18.7V20.77C18,19.86 21,16.28 21,12C21,7.72 18,4.14 14,3.23M16.5,12C16.5,10.23 15.5,8.71 14,7.97V16C15.5,15.29 16.5,13.76 16.5,12M3,9V15H7L12,20V4L7,9H3Z",
-  openInNew: "M14,3V5H17.59L7.76,14.83L9.17,16.24L19,6.41V10H21V3M19,19H5V5H12V3H5C3.89,3 3,3.9 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V12H19V19Z",
-  speaker: "M12,12A3,3 0 0,0 9,15A3,3 0 0,0 12,18A3,3 0 0,0 15,15A3,3 0 0,0 12,12M12,20A5,5 0 0,1 7,15A5,5 0 0,1 12,10A5,5 0 0,1 17,15A5,5 0 0,1 12,20M12,4A2,2 0 0,1 14,6A2,2 0 0,1 12,8C10.89,8 10,7.1 10,6C10,4.89 10.89,4 12,4M17,2H7C5.89,2 5,2.89 5,4V20A2,2 0 0,0 7,22H17A2,2 0 0,0 19,20V4C19,2.89 18.1,2 17,2Z"
-};
-function mdiIcon(name) {
-  return w`<svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor" aria-hidden="true"><path d=${MDI[name]}></path></svg>`;
-}
-
-// src/styles/tokens.ts
-var KIOSK_MIN_HEIGHT_PX = 440;
-var HOLD_TO_FEED_MS = 600;
-var KIBBLE_FALL_DURATION_MS = 900;
-var KIBBLE_AMBER = "#F4A452";
-var KIBBLE_AMBER_DARK = "#DE8A3A";
-var KIBBLE_INK_ON_AMBER = "#3A2C28";
-function prefersReducedMotion() {
-  return typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true;
-}
-
-// src/lib/bowl-fill.ts
-var EQUAL_FILL_THRESHOLD = 5;
-function combineBowlFill(hopper1, hopper2) {
-  if (hopper1 === null && hopper2 === null) {
-    return { split: false, hopper1: null, hopper2: null, combined: null };
-  }
-  if (hopper1 === null || hopper2 === null) {
-    return { split: false, hopper1, hopper2, combined: hopper1 ?? hopper2 };
-  }
-  if (Math.abs(hopper1 - hopper2) < EQUAL_FILL_THRESHOLD) {
-    return { split: false, hopper1, hopper2, combined: Math.round((hopper1 + hopper2) / 2) };
-  }
-  return { split: true, hopper1, hopper2, combined: null };
-}
-
-// src/lib/brand-shapes.ts
-function catSilhouette() {
-  return w`
+var U=globalThis,F=U.ShadowRoot&&(U.ShadyCSS===void 0||U.ShadyCSS.nativeShadow)&&"adoptedStyleSheets"in Document.prototype&&"replace"in CSSStyleSheet.prototype,ae=Symbol(),Pe=new WeakMap,P=class{constructor(t,e,i){if(this._$cssResult$=!0,i!==ae)throw Error("CSSResult is not constructable. Use `unsafeCSS` or `css` instead.");this.cssText=t,this.t=e}get styleSheet(){let t=this.o,e=this.t;if(F&&t===void 0){let i=e!==void 0&&e.length===1;i&&(t=Pe.get(e)),t===void 0&&((this.o=t=new CSSStyleSheet).replaceSync(this.cssText),i&&Pe.set(e,t))}return t}toString(){return this.cssText}},R=n=>new P(typeof n=="string"?n:n+"",void 0,ae),b=(n,...t)=>{let e=n.length===1?n[0]:t.reduce((i,s,r)=>i+(o=>{if(o._$cssResult$===!0)return o.cssText;if(typeof o=="number")return o;throw Error("Value passed to 'css' function must be a 'css' function result: "+o+". Use 'unsafeCSS' to pass non-literal values, but take care to ensure page security.")})(s)+n[r+1],n[0]);return new P(e,n,ae)},Be=(n,t)=>{if(F)n.adoptedStyleSheets=t.map(e=>e instanceof CSSStyleSheet?e:e.styleSheet);else for(let e of t){let i=document.createElement("style"),s=U.litNonce;s!==void 0&&i.setAttribute("nonce",s),i.textContent=e.cssText,n.appendChild(i)}},le=F?n=>n:n=>n instanceof CSSStyleSheet?(t=>{let e="";for(let i of t.cssRules)e+=i.cssText;return R(e)})(n):n;var{is:_t,defineProperty:$t,getOwnPropertyDescriptor:xt,getOwnPropertyNames:yt,getOwnPropertySymbols:Ct,getPrototypeOf:kt}=Object,j=globalThis,Ie=j.trustedTypes,At=Ie?Ie.emptyScript:"",St=j.reactiveElementPolyfillSupport,B=(n,t)=>n,de={toAttribute(n,t){switch(t){case Boolean:n=n?At:null;break;case Object:case Array:n=n==null?n:JSON.stringify(n)}return n},fromAttribute(n,t){let e=n;switch(t){case Boolean:e=n!==null;break;case Number:e=n===null?null:Number(n);break;case Object:case Array:try{e=JSON.parse(n)}catch{e=null}}return e}},De=(n,t)=>!_t(n,t),Oe={attribute:!0,type:String,converter:de,reflect:!1,useDefault:!1,hasChanged:De};Symbol.metadata??=Symbol("metadata"),j.litPropertyMetadata??=new WeakMap;var y=class extends HTMLElement{static addInitializer(t){this._$Ei(),(this.l??=[]).push(t)}static get observedAttributes(){return this.finalize(),this._$Eh&&[...this._$Eh.keys()]}static createProperty(t,e=Oe){if(e.state&&(e.attribute=!1),this._$Ei(),this.prototype.hasOwnProperty(t)&&((e=Object.create(e)).wrapped=!0),this.elementProperties.set(t,e),!e.noAccessor){let i=Symbol(),s=this.getPropertyDescriptor(t,i,e);s!==void 0&&$t(this.prototype,t,s)}}static getPropertyDescriptor(t,e,i){let{get:s,set:r}=xt(this.prototype,t)??{get(){return this[e]},set(o){this[e]=o}};return{get:s,set(o){let c=s?.call(this);r?.call(this,o),this.requestUpdate(t,c,i)},configurable:!0,enumerable:!0}}static getPropertyOptions(t){return this.elementProperties.get(t)??Oe}static _$Ei(){if(this.hasOwnProperty(B("elementProperties")))return;let t=kt(this);t.finalize(),t.l!==void 0&&(this.l=[...t.l]),this.elementProperties=new Map(t.elementProperties)}static finalize(){if(this.hasOwnProperty(B("finalized")))return;if(this.finalized=!0,this._$Ei(),this.hasOwnProperty(B("properties"))){let e=this.properties,i=[...yt(e),...Ct(e)];for(let s of i)this.createProperty(s,e[s])}let t=this[Symbol.metadata];if(t!==null){let e=litPropertyMetadata.get(t);if(e!==void 0)for(let[i,s]of e)this.elementProperties.set(i,s)}this._$Eh=new Map;for(let[e,i]of this.elementProperties){let s=this._$Eu(e,i);s!==void 0&&this._$Eh.set(s,e)}this.elementStyles=this.finalizeStyles(this.styles)}static finalizeStyles(t){let e=[];if(Array.isArray(t)){let i=new Set(t.flat(1/0).reverse());for(let s of i)e.unshift(le(s))}else t!==void 0&&e.push(le(t));return e}static _$Eu(t,e){let i=e.attribute;return i===!1?void 0:typeof i=="string"?i:typeof t=="string"?t.toLowerCase():void 0}constructor(){super(),this._$Ep=void 0,this.isUpdatePending=!1,this.hasUpdated=!1,this._$Em=null,this._$Ev()}_$Ev(){this._$ES=new Promise(t=>this.enableUpdating=t),this._$AL=new Map,this._$E_(),this.requestUpdate(),this.constructor.l?.forEach(t=>t(this))}addController(t){(this._$EO??=new Set).add(t),this.renderRoot!==void 0&&this.isConnected&&t.hostConnected?.()}removeController(t){this._$EO?.delete(t)}_$E_(){let t=new Map,e=this.constructor.elementProperties;for(let i of e.keys())this.hasOwnProperty(i)&&(t.set(i,this[i]),delete this[i]);t.size>0&&(this._$Ep=t)}createRenderRoot(){let t=this.shadowRoot??this.attachShadow(this.constructor.shadowRootOptions);return Be(t,this.constructor.elementStyles),t}connectedCallback(){this.renderRoot??=this.createRenderRoot(),this.enableUpdating(!0),this._$EO?.forEach(t=>t.hostConnected?.())}enableUpdating(t){}disconnectedCallback(){this._$EO?.forEach(t=>t.hostDisconnected?.())}attributeChangedCallback(t,e,i){this._$AK(t,i)}_$ET(t,e){let i=this.constructor.elementProperties.get(t),s=this.constructor._$Eu(t,i);if(s!==void 0&&i.reflect===!0){let r=(i.converter?.toAttribute!==void 0?i.converter:de).toAttribute(e,i.type);this._$Em=t,r==null?this.removeAttribute(s):this.setAttribute(s,r),this._$Em=null}}_$AK(t,e){let i=this.constructor,s=i._$Eh.get(t);if(s!==void 0&&this._$Em!==s){let r=i.getPropertyOptions(s),o=typeof r.converter=="function"?{fromAttribute:r.converter}:r.converter?.fromAttribute!==void 0?r.converter:de;this._$Em=s;let c=o.fromAttribute(e,r.type);this[s]=c??this._$Ej?.get(s)??c,this._$Em=null}}requestUpdate(t,e,i,s=!1,r){if(t!==void 0){let o=this.constructor;if(s===!1&&(r=this[t]),i??=o.getPropertyOptions(t),!((i.hasChanged??De)(r,e)||i.useDefault&&i.reflect&&r===this._$Ej?.get(t)&&!this.hasAttribute(o._$Eu(t,i))))return;this.C(t,e,i)}this.isUpdatePending===!1&&(this._$ES=this._$EP())}C(t,e,{useDefault:i,reflect:s,wrapped:r},o){i&&!(this._$Ej??=new Map).has(t)&&(this._$Ej.set(t,o??e??this[t]),r!==!0||o!==void 0)||(this._$AL.has(t)||(this.hasUpdated||i||(e=void 0),this._$AL.set(t,e)),s===!0&&this._$Em!==t&&(this._$Eq??=new Set).add(t))}async _$EP(){this.isUpdatePending=!0;try{await this._$ES}catch(e){Promise.reject(e)}let t=this.scheduleUpdate();return t!=null&&await t,!this.isUpdatePending}scheduleUpdate(){return this.performUpdate()}performUpdate(){if(!this.isUpdatePending)return;if(!this.hasUpdated){if(this.renderRoot??=this.createRenderRoot(),this._$Ep){for(let[s,r]of this._$Ep)this[s]=r;this._$Ep=void 0}let i=this.constructor.elementProperties;if(i.size>0)for(let[s,r]of i){let{wrapped:o}=r,c=this[s];o!==!0||this._$AL.has(s)||c===void 0||this.C(s,void 0,r,c)}}let t=!1,e=this._$AL;try{t=this.shouldUpdate(e),t?(this.willUpdate(e),this._$EO?.forEach(i=>i.hostUpdate?.()),this.update(e)):this._$EM()}catch(i){throw t=!1,this._$EM(),i}t&&this._$AE(e)}willUpdate(t){}_$AE(t){this._$EO?.forEach(e=>e.hostUpdated?.()),this.hasUpdated||(this.hasUpdated=!0,this.firstUpdated(t)),this.updated(t)}_$EM(){this._$AL=new Map,this.isUpdatePending=!1}get updateComplete(){return this.getUpdateComplete()}getUpdateComplete(){return this._$ES}shouldUpdate(t){return!0}update(t){this._$Eq&&=this._$Eq.forEach(e=>this._$ET(e,this[e])),this._$EM()}updated(t){}firstUpdated(t){}};y.elementStyles=[],y.shadowRootOptions={mode:"open"},y[B("elementProperties")]=new Map,y[B("finalized")]=new Map,St?.({ReactiveElement:y}),(j.reactiveElementVersions??=[]).push("2.1.2");var ue=globalThis,ze=n=>n,q=ue.trustedTypes,Ke=q?q.createPolicy("lit-html",{createHTML:n=>n}):void 0,he="$lit$",C=`lit$${Math.random().toFixed(9).slice(2)}$`,pe="?"+C,wt=`<${pe}>`,w=document,O=()=>w.createComment(""),D=n=>n===null||typeof n!="object"&&typeof n!="function",be=Array.isArray,Ge=n=>be(n)||typeof n?.[Symbol.iterator]=="function",ce=`[ 	
+\f\r]`,I=/<(?:(!--|\/[^a-zA-Z])|(\/?[a-zA-Z][^>\s]*)|(\/?$))/g,Ue=/-->/g,Fe=/>/g,A=RegExp(`>|${ce}(?:([^\\s"'>=/]+)(${ce}*=${ce}*(?:[^ 	
+\f\r"'\`<>=]|("|')|))|$)`,"g"),je=/'/g,qe=/"/g,Ze=/^(?:script|style|textarea|title)$/i,me=n=>(t,...e)=>({_$litType$:n,strings:t,values:e}),l=me(1),v=me(2),ti=me(3),E=Symbol.for("lit-noChange"),a=Symbol.for("lit-nothing"),We=new WeakMap,S=w.createTreeWalker(w,129);function Qe(n,t){if(!be(n)||!n.hasOwnProperty("raw"))throw Error("invalid template strings array");return Ke!==void 0?Ke.createHTML(t):t}var Ye=(n,t)=>{let e=n.length-1,i=[],s,r=t===2?"<svg>":t===3?"<math>":"",o=I;for(let c=0;c<e;c++){let d=n[c],p,f,u=-1,$=0;for(;$<d.length&&(o.lastIndex=$,f=o.exec(d),f!==null);)$=o.lastIndex,o===I?f[1]==="!--"?o=Ue:f[1]!==void 0?o=Fe:f[2]!==void 0?(Ze.test(f[2])&&(s=RegExp("</"+f[2],"g")),o=A):f[3]!==void 0&&(o=A):o===A?f[0]===">"?(o=s??I,u=-1):f[1]===void 0?u=-2:(u=o.lastIndex-f[2].length,p=f[1],o=f[3]===void 0?A:f[3]==='"'?qe:je):o===qe||o===je?o=A:o===Ue||o===Fe?o=I:(o=A,s=void 0);let x=o===A&&n[c+1].startsWith("/>")?" ":"";r+=o===I?d+wt:u>=0?(i.push(p),d.slice(0,u)+he+d.slice(u)+C+x):d+C+(u===-2?c:x)}return[Qe(n,r+(n[e]||"<?>")+(t===2?"</svg>":t===3?"</math>":"")),i]},z=class n{constructor({strings:t,_$litType$:e},i){let s;this.parts=[];let r=0,o=0,c=t.length-1,d=this.parts,[p,f]=Ye(t,e);if(this.el=n.createElement(p,i),S.currentNode=this.el.content,e===2||e===3){let u=this.el.content.firstChild;u.replaceWith(...u.childNodes)}for(;(s=S.nextNode())!==null&&d.length<c;){if(s.nodeType===1){if(s.hasAttributes())for(let u of s.getAttributeNames())if(u.endsWith(he)){let $=f[o++],x=s.getAttribute(u).split(C),N=/([.?@])?(.*)/.exec($);d.push({type:1,index:r,name:N[2],strings:x,ctor:N[1]==="."?G:N[1]==="?"?Z:N[1]==="@"?Q:L}),s.removeAttribute(u)}else u.startsWith(C)&&(d.push({type:6,index:r}),s.removeAttribute(u));if(Ze.test(s.tagName)){let u=s.textContent.split(C),$=u.length-1;if($>0){s.textContent=q?q.emptyScript:"";for(let x=0;x<$;x++)s.append(u[x],O()),S.nextNode(),d.push({type:2,index:++r});s.append(u[$],O())}}}else if(s.nodeType===8)if(s.data===pe)d.push({type:2,index:r});else{let u=-1;for(;(u=s.data.indexOf(C,u+1))!==-1;)d.push({type:7,index:r}),u+=C.length-1}r++}}static createElement(t,e){let i=w.createElement("template");return i.innerHTML=t,i}};function M(n,t,e=n,i){if(t===E)return t;let s=i!==void 0?e._$Co?.[i]:e._$Cl,r=D(t)?void 0:t._$litDirective$;return s?.constructor!==r&&(s?._$AO?.(!1),r===void 0?s=void 0:(s=new r(n),s._$AT(n,e,i)),i!==void 0?(e._$Co??=[])[i]=s:e._$Cl=s),s!==void 0&&(t=M(n,s._$AS(n,t.values),s,i)),t}var W=class{constructor(t,e){this._$AV=[],this._$AN=void 0,this._$AD=t,this._$AM=e}get parentNode(){return this._$AM.parentNode}get _$AU(){return this._$AM._$AU}u(t){let{el:{content:e},parts:i}=this._$AD,s=(t?.creationScope??w).importNode(e,!0);S.currentNode=s;let r=S.nextNode(),o=0,c=0,d=i[0];for(;d!==void 0;){if(o===d.index){let p;d.type===2?p=new V(r,r.nextSibling,this,t):d.type===1?p=new d.ctor(r,d.name,d.strings,this,t):d.type===6&&(p=new Y(r,this,t)),this._$AV.push(p),d=i[++c]}o!==d?.index&&(r=S.nextNode(),o++)}return S.currentNode=w,s}p(t){let e=0;for(let i of this._$AV)i!==void 0&&(i.strings!==void 0?(i._$AI(t,i,e),e+=i.strings.length-2):i._$AI(t[e])),e++}},V=class n{get _$AU(){return this._$AM?._$AU??this._$Cv}constructor(t,e,i,s){this.type=2,this._$AH=a,this._$AN=void 0,this._$AA=t,this._$AB=e,this._$AM=i,this.options=s,this._$Cv=s?.isConnected??!0}get parentNode(){let t=this._$AA.parentNode,e=this._$AM;return e!==void 0&&t?.nodeType===11&&(t=e.parentNode),t}get startNode(){return this._$AA}get endNode(){return this._$AB}_$AI(t,e=this){t=M(this,t,e),D(t)?t===a||t==null||t===""?(this._$AH!==a&&this._$AR(),this._$AH=a):t!==this._$AH&&t!==E&&this._(t):t._$litType$!==void 0?this.$(t):t.nodeType!==void 0?this.T(t):Ge(t)?this.k(t):this._(t)}O(t){return this._$AA.parentNode.insertBefore(t,this._$AB)}T(t){this._$AH!==t&&(this._$AR(),this._$AH=this.O(t))}_(t){this._$AH!==a&&D(this._$AH)?this._$AA.nextSibling.data=t:this.T(w.createTextNode(t)),this._$AH=t}$(t){let{values:e,_$litType$:i}=t,s=typeof i=="number"?this._$AC(t):(i.el===void 0&&(i.el=z.createElement(Qe(i.h,i.h[0]),this.options)),i);if(this._$AH?._$AD===s)this._$AH.p(e);else{let r=new W(s,this),o=r.u(this.options);r.p(e),this.T(o),this._$AH=r}}_$AC(t){let e=We.get(t.strings);return e===void 0&&We.set(t.strings,e=new z(t)),e}k(t){be(this._$AH)||(this._$AH=[],this._$AR());let e=this._$AH,i,s=0;for(let r of t)s===e.length?e.push(i=new n(this.O(O()),this.O(O()),this,this.options)):i=e[s],i._$AI(r),s++;s<e.length&&(this._$AR(i&&i._$AB.nextSibling,s),e.length=s)}_$AR(t=this._$AA.nextSibling,e){for(this._$AP?.(!1,!0,e);t!==this._$AB;){let i=ze(t).nextSibling;ze(t).remove(),t=i}}setConnected(t){this._$AM===void 0&&(this._$Cv=t,this._$AP?.(t))}},L=class{get tagName(){return this.element.tagName}get _$AU(){return this._$AM._$AU}constructor(t,e,i,s,r){this.type=1,this._$AH=a,this._$AN=void 0,this.element=t,this.name=e,this._$AM=s,this.options=r,i.length>2||i[0]!==""||i[1]!==""?(this._$AH=Array(i.length-1).fill(new String),this.strings=i):this._$AH=a}_$AI(t,e=this,i,s){let r=this.strings,o=!1;if(r===void 0)t=M(this,t,e,0),o=!D(t)||t!==this._$AH&&t!==E,o&&(this._$AH=t);else{let c=t,d,p;for(t=r[0],d=0;d<r.length-1;d++)p=M(this,c[i+d],e,d),p===E&&(p=this._$AH[d]),o||=!D(p)||p!==this._$AH[d],p===a?t=a:t!==a&&(t+=(p??"")+r[d+1]),this._$AH[d]=p}o&&!s&&this.j(t)}j(t){t===a?this.element.removeAttribute(this.name):this.element.setAttribute(this.name,t??"")}},G=class extends L{constructor(){super(...arguments),this.type=3}j(t){this.element[this.name]=t===a?void 0:t}},Z=class extends L{constructor(){super(...arguments),this.type=4}j(t){this.element.toggleAttribute(this.name,!!t&&t!==a)}},Q=class extends L{constructor(t,e,i,s,r){super(t,e,i,s,r),this.type=5}_$AI(t,e=this){if((t=M(this,t,e,0)??a)===E)return;let i=this._$AH,s=t===a&&i!==a||t.capture!==i.capture||t.once!==i.once||t.passive!==i.passive,r=t!==a&&(i===a||s);s&&this.element.removeEventListener(this.name,this,i),r&&this.element.addEventListener(this.name,this,t),this._$AH=t}handleEvent(t){typeof this._$AH=="function"?this._$AH.call(this.options?.host??this.element,t):this._$AH.handleEvent(t)}},Y=class{constructor(t,e,i){this.element=t,this.type=6,this._$AN=void 0,this._$AM=e,this.options=i}get _$AU(){return this._$AM._$AU}_$AI(t){M(this,t)}},Xe={M:he,P:C,A:pe,C:1,L:Ye,R:W,D:Ge,V:M,I:V,H:L,N:Z,U:Q,B:G,F:Y},Et=ue.litHtmlPolyfillSupport;Et?.(z,V),(ue.litHtmlVersions??=[]).push("3.3.3");var Je=(n,t,e)=>{let i=e?.renderBefore??t,s=i._$litPart$;if(s===void 0){let r=e?.renderBefore??null;i._$litPart$=s=new V(t.insertBefore(O(),r),r,void 0,e??{})}return s._$AI(n),s};var fe=globalThis,h=class extends y{constructor(){super(...arguments),this.renderOptions={host:this},this._$Do=void 0}createRenderRoot(){let t=super.createRenderRoot();return this.renderOptions.renderBefore??=t.firstChild,t}update(t){let e=this.render();this.hasUpdated||(this.renderOptions.isConnected=this.isConnected),super.update(t),this._$Do=Je(e,this.renderRoot,this.renderOptions)}connectedCallback(){super.connectedCallback(),this._$Do?.setConnected(!0)}disconnectedCallback(){super.disconnectedCallback(),this._$Do?.setConnected(!1)}render(){return E}};h._$litElement$=!0,h.finalized=!0,fe.litElementHydrateSupport?.({LitElement:h});var Mt=fe.litElementPolyfillSupport;Mt?.({LitElement:h});(fe.litElementVersions??=[]).push("4.2.2");var Lt={feeding:{domain:"binary_sensor",translationKeys:["feeding"],idSuffixes:["_feeding"]},bowlFill1:{domain:"sensor",translationKeys:["bowl_fill_1"],idSuffixes:["_bowl_fill_1","_bowl_fill_hopper_1"]},bowlFill2:{domain:"sensor",translationKeys:["bowl_fill_2"],idSuffixes:["_bowl_fill_2","_bowl_fill_hopper_2"]},desiccantDays:{domain:"sensor",translationKeys:["desiccant_days","desiccant_left"],idSuffixes:["_desiccant_days","_desiccant_left"]},schedule:{domain:"sensor",translationKeys:["schedule"],idSuffixes:["_schedule"]},scheduleCardState:{domain:"sensor",translationKeys:["schedule_card_state"],idSuffixes:["_schedule_card_state"]},feedButton:{domain:"button",translationKeys:["feed"],idSuffixes:["_feed"]},feedButtonHopper1:{domain:"button",translationKeys:["feed_hopper_1"],idSuffixes:["_feed_hopper_1"]},feedButtonHopper2:{domain:"button",translationKeys:["feed_hopper_2"],idSuffixes:["_feed_hopper_2"]},cancelFeedButton:{domain:"button",translationKeys:["cancel_feed"],idSuffixes:["_cancel_feed"]},feedAmount:{domain:"number",translationKeys:["feed_amount"],idSuffixes:["_feed_amount"]},feedAmountHopper1:{domain:"number",translationKeys:["feed_amount_hopper_1"],idSuffixes:["_feed_amount_hopper_1"]},feedAmountHopper2:{domain:"number",translationKeys:["feed_amount_hopper_2"],idSuffixes:["_feed_amount_hopper_2"]},cloudSwitch:{domain:"switch",translationKeys:["cloud","petkit_cloud"],idSuffixes:["_cloud","_petkit_cloud"]},cloudConnection:{domain:"sensor",translationKeys:["cloud_connection"],idSuffixes:["_cloud_connection"]},nightVisionSwitch:{domain:"switch",translationKeys:["night","night_vision"],idSuffixes:["_night","_night_vision"]},statusLedSwitch:{domain:"switch",translationKeys:["light","status_led"],idSuffixes:["_light","_status_led"]},microphoneSwitch:{domain:"switch",translationKeys:["microphone"],idSuffixes:["_microphone"]},volume:{domain:"number",translationKeys:["volume"],idSuffixes:["_volume"]},lastSeenPet:{domain:"sensor",translationKeys:["last_seen_pet"],idSuffixes:["_last_seen_pet"]},dishBefore:{domain:"image",translationKeys:["dish_before"],idSuffixes:["_dish_before"]},dishAfter:{domain:"image",translationKeys:["dish_after"],idSuffixes:["_dish_after"]},wifiNetwork:{domain:"sensor",translationKeys:["wifi_network","wifi","rssi"],idSuffixes:["_wifi_network","_wifi","_rssi"]}};function X(n){return n.slice(0,n.indexOf("."))}function ge(n){return n.slice(n.indexOf(".")+1)}function Ht(n,t){if(X(n.entity_id)!==t.domain)return!1;if(n.translation_key&&t.translationKeys.includes(n.translation_key))return!0;let e=ge(n.entity_id);return t.idSuffixes.some(i=>e.endsWith(i))}function Tt(n){let t=n.name??n.original_name;if(t)return t.replace(/\s+present$/i,"").trim()||t;let s=ge(n.entity_id).replace(/_present$/,"").split("_").filter(Boolean).pop();return s?s[0].toUpperCase()+s.slice(1):"Cat"}function Nt(n){return X(n.entity_id)!=="binary_sensor"?!1:n.translation_key==="present"||n.translation_key?.endsWith("_present")?!0:ge(n.entity_id).endsWith("_present")}function et(n,t){let e={deviceId:t,catPresence:[]},i=Object.values(n).filter(s=>s.device_id===t&&!s.disabled_by);for(let s of i){if(X(s.entity_id)==="camera"&&!e.camera){e.camera=s.entity_id;continue}if(X(s.entity_id)==="media_player"&&!e.speaker){e.speaker=s.entity_id;continue}if(Nt(s)){e.catPresence.push({entityId:s.entity_id,name:Tt(s)});continue}for(let r of Object.entries(Lt)){let[o,c]=r;if(!e[o]&&Ht(s,c)){e[o]=s.entity_id;break}}}return e.catPresence.sort((s,r)=>s.name.localeCompare(r.name)),e}function tt(n,t){let e=i=>i===void 0||i==="unavailable"||i==="unknown";return n.length===0||n.every(e)?"unreachable":t==="on"?"dispensing":"idle"}function it(n,t){let e=Math.floor(Math.max(0,t.getTime()-n.getTime())/6e4);if(e<1)return"just now";if(e<60)return`${e}m ago`;let i=Math.floor(e/60);return i<24?`${i}h ago`:`${Math.floor(i/24)}d ago`}function ve(n,t){return n==="unreachable"?"Feeder unreachable \u2014 check that kibbled is running":n==="dispensing"?"Dispensing\u2026":t?`Fed ${t}`:"Ready to feed"}var Rt={cog:"M12,15.5A3.5,3.5 0 0,1 8.5,12A3.5,3.5 0 0,1 12,8.5A3.5,3.5 0 0,1 15.5,12A3.5,3.5 0 0,1 12,15.5M19.43,12.97C19.47,12.65 19.5,12.33 19.5,12C19.5,11.67 19.47,11.34 19.43,11L21.54,9.37C21.73,9.22 21.78,8.95 21.66,8.73L19.66,5.27C19.54,5.05 19.27,4.96 19.05,5.05L16.56,6.05C16.04,5.66 15.5,5.32 14.87,5.07L14.5,2.42C14.46,2.18 14.25,2 14,2H10C9.75,2 9.54,2.18 9.5,2.42L9.13,5.07C8.5,5.32 7.96,5.66 7.44,6.05L4.95,5.05C4.73,4.96 4.46,5.05 4.34,5.27L2.34,8.73C2.21,8.95 2.27,9.22 2.46,9.37L4.57,11C4.53,11.34 4.5,11.67 4.5,12C4.5,12.33 4.53,12.65 4.57,12.97L2.46,14.63C2.27,14.78 2.21,15.05 2.34,15.27L4.34,18.73C4.46,18.95 4.73,19.03 4.95,18.95L7.44,17.94C7.96,18.34 8.5,18.68 9.13,18.93L9.5,21.58C9.54,21.82 9.75,22 10,22H14C14.25,22 14.46,21.82 14.5,21.58L14.87,18.93C15.5,18.67 16.04,18.34 16.56,17.94L19.05,18.95C19.27,19.03 19.54,18.95 19.66,18.73L21.66,15.27C21.78,15.05 21.73,14.78 21.54,14.63L19.43,12.97Z",cloudCheck:"M13 19C13 19.34 13.04 19.67 13.09 20H6.5C5 20 3.69 19.5 2.61 18.43C1.54 17.38 1 16.09 1 14.58C1 13.28 1.39 12.12 2.17 11.1S4 9.43 5.25 9.15C5.67 7.62 6.5 6.38 7.75 5.43S10.42 4 12 4C13.95 4 15.6 4.68 16.96 6.04C18.32 7.4 19 9.05 19 11C20.15 11.13 21.1 11.63 21.86 12.5C22.37 13.07 22.7 13.71 22.86 14.42C21.82 13.54 20.5 13 19 13C18.89 13 18.79 13 18.68 13C18.62 13 18.56 13 18.5 13H17V11C17 9.62 16.5 8.44 15.54 7.46C14.56 6.5 13.38 6 12 6S9.44 6.5 8.46 7.46C7.5 8.44 7 9.62 7 11H6.5C5.53 11 4.71 11.34 4.03 12.03C3.34 12.71 3 13.53 3 14.5S3.34 16.29 4.03 17C4.71 17.66 5.53 18 6.5 18H13.09C13.04 18.33 13 18.66 13 19M17.75 19.43L16.16 17.84L15 19L17.75 22L22.5 17.25L21.34 15.84L17.75 19.43Z",cloudLock:"M6.5 18H13V20H6.5C5 20 3.69 19.5 2.61 18.43C1.54 17.38 1 16.09 1 14.58C1 13.28 1.39 12.12 2.17 11.1S4 9.43 5.25 9.15C5.67 7.62 6.5 6.38 7.75 5.43S10.42 4 12 4C13.95 4 15.6 4.68 16.96 6.04C18.08 7.16 18.73 8.5 18.93 10C18.23 10 17.56 10.19 16.95 10.46C16.84 9.31 16.38 8.31 15.54 7.46C14.56 6.5 13.38 6 12 6S9.44 6.5 8.46 7.46C7.5 8.44 7 9.62 7 11H6.5C5.53 11 4.71 11.34 4.03 12.03C3.34 12.71 3 13.53 3 14.5S3.34 16.29 4.03 17C4.71 17.66 5.53 18 6.5 18M23 17.3V20.8C23 21.4 22.4 22 21.7 22H16.2C15.6 22 15 21.4 15 20.7V17.2C15 16.6 15.6 16 16.2 16V14.5C16.2 13.1 17.6 12 19 12S21.8 13.1 21.8 14.5V16C22.4 16 23 16.6 23 17.3M20.5 14.5C20.5 13.7 19.8 13.2 19 13.2S17.5 13.7 17.5 14.5V16H20.5V14.5Z",cloudAlert:"M21.86 12.5C21.1 11.63 20.15 11.13 19 11C19 9.05 18.32 7.4 16.96 6.04C15.6 4.68 13.95 4 12 4C10.42 4 9 4.47 7.75 5.43S5.67 7.62 5.25 9.15C4 9.43 2.96 10.08 2.17 11.1S1 13.28 1 14.58C1 16.09 1.54 17.38 2.61 18.43C3.69 19.5 5 20 6.5 20H18.5C19.75 20 20.81 19.56 21.69 18.69C22.56 17.81 23 16.75 23 15.5C23 14.35 22.62 13.35 21.86 12.5M20.27 17.27C19.79 17.76 19.2 18 18.5 18H6.5C5.53 18 4.71 17.66 4.03 17C3.34 16.29 3 15.47 3 14.5S3.34 12.71 4.03 12.03C4.71 11.34 5.53 11 6.5 11H7C7 9.62 7.5 8.44 8.46 7.46C9.44 6.5 10.62 6 12 6S14.56 6.5 15.54 7.46C16.5 8.44 17 9.62 17 11V13H18.5C19.2 13 19.79 13.24 20.27 13.73S21 14.8 21 15.5 20.76 16.79 20.27 17.27M11 15H13V17H11V15M11 7H13V13H11V7Z",cloudQuestion:"M21.86 12.5C21.1 11.63 20.15 11.13 19 11C19 9.05 18.32 7.4 16.96 6.04C15.6 4.68 13.95 4 12 4C10.42 4 9 4.47 7.75 5.43S5.67 7.62 5.25 9.15C4 9.43 2.96 10.08 2.17 11.1S1 13.28 1 14.58C1 16.09 1.54 17.38 2.61 18.43C3.69 19.5 5 20 6.5 20H18.5C19.75 20 20.81 19.56 21.69 18.69C22.56 17.81 23 16.75 23 15.5C23 14.35 22.62 13.35 21.86 12.5M20.27 17.27C19.79 17.76 19.2 18 18.5 18H6.5C5.53 18 4.71 17.66 4.03 17C3.34 16.29 3 15.47 3 14.5S3.34 12.71 4.03 12.03C4.71 11.34 5.53 11 6.5 11H7C7 9.62 7.5 8.44 8.46 7.46C9.44 6.5 10.62 6 12 6S14.56 6.5 15.54 7.46C16.5 8.44 17 9.62 17 11V13H18.5C19.2 13 19.79 13.24 20.27 13.73S21 14.8 21 15.5 20.76 16.79 20.27 17.27M11 15H13V17H11V15M14.43 8.68C14.97 9.13 15.24 9.75 15.24 10.5C15.24 11 15.09 11.41 14.8 11.82C14.5 12.21 14.13 12.5 13.67 12.75C13.41 12.91 13.24 13.07 13.15 13.26C13.06 13.45 13 13.69 13 14H11C11 13.45 11.11 13.08 11.3 12.82C11.5 12.56 11.85 12.25 12.37 11.91C12.63 11.75 12.84 11.56 13 11.32C13.15 11.09 13.23 10.81 13.23 10.5C13.23 10.18 13.14 9.94 12.96 9.76C12.78 9.56 12.5 9.47 12.2 9.47C11.93 9.47 11.71 9.55 11.5 9.7C11.35 9.85 11.25 10.08 11.25 10.39H9.28C9.23 9.64 9.5 9 10.06 8.59C10.6 8.2 11.31 8 12.2 8C13.14 8 13.89 8.23 14.43 8.68Z",airFilter:"M19,18.31V20A2,2 0 0,1 17,22H7A2,2 0 0,1 5,20V16.3C4.54,16.12 3.95,16 3,16A1,1 0 0,1 2,15A1,1 0 0,1 3,14C3.82,14 4.47,14.08 5,14.21V12.3C4.54,12.12 3.95,12 3,12A1,1 0 0,1 2,11A1,1 0 0,1 3,10C3.82,10 4.47,10.08 5,10.21V8.3C4.54,8.12 3.95,8 3,8A1,1 0 0,1 2,7A1,1 0 0,1 3,6C3.82,6 4.47,6.08 5,6.21V4A2,2 0 0,1 7,2H17A2,2 0 0,1 19,4V6.16C20.78,6.47 21.54,7.13 21.71,7.29C22.1,7.68 22.1,8.32 21.71,8.71C21.32,9.1 20.8,9.09 20.29,8.71V8.71C20.29,8.71 19.25,8 17,8C15.74,8 14.91,8.41 13.95,8.9C12.91,9.41 11.74,10 10,10C9.64,10 9.31,10 9,9.96V7.95C9.3,8 9.63,8 10,8C11.26,8 12.09,7.59 13.05,7.11C14.09,6.59 15.27,6 17,6V4H7V20H17V18C18.5,18 18.97,18.29 19,18.31M17,10C15.27,10 14.09,10.59 13.05,11.11C12.09,11.59 11.26,12 10,12C9.63,12 9.3,12 9,11.95V13.96C9.31,14 9.64,14 10,14C11.74,14 12.91,13.41 13.95,12.9C14.91,12.42 15.74,12 17,12C19.25,12 20.29,12.71 20.29,12.71V12.71C20.8,13.1 21.32,13.1 21.71,12.71C22.1,12.32 22.1,11.69 21.71,11.29C21.5,11.08 20.25,10 17,10M17,14C15.27,14 14.09,14.59 13.05,15.11C12.09,15.59 11.26,16 10,16C9.63,16 9.3,16 9,15.95V17.96C9.31,18 9.64,18 10,18C11.74,18 12.91,17.41 13.95,16.9C14.91,16.42 15.74,16 17,16C19.25,16 20.29,16.71 20.29,16.71V16.71C20.8,17.1 21.32,17.1 21.71,16.71C22.1,16.32 22.1,15.69 21.71,15.29C21.5,15.08 20.25,14 17,14Z",wifi:"M12,21L15.6,16.2C14.6,15.45 13.35,15 12,15C10.65,15 9.4,15.45 8.4,16.2L12,21M12,3C7.95,3 4.21,4.34 1.2,6.6L3,9C5.5,7.12 8.62,6 12,6C15.38,6 18.5,7.12 21,9L22.8,6.6C19.79,4.34 16.05,3 12,3M12,9C9.3,9 6.81,9.89 4.8,11.4L6.6,13.8C8.1,12.67 9.97,12 12,12C14.03,12 15.9,12.67 17.4,13.8L19.2,11.4C17.19,9.89 14.7,9 12,9Z",chevronDown:"M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z",close:"M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z",weatherNight:"M17.75,4.09L15.22,6.03L16.13,9.09L13.5,7.28L10.87,9.09L11.78,6.03L9.25,4.09L12.44,4L13.5,1L14.56,4L17.75,4.09M21.25,11L19.61,12.25L20.2,14.23L18.5,13.06L16.8,14.23L17.39,12.25L15.75,11L17.81,10.95L18.5,9L19.19,10.95L21.25,11M18.97,15.95C19.8,15.87 20.69,17.05 20.16,17.8C19.84,18.25 19.5,18.67 19.08,19.07C15.17,23 8.84,23 4.94,19.07C1.03,15.17 1.03,8.83 4.94,4.93C5.34,4.53 5.76,4.17 6.21,3.85C6.96,3.32 8.14,4.21 8.06,5.04C7.79,7.9 8.75,10.87 10.95,13.06C13.14,15.26 16.1,16.22 18.97,15.95M17.33,17.97C14.5,17.81 11.7,16.64 9.53,14.5C7.36,12.31 6.2,9.5 6.04,6.68C3.23,9.82 3.34,14.64 6.35,17.66C9.37,20.67 14.19,20.78 17.33,17.97Z",ledOn:"M11,0V4H13V0H11M18.3,2.29L15.24,5.29L16.64,6.71L19.7,3.71L18.3,2.29M5.71,2.29L4.29,3.71L7.29,6.71L8.71,5.29L5.71,2.29M12,6A4,4 0 0,0 8,10V16H6V18H9V23H11V18H13V23H15V18H18V16H16V10A4,4 0 0,0 12,6M2,9V11H6V9H2M18,9V11H22V9H18Z",microphone:"M12,2A3,3 0 0,1 15,5V11A3,3 0 0,1 12,14A3,3 0 0,1 9,11V5A3,3 0 0,1 12,2M19,11C19,14.53 16.39,17.44 13,17.93V21H11V17.93C7.61,17.44 5,14.53 5,11H7A5,5 0 0,0 12,16A5,5 0 0,0 17,11H19Z",volumeHigh:"M14,3.23V5.29C16.89,6.15 19,8.83 19,12C19,15.17 16.89,17.84 14,18.7V20.77C18,19.86 21,16.28 21,12C21,7.72 18,4.14 14,3.23M16.5,12C16.5,10.23 15.5,8.71 14,7.97V16C15.5,15.29 16.5,13.76 16.5,12M3,9V15H7L12,20V4L7,9H3Z",openInNew:"M14,3V5H17.59L7.76,14.83L9.17,16.24L19,6.41V10H21V3M19,19H5V5H12V3H5C3.89,3 3,3.9 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V12H19V19Z",speaker:"M12,12A3,3 0 0,0 9,15A3,3 0 0,0 12,18A3,3 0 0,0 15,15A3,3 0 0,0 12,12M12,20A5,5 0 0,1 7,15A5,5 0 0,1 12,10A5,5 0 0,1 17,15A5,5 0 0,1 12,20M12,4A2,2 0 0,1 14,6A2,2 0 0,1 12,8C10.89,8 10,7.1 10,6C10,4.89 10.89,4 12,4M17,2H7C5.89,2 5,2.89 5,4V20A2,2 0 0,0 7,22H17A2,2 0 0,0 19,20V4C19,2.89 18.1,2 17,2Z"};function _(n){return v`<svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor" aria-hidden="true"><path d=${Rt[n]}></path></svg>`}var st="#F4A452",nt="#DE8A3A",rt="#3A2C28";function ot(){return typeof window<"u"&&window.matchMedia?.("(prefers-reduced-motion: reduce)").matches===!0}function at(n,t){return n===null&&t===null?{split:!1,hopper1:null,hopper2:null,combined:null}:n===null||t===null?{split:!1,hopper1:n,hopper2:t,combined:n??t}:Math.abs(n-t)<5?{split:!1,hopper1:n,hopper2:t,combined:Math.round((n+t)/2)}:{split:!0,hopper1:n,hopper2:t,combined:null}}function lt(){return v`
     <svg viewBox="0 0 256 256" fill="currentColor">
       <circle cx="128" cy="128" r="88" />
       <path d="M 45.31 97.9 L 11.26 43.1 Q 10.8 29.65 24.12 27.78 L 84 51.79 Z" />
       <path d="M 172 51.79 L 231.88 27.78 Q 245.2 29.65 244.74 43.1 L 210.69 97.9 Z" />
     </svg>
-  `;
-}
-function kibblePiece(x2, y3, size, rotationDeg) {
-  const r6 = size / 4;
-  const cx = x2 + size / 2;
-  const cy = y3 + size / 2;
-  return w`<rect x=${x2} y=${y3} width=${size} height=${size} rx=${r6} transform="rotate(${rotationDeg} ${cx} ${cy})" />`;
-}
-
-// src/components/kibble-bowl.ts
-var VIEW_W = 260;
-var VIEW_H = 200;
-var CX = 130;
-var RIM_CY = 66;
-var RIM_RX = 116;
-var RIM_RY = 44;
-var BASE_CY = 168;
-var BASE_RX = 76;
-var BASIN_RX = 96;
-var BASIN_RY = 34;
-var SCATTER = [-0.62, -0.31, -0.04, 0.22, 0.48, 0.68, -0.5, 0.08, 0.35, -0.18];
-var BODY_PATH = `M ${CX + RIM_RX} ${RIM_CY} A ${RIM_RX} ${RIM_RY} 0 0 1 ${CX - RIM_RX} ${RIM_CY} C ${CX - RIM_RX + 8} ${RIM_CY + 58}, ${CX - BASE_RX + 6} ${BASE_CY - 26}, ${CX - BASE_RX} ${BASE_CY} L ${CX + BASE_RX} ${BASE_CY} C ${CX + BASE_RX - 6} ${BASE_CY - 26}, ${CX + RIM_RX - 8} ${RIM_CY + 58}, ${CX + RIM_RX} ${RIM_CY} Z`;
-function fillShape(cx, rx, ry, fraction) {
-  const scale = Math.sqrt(Math.max(0, Math.min(1, fraction)));
-  if (scale <= 0) return A;
-  return w`<ellipse cx=${cx} cy=${RIM_CY + 6} rx=${rx * scale} ry=${ry * scale} class="fill" />`;
-}
-function textureKibble(cx, rx, fraction, seedOffset) {
-  if (fraction < 0.15) return A;
-  const count = fraction > 0.6 ? 5 : 3;
-  const pieces = [];
-  for (let i6 = 0; i6 < count; i6++) {
-    const t5 = SCATTER[(i6 + seedOffset) % SCATTER.length];
-    const x2 = cx + t5 * rx * 0.72 - 5;
-    const y3 = RIM_CY + 2 + (i6 % 2 === 0 ? -4 : 5);
-    pieces.push(kibblePiece(x2, y3, 10, t5 * 50));
-  }
-  return w`<g class="texture">${pieces}</g>`;
-}
-var KibbleBowl = class extends i4 {
-  constructor() {
-    super();
-    this._wasFeeding = false;
-    this._dropping = false;
-    this._dropTimer = void 0;
-    this.hopper1 = null;
-    this.hopper2 = null;
-    this.catName = null;
-    this.feeding = false;
-    this.statusText = "";
-  }
-  static {
-    this.properties = {
-      hopper1: { type: Number },
-      hopper2: { type: Number },
-      catName: { type: String },
-      feeding: { type: Boolean },
-      statusText: { type: String }
-    };
-  }
-  disconnectedCallback() {
-    super.disconnectedCallback();
-    clearTimeout(this._dropTimer);
-  }
-  willUpdate(changed) {
-    if (changed.has("feeding") && this.feeding && !this._wasFeeding && !prefersReducedMotion()) {
-      this._dropping = true;
-      clearTimeout(this._dropTimer);
-      this._dropTimer = setTimeout(() => {
-        this._dropping = false;
-        this.requestUpdate();
-      }, KIBBLE_FALL_DURATION_MS);
-    }
-    this._wasFeeding = this.feeding;
-  }
-  render() {
-    const display = combineBowlFill(this.hopper1, this.hopper2);
-    return b2`
+  `}function _e(n,t,e,i){let s=e/4,r=n+e/2,o=t+e/2;return v`<rect x=${n} y=${t} width=${e} height=${e} rx=${s} transform="rotate(${i} ${r} ${o})" />`}var Pt=260,Bt=200,m=130,g=66,T=116,dt=44,J=168,ee=76,k=96,H=34,ye=[-.62,-.31,-.04,.22,.48,.68,-.5,.08,.35,-.18],It=`M ${m+T} ${g} A ${T} ${dt} 0 0 1 ${m-T} ${g} C ${m-T+8} ${g+58}, ${m-ee+6} ${J-26}, ${m-ee} ${J} L ${m+ee} ${J} C ${m+ee-6} ${J-26}, ${m+T-8} ${g+58}, ${m+T} ${g} Z`;function $e(n,t,e,i){let s=Math.sqrt(Math.max(0,Math.min(1,i)));return s<=0?a:v`<ellipse cx=${n} cy=${g+6} rx=${t*s} ry=${e*s} class="fill" />`}function xe(n,t,e,i){if(e<.15)return a;let s=e>.6?5:3,r=[];for(let o=0;o<s;o++){let c=ye[(o+i)%ye.length],d=n+c*t*.72-5,p=g+2+(o%2===0?-4:5);r.push(_e(d,p,10,c*50))}return v`<g class="texture">${r}</g>`}var Ce=class extends h{constructor(){super();this._wasFeeding=!1;this._dropping=!1;this._dropTimer=void 0;this.hopper1=null,this.hopper2=null,this.catName=null,this.feeding=!1,this.statusText=""}static{this.properties={hopper1:{type:Number},hopper2:{type:Number},catName:{type:String},feeding:{type:Boolean},statusText:{type:String}}}disconnectedCallback(){super.disconnectedCallback(),clearTimeout(this._dropTimer)}willUpdate(e){e.has("feeding")&&this.feeding&&!this._wasFeeding&&!ot()&&(this._dropping=!0,clearTimeout(this._dropTimer),this._dropTimer=setTimeout(()=>{this._dropping=!1,this.requestUpdate()},900)),this._wasFeeding=this.feeding}render(){let e=at(this.hopper1,this.hopper2);return l`
       <div class="wrap">
-        <svg class="art" viewBox="0 0 ${VIEW_W} ${VIEW_H}" aria-hidden="true" preserveAspectRatio="xMidYMin meet">
-          ${this.catName ? b2`<g class="cat" transform="translate(96 -6) scale(0.27)">${catSilhouette()}</g>` : A}
-          <path class="body" d=${BODY_PATH} />
-          ${display.split ? this._renderSplitBasin(display.hopper1, display.hopper2) : this._renderSingleBasin(display.combined ?? 0)}
-          <ellipse cx=${CX} cy=${RIM_CY} rx=${RIM_RX} ry=${RIM_RY} class="rim" />
-          ${this._dropping ? this._renderFallingKibble() : A}
+        <svg class="art" viewBox="0 0 ${Pt} ${Bt}" aria-hidden="true" preserveAspectRatio="xMidYMin meet">
+          ${this.catName?l`<g class="cat" transform="translate(96 -6) scale(0.27)">${lt()}</g>`:a}
+          <path class="body" d=${It} />
+          ${e.split?this._renderSplitBasin(e.hopper1,e.hopper2):this._renderSingleBasin(e.combined??0)}
+          <ellipse cx=${m} cy=${g} rx=${T} ry=${dt} class="rim" />
+          ${this._dropping?this._renderFallingKibble():a}
         </svg>
         <div class="numbers">
-          ${display.split ? b2`
-                <span class="fill-number split">${Math.round(display.hopper1)}<small>%</small></span>
-                <span class="fill-number split">${Math.round(display.hopper2)}<small>%</small></span>
-              ` : b2`<span class="fill-number">${display.combined == null ? "\u2014" : b2`${Math.round(display.combined)}<small>%</small>`}</span>`}
+          ${e.split?l`
+                <span class="fill-number split">${Math.round(e.hopper1)}<small>%</small></span>
+                <span class="fill-number split">${Math.round(e.hopper2)}<small>%</small></span>
+              `:l`<span class="fill-number">${e.combined==null?"\u2014":l`${Math.round(e.combined)}<small>%</small>`}</span>`}
         </div>
-        ${this.catName ? b2`<div class="cat-name">${this.catName}</div>` : A}
+        ${this.catName?l`<div class="cat-name">${this.catName}</div>`:a}
         <div class="status" data-feeding=${this.feeding}>${this.statusText}</div>
       </div>
-    `;
-  }
-  _renderSingleBasin(fraction0to100) {
-    const fraction = fraction0to100 / 100;
-    return w`
+    `}_renderSingleBasin(e){let i=e/100;return v`
       <g>
-        <ellipse cx=${CX} cy=${RIM_CY} rx=${BASIN_RX} ry=${BASIN_RY} class="basin" />
-        ${fillShape(CX, BASIN_RX - 6, BASIN_RY - 6, fraction)}
-        ${textureKibble(CX, BASIN_RX, fraction, 0)}
+        <ellipse cx=${m} cy=${g} rx=${k} ry=${H} class="basin" />
+        ${$e(m,k-6,H-6,i)}
+        ${xe(m,k,i,0)}
       </g>
-    `;
-  }
-  _renderSplitBasin(hopper1, hopper2) {
-    const leftCx = CX - BASIN_RX / 2 - 4;
-    const rightCx = CX + BASIN_RX / 2 + 4;
-    const halfRx = BASIN_RX / 2 - 6;
-    return w`
+    `}_renderSplitBasin(e,i){let s=m-k/2-4,r=m+k/2+4,o=k/2-6;return v`
       <g>
-        <ellipse cx=${CX} cy=${RIM_CY} rx=${BASIN_RX} ry=${BASIN_RY} class="basin" />
-        ${fillShape(leftCx, halfRx - 4, BASIN_RY - 8, hopper1 / 100)}
-        ${fillShape(rightCx, halfRx - 4, BASIN_RY - 8, hopper2 / 100)}
-        ${textureKibble(leftCx, halfRx, hopper1 / 100, 1)}
-        ${textureKibble(rightCx, halfRx, hopper2 / 100, 4)}
-        <path d="M ${CX} ${RIM_CY - BASIN_RY + 4} L ${CX} ${RIM_CY + BASIN_RY - 4}" class="divider" />
+        <ellipse cx=${m} cy=${g} rx=${k} ry=${H} class="basin" />
+        ${$e(s,o-4,H-8,e/100)}
+        ${$e(r,o-4,H-8,i/100)}
+        ${xe(s,o,e/100,1)}
+        ${xe(r,o,i/100,4)}
+        <path d="M ${m} ${g-H+4} L ${m} ${g+H-4}" class="divider" />
       </g>
-    `;
-  }
-  _renderFallingKibble() {
-    const pieces = SCATTER.slice(0, 7).map((t5, i6) => {
-      const x2 = CX + t5 * (BASIN_RX - 10) - 6;
-      const delayMs = i6 * 70;
-      const durationMs = 320;
-      const style = `--fall-delay:${delayMs}ms;--fall-duration:${durationMs}ms;--fall-rotate:${(t5 * 180).toFixed(0)}deg;--fall-to:${RIM_CY - 10}px;`;
-      return w`<g class="drop" style=${style}>${kibblePiece(x2, -20, 12, t5 * 30)}</g>`;
-    });
-    return w`<g class="drops">${pieces}</g>`;
-  }
-  static {
-    this.styles = i`
+    `}_renderFallingKibble(){let e=ye.slice(0,7).map((i,s)=>{let r=m+i*(k-10)-6,d=`--fall-delay:${s*70}ms;--fall-duration:320ms;--fall-rotate:${(i*180).toFixed(0)}deg;--fall-to:${g-10}px;`;return v`<g class="drop" style=${d}>${_e(r,-20,12,i*30)}</g>`});return v`<g class="drops">${e}</g>`}static{this.styles=b`
     :host {
       display: block;
     }
@@ -945,64 +138,32 @@ var KibbleBowl = class extends i4 {
       color: var(--kibble-amber-dark);
       font-weight: 600;
     }
-  `;
-  }
-};
-customElements.define("kibble-bowl", KibbleBowl);
-
-// src/components/kibble-segmented-picker.ts
-var QUICK_VALUES = [1, 2, 3, 4, 5];
-var KibbleSegmentedPicker = class extends i4 {
-  static {
-    this.properties = {
-      value: { type: Number },
-      disabled: { type: Boolean }
-    };
-  }
-  constructor() {
-    super();
-    this.value = 1;
-    this.disabled = false;
-  }
-  render() {
-    const isQuickValue = QUICK_VALUES.includes(this.value);
-    return b2`
+  `}};customElements.define("kibble-bowl",Ce);var ct=[1,2,3,4,5],ke=class extends h{static{this.properties={value:{type:Number},disabled:{type:Boolean}}}constructor(){super(),this.value=1,this.disabled=!1}render(){let t=ct.includes(this.value);return l`
       <div class="segments" role="radiogroup" aria-label="Feed amount, portions">
-        ${QUICK_VALUES.map(
-      (portion) => b2`
+        ${ct.map(e=>l`
             <button
               type="button"
               role="radio"
-              aria-checked=${portion === this.value}
-              class="segment ${portion === this.value ? "selected" : ""}"
+              aria-checked=${e===this.value}
+              class="segment ${e===this.value?"selected":""}"
               ?disabled=${this.disabled}
-              @click=${() => this._select(portion)}
+              @click=${()=>this._select(e)}
             >
-              ${portion}
+              ${e}
             </button>
-          `
-    )}
+          `)}
         <button
           type="button"
           role="radio"
-          aria-checked=${!isQuickValue}
-          class="segment more ${!isQuickValue ? "selected" : ""}"
+          aria-checked=${!t}
+          class="segment more ${t?"":"selected"}"
           ?disabled=${this.disabled}
           @click=${this._requestMore}
         >
-          ${isQuickValue ? "More" : b2`${this.value}<small>more</small>`}
+          ${t?"More":l`${this.value}<small>more</small>`}
         </button>
       </div>
-    `;
-  }
-  _select(portion) {
-    this.dispatchEvent(new CustomEvent("portion-selected", { detail: { value: portion }, bubbles: true, composed: true }));
-  }
-  _requestMore() {
-    this.dispatchEvent(new CustomEvent("more-requested", { bubbles: true, composed: true }));
-  }
-  static {
-    this.styles = i`
+    `}_select(t){this.dispatchEvent(new CustomEvent("portion-selected",{detail:{value:t},bubbles:!0,composed:!0}))}_requestMore(){this.dispatchEvent(new CustomEvent("more-requested",{bubbles:!0,composed:!0}))}static{this.styles=b`
     :host {
       display: block;
     }
@@ -1051,54 +212,17 @@ var KibbleSegmentedPicker = class extends i4 {
       outline: 2px solid var(--kibble-amber-dark);
       outline-offset: 2px;
     }
-  `;
-  }
-};
-customElements.define("kibble-segmented-picker", KibbleSegmentedPicker);
-
-// src/components/kibble-stepper.ts
-var KibbleStepper = class extends i4 {
-  static {
-    this.properties = {
-      value: { type: Number },
-      min: { type: Number },
-      max: { type: Number },
-      step: { type: Number },
-      disabled: { type: Boolean }
-    };
-  }
-  constructor() {
-    super();
-    this.value = 1;
-    this.min = 1;
-    this.max = 20;
-    this.step = 1;
-    this.disabled = false;
-  }
-  render() {
-    return b2`
+  `}};customElements.define("kibble-segmented-picker",ke);var Ae=class extends h{static{this.properties={value:{type:Number},min:{type:Number},max:{type:Number},step:{type:Number},disabled:{type:Boolean}}}constructor(){super(),this.value=1,this.min=1,this.max=20,this.step=1,this.disabled=!1}render(){return l`
       <div class="stepper">
-        <button type="button" class="step-btn" ?disabled=${this.disabled || this.value <= this.min} @click=${this._decrement} aria-label="Fewer portions">
+        <button type="button" class="step-btn" ?disabled=${this.disabled||this.value<=this.min} @click=${this._decrement} aria-label="Fewer portions">
           &minus;
         </button>
         <span class="value">${this.value}</span>
-        <button type="button" class="step-btn" ?disabled=${this.disabled || this.value >= this.max} @click=${this._increment} aria-label="More portions">
+        <button type="button" class="step-btn" ?disabled=${this.disabled||this.value>=this.max} @click=${this._increment} aria-label="More portions">
           &plus;
         </button>
       </div>
-    `;
-  }
-  _decrement() {
-    this._emit(Math.max(this.min, this.value - this.step));
-  }
-  _increment() {
-    this._emit(Math.min(this.max, this.value + this.step));
-  }
-  _emit(value) {
-    this.dispatchEvent(new CustomEvent("value-selected", { detail: { value }, bubbles: true, composed: true }));
-  }
-  static {
-    this.styles = i`
+    `}_decrement(){this._emit(Math.max(this.min,this.value-this.step))}_increment(){this._emit(Math.min(this.max,this.value+this.step))}_emit(t){this.dispatchEvent(new CustomEvent("value-selected",{detail:{value:t},bubbles:!0,composed:!0}))}static{this.styles=b`
     :host {
       display: block;
     }
@@ -1136,80 +260,22 @@ var KibbleStepper = class extends i4 {
       font-variant-numeric: tabular-nums;
       color: var(--primary-text-color);
     }
-  `;
-  }
-};
-customElements.define("kibble-stepper", KibbleStepper);
-
-// src/components/kibble-hold-button.ts
-var KibbleHoldButton = class extends i4 {
-  constructor() {
-    super();
-    this._holding = false;
-    this._holdTimer = void 0;
-    this._startHold = (event) => {
-      if (this.disabled) return;
-      event.preventDefault();
-      this._holding = true;
-      this.requestUpdate();
-      clearTimeout(this._holdTimer);
-      this._holdTimer = setTimeout(() => {
-        this._holding = false;
-        this.requestUpdate();
-        this._activate();
-      }, this.holdMs);
-    };
-    this._cancelHold = () => {
-      clearTimeout(this._holdTimer);
-      if (this._holding) {
-        this._holding = false;
-        this.requestUpdate();
-      }
-    };
-    this.label = "Hold to feed";
-    this.variant = "feed";
-    this.disabled = false;
-    this.holdMs = HOLD_TO_FEED_MS;
-  }
-  static {
-    this.properties = {
-      label: { type: String },
-      variant: { type: String },
-      disabled: { type: Boolean },
-      holdMs: { type: Number, attribute: "hold-ms" }
-    };
-  }
-  disconnectedCallback() {
-    super.disconnectedCallback();
-    clearTimeout(this._holdTimer);
-  }
-  render() {
-    return b2`
+  `}};customElements.define("kibble-stepper",Ae);var Se=class extends h{constructor(){super();this._holding=!1;this._holdTimer=void 0;this._startHold=e=>{this.disabled||(e.preventDefault(),this._holding=!0,this.requestUpdate(),clearTimeout(this._holdTimer),this._holdTimer=setTimeout(()=>{this._holding=!1,this.requestUpdate(),this._activate()},this.holdMs))};this._cancelHold=()=>{clearTimeout(this._holdTimer),this._holding&&(this._holding=!1,this.requestUpdate())};this.label="Hold to feed",this.variant="feed",this.disabled=!1,this.holdMs=600}static{this.properties={label:{type:String},variant:{type:String},disabled:{type:Boolean},holdMs:{type:Number,attribute:"hold-ms"}}}disconnectedCallback(){super.disconnectedCallback(),clearTimeout(this._holdTimer)}render(){return l`
       <button
         type="button"
-        class="button ${this.variant} ${this._holding ? "holding" : ""}"
+        class="button ${this.variant} ${this._holding?"holding":""}"
         ?disabled=${this.disabled}
-        style=${this.variant === "feed" ? `--hold-ms: ${this.holdMs}ms` : ""}
-        @pointerdown=${this.variant === "feed" ? this._startHold : void 0}
-        @pointerup=${this.variant === "feed" ? this._cancelHold : void 0}
-        @pointerleave=${this.variant === "feed" ? this._cancelHold : void 0}
-        @pointercancel=${this.variant === "feed" ? this._cancelHold : void 0}
-        @click=${this.variant === "cancel" ? this._tapActivate : void 0}
+        style=${this.variant==="feed"?`--hold-ms: ${this.holdMs}ms`:""}
+        @pointerdown=${this.variant==="feed"?this._startHold:void 0}
+        @pointerup=${this.variant==="feed"?this._cancelHold:void 0}
+        @pointerleave=${this.variant==="feed"?this._cancelHold:void 0}
+        @pointercancel=${this.variant==="feed"?this._cancelHold:void 0}
+        @click=${this.variant==="cancel"?this._tapActivate:void 0}
       >
-        ${this.variant === "feed" ? b2`<span class="fill"></span>` : ""}
+        ${this.variant==="feed"?l`<span class="fill"></span>`:""}
         <span class="label">${this.label}</span>
       </button>
-    `;
-  }
-  _tapActivate() {
-    if (this.disabled) return;
-    this._activate();
-  }
-  _activate() {
-    this.dispatchEvent(new CustomEvent("activate", { bubbles: true, composed: true }));
-  }
-  static {
-    this.styles = i`
+    `}_tapActivate(){this.disabled||this._activate()}_activate(){this.dispatchEvent(new CustomEvent("activate",{bubbles:!0,composed:!0}))}static{this.styles=b`
     :host {
       display: block;
     }
@@ -1258,63 +324,23 @@ var KibbleHoldButton = class extends i4 {
       position: relative;
       z-index: 1;
     }
-  `;
-  }
-};
-customElements.define("kibble-hold-button", KibbleHoldButton);
-
-// src/components/kibble-footer.ts
-var CLOUD_ICON = {
-  connected: "cloudCheck",
-  blocked: "cloudLock",
-  unreachable: "cloudAlert",
-  unknown: "cloudQuestion"
-};
-var CLOUD_LABEL = {
-  connected: "Cloud connected",
-  blocked: "Cloud blocked",
-  unreachable: "Cloud unreachable",
-  unknown: "Cloud status unknown"
-};
-var KibbleFooter = class extends i4 {
-  static {
-    this.properties = {
-      cloudState: { type: String },
-      desiccantDays: { type: Number },
-      wifiLabel: { type: String }
-    };
-  }
-  constructor() {
-    super();
-    this.cloudState = null;
-    this.desiccantDays = null;
-    this.wifiLabel = null;
-  }
-  render() {
-    const cloud = this.cloudState && this.cloudState in CLOUD_ICON ? this.cloudState : "unknown";
-    return b2`
+  `}};customElements.define("kibble-hold-button",Se);var ut={connected:"cloudCheck",blocked:"cloudLock",unreachable:"cloudAlert",unknown:"cloudQuestion"},Dt={connected:"Cloud connected",blocked:"Cloud blocked",unreachable:"Cloud unreachable",unknown:"Cloud status unknown"},we=class extends h{static{this.properties={cloudState:{type:String},desiccantDays:{type:Number},wifiLabel:{type:String}}}constructor(){super(),this.cloudState=null,this.desiccantDays=null,this.wifiLabel=null}render(){let t=this.cloudState&&this.cloudState in ut?this.cloudState:"unknown";return l`
       <div class="footer">
-        <button type="button" class="glance ${cloud === "blocked" ? "warn" : ""}" title=${CLOUD_LABEL[cloud]} @click=${this._openSettings}>
-          ${mdiIcon(CLOUD_ICON[cloud])}
+        <button type="button" class="glance ${t==="blocked"?"warn":""}" title=${Dt[t]} @click=${this._openSettings}>
+          ${_(ut[t])}
         </button>
-        ${this.desiccantDays == null ? A : b2`
+        ${this.desiccantDays==null?a:l`
               <button type="button" class="glance" title="Desiccant left" @click=${this._openSettings}>
-                ${mdiIcon("airFilter")}<span>${this.desiccantDays}d</span>
+                ${_("airFilter")}<span>${this.desiccantDays}d</span>
               </button>
             `}
-        ${this.wifiLabel ? b2`
+        ${this.wifiLabel?l`
               <button type="button" class="glance" title="Wi-Fi" @click=${this._openSettings}>
-                ${mdiIcon("wifi")}<span>${this.wifiLabel}</span>
+                ${_("wifi")}<span>${this.wifiLabel}</span>
               </button>
-            ` : A}
+            `:a}
       </div>
-    `;
-  }
-  _openSettings() {
-    this.dispatchEvent(new CustomEvent("open-settings", { bubbles: true, composed: true }));
-  }
-  static {
-    this.styles = i`
+    `}_openSettings(){this.dispatchEvent(new CustomEvent("open-settings",{bubbles:!0,composed:!0}))}static{this.styles=b`
     :host {
       display: block;
     }
@@ -1354,260 +380,23 @@ var KibbleFooter = class extends i4 {
     .settings svg {
       font-size: 1.5em;
     }
-  `;
-  }
-};
-customElements.define("kibble-footer", KibbleFooter);
-
-// node_modules/lit-html/directive-helpers.js
-var { I: t3 } = j;
-var r4 = (o7) => void 0 === o7.strings;
-
-// node_modules/lit-html/directive.js
-var t4 = { ATTRIBUTE: 1, CHILD: 2, PROPERTY: 3, BOOLEAN_ATTRIBUTE: 4, EVENT: 5, ELEMENT: 6 };
-var e4 = (t5) => (...e6) => ({ _$litDirective$: t5, values: e6 });
-var i5 = class {
-  constructor(t5) {
-  }
-  get _$AU() {
-    return this._$AM._$AU;
-  }
-  _$AT(t5, e6, i6) {
-    this._$Ct = t5, this._$AM = e6, this._$Ci = i6;
-  }
-  _$AS(t5, e6) {
-    return this.update(t5, e6);
-  }
-  update(t5, e6) {
-    return this.render(...e6);
-  }
-};
-
-// node_modules/lit-html/async-directive.js
-var s4 = (i6, t5) => {
-  const e6 = i6._$AN;
-  if (void 0 === e6) return false;
-  for (const i7 of e6) i7._$AO?.(t5, false), s4(i7, t5);
-  return true;
-};
-var o5 = (i6) => {
-  let t5, e6;
-  do {
-    if (void 0 === (t5 = i6._$AM)) break;
-    e6 = t5._$AN, e6.delete(i6), i6 = t5;
-  } while (0 === e6?.size);
-};
-var r5 = (i6) => {
-  for (let t5; t5 = i6._$AM; i6 = t5) {
-    let e6 = t5._$AN;
-    if (void 0 === e6) t5._$AN = e6 = /* @__PURE__ */ new Set();
-    else if (e6.has(i6)) break;
-    e6.add(i6), c4(t5);
-  }
-};
-function h3(i6) {
-  void 0 !== this._$AN ? (o5(this), this._$AM = i6, r5(this)) : this._$AM = i6;
-}
-function n4(i6, t5 = false, e6 = 0) {
-  const r6 = this._$AH, h5 = this._$AN;
-  if (void 0 !== h5 && 0 !== h5.size) if (t5) if (Array.isArray(r6)) for (let i7 = e6; i7 < r6.length; i7++) s4(r6[i7], false), o5(r6[i7]);
-  else null != r6 && (s4(r6, false), o5(r6));
-  else s4(this, i6);
-}
-var c4 = (i6) => {
-  i6.type == t4.CHILD && (i6._$AP ??= n4, i6._$AQ ??= h3);
-};
-var f3 = class extends i5 {
-  constructor() {
-    super(...arguments), this._$AN = void 0;
-  }
-  _$AT(i6, t5, e6) {
-    super._$AT(i6, t5, e6), r5(this), this.isConnected = i6._$AU;
-  }
-  _$AO(i6, t5 = true) {
-    i6 !== this.isConnected && (this.isConnected = i6, i6 ? this.reconnected?.() : this.disconnected?.()), t5 && (s4(this, i6), o5(this));
-  }
-  setValue(t5) {
-    if (r4(this._$Ct)) this._$Ct._$AI(t5, this);
-    else {
-      const i6 = [...this._$Ct._$AH];
-      i6[this._$Ci] = t5, this._$Ct._$AI(i6, this, 0);
-    }
-  }
-  disconnected() {
-  }
-  reconnected() {
-  }
-};
-
-// node_modules/lit-html/directives/ref.js
-var e5 = () => new h4();
-var h4 = class {
-};
-var o6 = /* @__PURE__ */ new WeakMap();
-var n5 = e4(class extends f3 {
-  render(i6) {
-    return A;
-  }
-  update(i6, [s5]) {
-    const e6 = s5 !== this.G;
-    return e6 && this.rt(void 0), (e6 || this.lt !== this.ct) && (this.G = s5, this.ht = i6.options?.host, this.rt(this.ct = i6.element)), A;
-  }
-  rt(t5) {
-    if (void 0 !== this.G) if (this.isConnected || (t5 = void 0), "function" == typeof this.G) {
-      const i6 = this.ht ?? globalThis;
-      let s5 = o6.get(i6);
-      void 0 === s5 && (s5 = /* @__PURE__ */ new WeakMap(), o6.set(i6, s5)), void 0 !== s5.get(this.G) && this.G.call(this.ht, void 0), s5.set(this.G, t5), void 0 !== t5 && this.G.call(this.ht, t5);
-    } else this.G.value = t5;
-  }
-  get lt() {
-    return "function" == typeof this.G ? o6.get(this.ht ?? globalThis)?.get(this.G) : this.G?.value;
-  }
-  disconnected() {
-    this.lt === this.ct && this.rt(void 0);
-  }
-  reconnected() {
-    this.rt(this.ct);
-  }
-});
-
-// src/lib/schedule.ts
-function parseTimeToMinutes(time) {
-  const match = /^(\d{1,2}):(\d{2})$/.exec(time.trim());
-  if (!match) {
-    throw new Error(`Invalid schedule time "${time}"`);
-  }
-  const hours = Number(match[1]);
-  const minutes = Number(match[2]);
-  if (hours > 23 || minutes > 59) {
-    throw new Error(`Invalid schedule time "${time}"`);
-  }
-  return hours * 60 + minutes;
-}
-function nextScheduled(entries, now) {
-  const nowMinutes = now.getHours() * 60 + now.getMinutes();
-  let best = null;
-  for (const entry of entries) {
-    if (!entry.enabled) continue;
-    const entryMinutes = parseTimeToMinutes(entry.time);
-    const minutesUntil = ((entryMinutes - nowMinutes) % 1440 + 1440) % 1440;
-    if (best === null || minutesUntil < best.minutesUntil) {
-      best = { entry, minutesUntil };
-    }
-  }
-  return best;
-}
-function scheduleSummary(entries, now) {
-  if (entries.length === 0) {
-    return "No schedule set";
-  }
-  const countLabel = entries.length === 1 ? "1 scheduled" : `${entries.length} scheduled`;
-  const next = nextScheduled(entries, now);
-  if (!next) {
-    return `${countLabel} \xB7 all paused`;
-  }
-  return `${countLabel} \xB7 next ${next.entry.time}`;
-}
-
-// src/components/kibble-schedule-summary.ts
-var DISPENSER_CARD_TAG = "dispenser-schedule-card";
-var KibbleScheduleSummary = class extends i4 {
-  constructor() {
-    super();
-    this._expanded = false;
-    this._embedRef = e5();
-    this._configureEmbed = (el) => {
-      if (!el || !this.scheduleCardStateEntity) return;
-      const card = el.querySelector(DISPENSER_CARD_TAG);
-      if (card) {
-        card.hass = this.hass;
-        return;
-      }
-      const created = document.createElement(DISPENSER_CARD_TAG);
-      created.setConfig({
-        type: "custom:dispenser-schedule-card",
-        device: {
-          type: "custom",
-          entity: this.scheduleCardStateEntity,
-          max_entries: 24,
-          min_amount: 1,
-          max_amount: 20,
-          step_amount: 1,
-          status_map: ["0 -> dispensed", "1 -> failed", "2 -> pending", "3 -> dispensing"],
-          status_pattern: "(?<id>[^,]+),(?<hour>[0-9]{1,2}),(?<minute>[0-9]{1,2}),(?<amount>[0-9]{1,2}),(?<status>[0-9]);?",
-          actions: {
-            add: "kibble.schedule_card_add",
-            edit: "kibble.schedule_card_edit",
-            remove: "kibble.schedule_card_remove",
-            toggle: "kibble.schedule_card_toggle"
-          }
-        },
-        unit_of_measurement: { one: "portion", other: "portions" }
-      });
-      created.hass = this.hass;
-      el.appendChild(created);
-    };
-    this.entries = [];
-    this.deviceName = "Kibble";
-  }
-  static {
-    this.properties = {
-      hass: { attribute: false },
-      entries: { attribute: false },
-      scheduleCardStateEntity: { type: String },
-      deviceName: { type: String }
-    };
-  }
-  updated() {
-    if (this._embedRef.value && this.hass) {
-      this._embedRef.value.hass = this.hass;
-    }
-  }
-  render() {
-    const now = /* @__PURE__ */ new Date();
-    const summary = scheduleSummary(this.entries, now);
-    return b2`
+  `}};customElements.define("kibble-footer",we);var{I:Ii}=Xe;var ht=n=>n.strings===void 0;var pt={ATTRIBUTE:1,CHILD:2,PROPERTY:3,BOOLEAN_ATTRIBUTE:4,EVENT:5,ELEMENT:6},Ee=n=>(...t)=>({_$litDirective$:n,values:t}),te=class{constructor(t){}get _$AU(){return this._$AM._$AU}_$AT(t,e,i){this._$Ct=t,this._$AM=e,this._$Ci=i}_$AS(t,e){return this.update(t,e)}update(t,e){return this.render(...e)}};var K=(n,t)=>{let e=n._$AN;if(e===void 0)return!1;for(let i of e)i._$AO?.(t,!1),K(i,t);return!0},ie=n=>{let t,e;do{if((t=n._$AM)===void 0)break;e=t._$AN,e.delete(n),n=t}while(e?.size===0)},bt=n=>{for(let t;t=n._$AM;n=t){let e=t._$AN;if(e===void 0)t._$AN=e=new Set;else if(e.has(n))break;e.add(n),Ut(t)}};function zt(n){this._$AN!==void 0?(ie(this),this._$AM=n,bt(this)):this._$AM=n}function Kt(n,t=!1,e=0){let i=this._$AH,s=this._$AN;if(s!==void 0&&s.size!==0)if(t)if(Array.isArray(i))for(let r=e;r<i.length;r++)K(i[r],!1),ie(i[r]);else i!=null&&(K(i,!1),ie(i));else K(this,n)}var Ut=n=>{n.type==pt.CHILD&&(n._$AP??=Kt,n._$AQ??=zt)},se=class extends te{constructor(){super(...arguments),this._$AN=void 0}_$AT(t,e,i){super._$AT(t,e,i),bt(this),this.isConnected=t._$AU}_$AO(t,e=!0){t!==this.isConnected&&(this.isConnected=t,t?this.reconnected?.():this.disconnected?.()),e&&(K(this,t),ie(this))}setValue(t){if(ht(this._$Ct))this._$Ct._$AI(t,this);else{let e=[...this._$Ct._$AH];e[this._$Ci]=t,this._$Ct._$AI(e,this,0)}}disconnected(){}reconnected(){}};var mt=()=>new Le,Le=class{},Me=new WeakMap,ft=Ee(class extends se{render(n){return a}update(n,[t]){let e=t!==this.G;return e&&this.rt(void 0),(e||this.lt!==this.ct)&&(this.G=t,this.ht=n.options?.host,this.rt(this.ct=n.element)),a}rt(n){if(this.G!==void 0)if(this.isConnected||(n=void 0),typeof this.G=="function"){let t=this.ht??globalThis,e=Me.get(t);e===void 0&&(e=new WeakMap,Me.set(t,e)),e.get(this.G)!==void 0&&this.G.call(this.ht,void 0),e.set(this.G,n),n!==void 0&&this.G.call(this.ht,n)}else this.G.value=n}get lt(){return typeof this.G=="function"?Me.get(this.ht??globalThis)?.get(this.G):this.G?.value}disconnected(){this.lt===this.ct&&this.rt(void 0)}reconnected(){this.rt(this.ct)}});function Ft(n){let t=/^(\d{1,2}):(\d{2})$/.exec(n.trim());if(!t)throw new Error(`Invalid schedule time "${n}"`);let e=Number(t[1]),i=Number(t[2]);if(e>23||i>59)throw new Error(`Invalid schedule time "${n}"`);return e*60+i}function jt(n,t){let e=t.getHours()*60+t.getMinutes(),i=null;for(let s of n){if(!s.enabled)continue;let o=((Ft(s.time)-e)%1440+1440)%1440;(i===null||o<i.minutesUntil)&&(i={entry:s,minutesUntil:o})}return i}function gt(n,t){if(n.length===0)return"No schedule set";let e=n.length===1?"1 scheduled":`${n.length} scheduled`,i=jt(n,t);return i?`${e} \xB7 next ${i.entry.time}`:`${e} \xB7 all paused`}var He="dispenser-schedule-card",Te=class extends h{constructor(){super();this._expanded=!1;this._embedRef=mt();this._configureEmbed=e=>{if(!e||!this.scheduleCardStateEntity)return;let i=e.querySelector(He);if(i){i.hass=this.hass;return}let s=document.createElement(He);s.setConfig({type:"custom:dispenser-schedule-card",device:{type:"custom",entity:this.scheduleCardStateEntity,max_entries:24,min_amount:1,max_amount:20,step_amount:1,status_map:["0 -> dispensed","1 -> failed","2 -> pending","3 -> dispensing"],status_pattern:"(?<id>[^,]+),(?<hour>[0-9]{1,2}),(?<minute>[0-9]{1,2}),(?<amount>[0-9]{1,2}),(?<status>[0-9]);?",actions:{add:"kibble.schedule_card_add",edit:"kibble.schedule_card_edit",remove:"kibble.schedule_card_remove",toggle:"kibble.schedule_card_toggle"}},unit_of_measurement:{one:"portion",other:"portions"}}),s.hass=this.hass,e.appendChild(s)};this.entries=[],this.deviceName="Kibble"}static{this.properties={hass:{attribute:!1},entries:{attribute:!1},scheduleCardStateEntity:{type:String},deviceName:{type:String}}}updated(){this._embedRef.value&&this.hass&&(this._embedRef.value.hass=this.hass)}render(){let e=new Date,i=gt(this.entries,e);return l`
       <button type="button" class="row" @click=${this._toggle} aria-expanded=${this._expanded}>
-        <span>${summary}</span>
-        <span class="chevron ${this._expanded ? "open" : ""}">${mdiIcon("chevronDown")}</span>
+        <span>${i}</span>
+        <span class="chevron ${this._expanded?"open":""}">${_("chevronDown")}</span>
       </button>
-      ${this._expanded ? b2`<div class="expanded">${this._renderExpanded()}</div>` : A}
-    `;
-  }
-  _renderExpanded() {
-    if (this._canEmbed()) {
-      return b2`<div ${n5(this._configureEmbed)}></div>`;
-    }
-    if (this.entries.length === 0) {
-      return b2`<p class="empty">No schedule set</p>`;
-    }
-    const sorted = [...this.entries].sort((a3, b3) => a3.time.localeCompare(b3.time));
-    return b2`
+      ${this._expanded?l`<div class="expanded">${this._renderExpanded()}</div>`:a}
+    `}_renderExpanded(){if(this._canEmbed())return l`<div ${ft(this._configureEmbed)}></div>`;if(this.entries.length===0)return l`<p class="empty">No schedule set</p>`;let e=[...this.entries].sort((i,s)=>i.time.localeCompare(s.time));return l`
       <ul class="entries">
-        ${sorted.map(
-      (entry) => b2`
-            <li class=${entry.enabled ? "" : "disabled"}>
-              <span class="time">${entry.time}</span>
-              <span class="amounts">${entry.amount_l}g + ${entry.amount_r}g</span>
-              <span class="state">${entry.enabled ? "On" : "Paused"}</span>
+        ${e.map(i=>l`
+            <li class=${i.enabled?"":"disabled"}>
+              <span class="time">${i.time}</span>
+              <span class="amounts">${i.amount_l}g + ${i.amount_r}g</span>
+              <span class="state">${i.enabled?"On":"Paused"}</span>
             </li>
-          `
-    )}
+          `)}
       </ul>
-    `;
-  }
-  _canEmbed() {
-    if (!customElements.get(DISPENSER_CARD_TAG)) return false;
-    if (!this.scheduleCardStateEntity) return false;
-    const state = this.hass?.states[this.scheduleCardStateEntity];
-    return state !== void 0 && state.state !== "unavailable";
-  }
-  _toggle() {
-    this._expanded = !this._expanded;
-    this.requestUpdate();
-  }
-  static {
-    this.styles = i`
+    `}_canEmbed(){if(!customElements.get(He)||!this.scheduleCardStateEntity)return!1;let e=this.hass?.states[this.scheduleCardStateEntity];return e!==void 0&&e.state!=="unavailable"}_toggle(){this._expanded=!this._expanded,this.requestUpdate()}static{this.styles=b`
     :host {
       display: block;
     }
@@ -1673,259 +462,121 @@ var KibbleScheduleSummary = class extends i4 {
       color: var(--secondary-text-color);
       font-size: 0.9em;
     }
-  `;
-  }
-};
-customElements.define("kibble-schedule-summary", KibbleScheduleSummary);
-
-// src/components/kibble-settings-dialog.ts
-var CLOUD_CONFIRM_WINDOW_MS = 3e3;
-function numberAttrs(hass, entityId) {
-  if (!entityId) return null;
-  const state = hass.states[entityId];
-  if (!state) return null;
-  const value = Number(state.state);
-  if (Number.isNaN(value)) return null;
-  return {
-    value,
-    min: Number(state.attributes.min ?? 1),
-    max: Number(state.attributes.max ?? 20),
-    step: Number(state.attributes.step ?? 1)
-  };
-}
-var KibbleSettingsDialog = class extends i4 {
-  constructor() {
-    super();
-    this._cloudConfirmArmed = false;
-    this._cloudConfirmTimer = void 0;
-    this.open = false;
-  }
-  static {
-    this.properties = {
-      hass: { attribute: false },
-      entities: { attribute: false },
-      open: { type: Boolean, reflect: true }
-    };
-  }
-  disconnectedCallback() {
-    super.disconnectedCallback();
-    clearTimeout(this._cloudConfirmTimer);
-  }
-  render() {
-    if (!this.open) return A;
-    const e6 = this.entities;
-    return b2`
+  `}};customElements.define("kibble-schedule-summary",Te);var qt=3e3;function ne(n,t){if(!t)return null;let e=n.states[t];if(!e)return null;let i=Number(e.state);return Number.isNaN(i)?null:{value:i,min:Number(e.attributes.min??1),max:Number(e.attributes.max??20),step:Number(e.attributes.step??1)}}var Ne=class extends h{constructor(){super();this._cloudConfirmArmed=!1;this._cloudConfirmTimer=void 0;this.open=!1}static{this.properties={hass:{attribute:!1},entities:{attribute:!1},open:{type:Boolean,reflect:!0}}}disconnectedCallback(){super.disconnectedCallback(),clearTimeout(this._cloudConfirmTimer)}render(){if(!this.open)return a;let e=this.entities;return l`
       <div class="backdrop" @click=${this._close}></div>
       <div class="panel" role="dialog" aria-modal="true" aria-label="Kibble settings" @keydown=${this._onKeydown}>
         <header>
           <h2>Settings</h2>
-          <button type="button" class="icon-button" @click=${this._close} aria-label="Close">${mdiIcon("close")}</button>
+          <button type="button" class="icon-button" @click=${this._close} aria-label="Close">${_("close")}</button>
         </header>
         <div class="body">
-          ${e6.feedButtonHopper1 || e6.feedButtonHopper2 ? this._renderHopperSection() : A}
-          ${e6.feedAmount ? this._renderMoreAmountSection() : A}
+          ${e.feedButtonHopper1||e.feedButtonHopper2?this._renderHopperSection():a}
+          ${e.feedAmount?this._renderMoreAmountSection():a}
           ${this._renderToggles()}
-          ${e6.volume ? this._renderVolume() : A}
-          ${e6.cloudSwitch ? this._renderCloud() : A}
-          ${e6.wifiNetwork ? this._renderWifi() : A}
-          ${e6.dishBefore || e6.dishAfter ? this._renderDishPhotos() : A}
-          ${e6.speaker ? this._renderSpeaker() : A}
+          ${e.volume?this._renderVolume():a}
+          ${e.cloudSwitch?this._renderCloud():a}
+          ${e.wifiNetwork?this._renderWifi():a}
+          ${e.dishBefore||e.dishAfter?this._renderDishPhotos():a}
+          ${e.speaker?this._renderSpeaker():a}
           <button type="button" class="device-link" @click=${this._openDevicePage}>
-            Open device page ${mdiIcon("openInNew")}
+            Open device page ${_("openInNew")}
           </button>
         </div>
       </div>
-    `;
-  }
-  _renderMoreAmountSection() {
-    const attrs = numberAttrs(this.hass, this.entities.feedAmount);
-    if (!attrs) return A;
-    return b2`
+    `}_renderMoreAmountSection(){let e=ne(this.hass,this.entities.feedAmount);return e?l`
       <section>
         <h3>Feed amount</h3>
-        ${this._renderStepper(this.entities.feedAmount, attrs)}
+        ${this._renderStepper(this.entities.feedAmount,e)}
       </section>
-    `;
-  }
-  _renderHopperSection() {
-    const { feedAmountHopper1, feedAmountHopper2, feedButtonHopper1, feedButtonHopper2 } = this.entities;
-    return b2`
+    `:a}_renderHopperSection(){let{feedAmountHopper1:e,feedAmountHopper2:i,feedButtonHopper1:s,feedButtonHopper2:r}=this.entities;return l`
       <section>
         <h3>Per-hopper feed</h3>
         <p class="hint">Runs one auger at a time — useful for wear-leveling or working around a jam.</p>
         <div class="hoppers">
-          ${feedAmountHopper1 ? b2`
+          ${e?l`
                 <div class="hopper">
                   <span class="hopper-label">Hopper 1</span>
-                  ${this._renderStepper(feedAmountHopper1, numberAttrs(this.hass, feedAmountHopper1))}
-                  ${feedButtonHopper1 ? b2`<kibble-hold-button label="Hold to feed" @activate=${() => this._pressButton(feedButtonHopper1)}></kibble-hold-button>` : A}
+                  ${this._renderStepper(e,ne(this.hass,e))}
+                  ${s?l`<kibble-hold-button label="Hold to feed" @activate=${()=>this._pressButton(s)}></kibble-hold-button>`:a}
                 </div>
-              ` : A}
-          ${feedAmountHopper2 ? b2`
+              `:a}
+          ${i?l`
                 <div class="hopper">
                   <span class="hopper-label">Hopper 2</span>
-                  ${this._renderStepper(feedAmountHopper2, numberAttrs(this.hass, feedAmountHopper2))}
-                  ${feedButtonHopper2 ? b2`<kibble-hold-button label="Hold to feed" @activate=${() => this._pressButton(feedButtonHopper2)}></kibble-hold-button>` : A}
+                  ${this._renderStepper(i,ne(this.hass,i))}
+                  ${r?l`<kibble-hold-button label="Hold to feed" @activate=${()=>this._pressButton(r)}></kibble-hold-button>`:a}
                 </div>
-              ` : A}
+              `:a}
         </div>
       </section>
-    `;
-  }
-  _renderStepper(entityId, attrs) {
-    if (!attrs) return A;
-    return b2`
+    `}_renderStepper(e,i){return i?l`
       <div class="stepper">
-        <button type="button" class="step-btn" ?disabled=${attrs.value <= attrs.min} @click=${() => this._setNumber(entityId, Math.max(attrs.min, attrs.value - attrs.step))}>
+        <button type="button" class="step-btn" ?disabled=${i.value<=i.min} @click=${()=>this._setNumber(e,Math.max(i.min,i.value-i.step))}>
           &minus;
         </button>
-        <span class="step-value">${attrs.value}</span>
-        <button type="button" class="step-btn" ?disabled=${attrs.value >= attrs.max} @click=${() => this._setNumber(entityId, Math.min(attrs.max, attrs.value + attrs.step))}>
+        <span class="step-value">${i.value}</span>
+        <button type="button" class="step-btn" ?disabled=${i.value>=i.max} @click=${()=>this._setNumber(e,Math.min(i.max,i.value+i.step))}>
           &plus;
         </button>
       </div>
-    `;
-  }
-  _renderToggles() {
-    const candidates = [
-      { id: this.entities.nightVisionSwitch, icon: "weatherNight", label: "Night vision" },
-      { id: this.entities.statusLedSwitch, icon: "ledOn", label: "Status LED" },
-      { id: this.entities.microphoneSwitch, icon: "microphone", label: "Microphone" }
-    ];
-    const rows = candidates.filter(
-      (row) => row.id !== void 0
-    );
-    if (rows.length === 0) return A;
-    return b2`
+    `:a}_renderToggles(){let i=[{id:this.entities.nightVisionSwitch,icon:"weatherNight",label:"Night vision"},{id:this.entities.statusLedSwitch,icon:"ledOn",label:"Status LED"},{id:this.entities.microphoneSwitch,icon:"microphone",label:"Microphone"}].filter(s=>s.id!==void 0);return i.length===0?a:l`
       <section>
         <h3>Device</h3>
-        ${rows.map((row) => this._renderToggleRow(row.id, row.icon, row.label))}
+        ${i.map(s=>this._renderToggleRow(s.id,s.icon,s.label))}
       </section>
-    `;
-  }
-  _renderToggleRow(entityId, icon, label) {
-    const state = this.hass.states[entityId];
-    const on = state?.state === "on";
-    const unavailable = !state || state.state === "unavailable";
-    return b2`
-      <button type="button" class="toggle-row" ?disabled=${unavailable} @click=${() => this._toggleSwitch(entityId)}>
-        <span class="toggle-icon">${mdiIcon(icon)}</span>
-        <span class="toggle-label">${label}</span>
-        <span class="toggle-pill ${on ? "on" : ""}"><span class="toggle-knob"></span></span>
+    `}_renderToggleRow(e,i,s){let r=this.hass.states[e],o=r?.state==="on",c=!r||r.state==="unavailable";return l`
+      <button type="button" class="toggle-row" ?disabled=${c} @click=${()=>this._toggleSwitch(e)}>
+        <span class="toggle-icon">${_(i)}</span>
+        <span class="toggle-label">${s}</span>
+        <span class="toggle-pill ${o?"on":""}"><span class="toggle-knob"></span></span>
       </button>
-    `;
-  }
-  _renderVolume() {
-    const attrs = numberAttrs(this.hass, this.entities.volume);
-    if (!attrs) return A;
-    return b2`
+    `}_renderVolume(){let e=ne(this.hass,this.entities.volume);return e?l`
       <section>
         <h3>Volume</h3>
         <input
           type="range"
-          min=${attrs.min}
-          max=${attrs.max}
-          step=${attrs.step}
-          .value=${String(attrs.value)}
-          @change=${(ev) => this._setNumber(this.entities.volume, Number(ev.target.value))}
+          min=${e.min}
+          max=${e.max}
+          step=${e.step}
+          .value=${String(e.value)}
+          @change=${i=>this._setNumber(this.entities.volume,Number(i.target.value))}
         />
       </section>
-    `;
-  }
-  _renderCloud() {
-    const state = this.hass.states[this.entities.cloudSwitch];
-    const on = state?.state === "on";
-    const connection = this.entities.cloudConnection ? this.hass.states[this.entities.cloudConnection]?.state : void 0;
-    return b2`
+    `:a}_renderCloud(){let i=this.hass.states[this.entities.cloudSwitch]?.state==="on",s=this.entities.cloudConnection?this.hass.states[this.entities.cloudConnection]?.state:void 0;return l`
       <section>
         <h3>Petkit cloud</h3>
-        <p class="hint">${connection ? `Connection: ${connection}` : "Turns the feeder's cloud link on or off."}</p>
-        <button type="button" class="cloud-toggle ${this._cloudConfirmArmed ? "confirming" : ""}" @click=${this._onCloudToggleClick}>
-          ${this._cloudConfirmArmed ? `Tap again to turn ${on ? "off" : "on"}` : on ? "On \u2014 tap to turn off" : "Off \u2014 tap to turn on"}
+        <p class="hint">${s?`Connection: ${s}`:"Turns the feeder's cloud link on or off."}</p>
+        <button type="button" class="cloud-toggle ${this._cloudConfirmArmed?"confirming":""}" @click=${this._onCloudToggleClick}>
+          ${this._cloudConfirmArmed?`Tap again to turn ${i?"off":"on"}`:i?"On \u2014 tap to turn off":"Off \u2014 tap to turn on"}
         </button>
       </section>
-    `;
-  }
-  _renderWifi() {
-    const state = this.hass.states[this.entities.wifiNetwork];
-    return b2`
+    `}_renderWifi(){let e=this.hass.states[this.entities.wifiNetwork];return l`
       <section>
         <h3>Wi-Fi</h3>
-        <p class="hint">${state ? state.state : "Unavailable"}</p>
+        <p class="hint">${e?e.state:"Unavailable"}</p>
       </section>
-    `;
-  }
-  _renderDishPhotos() {
-    const before = this.entities.dishBefore ? this.hass.states[this.entities.dishBefore] : void 0;
-    const after = this.entities.dishAfter ? this.hass.states[this.entities.dishAfter] : void 0;
-    if ((!before || before.state === "unavailable") && (!after || after.state === "unavailable")) return A;
-    return b2`
+    `}_renderDishPhotos(){let e=this.entities.dishBefore?this.hass.states[this.entities.dishBefore]:void 0,i=this.entities.dishAfter?this.hass.states[this.entities.dishAfter]:void 0;return(!e||e.state==="unavailable")&&(!i||i.state==="unavailable")?a:l`
       <section>
         <h3>Last feed</h3>
         <div class="dish-photos">
-          ${before && before.state !== "unavailable" ? b2`<img src=${String(before.attributes.entity_picture ?? "")} alt="Before" />` : A}
-          ${after && after.state !== "unavailable" ? b2`<img src=${String(after.attributes.entity_picture ?? "")} alt="After" />` : A}
+          ${e&&e.state!=="unavailable"?l`<img src=${String(e.attributes.entity_picture??"")} alt="Before" />`:a}
+          ${i&&i.state!=="unavailable"?l`<img src=${String(i.attributes.entity_picture??"")} alt="After" />`:a}
         </div>
       </section>
-    `;
-  }
-  _renderSpeaker() {
-    const state = this.hass.states[this.entities.speaker];
-    if (!state) return A;
-    const volume = typeof state.attributes.volume_level === "number" ? state.attributes.volume_level : 0.5;
-    return b2`
+    `}_renderSpeaker(){let e=this.hass.states[this.entities.speaker];if(!e)return a;let i=typeof e.attributes.volume_level=="number"?e.attributes.volume_level:.5;return l`
       <section>
         <h3>Speaker</h3>
-        <p class="hint">${state.state}</p>
+        <p class="hint">${e.state}</p>
         <input
           type="range"
           min="0"
           max="1"
           step="0.05"
-          .value=${String(volume)}
-          @change=${(ev) => this.hass.callService("media_player", "volume_set", { volume_level: Number(ev.target.value) }, { entity_id: this.entities.speaker })}
+          .value=${String(i)}
+          @change=${s=>this.hass.callService("media_player","volume_set",{volume_level:Number(s.target.value)},{entity_id:this.entities.speaker})}
         />
       </section>
-    `;
-  }
-  _pressButton(entityId) {
-    this.hass.callService("button", "press", {}, { entity_id: entityId });
-  }
-  _toggleSwitch(entityId) {
-    this.hass.callService("switch", "toggle", {}, { entity_id: entityId });
-  }
-  _setNumber(entityId, value) {
-    this.hass.callService("number", "set_value", { value }, { entity_id: entityId });
-  }
-  _onCloudToggleClick() {
-    if (this._cloudConfirmArmed) {
-      clearTimeout(this._cloudConfirmTimer);
-      this._cloudConfirmArmed = false;
-      this._toggleSwitch(this.entities.cloudSwitch);
-      this.requestUpdate();
-      return;
-    }
-    this._cloudConfirmArmed = true;
-    this.requestUpdate();
-    this._cloudConfirmTimer = setTimeout(() => {
-      this._cloudConfirmArmed = false;
-      this.requestUpdate();
-    }, CLOUD_CONFIRM_WINDOW_MS);
-  }
-  _openDevicePage() {
-    const deviceId = this.entities.deviceId;
-    history.pushState(null, "", `/config/devices/device/${deviceId}`);
-    window.dispatchEvent(new CustomEvent("location-changed", { bubbles: true, composed: true }));
-    this._close();
-  }
-  _onKeydown(event) {
-    if (event.key === "Escape") this._close();
-  }
-  _close() {
-    this.dispatchEvent(new CustomEvent("close-requested", { bubbles: true, composed: true }));
-  }
-  static {
-    this.styles = i`
+    `}_pressButton(e){this.hass.callService("button","press",{},{entity_id:e})}_toggleSwitch(e){this.hass.callService("switch","toggle",{},{entity_id:e})}_setNumber(e,i){this.hass.callService("number","set_value",{value:i},{entity_id:e})}_onCloudToggleClick(){if(this._cloudConfirmArmed){clearTimeout(this._cloudConfirmTimer),this._cloudConfirmArmed=!1,this._toggleSwitch(this.entities.cloudSwitch),this.requestUpdate();return}this._cloudConfirmArmed=!0,this.requestUpdate(),this._cloudConfirmTimer=setTimeout(()=>{this._cloudConfirmArmed=!1,this.requestUpdate()},qt)}_openDevicePage(){let e=this.entities.deviceId;history.pushState(null,"",`/config/devices/device/${e}`),window.dispatchEvent(new CustomEvent("location-changed",{bubbles:!0,composed:!0})),this._close()}_onKeydown(e){e.key==="Escape"&&this._close()}_close(){this.dispatchEvent(new CustomEvent("close-requested",{bubbles:!0,composed:!0}))}static{this.styles=b`
     :host {
       position: fixed;
       inset: 0;
@@ -2126,95 +777,33 @@ var KibbleSettingsDialog = class extends i4 {
       padding: 8px 0;
       align-self: flex-start;
     }
-  `;
-  }
-};
-customElements.define("kibble-settings-dialog", KibbleSettingsDialog);
-
-// src/editor.ts
-var SCHEMA = [
-  { name: "device_id", required: true, selector: { device: { filter: { integration: "kibble" } } } },
-  { name: "name", selector: { text: {} } }
-];
-var FIELD_LABELS = {
-  device_id: "Kibble device",
-  name: "Name (optional)"
-};
-var KibbleCardEditor = class extends i4 {
-  constructor() {
-    super(...arguments);
-    this._computeLabel = (field) => FIELD_LABELS[field.name] ?? field.name;
-  }
-  static {
-    this.properties = {
-      hass: { attribute: false },
-      _config: { state: true }
-    };
-  }
-  setConfig(config) {
-    this._config = config;
-  }
-  render() {
-    if (!this._config) return A;
-    if (customElements.get("ha-form")) {
-      return b2`
+  `}};customElements.define("kibble-settings-dialog",Ne);var Wt=[{name:"device_id",required:!0,selector:{device:{filter:{integration:"kibble"}}}},{name:"name",selector:{text:{}}}],Gt={device_id:"Kibble device",name:"Name (optional)"},Re=class extends h{constructor(){super(...arguments);this._computeLabel=e=>Gt[e.name]??e.name}static{this.properties={hass:{attribute:!1},_config:{state:!0}}}setConfig(e){this._config=e}render(){return this._config?customElements.get("ha-form")?l`
         <ha-form
           .hass=${this.hass}
           .data=${this._config}
-          .schema=${SCHEMA}
+          .schema=${Wt}
           .computeLabel=${this._computeLabel}
           @value-changed=${this._formValueChanged}
         ></ha-form>
-      `;
-    }
-    return this._renderFallback();
-  }
-  _renderFallback() {
-    const entities = Object.values(this.hass?.entities ?? {});
-    const devices = Object.values(this.hass?.devices ?? {}).filter(
-      (device) => entities.some((entity) => entity.device_id === device.id && entity.platform === "kibble")
-    );
-    return b2`
+      `:this._renderFallback():a}_renderFallback(){let e=Object.values(this.hass?.entities??{}),i=Object.values(this.hass?.devices??{}).filter(s=>e.some(r=>r.device_id===s.id&&r.platform==="kibble"));return l`
       <div class="fallback">
         <label>
           <span>Kibble device</span>
-          <select @change=${(event) => this._updateDeviceId(event.target.value)}>
+          <select @change=${s=>this._updateDeviceId(s.target.value)}>
             <option value="" ?selected=${!this._config?.device_id}>Choose a device\u2026</option>
-            ${devices.map(
-      (device) => b2`<option value=${device.id} ?selected=${device.id === this._config?.device_id}>${device.name_by_user ?? device.name}</option>`
-    )}
+            ${i.map(s=>l`<option value=${s.id} ?selected=${s.id===this._config?.device_id}>${s.name_by_user??s.name}</option>`)}
           </select>
         </label>
         <label>
           <span>Name (optional)</span>
           <input
             type="text"
-            .value=${this._config?.name ?? ""}
-            @change=${(event) => this._updateName(event.target.value)}
+            .value=${this._config?.name??""}
+            @change=${s=>this._updateName(s.target.value)}
           />
         </label>
       </div>
-    `;
-  }
-  _formValueChanged(event) {
-    this._config = event.detail.value;
-    this._fireConfigChanged();
-  }
-  _updateDeviceId(value) {
-    if (!this._config) return;
-    this._config = { ...this._config, device_id: value };
-    this._fireConfigChanged();
-  }
-  _updateName(value) {
-    if (!this._config) return;
-    this._config = { ...this._config, name: value || void 0 };
-    this._fireConfigChanged();
-  }
-  _fireConfigChanged() {
-    this.dispatchEvent(new CustomEvent("config-changed", { detail: { config: this._config }, bubbles: true, composed: true }));
-  }
-  static {
-    this.styles = i`
+    `}_formValueChanged(e){this._config=e.detail.value,this._fireConfigChanged()}_updateDeviceId(e){this._config&&(this._config={...this._config,device_id:e},this._fireConfigChanged())}_updateName(e){this._config&&(this._config={...this._config,name:e||void 0},this._fireConfigChanged())}_fireConfigChanged(){this.dispatchEvent(new CustomEvent("config-changed",{detail:{config:this._config},bubbles:!0,composed:!0}))}static{this.styles=b`
     .fallback {
       display: flex;
       flex-direction: column;
@@ -2238,201 +827,69 @@ var KibbleCardEditor = class extends i4 {
       padding: 0 10px;
       font: inherit;
     }
-  `;
-  }
-};
-customElements.define("kibble-card-editor", KibbleCardEditor);
-
-// src/kibble-card.ts
-var EMPTY_ENTITIES = { deviceId: "", catPresence: [] };
-var KibbleCard = class extends i4 {
-  constructor() {
-    super();
-    this._entities = EMPTY_ENTITIES;
-    this._onFeedActivate = () => {
-      if (!this._entities.deviceId) return;
-      const amount = this._numberState(this._entities.feedAmount) ?? 1;
-      this.hass.callService("kibble", "feed", { device_id: this._entities.deviceId, hopper: "both", amount });
-    };
-    this._onCancelActivate = () => {
-      if (!this._entities.deviceId) return;
-      this.hass.callService("kibble", "cancel_feed", { device_id: this._entities.deviceId });
-    };
-    this._openSettings = () => {
-      this._settingsOpen = true;
-    };
-    this._closeSettings = () => {
-      this._settingsOpen = false;
-    };
-    this._settingsOpen = false;
-  }
-  static {
-    this.properties = {
-      hass: { attribute: false },
-      _config: { state: true },
-      _settingsOpen: { state: true }
-    };
-  }
-  setConfig(config) {
-    if (!config.device_id) {
-      throw new Error("Kibble card: a device is required. Choose it in the card editor.");
-    }
-    this._config = config;
-  }
-  getCardSize() {
-    return 6;
-  }
-  static getStubConfig(hass) {
-    const kibbleEntity = Object.values(hass.entities ?? {}).find((entry) => entry.platform === "kibble");
-    return { type: "custom:kibble-card", device_id: kibbleEntity?.device_id ?? "" };
-  }
-  static getConfigElement() {
-    return document.createElement("kibble-card-editor");
-  }
-  connectedCallback() {
-    super.connectedCallback();
-    this._resizeObserver = new ResizeObserver((entries) => {
-      const height = entries[0]?.contentRect.height ?? this.getBoundingClientRect().height;
-      this.classList.toggle("kiosk", height >= KIOSK_MIN_HEIGHT_PX);
-    });
-    this._resizeObserver.observe(this);
-  }
-  disconnectedCallback() {
-    super.disconnectedCallback();
-    this._resizeObserver?.disconnect();
-  }
-  willUpdate(changed) {
-    if ((changed.has("hass") || changed.has("_config")) && this._config?.device_id && this.hass) {
-      this._entities = resolveKibbleEntities(this.hass.entities ?? {}, this._config.device_id);
-    }
-  }
-  render() {
-    if (!this._config || !this.hass) return A;
-    const e6 = this._entities;
-    const feedingState = e6.feeding ? this.hass.states[e6.feeding]?.state : void 0;
-    const coreIds = [e6.feeding, e6.bowlFill1, e6.bowlFill2, e6.schedule].filter((id) => Boolean(id));
-    const coreStates = coreIds.map((id) => this.hass.states[id]?.state);
-    const status = deriveFeederStatus(coreStates, feedingState);
-    const feeding = feedingState === "on";
-    const hopper1 = this._numberState(e6.bowlFill1);
-    const hopper2 = this._numberState(e6.bowlFill2);
-    const catName = this._catName();
-    const text = status === "idle" ? statusText(status, this._lastFedRelative(feedingState)) : statusText(status, null);
-    const scheduleEntries = this._scheduleEntries();
-    const feedAmount = this._numberState(e6.feedAmount) ?? 1;
-    const desiccantDays = this._numberState(e6.desiccantDays);
-    const wifiState = e6.wifiNetwork ? this.hass.states[e6.wifiNetwork] : void 0;
-    const cloudState = e6.cloudConnection ? this.hass.states[e6.cloudConnection]?.state : void 0;
-    return b2`
+  `}};customElements.define("kibble-card-editor",Re);var Qt={deviceId:"",catPresence:[]},Ve=class extends h{constructor(){super();this._entities=Qt;this._onFeedActivate=()=>{if(!this._entities.deviceId)return;let e=this._numberState(this._entities.feedAmount)??1;this.hass.callService("kibble","feed",{device_id:this._entities.deviceId,hopper:"both",amount:e})};this._onCancelActivate=()=>{this._entities.deviceId&&this.hass.callService("kibble","cancel_feed",{device_id:this._entities.deviceId})};this._openSettings=()=>{this._settingsOpen=!0};this._closeSettings=()=>{this._settingsOpen=!1};this._settingsOpen=!1}static{this.properties={hass:{attribute:!1},_config:{state:!0},_settingsOpen:{state:!0}}}setConfig(e){if(!e.device_id)throw new Error("Kibble card: a device is required. Choose it in the card editor.");this._config=e}getCardSize(){return 6}static getStubConfig(e){return{type:"custom:kibble-card",device_id:Object.values(e.entities??{}).find(s=>s.platform==="kibble")?.device_id??""}}static getConfigElement(){return document.createElement("kibble-card-editor")}connectedCallback(){super.connectedCallback(),this._resizeObserver=new ResizeObserver(e=>{let i=e[0]?.contentRect.height??this.getBoundingClientRect().height;this.classList.toggle("kiosk",i>=440)}),this._resizeObserver.observe(this)}disconnectedCallback(){super.disconnectedCallback(),this._resizeObserver?.disconnect()}willUpdate(e){(e.has("hass")||e.has("_config"))&&this._config?.device_id&&this.hass&&(this._entities=et(this.hass.entities??{},this._config.device_id))}render(){if(!this._config||!this.hass)return a;let e=this._entities,i=e.feeding?this.hass.states[e.feeding]?.state:void 0,r=[e.feeding,e.bowlFill1,e.bowlFill2,e.schedule].filter(oe=>!!oe).map(oe=>this.hass.states[oe]?.state),o=tt(r,i),c=i==="on",d=this._numberState(e.bowlFill1),p=this._numberState(e.bowlFill2),f=this._catName(),u=o==="idle"?ve(o,this._lastFedRelative(i)):ve(o,null),$=this._scheduleEntries(),x=this._numberState(e.feedAmount)??1,N=this._numberState(e.desiccantDays),re=e.wifiNetwork?this.hass.states[e.wifiNetwork]:void 0,vt=e.cloudConnection?this.hass.states[e.cloudConnection]?.state:void 0;return l`
       <ha-card>
         <div class="container">
           <div class="root">
             <div class="hero">
-              <div class="hero-media">${this._renderCamera(e6.camera)}</div>
-              <div class="hero-progress" data-active=${status === "dispensing"}></div>
-              <button class="gear-button" aria-label="Settings" @click=${this._openSettings}>${mdiIcon("cog")}</button>
-              ${this._config.name ? b2`<div class="name-chip">${this._config.name}</div>` : A}
+              <div class="hero-media">${this._renderCamera(e.camera)}</div>
+              <div class="hero-progress" data-active=${o==="dispensing"}></div>
+              <button class="gear-button" aria-label="Settings" @click=${this._openSettings}>${_("cog")}</button>
+              ${this._config.name?l`<div class="name-chip">${this._config.name}</div>`:a}
             </div>
             <kibble-bowl
               class="bowl-block"
-              .hopper1=${hopper1}
-              .hopper2=${hopper2}
-              .catName=${catName}
-              .feeding=${feeding}
-              .statusText=${text}
+              .hopper1=${d}
+              .hopper2=${p}
+              .catName=${f}
+              .feeding=${c}
+              .statusText=${u}
             ></kibble-bowl>
             <div class="feed-controls">
               <kibble-segmented-picker
                 class="picker-full"
-                .value=${feedAmount}
-                ?disabled=${status === "unreachable" || feeding}
+                .value=${x}
+                ?disabled=${o==="unreachable"||c}
                 @portion-selected=${this._onPortionSelected}
                 @more-requested=${this._openSettings}
               ></kibble-segmented-picker>
               <kibble-stepper
                 class="picker-compact"
-                .value=${feedAmount}
-                ?disabled=${status === "unreachable" || feeding}
+                .value=${x}
+                ?disabled=${o==="unreachable"||c}
                 @value-selected=${this._onPortionSelected}
               ></kibble-stepper>
               <kibble-hold-button
-                .label=${feeding ? "Cancel" : "Hold to feed"}
-                .variant=${feeding ? "cancel" : "feed"}
-                ?disabled=${status === "unreachable"}
-                @activate=${feeding ? this._onCancelActivate : this._onFeedActivate}
+                .label=${c?"Cancel":"Hold to feed"}
+                .variant=${c?"cancel":"feed"}
+                ?disabled=${o==="unreachable"}
+                @activate=${c?this._onCancelActivate:this._onFeedActivate}
               ></kibble-hold-button>
             </div>
             <kibble-schedule-summary
               class="schedule-row"
               .hass=${this.hass}
-              .entries=${scheduleEntries}
-              .scheduleCardStateEntity=${e6.scheduleCardState}
+              .entries=${$}
+              .scheduleCardStateEntity=${e.scheduleCardState}
             ></kibble-schedule-summary>
             <kibble-footer
               class="footer"
-              .cloudState=${cloudState}
-              .desiccantDays=${desiccantDays}
-              .wifiLabel=${wifiState && wifiState.state !== "unavailable" ? wifiState.state : null}
+              .cloudState=${vt}
+              .desiccantDays=${N}
+              .wifiLabel=${re&&re.state!=="unavailable"?re.state:null}
               @open-settings=${this._openSettings}
             ></kibble-footer>
           </div>
         </div>
       </ha-card>
-      <kibble-settings-dialog .hass=${this.hass} .entities=${e6} ?open=${this._settingsOpen} @close-requested=${this._closeSettings}></kibble-settings-dialog>
-    `;
-  }
-  _renderCamera(cameraId) {
-    if (!cameraId) {
-      return b2`<div class="hero-placeholder">No camera on this device</div>`;
-    }
-    if (customElements.get("hui-image")) {
-      return b2`<hui-image .hass=${this.hass} .cameraImage=${cameraId} cameraView="live"></hui-image>`;
-    }
-    const state = this.hass.states[cameraId];
-    const src = state?.attributes.entity_picture;
-    if (!state || state.state === "unavailable" || !src) {
-      return b2`<div class="hero-placeholder">Camera unavailable</div>`;
-    }
-    return b2`<img src=${src} alt="Live view of the feeder" />`;
-  }
-  _numberState(entityId) {
-    if (!entityId) return null;
-    const value = Number(this.hass.states[entityId]?.state);
-    return Number.isFinite(value) ? value : null;
-  }
-  _catName() {
-    const id = this._entities.lastSeenPet;
-    if (!id) return null;
-    const state = this.hass.states[id]?.state;
-    if (!state || state === "unavailable" || state.toLowerCase() === "unknown") return null;
-    return state;
-  }
-  _lastFedRelative(feedingState) {
-    const id = this._entities.feeding;
-    if (!id || feedingState !== "off") return null;
-    const state = this.hass.states[id];
-    if (!state) return null;
-    return relativeTime(new Date(state.last_changed), /* @__PURE__ */ new Date());
-  }
-  _scheduleEntries() {
-    const id = this._entities.schedule;
-    if (!id) return [];
-    const attrs = this.hass.states[id]?.attributes;
-    const entries = attrs?.entries;
-    return Array.isArray(entries) ? entries : [];
-  }
-  _onPortionSelected(event) {
-    if (!this._entities.feedAmount) return;
-    this.hass.callService("number", "set_value", { value: event.detail.value }, { entity_id: this._entities.feedAmount });
-  }
-  static {
-    this.styles = i`
+      <kibble-settings-dialog .hass=${this.hass} .entities=${e} ?open=${this._settingsOpen} @close-requested=${this._closeSettings}></kibble-settings-dialog>
+    `}_renderCamera(e){if(!e)return l`<div class="hero-placeholder">No camera on this device</div>`;if(customElements.get("hui-image"))return l`<hui-image .hass=${this.hass} .cameraImage=${e} cameraView="live"></hui-image>`;let i=this.hass.states[e],s=i?.attributes.entity_picture;return!i||i.state==="unavailable"||!s?l`<div class="hero-placeholder">Camera unavailable</div>`:l`<img src=${s} alt="Live view of the feeder" />`}_numberState(e){if(!e)return null;let i=Number(this.hass.states[e]?.state);return Number.isFinite(i)?i:null}_catName(){let e=this._entities.lastSeenPet;if(!e)return null;let i=this.hass.states[e]?.state;return!i||i==="unavailable"||i.toLowerCase()==="unknown"?null:i}_lastFedRelative(e){let i=this._entities.feeding;if(!i||e!=="off")return null;let s=this.hass.states[i];return s?it(new Date(s.last_changed),new Date):null}_scheduleEntries(){let e=this._entities.schedule;if(!e)return[];let s=this.hass.states[e]?.attributes?.entries;return Array.isArray(s)?s:[]}_onPortionSelected(e){this._entities.feedAmount&&this.hass.callService("number","set_value",{value:e.detail.value},{entity_id:this._entities.feedAmount})}static{this.styles=b`
     :host {
       display: block;
       height: 100%;
-      --kibble-amber: ${r(KIBBLE_AMBER)};
-      --kibble-amber-dark: ${r(KIBBLE_AMBER_DARK)};
-      --kibble-ink-on-amber: ${r(KIBBLE_INK_ON_AMBER)};
+      --kibble-amber: ${R(st)};
+      --kibble-amber-dark: ${R(nt)};
+      --kibble-ink-on-amber: ${R(rt)};
       --kibble-touch-target: 48px;
       --kibble-feed-button-height: 56px;
       --kibble-number-size: 32px;
@@ -2640,20 +1097,7 @@ var KibbleCard = class extends i4 {
         padding: 0 16px 2px;
       }
     }
-  `;
-  }
-};
-customElements.define("kibble-card", KibbleCard);
-window.customCards = window.customCards || [];
-window.customCards.push({
-  type: "kibble-card",
-  name: "Kibble",
-  description: "The full daily control surface for a Kibble Petkit feeder: live camera, bowl status, feed, and schedule.",
-  preview: true
-});
-export {
-  KibbleCard
-};
+  `}};customElements.define("kibble-card",Ve);window.customCards=window.customCards||[];window.customCards.push({type:"kibble-card",name:"Kibble",description:"The full daily control surface for a Kibble Petkit feeder: live camera, bowl status, feed, and schedule.",preview:!0});export{Ve as KibbleCard};
 /*! Bundled license information:
 
 @lit/reactive-element/css-tag.js:
@@ -2719,4 +1163,3 @@ lit-html/directives/ref.js:
    * SPDX-License-Identifier: BSD-3-Clause
    *)
 */
-//# sourceMappingURL=kibble-card.js.map

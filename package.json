@@ -1,0 +1,25 @@
+{
+  "name": "kibble-card",
+  "version": "0.1.0",
+  "description": "A Lovelace card for the Kibble Petkit feeder integration",
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "build": "esbuild src/kibble-card.ts --bundle --format=esm --minify --outfile=dist/kibble-card.js",
+    "build:dev": "esbuild src/kibble-card.ts --bundle --format=esm --outfile=dist/kibble-card.js --sourcemap",
+    "watch": "esbuild src/kibble-card.ts --bundle --format=esm --outfile=dist/kibble-card.js --sourcemap --watch",
+    "build:harness": "esbuild dev/app.ts --bundle --format=esm --outfile=dev/dist/app.js --sourcemap",
+    "test": "bun test test/",
+    "typecheck": "tsc --noEmit",
+    "typecheck:test": "tsc -p tsconfig.test.json --noEmit",
+    "harness": "bun run build:dev && bun run build:harness && bun run dev/serve.js"
+  },
+  "dependencies": {
+    "lit": "^3.2.1"
+  },
+  "devDependencies": {
+    "bun-types": "^1.4.2",
+    "esbuild": "^0.24.2",
+    "typescript": "^5.7.3"
+  }
+}

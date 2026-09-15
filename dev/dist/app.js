@@ -943,7 +943,6 @@ var KibbleSegmentedPicker = class extends i4 {
     this.disabled = false;
   }
   render() {
-    const isQuickValue = QUICK_VALUES.includes(this.value);
     return b2`
       <div class="segments" role="radiogroup" aria-label="Feed amount, portions">
         ${QUICK_VALUES.map(
@@ -960,24 +959,11 @@ var KibbleSegmentedPicker = class extends i4 {
             </button>
           `
     )}
-        <button
-          type="button"
-          role="radio"
-          aria-checked=${!isQuickValue}
-          class="segment more ${!isQuickValue ? "selected" : ""}"
-          ?disabled=${this.disabled}
-          @click=${this._requestMore}
-        >
-          ${isQuickValue ? "More" : b2`${this.value}<small>more</small>`}
-        </button>
       </div>
     `;
   }
   _select(portion) {
     this.dispatchEvent(new CustomEvent("portion-selected", { detail: { value: portion }, bubbles: true, composed: true }));
-  }
-  _requestMore() {
-    this.dispatchEvent(new CustomEvent("more-requested", { bubbles: true, composed: true }));
   }
   static {
     this.styles = i`
@@ -1006,15 +992,6 @@ var KibbleSegmentedPicker = class extends i4 {
       justify-content: center;
       line-height: 1.1;
       transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
-    }
-    .segment.more {
-      flex: 1.3 1 0;
-      font-size: calc(var(--kibble-segment-size, 16px) * 0.85);
-    }
-    .segment small {
-      font-size: 0.55em;
-      font-weight: 500;
-      text-transform: lowercase;
     }
     .segment.selected {
       background: var(--kibble-amber);
@@ -2246,8 +2223,11 @@ var KibbleCard = class extends i4 {
   connectedCallback() {
     super.connectedCallback();
     this._resizeObserver = new ResizeObserver((entries) => {
-      const height = entries[0]?.contentRect.height ?? this.getBoundingClientRect().height;
+      const rect = entries[0]?.contentRect;
+      const height = rect?.height ?? this.getBoundingClientRect().height;
+      const width = rect?.width ?? this.getBoundingClientRect().width;
       this.classList.toggle("kiosk", height >= KIOSK_MIN_HEIGHT_PX);
+      this.classList.toggle("compact", width < 640 && height > 0 && height <= 520);
     });
     this._resizeObserver.observe(this);
   }
@@ -2301,7 +2281,6 @@ var KibbleCard = class extends i4 {
                 .value=${feedAmount}
                 ?disabled=${status === "unreachable" || feeding}
                 @portion-selected=${this._onPortionSelected}
-                @more-requested=${this._openSettings}
               ></kibble-segmented-picker>
               <kibble-stepper
                 class="picker-compact"
@@ -2530,7 +2509,7 @@ var KibbleCard = class extends i4 {
     .feed-controls .picker-compact {
       display: block;
     }
-    @container feed-controls (min-width: 340px) {
+    @container feed-controls (min-width: 280px) {
       .feed-controls .picker-full {
         display: block;
       }
@@ -2545,6 +2524,17 @@ var KibbleCard = class extends i4 {
     .footer {
       grid-area: footer;
       padding: 0 10px;
+    }
+    :host(.compact) .root {
+      gap: 6px;
+    }
+    :host(.compact) .hero {
+      height: 80px;
+      padding-bottom: 0;
+    }
+    :host(.compact) .bowl-block {
+      padding-top: 2px;
+      --kibble-bowl-max-width: 190px;
     }
 
     /* >=640px: two columns, camera left full height, bowl/feed/schedule stacked on the right. */
@@ -2583,6 +2573,8 @@ var KibbleCard = class extends i4 {
       .feed-controls {
         grid-area: feed;
         padding: 6px 16px 0;
+        --kibble-touch-target: 48px;
+        --kibble-segment-size: 16px;
       }
       .schedule-row {
         grid-area: schedule;

@@ -65,8 +65,11 @@ export class KibbleCard extends LitElement {
   connectedCallback(): void {
     super.connectedCallback();
     this._resizeObserver = new ResizeObserver((entries) => {
-      const height = entries[0]?.contentRect.height ?? this.getBoundingClientRect().height;
+      const rect = entries[0]?.contentRect;
+      const height = rect?.height ?? this.getBoundingClientRect().height;
+      const width = rect?.width ?? this.getBoundingClientRect().width;
       this.classList.toggle("kiosk", height >= KIOSK_MIN_HEIGHT_PX);
+      this.classList.toggle("compact", width < 640 && height > 0 && height <= 520);
     });
     this._resizeObserver.observe(this);
   }
@@ -126,7 +129,6 @@ export class KibbleCard extends LitElement {
                 .value=${feedAmount}
                 ?disabled=${status === "unreachable" || feeding}
                 @portion-selected=${this._onPortionSelected}
-                @more-requested=${this._openSettings}
               ></kibble-segmented-picker>
               <kibble-stepper
                 class="picker-compact"
@@ -380,7 +382,7 @@ export class KibbleCard extends LitElement {
     .feed-controls .picker-compact {
       display: block;
     }
-    @container feed-controls (min-width: 340px) {
+    @container feed-controls (min-width: 280px) {
       .feed-controls .picker-full {
         display: block;
       }
@@ -395,6 +397,17 @@ export class KibbleCard extends LitElement {
     .footer {
       grid-area: footer;
       padding: 0 10px;
+    }
+    :host(.compact) .root {
+      gap: 6px;
+    }
+    :host(.compact) .hero {
+      height: 80px;
+      padding-bottom: 0;
+    }
+    :host(.compact) .bowl-block {
+      padding-top: 2px;
+      --kibble-bowl-max-width: 190px;
     }
 
     /* >=640px: two columns, camera left full height, bowl/feed/schedule stacked on the right. */
@@ -433,6 +446,8 @@ export class KibbleCard extends LitElement {
       .feed-controls {
         grid-area: feed;
         padding: 6px 16px 0;
+        --kibble-touch-target: 48px;
+        --kibble-segment-size: 16px;
       }
       .schedule-row {
         grid-area: schedule;

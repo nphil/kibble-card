@@ -66,6 +66,9 @@ const ENTITY_IDS = {
   volume: "number.plant_room_cat_feeder_volume",
   lastSeenPet: "sensor.plant_room_cat_feeder_last_seen_pet",
   wifiNetwork: "sensor.plant_room_cat_feeder_wifi_network",
+  lastDetection: "sensor.plant_room_cat_feeder_last_detection",
+  detectionsToday: "sensor.plant_room_cat_feeder_detections_today",
+  lastDetectionImage: "image.plant_room_cat_feeder_last_detection",
 } as const;
 
 function registryFor(includeWifi: boolean): Record<string, EntityRegistryEntry> {
@@ -90,6 +93,9 @@ function registryFor(includeWifi: boolean): Record<string, EntityRegistryEntry> 
     [ENTITY_IDS.microphoneSwitch]: entry(ENTITY_IDS.microphoneSwitch, "microphone"),
     [ENTITY_IDS.volume]: entry(ENTITY_IDS.volume, "volume"),
     [ENTITY_IDS.lastSeenPet]: entry(ENTITY_IDS.lastSeenPet, "last_seen_pet"),
+    [ENTITY_IDS.lastDetection]: entry(ENTITY_IDS.lastDetection, "last_detection"),
+    [ENTITY_IDS.detectionsToday]: entry(ENTITY_IDS.detectionsToday, "detections_today"),
+    [ENTITY_IDS.lastDetectionImage]: entry(ENTITY_IDS.lastDetectionImage, "last_detection"),
   };
   if (includeWifi) {
     registry[ENTITY_IDS.wifiNetwork] = entry(ENTITY_IDS.wifiNetwork, "wifi_network");
@@ -124,6 +130,16 @@ function buildIdle(): Fixture {
     [ENTITY_IDS.microphoneSwitch]: state(ENTITY_IDS.microphoneSwitch, "on"),
     [ENTITY_IDS.volume]: state(ENTITY_IDS.volume, "6", { min: 0, max: 9, step: 1 }),
     [ENTITY_IDS.lastSeenPet]: state(ENTITY_IDS.lastSeenPet, "Kitty", { score: 0.94 }, minutesAgo(126)),
+    // An unidentified visit: Kibble saw a cat but did not match it to Kitty or Pancake, so the
+    // row shows the class ("Seen") and never a guessed name.
+    [ENTITY_IDS.lastDetection]: state(ENTITY_IDS.lastDetection, minutesAgo(14), { class: "visit" }),
+    [ENTITY_IDS.detectionsToday]: state(ENTITY_IDS.detectionsToday, "16", {
+      by_class: { visit: 16 },
+      capped: false,
+    }),
+    [ENTITY_IDS.lastDetectionImage]: state(ENTITY_IDS.lastDetectionImage, minutesAgo(14), {
+      entity_picture: "./camera-frame.svg",
+    }),
   };
   return { device: DEVICE, entities: registryFor(false), states };
 }
@@ -146,6 +162,15 @@ function buildDispensing(): Fixture {
     [ENTITY_IDS.microphoneSwitch]: state(ENTITY_IDS.microphoneSwitch, "on"),
     [ENTITY_IDS.volume]: state(ENTITY_IDS.volume, "6", { min: 0, max: 9, step: 1 }),
     [ENTITY_IDS.lastSeenPet]: state(ENTITY_IDS.lastSeenPet, "Pancake", { score: 0.88 }, minutesAgo(1)),
+    // Mid-dispense: the cat that tripped the detection is still at the bowl.
+    [ENTITY_IDS.lastDetection]: state(ENTITY_IDS.lastDetection, minutesAgo(1), {
+      class: "eat",
+      cat: "Pancake",
+    }),
+    [ENTITY_IDS.detectionsToday]: state(ENTITY_IDS.detectionsToday, "9", { by_class: { visit: 7, eat: 2 } }),
+    [ENTITY_IDS.lastDetectionImage]: state(ENTITY_IDS.lastDetectionImage, minutesAgo(1), {
+      entity_picture: "./camera-frame.svg",
+    }),
     [ENTITY_IDS.wifiNetwork]: state(ENTITY_IDS.wifiNetwork, "Good (-52 dBm)"),
   };
   return { device: DEVICE, entities: registryFor(true), states };
@@ -170,6 +195,9 @@ function buildUnreachable(): Fixture {
     [ENTITY_IDS.microphoneSwitch]: state(ENTITY_IDS.microphoneSwitch, "unavailable", {}),
     [ENTITY_IDS.volume]: state(ENTITY_IDS.volume, "unavailable", {}),
     [ENTITY_IDS.lastSeenPet]: state(ENTITY_IDS.lastSeenPet, "unavailable", {}),
+    [ENTITY_IDS.lastDetection]: state(ENTITY_IDS.lastDetection, "unavailable", {}),
+    [ENTITY_IDS.detectionsToday]: state(ENTITY_IDS.detectionsToday, "unavailable", {}),
+    [ENTITY_IDS.lastDetectionImage]: state(ENTITY_IDS.lastDetectionImage, "unavailable", {}),
   };
   return { device: DEVICE, entities: registryFor(false), states };
 }

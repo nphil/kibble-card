@@ -93,7 +93,9 @@ export class KibbleHoldButton extends LitElement {
       width: 100%;
       height: var(--kibble-feed-button-height, 56px);
       border: none;
-      border-radius: calc(var(--ha-card-border-radius, 12px) * 0.8);
+      /* Fully rounded: the primary action should read as one confident pill, matching the
+         segmented picker above it. */
+      border-radius: 999px;
       background: var(--kibble-amber);
       color: var(--kibble-ink-on-amber);
       font-size: var(--kibble-feed-label-size, 18px);
@@ -103,11 +105,17 @@ export class KibbleHoldButton extends LitElement {
       touch-action: none;
       user-select: none;
       -webkit-user-select: none;
+      transition: transform 0.08s ease, box-shadow 0.15s ease;
+      box-shadow: 0 1px 2px color-mix(in srgb, var(--kibble-amber-dark) 35%, transparent);
+    }
+    .button:active:not(:disabled) {
+      transform: scale(0.985);
+      box-shadow: none;
     }
     .button.cancel {
-      background: transparent;
-      border: 2px solid var(--kibble-amber-dark);
+      background: color-mix(in srgb, var(--kibble-amber-dark) 12%, transparent);
       color: var(--kibble-amber-dark);
+      box-shadow: none;
     }
     .button:disabled {
       opacity: 0.5;

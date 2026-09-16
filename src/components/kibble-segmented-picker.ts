@@ -60,9 +60,12 @@ export class KibbleSegmentedPicker extends LitElement {
       flex: 1 1 0;
       min-width: var(--kibble-touch-target, 48px);
       min-height: var(--kibble-touch-target, 48px);
-      border-radius: calc(var(--ha-card-border-radius, 12px) * 0.6);
-      border: 2px solid var(--divider-color);
-      background: var(--ha-card-background, var(--card-background-color));
+      /* Pill radius and a soft translucent surface instead of a 2px outline: the convention
+         Mushroom/Bubble-style dashboards settled on, and it stops a row of five segments
+         reading as a table of boxes. */
+      border-radius: 999px;
+      border: none;
+      background: color-mix(in srgb, var(--primary-text-color) 8%, transparent);
       color: var(--primary-text-color);
       font-size: var(--kibble-segment-size, 16px);
       font-weight: 600;
@@ -73,11 +76,14 @@ export class KibbleSegmentedPicker extends LitElement {
       align-items: center;
       justify-content: center;
       line-height: 1.1;
-      transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+      transition: background-color 0.15s ease, color 0.15s ease, transform 0.08s ease;
+    }
+    /* Press feedback -- the small tactile detail that makes a touch panel feel native. */
+    .segment:active:not(:disabled) {
+      transform: scale(0.96);
     }
     .segment.selected {
       background: var(--kibble-amber);
-      border-color: var(--kibble-amber);
       color: var(--kibble-ink-on-amber);
     }
     .segment:disabled {

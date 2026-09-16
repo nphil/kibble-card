@@ -41,6 +41,9 @@ export interface KibbleEntities {
   dishAfter?: string;
   speaker?: string;
   wifiNetwork?: string;
+  lastDetection?: string;
+  detectionsToday?: string;
+  lastDetectionImage?: string;
 }
 
 interface RoleRule {
@@ -75,6 +78,9 @@ const RULES: Record<RuleRole, RoleRule> = {
   dishBefore: { domain: "image", translationKeys: ["dish_before"], idSuffixes: ["_dish_before"] },
   dishAfter: { domain: "image", translationKeys: ["dish_after"], idSuffixes: ["_dish_after"] },
   wifiNetwork: { domain: "sensor", translationKeys: ["wifi_network", "wifi", "rssi"], idSuffixes: ["_wifi_network", "_wifi", "_rssi"] },
+  lastDetection: { domain: "sensor", translationKeys: ["last_detection"], idSuffixes: ["_last_detection"] },
+  detectionsToday: { domain: "sensor", translationKeys: ["detections_today"], idSuffixes: ["_detections_today"] },
+  lastDetectionImage: { domain: "image", translationKeys: ["last_detection"], idSuffixes: ["_last_detection"] },
 };
 
 function domainOf(entityId: string): string {

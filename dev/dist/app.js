@@ -1,18 +1,18 @@
 // dist/kibble-card.js
-var U = globalThis;
-var F = U.ShadowRoot && (U.ShadyCSS === void 0 || U.ShadyCSS.nativeShadow) && "adoptedStyleSheets" in Document.prototype && "replace" in CSSStyleSheet.prototype;
-var re = Symbol();
-var Re = /* @__PURE__ */ new WeakMap();
+var F = globalThis;
+var j = F.ShadowRoot && (F.ShadyCSS === void 0 || F.ShadyCSS.nativeShadow) && "adoptedStyleSheets" in Document.prototype && "replace" in CSSStyleSheet.prototype;
+var oe = Symbol();
+var De = /* @__PURE__ */ new WeakMap();
 var V = class {
   constructor(t, e, i) {
-    if (this._$cssResult$ = true, i !== re) throw Error("CSSResult is not constructable. Use `unsafeCSS` or `css` instead.");
+    if (this._$cssResult$ = true, i !== oe) throw Error("CSSResult is not constructable. Use `unsafeCSS` or `css` instead.");
     this.cssText = t, this.t = e;
   }
   get styleSheet() {
     let t = this.o, e = this.t;
-    if (F && t === void 0) {
+    if (j && t === void 0) {
       let i = e !== void 0 && e.length === 1;
-      i && (t = Re.get(e)), t === void 0 && ((this.o = t = new CSSStyleSheet()).replaceSync(this.cssText), i && Re.set(e, t));
+      i && (t = De.get(e)), t === void 0 && ((this.o = t = new CSSStyleSheet()).replaceSync(this.cssText), i && De.set(e, t));
     }
     return t;
   }
@@ -20,37 +20,37 @@ var V = class {
     return this.cssText;
   }
 };
-var T = (s3) => new V(typeof s3 == "string" ? s3 : s3 + "", void 0, re);
-var f = (s3, ...t) => {
+var T = (s3) => new V(typeof s3 == "string" ? s3 : s3 + "", void 0, oe);
+var b = (s3, ...t) => {
   let e = s3.length === 1 ? s3[0] : t.reduce((i, n, r) => i + ((o) => {
     if (o._$cssResult$ === true) return o.cssText;
     if (typeof o == "number") return o;
     throw Error("Value passed to 'css' function must be a 'css' function result: " + o + ". Use 'unsafeCSS' to pass non-literal values, but take care to ensure page security.");
   })(n) + s3[r + 1], s3[0]);
-  return new V(e, s3, re);
+  return new V(e, s3, oe);
 };
-var Ve = (s3, t) => {
-  if (F) s3.adoptedStyleSheets = t.map((e) => e instanceof CSSStyleSheet ? e : e.styleSheet);
+var Oe = (s3, t) => {
+  if (j) s3.adoptedStyleSheets = t.map((e) => e instanceof CSSStyleSheet ? e : e.styleSheet);
   else for (let e of t) {
-    let i = document.createElement("style"), n = U.litNonce;
+    let i = document.createElement("style"), n = F.litNonce;
     n !== void 0 && i.setAttribute("nonce", n), i.textContent = e.cssText, s3.appendChild(i);
   }
 };
-var oe = F ? (s3) => s3 : (s3) => s3 instanceof CSSStyleSheet ? ((t) => {
+var ae = j ? (s3) => s3 : (s3) => s3 instanceof CSSStyleSheet ? ((t) => {
   let e = "";
   for (let i of t.cssRules) e += i.cssText;
   return T(e);
 })(s3) : s3;
-var { is: gt, defineProperty: _t, getOwnPropertyDescriptor: vt, getOwnPropertyNames: $t, getOwnPropertySymbols: xt, getPrototypeOf: yt } = Object;
-var j = globalThis;
-var Pe = j.trustedTypes;
-var Ct = Pe ? Pe.emptyScript : "";
-var kt = j.reactiveElementPolyfillSupport;
-var P = (s3, t) => s3;
-var ae = { toAttribute(s3, t) {
+var { is: vt, defineProperty: $t, getOwnPropertyDescriptor: yt, getOwnPropertyNames: xt, getOwnPropertySymbols: Ct, getPrototypeOf: kt } = Object;
+var q = globalThis;
+var Ie = q.trustedTypes;
+var wt = Ie ? Ie.emptyScript : "";
+var At = q.reactiveElementPolyfillSupport;
+var D = (s3, t) => s3;
+var le = { toAttribute(s3, t) {
   switch (t) {
     case Boolean:
-      s3 = s3 ? Ct : null;
+      s3 = s3 ? wt : null;
       break;
     case Object:
     case Array:
@@ -76,24 +76,24 @@ var ae = { toAttribute(s3, t) {
   }
   return e;
 } };
-var Be = (s3, t) => !gt(s3, t);
-var Oe = { attribute: true, type: String, converter: ae, reflect: false, useDefault: false, hasChanged: Be };
-Symbol.metadata ??= Symbol("metadata"), j.litPropertyMetadata ??= /* @__PURE__ */ new WeakMap();
-var x = class extends HTMLElement {
+var ze = (s3, t) => !vt(s3, t);
+var Be = { attribute: true, type: String, converter: le, reflect: false, useDefault: false, hasChanged: ze };
+Symbol.metadata ??= Symbol("metadata"), q.litPropertyMetadata ??= /* @__PURE__ */ new WeakMap();
+var y = class extends HTMLElement {
   static addInitializer(t) {
     this._$Ei(), (this.l ??= []).push(t);
   }
   static get observedAttributes() {
     return this.finalize(), this._$Eh && [...this._$Eh.keys()];
   }
-  static createProperty(t, e = Oe) {
+  static createProperty(t, e = Be) {
     if (e.state && (e.attribute = false), this._$Ei(), this.prototype.hasOwnProperty(t) && ((e = Object.create(e)).wrapped = true), this.elementProperties.set(t, e), !e.noAccessor) {
       let i = Symbol(), n = this.getPropertyDescriptor(t, i, e);
-      n !== void 0 && _t(this.prototype, t, n);
+      n !== void 0 && $t(this.prototype, t, n);
     }
   }
   static getPropertyDescriptor(t, e, i) {
-    let { get: n, set: r } = vt(this.prototype, t) ?? { get() {
+    let { get: n, set: r } = yt(this.prototype, t) ?? { get() {
       return this[e];
     }, set(o) {
       this[e] = o;
@@ -104,17 +104,17 @@ var x = class extends HTMLElement {
     }, configurable: true, enumerable: true };
   }
   static getPropertyOptions(t) {
-    return this.elementProperties.get(t) ?? Oe;
+    return this.elementProperties.get(t) ?? Be;
   }
   static _$Ei() {
-    if (this.hasOwnProperty(P("elementProperties"))) return;
-    let t = yt(this);
+    if (this.hasOwnProperty(D("elementProperties"))) return;
+    let t = kt(this);
     t.finalize(), t.l !== void 0 && (this.l = [...t.l]), this.elementProperties = new Map(t.elementProperties);
   }
   static finalize() {
-    if (this.hasOwnProperty(P("finalized"))) return;
-    if (this.finalized = true, this._$Ei(), this.hasOwnProperty(P("properties"))) {
-      let e = this.properties, i = [...$t(e), ...xt(e)];
+    if (this.hasOwnProperty(D("finalized"))) return;
+    if (this.finalized = true, this._$Ei(), this.hasOwnProperty(D("properties"))) {
+      let e = this.properties, i = [...xt(e), ...Ct(e)];
       for (let n of i) this.createProperty(n, e[n]);
     }
     let t = this[Symbol.metadata];
@@ -133,8 +133,8 @@ var x = class extends HTMLElement {
     let e = [];
     if (Array.isArray(t)) {
       let i = new Set(t.flat(1 / 0).reverse());
-      for (let n of i) e.unshift(oe(n));
-    } else t !== void 0 && e.push(oe(t));
+      for (let n of i) e.unshift(ae(n));
+    } else t !== void 0 && e.push(ae(t));
     return e;
   }
   static _$Eu(t, e) {
@@ -160,7 +160,7 @@ var x = class extends HTMLElement {
   }
   createRenderRoot() {
     let t = this.shadowRoot ?? this.attachShadow(this.constructor.shadowRootOptions);
-    return Ve(t, this.constructor.elementStyles), t;
+    return Oe(t, this.constructor.elementStyles), t;
   }
   connectedCallback() {
     this.renderRoot ??= this.createRenderRoot(), this.enableUpdating(true), this._$EO?.forEach((t) => t.hostConnected?.());
@@ -176,14 +176,14 @@ var x = class extends HTMLElement {
   _$ET(t, e) {
     let i = this.constructor.elementProperties.get(t), n = this.constructor._$Eu(t, i);
     if (n !== void 0 && i.reflect === true) {
-      let r = (i.converter?.toAttribute !== void 0 ? i.converter : ae).toAttribute(e, i.type);
+      let r = (i.converter?.toAttribute !== void 0 ? i.converter : le).toAttribute(e, i.type);
       this._$Em = t, r == null ? this.removeAttribute(n) : this.setAttribute(n, r), this._$Em = null;
     }
   }
   _$AK(t, e) {
     let i = this.constructor, n = i._$Eh.get(t);
     if (n !== void 0 && this._$Em !== n) {
-      let r = i.getPropertyOptions(n), o = typeof r.converter == "function" ? { fromAttribute: r.converter } : r.converter?.fromAttribute !== void 0 ? r.converter : ae;
+      let r = i.getPropertyOptions(n), o = typeof r.converter == "function" ? { fromAttribute: r.converter } : r.converter?.fromAttribute !== void 0 ? r.converter : le;
       this._$Em = n;
       let d = o.fromAttribute(e, r.type);
       this[n] = d ?? this._$Ej?.get(n) ?? d, this._$Em = null;
@@ -192,7 +192,7 @@ var x = class extends HTMLElement {
   requestUpdate(t, e, i, n = false, r) {
     if (t !== void 0) {
       let o = this.constructor;
-      if (n === false && (r = this[t]), i ??= o.getPropertyOptions(t), !((i.hasChanged ?? Be)(r, e) || i.useDefault && i.reflect && r === this._$Ej?.get(t) && !this.hasAttribute(o._$Eu(t, i)))) return;
+      if (n === false && (r = this[t]), i ??= o.getPropertyOptions(t), !((i.hasChanged ?? ze)(r, e) || i.useDefault && i.reflect && r === this._$Ej?.get(t) && !this.hasAttribute(o._$Eu(t, i)))) return;
       this.C(t, e, i);
     }
     this.isUpdatePending === false && (this._$ES = this._$EP());
@@ -259,94 +259,94 @@ var x = class extends HTMLElement {
   firstUpdated(t) {
   }
 };
-x.elementStyles = [], x.shadowRootOptions = { mode: "open" }, x[P("elementProperties")] = /* @__PURE__ */ new Map(), x[P("finalized")] = /* @__PURE__ */ new Map(), kt?.({ ReactiveElement: x }), (j.reactiveElementVersions ??= []).push("2.1.2");
-var de = globalThis;
-var Ie = (s3) => s3;
-var q = de.trustedTypes;
-var De = q ? q.createPolicy("lit-html", { createHTML: (s3) => s3 }) : void 0;
-var ce = "$lit$";
-var y = `lit$${Math.random().toFixed(9).slice(2)}$`;
-var ue = "?" + y;
-var At = `<${ue}>`;
-var A = document;
-var B = () => A.createComment("");
-var I = (s3) => s3 === null || typeof s3 != "object" && typeof s3 != "function";
-var he = Array.isArray;
-var qe = (s3) => he(s3) || typeof s3?.[Symbol.iterator] == "function";
-var le = `[ 	
+y.elementStyles = [], y.shadowRootOptions = { mode: "open" }, y[D("elementProperties")] = /* @__PURE__ */ new Map(), y[D("finalized")] = /* @__PURE__ */ new Map(), At?.({ ReactiveElement: y }), (q.reactiveElementVersions ??= []).push("2.1.2");
+var ce = globalThis;
+var Ue = (s3) => s3;
+var W = ce.trustedTypes;
+var Ke = W ? W.createPolicy("lit-html", { createHTML: (s3) => s3 }) : void 0;
+var ue = "$lit$";
+var x = `lit$${Math.random().toFixed(9).slice(2)}$`;
+var he = "?" + x;
+var St = `<${he}>`;
+var w = document;
+var I = () => w.createComment("");
+var B = (s3) => s3 === null || typeof s3 != "object" && typeof s3 != "function";
+var pe = Array.isArray;
+var Ze = (s3) => pe(s3) || typeof s3?.[Symbol.iterator] == "function";
+var de = `[ 	
 \f\r]`;
 var O = /<(?:(!--|\/[^a-zA-Z])|(\/?[a-zA-Z][^>\s]*)|(\/?$))/g;
-var ze = /-->/g;
-var Ke = />/g;
-var C = RegExp(`>|${le}(?:([^\\s"'>=/]+)(${le}*=${le}*(?:[^ 	
+var Fe = /-->/g;
+var je = />/g;
+var C = RegExp(`>|${de}(?:([^\\s"'>=/]+)(${de}*=${de}*(?:[^ 	
 \f\r"'\`<>=]|("|')|))|$)`, "g");
-var Ue = /'/g;
-var Fe = /"/g;
-var We = /^(?:script|style|textarea|title)$/i;
-var pe = (s3) => (t, ...e) => ({ _$litType$: s3, strings: t, values: e });
-var l = pe(1);
-var v = pe(2);
-var ni = pe(3);
-var S = Symbol.for("lit-noChange");
+var qe = /'/g;
+var We = /"/g;
+var Ye = /^(?:script|style|textarea|title)$/i;
+var me = (s3) => (t, ...e) => ({ _$litType$: s3, strings: t, values: e });
+var l = me(1);
+var v = me(2);
+var oi = me(3);
+var A = Symbol.for("lit-noChange");
 var a = Symbol.for("lit-nothing");
-var je = /* @__PURE__ */ new WeakMap();
-var k = A.createTreeWalker(A, 129);
-function Ge(s3, t) {
-  if (!he(s3) || !s3.hasOwnProperty("raw")) throw Error("invalid template strings array");
-  return De !== void 0 ? De.createHTML(t) : t;
+var Ge = /* @__PURE__ */ new WeakMap();
+var k = w.createTreeWalker(w, 129);
+function Qe(s3, t) {
+  if (!pe(s3) || !s3.hasOwnProperty("raw")) throw Error("invalid template strings array");
+  return Ke !== void 0 ? Ke.createHTML(t) : t;
 }
-var Ze = (s3, t) => {
+var Xe = (s3, t) => {
   let e = s3.length - 1, i = [], n, r = t === 2 ? "<svg>" : t === 3 ? "<math>" : "", o = O;
   for (let d = 0; d < e; d++) {
-    let c = s3[d], b, m, u = -1, g = 0;
-    for (; g < c.length && (o.lastIndex = g, m = o.exec(c), m !== null); ) g = o.lastIndex, o === O ? m[1] === "!--" ? o = ze : m[1] !== void 0 ? o = Ke : m[2] !== void 0 ? (We.test(m[2]) && (n = RegExp("</" + m[2], "g")), o = C) : m[3] !== void 0 && (o = C) : o === C ? m[0] === ">" ? (o = n ?? O, u = -1) : m[1] === void 0 ? u = -2 : (u = o.lastIndex - m[2].length, b = m[1], o = m[3] === void 0 ? C : m[3] === '"' ? Fe : Ue) : o === Fe || o === Ue ? o = C : o === ze || o === Ke ? o = O : (o = C, n = void 0);
+    let c = s3[d], m, f, u = -1, g = 0;
+    for (; g < c.length && (o.lastIndex = g, f = o.exec(c), f !== null); ) g = o.lastIndex, o === O ? f[1] === "!--" ? o = Fe : f[1] !== void 0 ? o = je : f[2] !== void 0 ? (Ye.test(f[2]) && (n = RegExp("</" + f[2], "g")), o = C) : f[3] !== void 0 && (o = C) : o === C ? f[0] === ">" ? (o = n ?? O, u = -1) : f[1] === void 0 ? u = -2 : (u = o.lastIndex - f[2].length, m = f[1], o = f[3] === void 0 ? C : f[3] === '"' ? We : qe) : o === We || o === qe ? o = C : o === Fe || o === je ? o = O : (o = C, n = void 0);
     let _ = o === C && s3[d + 1].startsWith("/>") ? " " : "";
-    r += o === O ? c + At : u >= 0 ? (i.push(b), c.slice(0, u) + ce + c.slice(u) + y + _) : c + y + (u === -2 ? d : _);
+    r += o === O ? c + St : u >= 0 ? (i.push(m), c.slice(0, u) + ue + c.slice(u) + x + _) : c + x + (u === -2 ? d : _);
   }
-  return [Ge(s3, r + (s3[e] || "<?>") + (t === 2 ? "</svg>" : t === 3 ? "</math>" : "")), i];
+  return [Qe(s3, r + (s3[e] || "<?>") + (t === 2 ? "</svg>" : t === 3 ? "</math>" : "")), i];
 };
-var D = class s {
+var z = class s {
   constructor({ strings: t, _$litType$: e }, i) {
     let n;
     this.parts = [];
-    let r = 0, o = 0, d = t.length - 1, c = this.parts, [b, m] = Ze(t, e);
-    if (this.el = s.createElement(b, i), k.currentNode = this.el.content, e === 2 || e === 3) {
+    let r = 0, o = 0, d = t.length - 1, c = this.parts, [m, f] = Xe(t, e);
+    if (this.el = s.createElement(m, i), k.currentNode = this.el.content, e === 2 || e === 3) {
       let u = this.el.content.firstChild;
       u.replaceWith(...u.childNodes);
     }
     for (; (n = k.nextNode()) !== null && c.length < d; ) {
       if (n.nodeType === 1) {
-        if (n.hasAttributes()) for (let u of n.getAttributeNames()) if (u.endsWith(ce)) {
-          let g = m[o++], _ = n.getAttribute(u).split(y), H = /([.?@])?(.*)/.exec(g);
-          c.push({ type: 1, index: r, name: H[2], strings: _, ctor: H[1] === "." ? G : H[1] === "?" ? Z : H[1] === "@" ? Y : E }), n.removeAttribute(u);
-        } else u.startsWith(y) && (c.push({ type: 6, index: r }), n.removeAttribute(u));
-        if (We.test(n.tagName)) {
-          let u = n.textContent.split(y), g = u.length - 1;
+        if (n.hasAttributes()) for (let u of n.getAttributeNames()) if (u.endsWith(ue)) {
+          let g = f[o++], _ = n.getAttribute(u).split(x), H = /([.?@])?(.*)/.exec(g);
+          c.push({ type: 1, index: r, name: H[2], strings: _, ctor: H[1] === "." ? Z : H[1] === "?" ? Y : H[1] === "@" ? Q : E }), n.removeAttribute(u);
+        } else u.startsWith(x) && (c.push({ type: 6, index: r }), n.removeAttribute(u));
+        if (Ye.test(n.tagName)) {
+          let u = n.textContent.split(x), g = u.length - 1;
           if (g > 0) {
-            n.textContent = q ? q.emptyScript : "";
-            for (let _ = 0; _ < g; _++) n.append(u[_], B()), k.nextNode(), c.push({ type: 2, index: ++r });
-            n.append(u[g], B());
+            n.textContent = W ? W.emptyScript : "";
+            for (let _ = 0; _ < g; _++) n.append(u[_], I()), k.nextNode(), c.push({ type: 2, index: ++r });
+            n.append(u[g], I());
           }
         }
-      } else if (n.nodeType === 8) if (n.data === ue) c.push({ type: 2, index: r });
+      } else if (n.nodeType === 8) if (n.data === he) c.push({ type: 2, index: r });
       else {
         let u = -1;
-        for (; (u = n.data.indexOf(y, u + 1)) !== -1; ) c.push({ type: 7, index: r }), u += y.length - 1;
+        for (; (u = n.data.indexOf(x, u + 1)) !== -1; ) c.push({ type: 7, index: r }), u += x.length - 1;
       }
       r++;
     }
   }
   static createElement(t, e) {
-    let i = A.createElement("template");
+    let i = w.createElement("template");
     return i.innerHTML = t, i;
   }
 };
-function w(s3, t, e = s3, i) {
-  if (t === S) return t;
-  let n = i !== void 0 ? e._$Co?.[i] : e._$Cl, r = I(t) ? void 0 : t._$litDirective$;
-  return n?.constructor !== r && (n?._$AO?.(false), r === void 0 ? n = void 0 : (n = new r(s3), n._$AT(s3, e, i)), i !== void 0 ? (e._$Co ??= [])[i] = n : e._$Cl = n), n !== void 0 && (t = w(s3, n._$AS(s3, t.values), n, i)), t;
+function S(s3, t, e = s3, i) {
+  if (t === A) return t;
+  let n = i !== void 0 ? e._$Co?.[i] : e._$Cl, r = B(t) ? void 0 : t._$litDirective$;
+  return n?.constructor !== r && (n?._$AO?.(false), r === void 0 ? n = void 0 : (n = new r(s3), n._$AT(s3, e, i)), i !== void 0 ? (e._$Co ??= [])[i] = n : e._$Cl = n), n !== void 0 && (t = S(s3, n._$AS(s3, t.values), n, i)), t;
 }
-var W = class {
+var G = class {
   constructor(t, e) {
     this._$AV = [], this._$AN = void 0, this._$AD = t, this._$AM = e;
   }
@@ -357,17 +357,17 @@ var W = class {
     return this._$AM._$AU;
   }
   u(t) {
-    let { el: { content: e }, parts: i } = this._$AD, n = (t?.creationScope ?? A).importNode(e, true);
+    let { el: { content: e }, parts: i } = this._$AD, n = (t?.creationScope ?? w).importNode(e, true);
     k.currentNode = n;
     let r = k.nextNode(), o = 0, d = 0, c = i[0];
     for (; c !== void 0; ) {
       if (o === c.index) {
-        let b;
-        c.type === 2 ? b = new N(r, r.nextSibling, this, t) : c.type === 1 ? b = new c.ctor(r, c.name, c.strings, this, t) : c.type === 6 && (b = new Q(r, this, t)), this._$AV.push(b), c = i[++d];
+        let m;
+        c.type === 2 ? m = new N(r, r.nextSibling, this, t) : c.type === 1 ? m = new c.ctor(r, c.name, c.strings, this, t) : c.type === 6 && (m = new X(r, this, t)), this._$AV.push(m), c = i[++d];
       }
       o !== c?.index && (r = k.nextNode(), o++);
     }
-    return k.currentNode = A, n;
+    return k.currentNode = w, n;
   }
   p(t) {
     let e = 0;
@@ -392,7 +392,7 @@ var N = class s2 {
     return this._$AB;
   }
   _$AI(t, e = this) {
-    t = w(this, t, e), I(t) ? t === a || t == null || t === "" ? (this._$AH !== a && this._$AR(), this._$AH = a) : t !== this._$AH && t !== S && this._(t) : t._$litType$ !== void 0 ? this.$(t) : t.nodeType !== void 0 ? this.T(t) : qe(t) ? this.k(t) : this._(t);
+    t = S(this, t, e), B(t) ? t === a || t == null || t === "" ? (this._$AH !== a && this._$AR(), this._$AH = a) : t !== this._$AH && t !== A && this._(t) : t._$litType$ !== void 0 ? this.$(t) : t.nodeType !== void 0 ? this.T(t) : Ze(t) ? this.k(t) : this._(t);
   }
   O(t) {
     return this._$AA.parentNode.insertBefore(t, this._$AB);
@@ -401,30 +401,30 @@ var N = class s2 {
     this._$AH !== t && (this._$AR(), this._$AH = this.O(t));
   }
   _(t) {
-    this._$AH !== a && I(this._$AH) ? this._$AA.nextSibling.data = t : this.T(A.createTextNode(t)), this._$AH = t;
+    this._$AH !== a && B(this._$AH) ? this._$AA.nextSibling.data = t : this.T(w.createTextNode(t)), this._$AH = t;
   }
   $(t) {
-    let { values: e, _$litType$: i } = t, n = typeof i == "number" ? this._$AC(t) : (i.el === void 0 && (i.el = D.createElement(Ge(i.h, i.h[0]), this.options)), i);
+    let { values: e, _$litType$: i } = t, n = typeof i == "number" ? this._$AC(t) : (i.el === void 0 && (i.el = z.createElement(Qe(i.h, i.h[0]), this.options)), i);
     if (this._$AH?._$AD === n) this._$AH.p(e);
     else {
-      let r = new W(n, this), o = r.u(this.options);
+      let r = new G(n, this), o = r.u(this.options);
       r.p(e), this.T(o), this._$AH = r;
     }
   }
   _$AC(t) {
-    let e = je.get(t.strings);
-    return e === void 0 && je.set(t.strings, e = new D(t)), e;
+    let e = Ge.get(t.strings);
+    return e === void 0 && Ge.set(t.strings, e = new z(t)), e;
   }
   k(t) {
-    he(this._$AH) || (this._$AH = [], this._$AR());
+    pe(this._$AH) || (this._$AH = [], this._$AR());
     let e = this._$AH, i, n = 0;
-    for (let r of t) n === e.length ? e.push(i = new s2(this.O(B()), this.O(B()), this, this.options)) : i = e[n], i._$AI(r), n++;
+    for (let r of t) n === e.length ? e.push(i = new s2(this.O(I()), this.O(I()), this, this.options)) : i = e[n], i._$AI(r), n++;
     n < e.length && (this._$AR(i && i._$AB.nextSibling, n), e.length = n);
   }
   _$AR(t = this._$AA.nextSibling, e) {
     for (this._$AP?.(false, true, e); t !== this._$AB; ) {
-      let i = Ie(t).nextSibling;
-      Ie(t).remove(), t = i;
+      let i = Ue(t).nextSibling;
+      Ue(t).remove(), t = i;
     }
   }
   setConnected(t) {
@@ -443,10 +443,10 @@ var E = class {
   }
   _$AI(t, e = this, i, n) {
     let r = this.strings, o = false;
-    if (r === void 0) t = w(this, t, e, 0), o = !I(t) || t !== this._$AH && t !== S, o && (this._$AH = t);
+    if (r === void 0) t = S(this, t, e, 0), o = !B(t) || t !== this._$AH && t !== A, o && (this._$AH = t);
     else {
-      let d = t, c, b;
-      for (t = r[0], c = 0; c < r.length - 1; c++) b = w(this, d[i + c], e, c), b === S && (b = this._$AH[c]), o ||= !I(b) || b !== this._$AH[c], b === a ? t = a : t !== a && (t += (b ?? "") + r[c + 1]), this._$AH[c] = b;
+      let d = t, c, m;
+      for (t = r[0], c = 0; c < r.length - 1; c++) m = S(this, d[i + c], e, c), m === A && (m = this._$AH[c]), o ||= !B(m) || m !== this._$AH[c], m === a ? t = a : t !== a && (t += (m ?? "") + r[c + 1]), this._$AH[c] = m;
     }
     o && !n && this.j(t);
   }
@@ -454,7 +454,7 @@ var E = class {
     t === a ? this.element.removeAttribute(this.name) : this.element.setAttribute(this.name, t ?? "");
   }
 };
-var G = class extends E {
+var Z = class extends E {
   constructor() {
     super(...arguments), this.type = 3;
   }
@@ -462,7 +462,7 @@ var G = class extends E {
     this.element[this.name] = t === a ? void 0 : t;
   }
 };
-var Z = class extends E {
+var Y = class extends E {
   constructor() {
     super(...arguments), this.type = 4;
   }
@@ -470,12 +470,12 @@ var Z = class extends E {
     this.element.toggleAttribute(this.name, !!t && t !== a);
   }
 };
-var Y = class extends E {
+var Q = class extends E {
   constructor(t, e, i, n, r) {
     super(t, e, i, n, r), this.type = 5;
   }
   _$AI(t, e = this) {
-    if ((t = w(this, t, e, 0) ?? a) === S) return;
+    if ((t = S(this, t, e, 0) ?? a) === A) return;
     let i = this._$AH, n = t === a && i !== a || t.capture !== i.capture || t.once !== i.once || t.passive !== i.passive, r = t !== a && (i === a || n);
     n && this.element.removeEventListener(this.name, this, i), r && this.element.addEventListener(this.name, this, t), this._$AH = t;
   }
@@ -483,7 +483,7 @@ var Y = class extends E {
     typeof this._$AH == "function" ? this._$AH.call(this.options?.host ?? this.element, t) : this._$AH.handleEvent(t);
   }
 };
-var Q = class {
+var X = class {
   constructor(t, e, i) {
     this.element = t, this.type = 6, this._$AN = void 0, this._$AM = e, this.options = i;
   }
@@ -491,22 +491,22 @@ var Q = class {
     return this._$AM._$AU;
   }
   _$AI(t) {
-    w(this, t);
+    S(this, t);
   }
 };
-var Ye = { M: ce, P: y, A: ue, C: 1, L: Ze, R: W, D: qe, V: w, I: N, H: E, N: Z, U: Y, B: G, F: Q };
-var St = de.litHtmlPolyfillSupport;
-St?.(D, N), (de.litHtmlVersions ??= []).push("3.3.3");
-var Qe = (s3, t, e) => {
+var Je = { M: ue, P: x, A: he, C: 1, L: Xe, R: G, D: Ze, V: S, I: N, H: E, N: Y, U: Q, B: Z, F: X };
+var Et = ce.litHtmlPolyfillSupport;
+Et?.(z, N), (ce.litHtmlVersions ??= []).push("3.3.3");
+var et = (s3, t, e) => {
   let i = e?.renderBefore ?? t, n = i._$litPart$;
   if (n === void 0) {
     let r = e?.renderBefore ?? null;
-    i._$litPart$ = n = new N(t.insertBefore(B(), r), r, void 0, e ?? {});
+    i._$litPart$ = n = new N(t.insertBefore(I(), r), r, void 0, e ?? {});
   }
   return n._$AI(s3), n;
 };
 var be = globalThis;
-var h = class extends x {
+var h = class extends y {
   constructor() {
     super(...arguments), this.renderOptions = { host: this }, this._$Do = void 0;
   }
@@ -516,7 +516,7 @@ var h = class extends x {
   }
   update(t) {
     let e = this.render();
-    this.hasUpdated || (this.renderOptions.isConnected = this.isConnected), super.update(t), this._$Do = Qe(e, this.renderRoot, this.renderOptions);
+    this.hasUpdated || (this.renderOptions.isConnected = this.isConnected), super.update(t), this._$Do = et(e, this.renderRoot, this.renderOptions);
   }
   connectedCallback() {
     super.connectedCallback(), this._$Do?.setConnected(true);
@@ -525,53 +525,53 @@ var h = class extends x {
     super.disconnectedCallback(), this._$Do?.setConnected(false);
   }
   render() {
-    return S;
+    return A;
   }
 };
 h._$litElement$ = true, h.finalized = true, be.litElementHydrateSupport?.({ LitElement: h });
-var wt = be.litElementPolyfillSupport;
-wt?.({ LitElement: h });
+var Mt = be.litElementPolyfillSupport;
+Mt?.({ LitElement: h });
 (be.litElementVersions ??= []).push("4.2.2");
-var Et = { feeding: { domain: "binary_sensor", translationKeys: ["feeding"], idSuffixes: ["_feeding"] }, bowlFill1: { domain: "sensor", translationKeys: ["bowl_fill_1"], idSuffixes: ["_bowl_fill_1", "_bowl_fill_hopper_1"] }, bowlFill2: { domain: "sensor", translationKeys: ["bowl_fill_2"], idSuffixes: ["_bowl_fill_2", "_bowl_fill_hopper_2"] }, desiccantDays: { domain: "sensor", translationKeys: ["desiccant_days", "desiccant_left"], idSuffixes: ["_desiccant_days", "_desiccant_left"] }, schedule: { domain: "sensor", translationKeys: ["schedule"], idSuffixes: ["_schedule"] }, scheduleCardState: { domain: "sensor", translationKeys: ["schedule_card_state"], idSuffixes: ["_schedule_card_state"] }, feedButton: { domain: "button", translationKeys: ["feed"], idSuffixes: ["_feed"] }, feedButtonHopper1: { domain: "button", translationKeys: ["feed_hopper_1"], idSuffixes: ["_feed_hopper_1"] }, feedButtonHopper2: { domain: "button", translationKeys: ["feed_hopper_2"], idSuffixes: ["_feed_hopper_2"] }, cancelFeedButton: { domain: "button", translationKeys: ["cancel_feed"], idSuffixes: ["_cancel_feed"] }, feedAmount: { domain: "number", translationKeys: ["feed_amount"], idSuffixes: ["_feed_amount"] }, feedAmountHopper1: { domain: "number", translationKeys: ["feed_amount_hopper_1"], idSuffixes: ["_feed_amount_hopper_1"] }, feedAmountHopper2: { domain: "number", translationKeys: ["feed_amount_hopper_2"], idSuffixes: ["_feed_amount_hopper_2"] }, cloudSwitch: { domain: "switch", translationKeys: ["cloud", "petkit_cloud"], idSuffixes: ["_cloud", "_petkit_cloud"] }, cloudConnection: { domain: "sensor", translationKeys: ["cloud_connection"], idSuffixes: ["_cloud_connection"] }, nightVisionSwitch: { domain: "switch", translationKeys: ["night", "night_vision"], idSuffixes: ["_night", "_night_vision"] }, statusLedSwitch: { domain: "switch", translationKeys: ["light", "status_led"], idSuffixes: ["_light", "_status_led"] }, microphoneSwitch: { domain: "switch", translationKeys: ["microphone"], idSuffixes: ["_microphone"] }, volume: { domain: "number", translationKeys: ["volume"], idSuffixes: ["_volume"] }, lastSeenPet: { domain: "sensor", translationKeys: ["last_seen_pet"], idSuffixes: ["_last_seen_pet"] }, dishBefore: { domain: "image", translationKeys: ["dish_before"], idSuffixes: ["_dish_before"] }, dishAfter: { domain: "image", translationKeys: ["dish_after"], idSuffixes: ["_dish_after"] }, wifiNetwork: { domain: "sensor", translationKeys: ["wifi_network", "wifi", "rssi"], idSuffixes: ["_wifi_network", "_wifi", "_rssi"] } };
-function X(s3) {
+var Lt = { feeding: { domain: "binary_sensor", translationKeys: ["feeding"], idSuffixes: ["_feeding"] }, bowlFill1: { domain: "sensor", translationKeys: ["bowl_fill_1"], idSuffixes: ["_bowl_fill_1", "_bowl_fill_hopper_1"] }, bowlFill2: { domain: "sensor", translationKeys: ["bowl_fill_2"], idSuffixes: ["_bowl_fill_2", "_bowl_fill_hopper_2"] }, desiccantDays: { domain: "sensor", translationKeys: ["desiccant_days", "desiccant_left"], idSuffixes: ["_desiccant_days", "_desiccant_left"] }, schedule: { domain: "sensor", translationKeys: ["schedule"], idSuffixes: ["_schedule"] }, scheduleCardState: { domain: "sensor", translationKeys: ["schedule_card_state"], idSuffixes: ["_schedule_card_state"] }, feedButton: { domain: "button", translationKeys: ["feed"], idSuffixes: ["_feed"] }, feedButtonHopper1: { domain: "button", translationKeys: ["feed_hopper_1"], idSuffixes: ["_feed_hopper_1"] }, feedButtonHopper2: { domain: "button", translationKeys: ["feed_hopper_2"], idSuffixes: ["_feed_hopper_2"] }, cancelFeedButton: { domain: "button", translationKeys: ["cancel_feed"], idSuffixes: ["_cancel_feed"] }, feedAmount: { domain: "number", translationKeys: ["feed_amount"], idSuffixes: ["_feed_amount"] }, feedAmountHopper1: { domain: "number", translationKeys: ["feed_amount_hopper_1"], idSuffixes: ["_feed_amount_hopper_1"] }, feedAmountHopper2: { domain: "number", translationKeys: ["feed_amount_hopper_2"], idSuffixes: ["_feed_amount_hopper_2"] }, cloudSwitch: { domain: "switch", translationKeys: ["cloud", "petkit_cloud"], idSuffixes: ["_cloud", "_petkit_cloud"] }, cloudConnection: { domain: "sensor", translationKeys: ["cloud_connection"], idSuffixes: ["_cloud_connection"] }, nightVisionSwitch: { domain: "switch", translationKeys: ["night", "night_vision"], idSuffixes: ["_night", "_night_vision"] }, statusLedSwitch: { domain: "switch", translationKeys: ["light", "status_led"], idSuffixes: ["_light", "_status_led"] }, microphoneSwitch: { domain: "switch", translationKeys: ["microphone"], idSuffixes: ["_microphone"] }, volume: { domain: "number", translationKeys: ["volume"], idSuffixes: ["_volume"] }, lastSeenPet: { domain: "sensor", translationKeys: ["last_seen_pet"], idSuffixes: ["_last_seen_pet"] }, dishBefore: { domain: "image", translationKeys: ["dish_before"], idSuffixes: ["_dish_before"] }, dishAfter: { domain: "image", translationKeys: ["dish_after"], idSuffixes: ["_dish_after"] }, wifiNetwork: { domain: "sensor", translationKeys: ["wifi_network", "wifi", "rssi"], idSuffixes: ["_wifi_network", "_wifi", "_rssi"] }, lastDetection: { domain: "sensor", translationKeys: ["last_detection"], idSuffixes: ["_last_detection"] }, detectionsToday: { domain: "sensor", translationKeys: ["detections_today"], idSuffixes: ["_detections_today"] }, lastDetectionImage: { domain: "image", translationKeys: ["last_detection"], idSuffixes: ["_last_detection"] } };
+function J(s3) {
   return s3.slice(0, s3.indexOf("."));
 }
-function me(s3) {
+function fe(s3) {
   return s3.slice(s3.indexOf(".") + 1);
 }
-function Mt(s3, t) {
-  if (X(s3.entity_id) !== t.domain) return false;
+function Ht(s3, t) {
+  if (J(s3.entity_id) !== t.domain) return false;
   if (s3.translation_key && t.translationKeys.includes(s3.translation_key)) return true;
-  let e = me(s3.entity_id);
+  let e = fe(s3.entity_id);
   return t.idSuffixes.some((i) => e.endsWith(i));
 }
-function Lt(s3) {
+function Tt(s3) {
   let t = s3.name ?? s3.original_name;
   if (t) return t.replace(/\s+present$/i, "").trim() || t;
-  let n = me(s3.entity_id).replace(/_present$/, "").split("_").filter(Boolean).pop();
+  let n = fe(s3.entity_id).replace(/_present$/, "").split("_").filter(Boolean).pop();
   return n ? n[0].toUpperCase() + n.slice(1) : "Cat";
 }
-function Ht(s3) {
-  return X(s3.entity_id) !== "binary_sensor" ? false : s3.translation_key === "present" || s3.translation_key?.endsWith("_present") ? true : me(s3.entity_id).endsWith("_present");
+function Nt(s3) {
+  return J(s3.entity_id) !== "binary_sensor" ? false : s3.translation_key === "present" || s3.translation_key?.endsWith("_present") ? true : fe(s3.entity_id).endsWith("_present");
 }
-function Xe(s3, t) {
+function tt(s3, t) {
   let e = { deviceId: t, catPresence: [] }, i = Object.values(s3).filter((n) => n.device_id === t && !n.disabled_by);
   for (let n of i) {
-    if (X(n.entity_id) === "camera" && !e.camera) {
+    if (J(n.entity_id) === "camera" && !e.camera) {
       e.camera = n.entity_id;
       continue;
     }
-    if (X(n.entity_id) === "media_player" && !e.speaker) {
+    if (J(n.entity_id) === "media_player" && !e.speaker) {
       e.speaker = n.entity_id;
       continue;
     }
-    if (Ht(n)) {
-      e.catPresence.push({ entityId: n.entity_id, name: Lt(n) });
+    if (Nt(n)) {
+      e.catPresence.push({ entityId: n.entity_id, name: Tt(n) });
       continue;
     }
-    for (let r of Object.entries(Et)) {
+    for (let r of Object.entries(Lt)) {
       let [o, d] = r;
-      if (!e[o] && Mt(n, d)) {
+      if (!e[o] && Ht(n, d)) {
         e[o] = n.entity_id;
         break;
       }
@@ -579,34 +579,34 @@ function Xe(s3, t) {
   }
   return e.catPresence.sort((n, r) => n.name.localeCompare(r.name)), e;
 }
-function Je(s3, t) {
+function it(s3, t) {
   let e = (i) => i === void 0 || i === "unavailable" || i === "unknown";
   return s3.length === 0 || s3.every(e) ? "unreachable" : t === "on" ? "dispensing" : "idle";
 }
-function et(s3, t) {
+function ge(s3, t) {
   let e = Math.floor(Math.max(0, t.getTime() - s3.getTime()) / 6e4);
   if (e < 1) return "just now";
   if (e < 60) return `${e}m ago`;
   let i = Math.floor(e / 60);
   return i < 24 ? `${i}h ago` : `${Math.floor(i / 24)}d ago`;
 }
-function fe(s3, t) {
+function _e(s3, t) {
   return s3 === "unreachable" ? "Feeder unreachable \u2014 check that kibbled is running" : s3 === "dispensing" ? "Dispensing\u2026" : t ? `Fed ${t}` : "Ready to feed";
 }
-var Tt = { cog: "M12,15.5A3.5,3.5 0 0,1 8.5,12A3.5,3.5 0 0,1 12,8.5A3.5,3.5 0 0,1 15.5,12A3.5,3.5 0 0,1 12,15.5M19.43,12.97C19.47,12.65 19.5,12.33 19.5,12C19.5,11.67 19.47,11.34 19.43,11L21.54,9.37C21.73,9.22 21.78,8.95 21.66,8.73L19.66,5.27C19.54,5.05 19.27,4.96 19.05,5.05L16.56,6.05C16.04,5.66 15.5,5.32 14.87,5.07L14.5,2.42C14.46,2.18 14.25,2 14,2H10C9.75,2 9.54,2.18 9.5,2.42L9.13,5.07C8.5,5.32 7.96,5.66 7.44,6.05L4.95,5.05C4.73,4.96 4.46,5.05 4.34,5.27L2.34,8.73C2.21,8.95 2.27,9.22 2.46,9.37L4.57,11C4.53,11.34 4.5,11.67 4.5,12C4.5,12.33 4.53,12.65 4.57,12.97L2.46,14.63C2.27,14.78 2.21,15.05 2.34,15.27L4.34,18.73C4.46,18.95 4.73,19.03 4.95,18.95L7.44,17.94C7.96,18.34 8.5,18.68 9.13,18.93L9.5,21.58C9.54,21.82 9.75,22 10,22H14C14.25,22 14.46,21.82 14.5,21.58L14.87,18.93C15.5,18.67 16.04,18.34 16.56,17.94L19.05,18.95C19.27,19.03 19.54,18.95 19.66,18.73L21.66,15.27C21.78,15.05 21.73,14.78 21.54,14.63L19.43,12.97Z", cloudCheck: "M13 19C13 19.34 13.04 19.67 13.09 20H6.5C5 20 3.69 19.5 2.61 18.43C1.54 17.38 1 16.09 1 14.58C1 13.28 1.39 12.12 2.17 11.1S4 9.43 5.25 9.15C5.67 7.62 6.5 6.38 7.75 5.43S10.42 4 12 4C13.95 4 15.6 4.68 16.96 6.04C18.32 7.4 19 9.05 19 11C20.15 11.13 21.1 11.63 21.86 12.5C22.37 13.07 22.7 13.71 22.86 14.42C21.82 13.54 20.5 13 19 13C18.89 13 18.79 13 18.68 13C18.62 13 18.56 13 18.5 13H17V11C17 9.62 16.5 8.44 15.54 7.46C14.56 6.5 13.38 6 12 6S9.44 6.5 8.46 7.46C7.5 8.44 7 9.62 7 11H6.5C5.53 11 4.71 11.34 4.03 12.03C3.34 12.71 3 13.53 3 14.5S3.34 16.29 4.03 17C4.71 17.66 5.53 18 6.5 18H13.09C13.04 18.33 13 18.66 13 19M17.75 19.43L16.16 17.84L15 19L17.75 22L22.5 17.25L21.34 15.84L17.75 19.43Z", cloudLock: "M6.5 18H13V20H6.5C5 20 3.69 19.5 2.61 18.43C1.54 17.38 1 16.09 1 14.58C1 13.28 1.39 12.12 2.17 11.1S4 9.43 5.25 9.15C5.67 7.62 6.5 6.38 7.75 5.43S10.42 4 12 4C13.95 4 15.6 4.68 16.96 6.04C18.08 7.16 18.73 8.5 18.93 10C18.23 10 17.56 10.19 16.95 10.46C16.84 9.31 16.38 8.31 15.54 7.46C14.56 6.5 13.38 6 12 6S9.44 6.5 8.46 7.46C7.5 8.44 7 9.62 7 11H6.5C5.53 11 4.71 11.34 4.03 12.03C3.34 12.71 3 13.53 3 14.5S3.34 16.29 4.03 17C4.71 17.66 5.53 18 6.5 18M23 17.3V20.8C23 21.4 22.4 22 21.7 22H16.2C15.6 22 15 21.4 15 20.7V17.2C15 16.6 15.6 16 16.2 16V14.5C16.2 13.1 17.6 12 19 12S21.8 13.1 21.8 14.5V16C22.4 16 23 16.6 23 17.3M20.5 14.5C20.5 13.7 19.8 13.2 19 13.2S17.5 13.7 17.5 14.5V16H20.5V14.5Z", cloudAlert: "M21.86 12.5C21.1 11.63 20.15 11.13 19 11C19 9.05 18.32 7.4 16.96 6.04C15.6 4.68 13.95 4 12 4C10.42 4 9 4.47 7.75 5.43S5.67 7.62 5.25 9.15C4 9.43 2.96 10.08 2.17 11.1S1 13.28 1 14.58C1 16.09 1.54 17.38 2.61 18.43C3.69 19.5 5 20 6.5 20H18.5C19.75 20 20.81 19.56 21.69 18.69C22.56 17.81 23 16.75 23 15.5C23 14.35 22.62 13.35 21.86 12.5M20.27 17.27C19.79 17.76 19.2 18 18.5 18H6.5C5.53 18 4.71 17.66 4.03 17C3.34 16.29 3 15.47 3 14.5S3.34 12.71 4.03 12.03C4.71 11.34 5.53 11 6.5 11H7C7 9.62 7.5 8.44 8.46 7.46C9.44 6.5 10.62 6 12 6S14.56 6.5 15.54 7.46C16.5 8.44 17 9.62 17 11V13H18.5C19.2 13 19.79 13.24 20.27 13.73S21 14.8 21 15.5 20.76 16.79 20.27 17.27M11 15H13V17H11V15M11 7H13V13H11V7Z", cloudQuestion: "M21.86 12.5C21.1 11.63 20.15 11.13 19 11C19 9.05 18.32 7.4 16.96 6.04C15.6 4.68 13.95 4 12 4C10.42 4 9 4.47 7.75 5.43S5.67 7.62 5.25 9.15C4 9.43 2.96 10.08 2.17 11.1S1 13.28 1 14.58C1 16.09 1.54 17.38 2.61 18.43C3.69 19.5 5 20 6.5 20H18.5C19.75 20 20.81 19.56 21.69 18.69C22.56 17.81 23 16.75 23 15.5C23 14.35 22.62 13.35 21.86 12.5M20.27 17.27C19.79 17.76 19.2 18 18.5 18H6.5C5.53 18 4.71 17.66 4.03 17C3.34 16.29 3 15.47 3 14.5S3.34 12.71 4.03 12.03C4.71 11.34 5.53 11 6.5 11H7C7 9.62 7.5 8.44 8.46 7.46C9.44 6.5 10.62 6 12 6S14.56 6.5 15.54 7.46C16.5 8.44 17 9.62 17 11V13H18.5C19.2 13 19.79 13.24 20.27 13.73S21 14.8 21 15.5 20.76 16.79 20.27 17.27M11 15H13V17H11V15M14.43 8.68C14.97 9.13 15.24 9.75 15.24 10.5C15.24 11 15.09 11.41 14.8 11.82C14.5 12.21 14.13 12.5 13.67 12.75C13.41 12.91 13.24 13.07 13.15 13.26C13.06 13.45 13 13.69 13 14H11C11 13.45 11.11 13.08 11.3 12.82C11.5 12.56 11.85 12.25 12.37 11.91C12.63 11.75 12.84 11.56 13 11.32C13.15 11.09 13.23 10.81 13.23 10.5C13.23 10.18 13.14 9.94 12.96 9.76C12.78 9.56 12.5 9.47 12.2 9.47C11.93 9.47 11.71 9.55 11.5 9.7C11.35 9.85 11.25 10.08 11.25 10.39H9.28C9.23 9.64 9.5 9 10.06 8.59C10.6 8.2 11.31 8 12.2 8C13.14 8 13.89 8.23 14.43 8.68Z", airFilter: "M19,18.31V20A2,2 0 0,1 17,22H7A2,2 0 0,1 5,20V16.3C4.54,16.12 3.95,16 3,16A1,1 0 0,1 2,15A1,1 0 0,1 3,14C3.82,14 4.47,14.08 5,14.21V12.3C4.54,12.12 3.95,12 3,12A1,1 0 0,1 2,11A1,1 0 0,1 3,10C3.82,10 4.47,10.08 5,10.21V8.3C4.54,8.12 3.95,8 3,8A1,1 0 0,1 2,7A1,1 0 0,1 3,6C3.82,6 4.47,6.08 5,6.21V4A2,2 0 0,1 7,2H17A2,2 0 0,1 19,4V6.16C20.78,6.47 21.54,7.13 21.71,7.29C22.1,7.68 22.1,8.32 21.71,8.71C21.32,9.1 20.8,9.09 20.29,8.71V8.71C20.29,8.71 19.25,8 17,8C15.74,8 14.91,8.41 13.95,8.9C12.91,9.41 11.74,10 10,10C9.64,10 9.31,10 9,9.96V7.95C9.3,8 9.63,8 10,8C11.26,8 12.09,7.59 13.05,7.11C14.09,6.59 15.27,6 17,6V4H7V20H17V18C18.5,18 18.97,18.29 19,18.31M17,10C15.27,10 14.09,10.59 13.05,11.11C12.09,11.59 11.26,12 10,12C9.63,12 9.3,12 9,11.95V13.96C9.31,14 9.64,14 10,14C11.74,14 12.91,13.41 13.95,12.9C14.91,12.42 15.74,12 17,12C19.25,12 20.29,12.71 20.29,12.71V12.71C20.8,13.1 21.32,13.1 21.71,12.71C22.1,12.32 22.1,11.69 21.71,11.29C21.5,11.08 20.25,10 17,10M17,14C15.27,14 14.09,14.59 13.05,15.11C12.09,15.59 11.26,16 10,16C9.63,16 9.3,16 9,15.95V17.96C9.31,18 9.64,18 10,18C11.74,18 12.91,17.41 13.95,16.9C14.91,16.42 15.74,16 17,16C19.25,16 20.29,16.71 20.29,16.71V16.71C20.8,17.1 21.32,17.1 21.71,16.71C22.1,16.32 22.1,15.69 21.71,15.29C21.5,15.08 20.25,14 17,14Z", wifi: "M12,21L15.6,16.2C14.6,15.45 13.35,15 12,15C10.65,15 9.4,15.45 8.4,16.2L12,21M12,3C7.95,3 4.21,4.34 1.2,6.6L3,9C5.5,7.12 8.62,6 12,6C15.38,6 18.5,7.12 21,9L22.8,6.6C19.79,4.34 16.05,3 12,3M12,9C9.3,9 6.81,9.89 4.8,11.4L6.6,13.8C8.1,12.67 9.97,12 12,12C14.03,12 15.9,12.67 17.4,13.8L19.2,11.4C17.19,9.89 14.7,9 12,9Z", chevronDown: "M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z", close: "M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z", weatherNight: "M17.75,4.09L15.22,6.03L16.13,9.09L13.5,7.28L10.87,9.09L11.78,6.03L9.25,4.09L12.44,4L13.5,1L14.56,4L17.75,4.09M21.25,11L19.61,12.25L20.2,14.23L18.5,13.06L16.8,14.23L17.39,12.25L15.75,11L17.81,10.95L18.5,9L19.19,10.95L21.25,11M18.97,15.95C19.8,15.87 20.69,17.05 20.16,17.8C19.84,18.25 19.5,18.67 19.08,19.07C15.17,23 8.84,23 4.94,19.07C1.03,15.17 1.03,8.83 4.94,4.93C5.34,4.53 5.76,4.17 6.21,3.85C6.96,3.32 8.14,4.21 8.06,5.04C7.79,7.9 8.75,10.87 10.95,13.06C13.14,15.26 16.1,16.22 18.97,15.95M17.33,17.97C14.5,17.81 11.7,16.64 9.53,14.5C7.36,12.31 6.2,9.5 6.04,6.68C3.23,9.82 3.34,14.64 6.35,17.66C9.37,20.67 14.19,20.78 17.33,17.97Z", ledOn: "M11,0V4H13V0H11M18.3,2.29L15.24,5.29L16.64,6.71L19.7,3.71L18.3,2.29M5.71,2.29L4.29,3.71L7.29,6.71L8.71,5.29L5.71,2.29M12,6A4,4 0 0,0 8,10V16H6V18H9V23H11V18H13V23H15V18H18V16H16V10A4,4 0 0,0 12,6M2,9V11H6V9H2M18,9V11H22V9H18Z", microphone: "M12,2A3,3 0 0,1 15,5V11A3,3 0 0,1 12,14A3,3 0 0,1 9,11V5A3,3 0 0,1 12,2M19,11C19,14.53 16.39,17.44 13,17.93V21H11V17.93C7.61,17.44 5,14.53 5,11H7A5,5 0 0,0 12,16A5,5 0 0,0 17,11H19Z", volumeHigh: "M14,3.23V5.29C16.89,6.15 19,8.83 19,12C19,15.17 16.89,17.84 14,18.7V20.77C18,19.86 21,16.28 21,12C21,7.72 18,4.14 14,3.23M16.5,12C16.5,10.23 15.5,8.71 14,7.97V16C15.5,15.29 16.5,13.76 16.5,12M3,9V15H7L12,20V4L7,9H3Z", openInNew: "M14,3V5H17.59L7.76,14.83L9.17,16.24L19,6.41V10H21V3M19,19H5V5H12V3H5C3.89,3 3,3.9 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V12H19V19Z", speaker: "M12,12A3,3 0 0,0 9,15A3,3 0 0,0 12,18A3,3 0 0,0 15,15A3,3 0 0,0 12,12M12,20A5,5 0 0,1 7,15A5,5 0 0,1 12,10A5,5 0 0,1 17,15A5,5 0 0,1 12,20M12,4A2,2 0 0,1 14,6A2,2 0 0,1 12,8C10.89,8 10,7.1 10,6C10,4.89 10.89,4 12,4M17,2H7C5.89,2 5,2.89 5,4V20A2,2 0 0,0 7,22H17A2,2 0 0,0 19,20V4C19,2.89 18.1,2 17,2Z" };
+var Rt = { cog: "M12,15.5A3.5,3.5 0 0,1 8.5,12A3.5,3.5 0 0,1 12,8.5A3.5,3.5 0 0,1 15.5,12A3.5,3.5 0 0,1 12,15.5M19.43,12.97C19.47,12.65 19.5,12.33 19.5,12C19.5,11.67 19.47,11.34 19.43,11L21.54,9.37C21.73,9.22 21.78,8.95 21.66,8.73L19.66,5.27C19.54,5.05 19.27,4.96 19.05,5.05L16.56,6.05C16.04,5.66 15.5,5.32 14.87,5.07L14.5,2.42C14.46,2.18 14.25,2 14,2H10C9.75,2 9.54,2.18 9.5,2.42L9.13,5.07C8.5,5.32 7.96,5.66 7.44,6.05L4.95,5.05C4.73,4.96 4.46,5.05 4.34,5.27L2.34,8.73C2.21,8.95 2.27,9.22 2.46,9.37L4.57,11C4.53,11.34 4.5,11.67 4.5,12C4.5,12.33 4.53,12.65 4.57,12.97L2.46,14.63C2.27,14.78 2.21,15.05 2.34,15.27L4.34,18.73C4.46,18.95 4.73,19.03 4.95,18.95L7.44,17.94C7.96,18.34 8.5,18.68 9.13,18.93L9.5,21.58C9.54,21.82 9.75,22 10,22H14C14.25,22 14.46,21.82 14.5,21.58L14.87,18.93C15.5,18.67 16.04,18.34 16.56,17.94L19.05,18.95C19.27,19.03 19.54,18.95 19.66,18.73L21.66,15.27C21.78,15.05 21.73,14.78 21.54,14.63L19.43,12.97Z", cloudCheck: "M13 19C13 19.34 13.04 19.67 13.09 20H6.5C5 20 3.69 19.5 2.61 18.43C1.54 17.38 1 16.09 1 14.58C1 13.28 1.39 12.12 2.17 11.1S4 9.43 5.25 9.15C5.67 7.62 6.5 6.38 7.75 5.43S10.42 4 12 4C13.95 4 15.6 4.68 16.96 6.04C18.32 7.4 19 9.05 19 11C20.15 11.13 21.1 11.63 21.86 12.5C22.37 13.07 22.7 13.71 22.86 14.42C21.82 13.54 20.5 13 19 13C18.89 13 18.79 13 18.68 13C18.62 13 18.56 13 18.5 13H17V11C17 9.62 16.5 8.44 15.54 7.46C14.56 6.5 13.38 6 12 6S9.44 6.5 8.46 7.46C7.5 8.44 7 9.62 7 11H6.5C5.53 11 4.71 11.34 4.03 12.03C3.34 12.71 3 13.53 3 14.5S3.34 16.29 4.03 17C4.71 17.66 5.53 18 6.5 18H13.09C13.04 18.33 13 18.66 13 19M17.75 19.43L16.16 17.84L15 19L17.75 22L22.5 17.25L21.34 15.84L17.75 19.43Z", cloudLock: "M6.5 18H13V20H6.5C5 20 3.69 19.5 2.61 18.43C1.54 17.38 1 16.09 1 14.58C1 13.28 1.39 12.12 2.17 11.1S4 9.43 5.25 9.15C5.67 7.62 6.5 6.38 7.75 5.43S10.42 4 12 4C13.95 4 15.6 4.68 16.96 6.04C18.08 7.16 18.73 8.5 18.93 10C18.23 10 17.56 10.19 16.95 10.46C16.84 9.31 16.38 8.31 15.54 7.46C14.56 6.5 13.38 6 12 6S9.44 6.5 8.46 7.46C7.5 8.44 7 9.62 7 11H6.5C5.53 11 4.71 11.34 4.03 12.03C3.34 12.71 3 13.53 3 14.5S3.34 16.29 4.03 17C4.71 17.66 5.53 18 6.5 18M23 17.3V20.8C23 21.4 22.4 22 21.7 22H16.2C15.6 22 15 21.4 15 20.7V17.2C15 16.6 15.6 16 16.2 16V14.5C16.2 13.1 17.6 12 19 12S21.8 13.1 21.8 14.5V16C22.4 16 23 16.6 23 17.3M20.5 14.5C20.5 13.7 19.8 13.2 19 13.2S17.5 13.7 17.5 14.5V16H20.5V14.5Z", cloudAlert: "M21.86 12.5C21.1 11.63 20.15 11.13 19 11C19 9.05 18.32 7.4 16.96 6.04C15.6 4.68 13.95 4 12 4C10.42 4 9 4.47 7.75 5.43S5.67 7.62 5.25 9.15C4 9.43 2.96 10.08 2.17 11.1S1 13.28 1 14.58C1 16.09 1.54 17.38 2.61 18.43C3.69 19.5 5 20 6.5 20H18.5C19.75 20 20.81 19.56 21.69 18.69C22.56 17.81 23 16.75 23 15.5C23 14.35 22.62 13.35 21.86 12.5M20.27 17.27C19.79 17.76 19.2 18 18.5 18H6.5C5.53 18 4.71 17.66 4.03 17C3.34 16.29 3 15.47 3 14.5S3.34 12.71 4.03 12.03C4.71 11.34 5.53 11 6.5 11H7C7 9.62 7.5 8.44 8.46 7.46C9.44 6.5 10.62 6 12 6S14.56 6.5 15.54 7.46C16.5 8.44 17 9.62 17 11V13H18.5C19.2 13 19.79 13.24 20.27 13.73S21 14.8 21 15.5 20.76 16.79 20.27 17.27M11 15H13V17H11V15M11 7H13V13H11V7Z", cloudQuestion: "M21.86 12.5C21.1 11.63 20.15 11.13 19 11C19 9.05 18.32 7.4 16.96 6.04C15.6 4.68 13.95 4 12 4C10.42 4 9 4.47 7.75 5.43S5.67 7.62 5.25 9.15C4 9.43 2.96 10.08 2.17 11.1S1 13.28 1 14.58C1 16.09 1.54 17.38 2.61 18.43C3.69 19.5 5 20 6.5 20H18.5C19.75 20 20.81 19.56 21.69 18.69C22.56 17.81 23 16.75 23 15.5C23 14.35 22.62 13.35 21.86 12.5M20.27 17.27C19.79 17.76 19.2 18 18.5 18H6.5C5.53 18 4.71 17.66 4.03 17C3.34 16.29 3 15.47 3 14.5S3.34 12.71 4.03 12.03C4.71 11.34 5.53 11 6.5 11H7C7 9.62 7.5 8.44 8.46 7.46C9.44 6.5 10.62 6 12 6S14.56 6.5 15.54 7.46C16.5 8.44 17 9.62 17 11V13H18.5C19.2 13 19.79 13.24 20.27 13.73S21 14.8 21 15.5 20.76 16.79 20.27 17.27M11 15H13V17H11V15M14.43 8.68C14.97 9.13 15.24 9.75 15.24 10.5C15.24 11 15.09 11.41 14.8 11.82C14.5 12.21 14.13 12.5 13.67 12.75C13.41 12.91 13.24 13.07 13.15 13.26C13.06 13.45 13 13.69 13 14H11C11 13.45 11.11 13.08 11.3 12.82C11.5 12.56 11.85 12.25 12.37 11.91C12.63 11.75 12.84 11.56 13 11.32C13.15 11.09 13.23 10.81 13.23 10.5C13.23 10.18 13.14 9.94 12.96 9.76C12.78 9.56 12.5 9.47 12.2 9.47C11.93 9.47 11.71 9.55 11.5 9.7C11.35 9.85 11.25 10.08 11.25 10.39H9.28C9.23 9.64 9.5 9 10.06 8.59C10.6 8.2 11.31 8 12.2 8C13.14 8 13.89 8.23 14.43 8.68Z", airFilter: "M19,18.31V20A2,2 0 0,1 17,22H7A2,2 0 0,1 5,20V16.3C4.54,16.12 3.95,16 3,16A1,1 0 0,1 2,15A1,1 0 0,1 3,14C3.82,14 4.47,14.08 5,14.21V12.3C4.54,12.12 3.95,12 3,12A1,1 0 0,1 2,11A1,1 0 0,1 3,10C3.82,10 4.47,10.08 5,10.21V8.3C4.54,8.12 3.95,8 3,8A1,1 0 0,1 2,7A1,1 0 0,1 3,6C3.82,6 4.47,6.08 5,6.21V4A2,2 0 0,1 7,2H17A2,2 0 0,1 19,4V6.16C20.78,6.47 21.54,7.13 21.71,7.29C22.1,7.68 22.1,8.32 21.71,8.71C21.32,9.1 20.8,9.09 20.29,8.71V8.71C20.29,8.71 19.25,8 17,8C15.74,8 14.91,8.41 13.95,8.9C12.91,9.41 11.74,10 10,10C9.64,10 9.31,10 9,9.96V7.95C9.3,8 9.63,8 10,8C11.26,8 12.09,7.59 13.05,7.11C14.09,6.59 15.27,6 17,6V4H7V20H17V18C18.5,18 18.97,18.29 19,18.31M17,10C15.27,10 14.09,10.59 13.05,11.11C12.09,11.59 11.26,12 10,12C9.63,12 9.3,12 9,11.95V13.96C9.31,14 9.64,14 10,14C11.74,14 12.91,13.41 13.95,12.9C14.91,12.42 15.74,12 17,12C19.25,12 20.29,12.71 20.29,12.71V12.71C20.8,13.1 21.32,13.1 21.71,12.71C22.1,12.32 22.1,11.69 21.71,11.29C21.5,11.08 20.25,10 17,10M17,14C15.27,14 14.09,14.59 13.05,15.11C12.09,15.59 11.26,16 10,16C9.63,16 9.3,16 9,15.95V17.96C9.31,18 9.64,18 10,18C11.74,18 12.91,17.41 13.95,16.9C14.91,16.42 15.74,16 17,16C19.25,16 20.29,16.71 20.29,16.71V16.71C20.8,17.1 21.32,17.1 21.71,16.71C22.1,16.32 22.1,15.69 21.71,15.29C21.5,15.08 20.25,14 17,14Z", wifi: "M12,21L15.6,16.2C14.6,15.45 13.35,15 12,15C10.65,15 9.4,15.45 8.4,16.2L12,21M12,3C7.95,3 4.21,4.34 1.2,6.6L3,9C5.5,7.12 8.62,6 12,6C15.38,6 18.5,7.12 21,9L22.8,6.6C19.79,4.34 16.05,3 12,3M12,9C9.3,9 6.81,9.89 4.8,11.4L6.6,13.8C8.1,12.67 9.97,12 12,12C14.03,12 15.9,12.67 17.4,13.8L19.2,11.4C17.19,9.89 14.7,9 12,9Z", chevronDown: "M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z", close: "M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z", weatherNight: "M17.75,4.09L15.22,6.03L16.13,9.09L13.5,7.28L10.87,9.09L11.78,6.03L9.25,4.09L12.44,4L13.5,1L14.56,4L17.75,4.09M21.25,11L19.61,12.25L20.2,14.23L18.5,13.06L16.8,14.23L17.39,12.25L15.75,11L17.81,10.95L18.5,9L19.19,10.95L21.25,11M18.97,15.95C19.8,15.87 20.69,17.05 20.16,17.8C19.84,18.25 19.5,18.67 19.08,19.07C15.17,23 8.84,23 4.94,19.07C1.03,15.17 1.03,8.83 4.94,4.93C5.34,4.53 5.76,4.17 6.21,3.85C6.96,3.32 8.14,4.21 8.06,5.04C7.79,7.9 8.75,10.87 10.95,13.06C13.14,15.26 16.1,16.22 18.97,15.95M17.33,17.97C14.5,17.81 11.7,16.64 9.53,14.5C7.36,12.31 6.2,9.5 6.04,6.68C3.23,9.82 3.34,14.64 6.35,17.66C9.37,20.67 14.19,20.78 17.33,17.97Z", ledOn: "M11,0V4H13V0H11M18.3,2.29L15.24,5.29L16.64,6.71L19.7,3.71L18.3,2.29M5.71,2.29L4.29,3.71L7.29,6.71L8.71,5.29L5.71,2.29M12,6A4,4 0 0,0 8,10V16H6V18H9V23H11V18H13V23H15V18H18V16H16V10A4,4 0 0,0 12,6M2,9V11H6V9H2M18,9V11H22V9H18Z", microphone: "M12,2A3,3 0 0,1 15,5V11A3,3 0 0,1 12,14A3,3 0 0,1 9,11V5A3,3 0 0,1 12,2M19,11C19,14.53 16.39,17.44 13,17.93V21H11V17.93C7.61,17.44 5,14.53 5,11H7A5,5 0 0,0 12,16A5,5 0 0,0 17,11H19Z", volumeHigh: "M14,3.23V5.29C16.89,6.15 19,8.83 19,12C19,15.17 16.89,17.84 14,18.7V20.77C18,19.86 21,16.28 21,12C21,7.72 18,4.14 14,3.23M16.5,12C16.5,10.23 15.5,8.71 14,7.97V16C15.5,15.29 16.5,13.76 16.5,12M3,9V15H7L12,20V4L7,9H3Z", openInNew: "M14,3V5H17.59L7.76,14.83L9.17,16.24L19,6.41V10H21V3M19,19H5V5H12V3H5C3.89,3 3,3.9 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V12H19V19Z", speaker: "M12,12A3,3 0 0,0 9,15A3,3 0 0,0 12,18A3,3 0 0,0 15,15A3,3 0 0,0 12,12M12,20A5,5 0 0,1 7,15A5,5 0 0,1 12,10A5,5 0 0,1 17,15A5,5 0 0,1 12,20M12,4A2,2 0 0,1 14,6A2,2 0 0,1 12,8C10.89,8 10,7.1 10,6C10,4.89 10.89,4 12,4M17,2H7C5.89,2 5,2.89 5,4V20A2,2 0 0,0 7,22H17A2,2 0 0,0 19,20V4C19,2.89 18.1,2 17,2Z" };
 function $(s3) {
-  return v`<svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor" aria-hidden="true"><path d=${Tt[s3]}></path></svg>`;
+  return v`<svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor" aria-hidden="true"><path d=${Rt[s3]}></path></svg>`;
 }
-var tt = "#F4A452";
-var it = "#DE8A3A";
-var st = "#3A2C28";
-function nt() {
+var st = "#F4A452";
+var nt = "#DE8A3A";
+var rt = "#3A2C28";
+function ot() {
   return typeof window < "u" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true;
 }
-function rt(s3, t) {
+function at(s3, t) {
   return s3 === null && t === null ? { split: false, hopper1: null, hopper2: null, combined: null } : s3 === null || t === null ? { split: false, hopper1: s3, hopper2: t, combined: s3 ?? t } : Math.abs(s3 - t) < 5 ? { split: false, hopper1: s3, hopper2: t, combined: Math.round((s3 + t) / 2) } : { split: true, hopper1: s3, hopper2: t, combined: null };
 }
-function ot() {
+function lt() {
   return v`
     <svg viewBox="0 0 256 256" fill="currentColor">
       <circle cx="128" cy="128" r="88" />
@@ -615,48 +615,48 @@ function ot() {
     </svg>
   `;
 }
-var Rt = 260;
-var Vt = 200;
+var Vt = 260;
+var Dt = 200;
 var p = 130;
 var R = 60;
 var M = 116;
-var at = 40;
-var z = 178;
-var ge = 46;
-var Pt = 10;
+var dt = 40;
+var U = 178;
+var ve = 46;
+var Ot = 10;
 var L = 78;
-var _e = 86;
-var Ot = 46;
-var Bt = `M ${p + M} ${R} C ${p + M} ${R + 50}, ${p + 70} ${z - 13}, ${p + ge} ${z} A ${ge} ${Pt} 0 0 1 ${p - ge} ${z} C ${p - 70} ${z - 13}, ${p - M} ${R + 50}, ${p - M} ${R} A ${M} ${at} 0 0 0 ${p + M} ${R} Z`;
-var $e = [-0.6, -0.32, -0.06, 0.2, 0.46, 0.66, -0.46, 0.08, 0.34, -0.2];
-function It(s3, t, e) {
+var $e = 86;
+var It = 46;
+var Bt = `M ${p + M} ${R} C ${p + M} ${R + 50}, ${p + 70} ${U - 13}, ${p + ve} ${U} A ${ve} ${Ot} 0 0 1 ${p - ve} ${U} C ${p - 70} ${U - 13}, ${p - M} ${R + 50}, ${p - M} ${R} A ${M} ${dt} 0 0 0 ${p + M} ${R} Z`;
+var xe = [-0.6, -0.32, -0.06, 0.2, 0.46, 0.66, -0.46, 0.08, 0.34, -0.2];
+function zt(s3, t, e) {
   let i = (s3 + t) / 2;
   return `M ${s3} ${L} Q ${i} ${L - 2 * e} ${t} ${L} Z`;
 }
-function Dt(s3, t, e, i) {
+function Ut(s3, t, e, i) {
   let n = L - 2 * i;
   return (1 - s3) * (1 - s3) * L + 2 * (1 - s3) * s3 * n + s3 * s3 * L;
 }
-function lt(s3, t, e, i) {
+function ct(s3, t, e, i) {
   let n = [0, 120, 240].map((r) => {
     let o = (r + i) * Math.PI / 180;
     return v`<circle cx=${(s3 + Math.cos(o) * e * 0.55).toFixed(1)} cy=${(t + Math.sin(o) * e * 0.55).toFixed(1)} r=${(e * 0.62).toFixed(1)} />`;
   });
   return v`<g>${n}</g>`;
 }
-function ve(s3, t, e, i) {
+function ye(s3, t, e, i) {
   if (e <= 0.02) return a;
-  let n = Ot * e, r = Math.round(6 + 4 * e), o = [];
+  let n = It * e, r = Math.round(6 + 4 * e), o = [];
   for (let d = 0; d < r; d++) {
-    let c = (d + 0.5) / r, b = s3 + (t - s3) * c, m = Dt(c, s3, t, n), u = $e[(d + i) % $e.length] * 6, g = 5.5 + (d + i) % 3 * 1.4, _ = d === 0 || d === r - 1 ? d === 0 ? -3 : 3 : 0;
-    o.push(lt(b + _, m + u - 2, g, d * 47 + i * 13));
+    let c = (d + 0.5) / r, m = s3 + (t - s3) * c, f = Ut(c, s3, t, n), u = xe[(d + i) % xe.length] * 6, g = 5.5 + (d + i) % 3 * 1.4, _ = d === 0 || d === r - 1 ? d === 0 ? -3 : 3 : 0;
+    o.push(ct(m + _, f + u - 2, g, d * 47 + i * 13));
   }
   return v`
-    <path d=${It(s3, t, n)} class="fill" />
+    <path d=${zt(s3, t, n)} class="fill" />
     <g class="texture">${o}</g>
   `;
 }
-var xe = class extends h {
+var Ce = class extends h {
   constructor() {
     super();
     this._wasFeeding = false;
@@ -671,20 +671,20 @@ var xe = class extends h {
     super.disconnectedCallback(), clearTimeout(this._dropTimer);
   }
   willUpdate(e) {
-    e.has("feeding") && this.feeding && !this._wasFeeding && !nt() && (this._dropping = true, clearTimeout(this._dropTimer), this._dropTimer = setTimeout(() => {
+    e.has("feeding") && this.feeding && !this._wasFeeding && !ot() && (this._dropping = true, clearTimeout(this._dropTimer), this._dropTimer = setTimeout(() => {
       this._dropping = false, this.requestUpdate();
     }, 900)), this._wasFeeding = this.feeding;
   }
   render() {
-    let e = rt(this.hopper1, this.hopper2);
+    let e = at(this.hopper1, this.hopper2);
     return l`
       <div class="wrap">
-        <svg class="art" viewBox="0 0 ${Rt} ${Vt}" aria-hidden="true" preserveAspectRatio="xMidYMin meet">
-          <ellipse cx=${p} cy=${z + 14} rx="66" ry="9" class="shadow" />
-          ${this.catName ? l`<g class="cat" transform="translate(96 -6) scale(0.27)">${ot()}</g>` : a}
+        <svg class="art" viewBox="0 0 ${Vt} ${Dt}" aria-hidden="true" preserveAspectRatio="xMidYMin meet">
+          <ellipse cx=${p} cy=${U + 14} rx="66" ry="9" class="shadow" />
+          ${this.catName ? l`<g class="cat" transform="translate(96 -6) scale(0.27)">${lt()}</g>` : a}
           <path class="body" d=${Bt} />
           ${e.split ? this._renderSplitBasin(e.hopper1, e.hopper2) : this._renderSingleBasin(e.combined ?? 0)}
-          <ellipse cx=${p} cy=${R} rx=${M} ry=${at} class="rim" />
+          <ellipse cx=${p} cy=${R} rx=${M} ry=${dt} class="rim" />
           ${this._dropping ? this._renderFallingKibble() : a}
         </svg>
         <div class="numbers">
@@ -704,7 +704,7 @@ var xe = class extends h {
       <g>
         <ellipse cx=${p} cy="62" rx="100" ry="32" class="basin-far" />
         <ellipse cx=${p} cy="68" rx="90" ry="25" class="basin-near" />
-        ${ve(p - _e * (0.32 + 0.68 * Math.sqrt(i)), p + _e * (0.32 + 0.68 * Math.sqrt(i)), i, 0)}
+        ${ye(p - $e * (0.32 + 0.68 * Math.sqrt(i)), p + $e * (0.32 + 0.68 * Math.sqrt(i)), i, 0)}
       </g>
     `;
   }
@@ -714,8 +714,8 @@ var xe = class extends h {
       <g>
         <ellipse cx=${p} cy="62" rx="100" ry="32" class="basin-far" />
         <ellipse cx=${p} cy="68" rx="90" ry="25" class="basin-near" />
-        ${ve(n - o * (0.35 + 0.65 * Math.sqrt(d)), n + o * (0.35 + 0.65 * Math.sqrt(d)), d, 1)}
-        ${ve(r - o * (0.35 + 0.65 * Math.sqrt(c)), r + o * (0.35 + 0.65 * Math.sqrt(c)), c, 4)}
+        ${ye(n - o * (0.35 + 0.65 * Math.sqrt(d)), n + o * (0.35 + 0.65 * Math.sqrt(d)), d, 1)}
+        ${ye(r - o * (0.35 + 0.65 * Math.sqrt(c)), r + o * (0.35 + 0.65 * Math.sqrt(c)), c, 4)}
         <g class="divider">
           <line x1=${p - 3} y1="46" x2=${p - 3} y2="90" />
           <line x1=${p + 3} y1="46" x2=${p + 3} y2="90" />
@@ -724,14 +724,14 @@ var xe = class extends h {
     `;
   }
   _renderFallingKibble() {
-    let e = $e.slice(0, 7).map((i, n) => {
-      let r = p + i * (_e - 6), c = `--fall-delay:${n * 70}ms;--fall-duration:320ms;--fall-rotate:${(i * 180).toFixed(0)}deg;--fall-to:${L - 30}px;`;
-      return v`<g class="drop" style=${c}>${lt(r, 0, 7, i * 60)}</g>`;
+    let e = xe.slice(0, 7).map((i, n) => {
+      let r = p + i * ($e - 6), c = `--fall-delay:${n * 70}ms;--fall-duration:320ms;--fall-rotate:${(i * 180).toFixed(0)}deg;--fall-to:${L - 30}px;`;
+      return v`<g class="drop" style=${c}>${ct(r, 0, 7, i * 60)}</g>`;
     });
     return v`<g class="drops">${e}</g>`;
   }
   static {
-    this.styles = f`
+    this.styles = b`
     :host {
       display: block;
     }
@@ -835,9 +835,9 @@ var xe = class extends h {
   `;
   }
 };
-customElements.define("kibble-bowl", xe);
-var zt = [1, 2, 3, 4, 5];
-var ye = class extends h {
+customElements.define("kibble-bowl", Ce);
+var Kt = [1, 2, 3, 4, 5];
+var ke = class extends h {
   static {
     this.properties = { value: { type: Number }, disabled: { type: Boolean } };
   }
@@ -847,7 +847,7 @@ var ye = class extends h {
   render() {
     return l`
       <div class="segments" role="radiogroup" aria-label="Feed amount, portions">
-        ${zt.map((t) => l`
+        ${Kt.map((t) => l`
             <button
               type="button"
               role="radio"
@@ -866,7 +866,7 @@ var ye = class extends h {
     this.dispatchEvent(new CustomEvent("portion-selected", { detail: { value: t }, bubbles: true, composed: true }));
   }
   static {
-    this.styles = f`
+    this.styles = b`
     :host {
       display: block;
     }
@@ -878,9 +878,12 @@ var ye = class extends h {
       flex: 1 1 0;
       min-width: var(--kibble-touch-target, 48px);
       min-height: var(--kibble-touch-target, 48px);
-      border-radius: calc(var(--ha-card-border-radius, 12px) * 0.6);
-      border: 2px solid var(--divider-color);
-      background: var(--ha-card-background, var(--card-background-color));
+      /* Pill radius and a soft translucent surface instead of a 2px outline: the convention
+         Mushroom/Bubble-style dashboards settled on, and it stops a row of five segments
+         reading as a table of boxes. */
+      border-radius: 999px;
+      border: none;
+      background: color-mix(in srgb, var(--primary-text-color) 8%, transparent);
       color: var(--primary-text-color);
       font-size: var(--kibble-segment-size, 16px);
       font-weight: 600;
@@ -891,11 +894,14 @@ var ye = class extends h {
       align-items: center;
       justify-content: center;
       line-height: 1.1;
-      transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+      transition: background-color 0.15s ease, color 0.15s ease, transform 0.08s ease;
+    }
+    /* Press feedback -- the small tactile detail that makes a touch panel feel native. */
+    .segment:active:not(:disabled) {
+      transform: scale(0.96);
     }
     .segment.selected {
       background: var(--kibble-amber);
-      border-color: var(--kibble-amber);
       color: var(--kibble-ink-on-amber);
     }
     .segment:disabled {
@@ -909,8 +915,8 @@ var ye = class extends h {
   `;
   }
 };
-customElements.define("kibble-segmented-picker", ye);
-var Ce = class extends h {
+customElements.define("kibble-segmented-picker", ke);
+var we = class extends h {
   static {
     this.properties = { value: { type: Number }, min: { type: Number }, max: { type: Number }, step: { type: Number }, disabled: { type: Boolean } };
   }
@@ -940,7 +946,7 @@ var Ce = class extends h {
     this.dispatchEvent(new CustomEvent("value-selected", { detail: { value: t }, bubbles: true, composed: true }));
   }
   static {
-    this.styles = f`
+    this.styles = b`
     :host {
       display: block;
     }
@@ -981,8 +987,8 @@ var Ce = class extends h {
   `;
   }
 };
-customElements.define("kibble-stepper", Ce);
-var ke = class extends h {
+customElements.define("kibble-stepper", we);
+var Ae = class extends h {
   constructor() {
     super();
     this._holding = false;
@@ -1028,7 +1034,7 @@ var ke = class extends h {
     this.dispatchEvent(new CustomEvent("activate", { bubbles: true, composed: true }));
   }
   static {
-    this.styles = f`
+    this.styles = b`
     :host {
       display: block;
     }
@@ -1037,7 +1043,9 @@ var ke = class extends h {
       width: 100%;
       height: var(--kibble-feed-button-height, 56px);
       border: none;
-      border-radius: calc(var(--ha-card-border-radius, 12px) * 0.8);
+      /* Fully rounded: the primary action should read as one confident pill, matching the
+         segmented picker above it. */
+      border-radius: 999px;
       background: var(--kibble-amber);
       color: var(--kibble-ink-on-amber);
       font-size: var(--kibble-feed-label-size, 18px);
@@ -1047,11 +1055,17 @@ var ke = class extends h {
       touch-action: none;
       user-select: none;
       -webkit-user-select: none;
+      transition: transform 0.08s ease, box-shadow 0.15s ease;
+      box-shadow: 0 1px 2px color-mix(in srgb, var(--kibble-amber-dark) 35%, transparent);
+    }
+    .button:active:not(:disabled) {
+      transform: scale(0.985);
+      box-shadow: none;
     }
     .button.cancel {
-      background: transparent;
-      border: 2px solid var(--kibble-amber-dark);
+      background: color-mix(in srgb, var(--kibble-amber-dark) 12%, transparent);
       color: var(--kibble-amber-dark);
+      box-shadow: none;
     }
     .button:disabled {
       opacity: 0.5;
@@ -1080,10 +1094,10 @@ var ke = class extends h {
   `;
   }
 };
-customElements.define("kibble-hold-button", ke);
-var dt = { connected: "cloudCheck", blocked: "cloudLock", unreachable: "cloudAlert", unknown: "cloudQuestion" };
-var Ut = { connected: "Cloud connected", blocked: "Cloud blocked", unreachable: "Cloud unreachable", unknown: "Cloud status unknown" };
-var Ae = class extends h {
+customElements.define("kibble-hold-button", Ae);
+var ut = { connected: "cloudCheck", blocked: "cloudLock", unreachable: "cloudAlert", unknown: "cloudQuestion" };
+var jt = { connected: "Cloud connected", blocked: "Cloud blocked", unreachable: "Cloud unreachable", unknown: "Cloud status unknown" };
+var Se = class extends h {
   static {
     this.properties = { cloudState: { type: String }, desiccantDays: { type: Number }, wifiLabel: { type: String } };
   }
@@ -1091,11 +1105,11 @@ var Ae = class extends h {
     super(), this.cloudState = null, this.desiccantDays = null, this.wifiLabel = null;
   }
   render() {
-    let t = this.cloudState && this.cloudState in dt ? this.cloudState : "unknown";
+    let t = this.cloudState && this.cloudState in ut ? this.cloudState : "unknown";
     return l`
       <div class="footer">
-        <button type="button" class="glance ${t === "blocked" ? "warn" : ""}" title=${Ut[t]} @click=${this._openSettings}>
-          ${$(dt[t])}
+        <button type="button" class="glance ${t === "blocked" ? "warn" : ""}" title=${jt[t]} @click=${this._openSettings}>
+          ${$(ut[t])}
         </button>
         ${this.desiccantDays == null ? a : l`
               <button type="button" class="glance" title="Desiccant left" @click=${this._openSettings}>
@@ -1114,7 +1128,7 @@ var Ae = class extends h {
     this.dispatchEvent(new CustomEvent("open-settings", { bubbles: true, composed: true }));
   }
   static {
-    this.styles = f`
+    this.styles = b`
     :host {
       display: block;
     }
@@ -1157,12 +1171,89 @@ var Ae = class extends h {
   `;
   }
 };
-customElements.define("kibble-footer", Ae);
-var { I: zi } = Ye;
-var ct = (s3) => s3.strings === void 0;
-var ut = { ATTRIBUTE: 1, CHILD: 2, PROPERTY: 3, BOOLEAN_ATTRIBUTE: 4, EVENT: 5, ELEMENT: 6 };
-var Se = (s3) => (...t) => ({ _$litDirective$: s3, values: t });
-var J = class {
+customElements.define("kibble-footer", Se);
+var Ee = class extends h {
+  static {
+    this.properties = { imageUrl: { type: String }, when: { type: String }, detectionClass: { type: String }, catName: { type: String }, todayCount: { type: Number } };
+  }
+  constructor() {
+    super(), this.imageUrl = null, this.when = null, this.detectionClass = null, this.catName = null, this.todayCount = null;
+  }
+  render() {
+    if (!this.when && !this.imageUrl) return a;
+    let t = this.detectionClass === "eat" ? "Eating" : this.detectionClass === "face" ? "Face seen" : this.detectionClass === "visit" ? "Seen" : "Detected";
+    return l`
+      <div class="row" role="group" aria-label="Last detection">
+        ${this.imageUrl ? l`<img class="thumb" src=${this.imageUrl} alt="Most recent detection" loading="lazy" />` : l`<div class="thumb thumb--empty" aria-hidden="true"></div>`}
+        <div class="text">
+          <span class="primary">${this.catName ?? t}</span>
+          <span class="secondary">${this.when ?? ""}</span>
+        </div>
+        ${this.todayCount !== null && this.todayCount > 0 ? l`<span class="count" title="Detections today">${this.todayCount}</span>` : a}
+      </div>
+    `;
+  }
+  static {
+    this.styles = b`
+    :host {
+      display: block;
+    }
+    .row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-height: 40px;
+    }
+    .thumb {
+      width: 44px;
+      height: 44px;
+      flex: 0 0 auto;
+      object-fit: cover;
+      /* Squircle, not a circle: this is a photo crop, and a circle would clip the cat. */
+      border-radius: 12px;
+      background: color-mix(in srgb, var(--primary-text-color) 8%, transparent);
+    }
+    .thumb--empty {
+      opacity: 0.6;
+    }
+    .text {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      line-height: 1.2;
+    }
+    .primary {
+      font-size: var(--kibble-schedule-size, 14px);
+      font-weight: 500;
+      color: var(--primary-text-color);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .secondary {
+      font-size: var(--kibble-footer-size, 12px);
+      color: var(--secondary-text-color);
+    }
+    .count {
+      margin-left: auto;
+      font-size: var(--kibble-footer-size, 12px);
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+      color: var(--secondary-text-color);
+      padding: 3px 10px;
+      border-radius: 999px;
+      /* Soft surface rather than an outline, matching the picker segments. */
+      background: color-mix(in srgb, var(--primary-text-color) 8%, transparent);
+    }
+  `;
+  }
+};
+customElements.define("kibble-detection", Ee);
+var { I: ji } = Je;
+var ht = (s3) => s3.strings === void 0;
+var pt = { ATTRIBUTE: 1, CHILD: 2, PROPERTY: 3, BOOLEAN_ATTRIBUTE: 4, EVENT: 5, ELEMENT: 6 };
+var Me = (s3) => (...t) => ({ _$litDirective$: s3, values: t });
+var ee = class {
   constructor(t) {
   }
   get _$AU() {
@@ -1184,45 +1275,45 @@ var K = (s3, t) => {
   for (let i of e) i._$AO?.(t, false), K(i, t);
   return true;
 };
-var ee = (s3) => {
+var te = (s3) => {
   let t, e;
   do {
     if ((t = s3._$AM) === void 0) break;
     e = t._$AN, e.delete(s3), s3 = t;
   } while (e?.size === 0);
 };
-var ht = (s3) => {
+var mt = (s3) => {
   for (let t; t = s3._$AM; s3 = t) {
     let e = t._$AN;
     if (e === void 0) t._$AN = e = /* @__PURE__ */ new Set();
     else if (e.has(s3)) break;
-    e.add(s3), qt(t);
+    e.add(s3), Gt(t);
   }
 };
-function Ft(s3) {
-  this._$AN !== void 0 ? (ee(this), this._$AM = s3, ht(this)) : this._$AM = s3;
+function qt(s3) {
+  this._$AN !== void 0 ? (te(this), this._$AM = s3, mt(this)) : this._$AM = s3;
 }
-function jt(s3, t = false, e = 0) {
+function Wt(s3, t = false, e = 0) {
   let i = this._$AH, n = this._$AN;
-  if (n !== void 0 && n.size !== 0) if (t) if (Array.isArray(i)) for (let r = e; r < i.length; r++) K(i[r], false), ee(i[r]);
-  else i != null && (K(i, false), ee(i));
+  if (n !== void 0 && n.size !== 0) if (t) if (Array.isArray(i)) for (let r = e; r < i.length; r++) K(i[r], false), te(i[r]);
+  else i != null && (K(i, false), te(i));
   else K(this, s3);
 }
-var qt = (s3) => {
-  s3.type == ut.CHILD && (s3._$AP ??= jt, s3._$AQ ??= Ft);
+var Gt = (s3) => {
+  s3.type == pt.CHILD && (s3._$AP ??= Wt, s3._$AQ ??= qt);
 };
-var te = class extends J {
+var ie = class extends ee {
   constructor() {
     super(...arguments), this._$AN = void 0;
   }
   _$AT(t, e, i) {
-    super._$AT(t, e, i), ht(this), this.isConnected = t._$AU;
+    super._$AT(t, e, i), mt(this), this.isConnected = t._$AU;
   }
   _$AO(t, e = true) {
-    t !== this.isConnected && (this.isConnected = t, t ? this.reconnected?.() : this.disconnected?.()), e && (K(this, t), ee(this));
+    t !== this.isConnected && (this.isConnected = t, t ? this.reconnected?.() : this.disconnected?.()), e && (K(this, t), te(this));
   }
   setValue(t) {
-    if (ct(this._$Ct)) this._$Ct._$AI(t, this);
+    if (ht(this._$Ct)) this._$Ct._$AI(t, this);
     else {
       let e = [...this._$Ct._$AH];
       e[this._$Ci] = t, this._$Ct._$AI(e, this, 0);
@@ -1233,11 +1324,11 @@ var te = class extends J {
   reconnected() {
   }
 };
-var pt = () => new Ee();
-var Ee = class {
+var bt = () => new He();
+var He = class {
 };
-var we = /* @__PURE__ */ new WeakMap();
-var bt = Se(class extends te {
+var Le = /* @__PURE__ */ new WeakMap();
+var ft = Me(class extends ie {
   render(s3) {
     return a;
   }
@@ -1247,12 +1338,12 @@ var bt = Se(class extends te {
   }
   rt(s3) {
     if (this.G !== void 0) if (this.isConnected || (s3 = void 0), typeof this.G == "function") {
-      let t = this.ht ?? globalThis, e = we.get(t);
-      e === void 0 && (e = /* @__PURE__ */ new WeakMap(), we.set(t, e)), e.get(this.G) !== void 0 && this.G.call(this.ht, void 0), e.set(this.G, s3), s3 !== void 0 && this.G.call(this.ht, s3);
+      let t = this.ht ?? globalThis, e = Le.get(t);
+      e === void 0 && (e = /* @__PURE__ */ new WeakMap(), Le.set(t, e)), e.get(this.G) !== void 0 && this.G.call(this.ht, void 0), e.set(this.G, s3), s3 !== void 0 && this.G.call(this.ht, s3);
     } else this.G.value = s3;
   }
   get lt() {
-    return typeof this.G == "function" ? we.get(this.ht ?? globalThis)?.get(this.G) : this.G?.value;
+    return typeof this.G == "function" ? Le.get(this.ht ?? globalThis)?.get(this.G) : this.G?.value;
   }
   disconnected() {
     this.lt === this.ct && this.rt(void 0);
@@ -1261,41 +1352,41 @@ var bt = Se(class extends te {
     this.rt(this.ct);
   }
 });
-function Wt(s3) {
+function Zt(s3) {
   let t = /^(\d{1,2}):(\d{2})$/.exec(s3.trim());
   if (!t) throw new Error(`Invalid schedule time "${s3}"`);
   let e = Number(t[1]), i = Number(t[2]);
   if (e > 23 || i > 59) throw new Error(`Invalid schedule time "${s3}"`);
   return e * 60 + i;
 }
-function Gt(s3, t) {
+function Yt(s3, t) {
   let e = t.getHours() * 60 + t.getMinutes(), i = null;
   for (let n of s3) {
     if (!n.enabled) continue;
-    let o = ((Wt(n.time) - e) % 1440 + 1440) % 1440;
+    let o = ((Zt(n.time) - e) % 1440 + 1440) % 1440;
     (i === null || o < i.minutesUntil) && (i = { entry: n, minutesUntil: o });
   }
   return i;
 }
-function mt(s3, t) {
+function gt(s3, t) {
   if (s3.length === 0) return "No schedule set";
-  let e = s3.length === 1 ? "1 scheduled" : `${s3.length} scheduled`, i = Gt(s3, t);
+  let e = s3.length === 1 ? "1 scheduled" : `${s3.length} scheduled`, i = Yt(s3, t);
   return i ? `${e} \xB7 next ${i.entry.time}` : `${e} \xB7 all paused`;
 }
-var Me = "dispenser-schedule-card";
-var Le = class extends h {
+var Te = "dispenser-schedule-card";
+var Ne = class extends h {
   constructor() {
     super();
     this._expanded = false;
-    this._embedRef = pt();
+    this._embedRef = bt();
     this._configureEmbed = (e) => {
       if (!e || !this.scheduleCardStateEntity) return;
-      let i = e.querySelector(Me);
+      let i = e.querySelector(Te);
       if (i) {
         i.hass = this.hass;
         return;
       }
-      let n = document.createElement(Me);
+      let n = document.createElement(Te);
       n.setConfig({ type: "custom:dispenser-schedule-card", device: { type: "custom", entity: this.scheduleCardStateEntity, max_entries: 24, min_amount: 1, max_amount: 20, step_amount: 1, status_map: ["0 -> dispensed", "1 -> failed", "2 -> pending", "3 -> dispensing"], status_pattern: "(?<id>[^,]+),(?<hour>[0-9]{1,2}),(?<minute>[0-9]{1,2}),(?<amount>[0-9]{1,2}),(?<status>[0-9]);?", actions: { add: "kibble.schedule_card_add", edit: "kibble.schedule_card_edit", remove: "kibble.schedule_card_remove", toggle: "kibble.schedule_card_toggle" } }, unit_of_measurement: { one: "portion", other: "portions" } }), n.hass = this.hass, e.appendChild(n);
     };
     this.entries = [], this.deviceName = "Kibble";
@@ -1307,7 +1398,7 @@ var Le = class extends h {
     this._embedRef.value && this.hass && (this._embedRef.value.hass = this.hass);
   }
   render() {
-    let e = /* @__PURE__ */ new Date(), i = mt(this.entries, e);
+    let e = /* @__PURE__ */ new Date(), i = gt(this.entries, e);
     return l`
       <button type="button" class="row" @click=${this._toggle} aria-expanded=${this._expanded}>
         <span>${i}</span>
@@ -1317,7 +1408,7 @@ var Le = class extends h {
     `;
   }
   _renderExpanded() {
-    if (this._canEmbed()) return l`<div ${bt(this._configureEmbed)}></div>`;
+    if (this._canEmbed()) return l`<div ${ft(this._configureEmbed)}></div>`;
     if (this.entries.length === 0) return l`<p class="empty">No schedule set</p>`;
     let e = [...this.entries].sort((i, n) => i.time.localeCompare(n.time));
     return l`
@@ -1333,7 +1424,7 @@ var Le = class extends h {
     `;
   }
   _canEmbed() {
-    if (!customElements.get(Me) || !this.scheduleCardStateEntity) return false;
+    if (!customElements.get(Te) || !this.scheduleCardStateEntity) return false;
     let e = this.hass?.states[this.scheduleCardStateEntity];
     return e !== void 0 && e.state !== "unavailable";
   }
@@ -1341,7 +1432,7 @@ var Le = class extends h {
     this._expanded = !this._expanded, this.requestUpdate();
   }
   static {
-    this.styles = f`
+    this.styles = b`
     :host {
       display: block;
     }
@@ -1410,16 +1501,16 @@ var Le = class extends h {
   `;
   }
 };
-customElements.define("kibble-schedule-summary", Le);
-var Zt = 3e3;
-function ie(s3, t) {
+customElements.define("kibble-schedule-summary", Ne);
+var Qt = 3e3;
+function se(s3, t) {
   if (!t) return null;
   let e = s3.states[t];
   if (!e) return null;
   let i = Number(e.state);
   return Number.isNaN(i) ? null : { value: i, min: Number(e.attributes.min ?? 1), max: Number(e.attributes.max ?? 20), step: Number(e.attributes.step ?? 1) };
 }
-var He = class extends h {
+var Re = class extends h {
   constructor() {
     super();
     this._cloudConfirmArmed = false;
@@ -1459,7 +1550,7 @@ var He = class extends h {
     `;
   }
   _renderMoreAmountSection() {
-    let e = ie(this.hass, this.entities.feedAmount);
+    let e = se(this.hass, this.entities.feedAmount);
     return e ? l`
       <section>
         <h3>Feed amount</h3>
@@ -1477,14 +1568,14 @@ var He = class extends h {
           ${e ? l`
                 <div class="hopper">
                   <span class="hopper-label">Hopper 1</span>
-                  ${this._renderStepper(e, ie(this.hass, e))}
+                  ${this._renderStepper(e, se(this.hass, e))}
                   ${n ? l`<kibble-hold-button label="Hold to feed" @activate=${() => this._pressButton(n)}></kibble-hold-button>` : a}
                 </div>
               ` : a}
           ${i ? l`
                 <div class="hopper">
                   <span class="hopper-label">Hopper 2</span>
-                  ${this._renderStepper(i, ie(this.hass, i))}
+                  ${this._renderStepper(i, se(this.hass, i))}
                   ${r ? l`<kibble-hold-button label="Hold to feed" @activate=${() => this._pressButton(r)}></kibble-hold-button>` : a}
                 </div>
               ` : a}
@@ -1525,7 +1616,7 @@ var He = class extends h {
     `;
   }
   _renderVolume() {
-    let e = ie(this.hass, this.entities.volume);
+    let e = se(this.hass, this.entities.volume);
     return e ? l`
       <section>
         <h3>Volume</h3>
@@ -1608,7 +1699,7 @@ var He = class extends h {
     }
     this._cloudConfirmArmed = true, this.requestUpdate(), this._cloudConfirmTimer = setTimeout(() => {
       this._cloudConfirmArmed = false, this.requestUpdate();
-    }, Zt);
+    }, Qt);
   }
   _openDevicePage() {
     let e = this.entities.deviceId;
@@ -1621,7 +1712,7 @@ var He = class extends h {
     this.dispatchEvent(new CustomEvent("close-requested", { bubbles: true, composed: true }));
   }
   static {
-    this.styles = f`
+    this.styles = b`
     :host {
       position: fixed;
       inset: 0;
@@ -1825,13 +1916,13 @@ var He = class extends h {
   `;
   }
 };
-customElements.define("kibble-settings-dialog", He);
-var Yt = [{ name: "device_id", required: true, selector: { device: { filter: { integration: "kibble" } } } }, { name: "name", selector: { text: {} } }];
-var Qt = { device_id: "Kibble device", name: "Name (optional)" };
-var Te = class extends h {
+customElements.define("kibble-settings-dialog", Re);
+var Xt = [{ name: "device_id", required: true, selector: { device: { filter: { integration: "kibble" } } } }, { name: "name", selector: { text: {} } }];
+var Jt = { device_id: "Kibble device", name: "Name (optional)" };
+var Pe = class extends h {
   constructor() {
     super(...arguments);
-    this._computeLabel = (e) => Qt[e.name] ?? e.name;
+    this._computeLabel = (e) => Jt[e.name] ?? e.name;
   }
   static {
     this.properties = { hass: { attribute: false }, _config: { state: true } };
@@ -1844,7 +1935,7 @@ var Te = class extends h {
         <ha-form
           .hass=${this.hass}
           .data=${this._config}
-          .schema=${Yt}
+          .schema=${Xt}
           .computeLabel=${this._computeLabel}
           @value-changed=${this._formValueChanged}
         ></ha-form>
@@ -1885,7 +1976,7 @@ var Te = class extends h {
     this.dispatchEvent(new CustomEvent("config-changed", { detail: { config: this._config }, bubbles: true, composed: true }));
   }
   static {
-    this.styles = f`
+    this.styles = b`
     .fallback {
       display: flex;
       flex-direction: column;
@@ -1912,12 +2003,12 @@ var Te = class extends h {
   `;
   }
 };
-customElements.define("kibble-card-editor", Te);
-var Jt = { deviceId: "", catPresence: [] };
-var Ne = class extends h {
+customElements.define("kibble-card-editor", Pe);
+var ti = { deviceId: "", catPresence: [] };
+var Ve = class extends h {
   constructor() {
     super();
-    this._entities = Jt;
+    this._entities = ti;
     this._onFeedActivate = () => {
       if (!this._entities.deviceId) return;
       let e = this._numberState(this._entities.feedAmount) ?? 1;
@@ -1960,11 +2051,11 @@ var Ne = class extends h {
     super.disconnectedCallback(), this._resizeObserver?.disconnect();
   }
   willUpdate(e) {
-    (e.has("hass") || e.has("_config")) && this._config?.device_id && this.hass && (this._entities = Xe(this.hass.entities ?? {}, this._config.device_id));
+    (e.has("hass") || e.has("_config")) && this._config?.device_id && this.hass && (this._entities = tt(this.hass.entities ?? {}, this._config.device_id));
   }
   render() {
     if (!this._config || !this.hass) return a;
-    let e = this._entities, i = e.feeding ? this.hass.states[e.feeding]?.state : void 0, r = [e.feeding, e.bowlFill1, e.bowlFill2, e.schedule].filter((ne) => !!ne).map((ne) => this.hass.states[ne]?.state), o = Je(r, i), d = i === "on", c = this._numberState(e.bowlFill1), b = this._numberState(e.bowlFill2), m = this._catName(), u = o === "idle" ? fe(o, this._lastFedRelative(i)) : fe(o, null), g = this._scheduleEntries(), _ = this._numberState(e.feedAmount) ?? 1, H = this._numberState(e.desiccantDays), se = e.wifiNetwork ? this.hass.states[e.wifiNetwork] : void 0, ft = e.cloudConnection ? this.hass.states[e.cloudConnection]?.state : void 0;
+    let e = this._entities, i = e.feeding ? this.hass.states[e.feeding]?.state : void 0, r = [e.feeding, e.bowlFill1, e.bowlFill2, e.schedule].filter((re) => !!re).map((re) => this.hass.states[re]?.state), o = it(r, i), d = i === "on", c = this._numberState(e.bowlFill1), m = this._numberState(e.bowlFill2), f = this._catName(), u = o === "idle" ? _e(o, this._lastFedRelative(i)) : _e(o, null), g = this._scheduleEntries(), _ = this._numberState(e.feedAmount) ?? 1, H = this._numberState(e.desiccantDays), ne = e.wifiNetwork ? this.hass.states[e.wifiNetwork] : void 0, _t = e.cloudConnection ? this.hass.states[e.cloudConnection]?.state : void 0, P = this._detection();
     return l`
       <ha-card>
         <div class="container">
@@ -1978,8 +2069,8 @@ var Ne = class extends h {
             <kibble-bowl
               class="bowl-block"
               .hopper1=${c}
-              .hopper2=${b}
-              .catName=${m}
+              .hopper2=${m}
+              .catName=${f}
               .feeding=${d}
               .statusText=${u}
             ></kibble-bowl>
@@ -2009,11 +2100,19 @@ var Ne = class extends h {
               .entries=${g}
               .scheduleCardStateEntity=${e.scheduleCardState}
             ></kibble-schedule-summary>
+            <kibble-detection
+              class="detection-row"
+              .imageUrl=${P.imageUrl}
+              .when=${P.when}
+              .detectionClass=${P.detectionClass}
+              .catName=${P.catName}
+              .todayCount=${P.todayCount}
+            ></kibble-detection>
             <kibble-footer
               class="footer"
-              .cloudState=${ft}
+              .cloudState=${_t}
               .desiccantDays=${H}
-              .wifiLabel=${se && se.state !== "unavailable" ? se.state : null}
+              .wifiLabel=${ne && ne.state !== "unavailable" ? ne.state : null}
               @open-settings=${this._openSettings}
             ></kibble-footer>
           </div>
@@ -2043,7 +2142,11 @@ var Ne = class extends h {
     let i = this._entities.feeding;
     if (!i || e !== "off") return null;
     let n = this.hass.states[i];
-    return n ? et(new Date(n.last_changed), /* @__PURE__ */ new Date()) : null;
+    return n ? ge(new Date(n.last_changed), /* @__PURE__ */ new Date()) : null;
+  }
+  _detection() {
+    let e = this._entities.lastDetection ? this.hass.states[this._entities.lastDetection] : void 0, i = this._entities.lastDetectionImage ? this.hass.states[this._entities.lastDetectionImage] : void 0, n = this._entities.detectionsToday ? this.hass.states[this._entities.detectionsToday] : void 0, r = e && e.state !== "unavailable" && e.state !== "unknown" ? e.state : null, o = n && n.state !== "unavailable" && n.state !== "unknown" ? Number(n.state) : null, d = r ? ge(new Date(r), /* @__PURE__ */ new Date()) : null;
+    return { imageUrl: i?.attributes?.entity_picture ?? null, when: d, detectionClass: e?.attributes?.class ?? null, catName: e?.attributes?.cat ?? null, todayCount: o !== null && Number.isFinite(o) ? o : null };
   }
   _scheduleEntries() {
     let e = this._entities.schedule;
@@ -2055,13 +2158,13 @@ var Ne = class extends h {
     this._entities.feedAmount && this.hass.callService("number", "set_value", { value: e.detail.value }, { entity_id: this._entities.feedAmount });
   }
   static {
-    this.styles = f`
+    this.styles = b`
     :host {
       display: block;
       height: 100%;
-      --kibble-amber: ${T(tt)};
-      --kibble-amber-dark: ${T(it)};
-      --kibble-ink-on-amber: ${T(st)};
+      --kibble-amber: ${T(st)};
+      --kibble-amber-dark: ${T(nt)};
+      --kibble-ink-on-amber: ${T(rt)};
       --kibble-touch-target: 48px;
       --kibble-feed-button-height: 56px;
       --kibble-number-size: 32px;
@@ -2102,7 +2205,7 @@ var Ne = class extends h {
       gap: 10px;
       padding-bottom: 10px;
       grid-template-columns: 1fr;
-      grid-template-areas: "hero" "bowl" "feed" "schedule" "footer";
+      grid-template-areas: "hero" "bowl" "feed" "schedule" "detection" "footer";
     }
     .hero {
       grid-area: hero;
@@ -2217,6 +2320,15 @@ var Ne = class extends h {
       grid-area: schedule;
       padding: 0 10px;
     }
+    .detection-row {
+      grid-area: detection;
+      padding: 0 10px;
+    }
+    /* At the kiosk/compact size the feed action must stay above the fold, so the detection row
+       is the first thing to go -- it is context, not control. */
+    :host(.compact) .detection-row {
+      display: none;
+    }
     .footer {
       grid-area: footer;
       padding: 0 10px;
@@ -2238,7 +2350,7 @@ var Ne = class extends h {
       .root {
         grid-template-columns: 60% 1fr;
         grid-template-rows: auto auto 1fr auto;
-        grid-template-areas: "hero bowl" "hero feed" "hero schedule" "footer footer";
+        grid-template-areas: "hero bowl" "hero feed" "hero schedule" "hero detection" "footer footer";
         gap: 4px;
         padding-bottom: 0;
       }
@@ -2285,7 +2397,7 @@ var Ne = class extends h {
   `;
   }
 };
-customElements.define("kibble-card", Ne);
+customElements.define("kibble-card", Ve);
 window.customCards = window.customCards || [];
 window.customCards.push({ type: "kibble-card", name: "Kibble", description: "The full daily control surface for a Kibble Petkit feeder: live camera, bowl status, feed, and schedule.", preview: true });
 
@@ -2334,7 +2446,10 @@ var ENTITY_IDS = {
   microphoneSwitch: "switch.plant_room_cat_feeder_microphone",
   volume: "number.plant_room_cat_feeder_volume",
   lastSeenPet: "sensor.plant_room_cat_feeder_last_seen_pet",
-  wifiNetwork: "sensor.plant_room_cat_feeder_wifi_network"
+  wifiNetwork: "sensor.plant_room_cat_feeder_wifi_network",
+  lastDetection: "sensor.plant_room_cat_feeder_last_detection",
+  detectionsToday: "sensor.plant_room_cat_feeder_detections_today",
+  lastDetectionImage: "image.plant_room_cat_feeder_last_detection"
 };
 function registryFor(includeWifi) {
   const registry = {
@@ -2357,7 +2472,10 @@ function registryFor(includeWifi) {
     [ENTITY_IDS.statusLedSwitch]: entry(ENTITY_IDS.statusLedSwitch, "light"),
     [ENTITY_IDS.microphoneSwitch]: entry(ENTITY_IDS.microphoneSwitch, "microphone"),
     [ENTITY_IDS.volume]: entry(ENTITY_IDS.volume, "volume"),
-    [ENTITY_IDS.lastSeenPet]: entry(ENTITY_IDS.lastSeenPet, "last_seen_pet")
+    [ENTITY_IDS.lastSeenPet]: entry(ENTITY_IDS.lastSeenPet, "last_seen_pet"),
+    [ENTITY_IDS.lastDetection]: entry(ENTITY_IDS.lastDetection, "last_detection"),
+    [ENTITY_IDS.detectionsToday]: entry(ENTITY_IDS.detectionsToday, "detections_today"),
+    [ENTITY_IDS.lastDetectionImage]: entry(ENTITY_IDS.lastDetectionImage, "last_detection")
   };
   if (includeWifi) {
     registry[ENTITY_IDS.wifiNetwork] = entry(ENTITY_IDS.wifiNetwork, "wifi_network");
@@ -2389,7 +2507,17 @@ function buildIdle() {
     [ENTITY_IDS.statusLedSwitch]: state(ENTITY_IDS.statusLedSwitch, "on"),
     [ENTITY_IDS.microphoneSwitch]: state(ENTITY_IDS.microphoneSwitch, "on"),
     [ENTITY_IDS.volume]: state(ENTITY_IDS.volume, "6", { min: 0, max: 9, step: 1 }),
-    [ENTITY_IDS.lastSeenPet]: state(ENTITY_IDS.lastSeenPet, "Kitty", { score: 0.94 }, minutesAgo(126))
+    [ENTITY_IDS.lastSeenPet]: state(ENTITY_IDS.lastSeenPet, "Kitty", { score: 0.94 }, minutesAgo(126)),
+    // An unidentified visit: Kibble saw a cat but did not match it to Kitty or Pancake, so the
+    // row shows the class ("Seen") and never a guessed name.
+    [ENTITY_IDS.lastDetection]: state(ENTITY_IDS.lastDetection, minutesAgo(14), { class: "visit" }),
+    [ENTITY_IDS.detectionsToday]: state(ENTITY_IDS.detectionsToday, "16", {
+      by_class: { visit: 16 },
+      capped: false
+    }),
+    [ENTITY_IDS.lastDetectionImage]: state(ENTITY_IDS.lastDetectionImage, minutesAgo(14), {
+      entity_picture: "./camera-frame.svg"
+    })
   };
   return { device: DEVICE, entities: registryFor(false), states };
 }
@@ -2411,6 +2539,15 @@ function buildDispensing() {
     [ENTITY_IDS.microphoneSwitch]: state(ENTITY_IDS.microphoneSwitch, "on"),
     [ENTITY_IDS.volume]: state(ENTITY_IDS.volume, "6", { min: 0, max: 9, step: 1 }),
     [ENTITY_IDS.lastSeenPet]: state(ENTITY_IDS.lastSeenPet, "Pancake", { score: 0.88 }, minutesAgo(1)),
+    // Mid-dispense: the cat that tripped the detection is still at the bowl.
+    [ENTITY_IDS.lastDetection]: state(ENTITY_IDS.lastDetection, minutesAgo(1), {
+      class: "eat",
+      cat: "Pancake"
+    }),
+    [ENTITY_IDS.detectionsToday]: state(ENTITY_IDS.detectionsToday, "9", { by_class: { visit: 7, eat: 2 } }),
+    [ENTITY_IDS.lastDetectionImage]: state(ENTITY_IDS.lastDetectionImage, minutesAgo(1), {
+      entity_picture: "./camera-frame.svg"
+    }),
     [ENTITY_IDS.wifiNetwork]: state(ENTITY_IDS.wifiNetwork, "Good (-52 dBm)")
   };
   return { device: DEVICE, entities: registryFor(true), states };
@@ -2433,7 +2570,10 @@ function buildUnreachable() {
     [ENTITY_IDS.statusLedSwitch]: state(ENTITY_IDS.statusLedSwitch, "unavailable", {}),
     [ENTITY_IDS.microphoneSwitch]: state(ENTITY_IDS.microphoneSwitch, "unavailable", {}),
     [ENTITY_IDS.volume]: state(ENTITY_IDS.volume, "unavailable", {}),
-    [ENTITY_IDS.lastSeenPet]: state(ENTITY_IDS.lastSeenPet, "unavailable", {})
+    [ENTITY_IDS.lastSeenPet]: state(ENTITY_IDS.lastSeenPet, "unavailable", {}),
+    [ENTITY_IDS.lastDetection]: state(ENTITY_IDS.lastDetection, "unavailable", {}),
+    [ENTITY_IDS.detectionsToday]: state(ENTITY_IDS.detectionsToday, "unavailable", {}),
+    [ENTITY_IDS.lastDetectionImage]: state(ENTITY_IDS.lastDetectionImage, "unavailable", {})
   };
   return { device: DEVICE, entities: registryFor(false), states };
 }

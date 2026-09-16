@@ -17,6 +17,7 @@ import "./components/kibble-segmented-picker";
 import "./components/kibble-stepper";
 import "./components/kibble-hold-button";
 import "./components/kibble-footer";
+import "./components/kibble-detection";
 import "./components/kibble-schedule-summary";
 import "./components/kibble-settings-dialog";
 import "./editor";
@@ -104,6 +105,7 @@ export class KibbleCard extends LitElement {
     const desiccantDays = this._numberState(e.desiccantDays);
     const wifiState = e.wifiNetwork ? this.hass.states[e.wifiNetwork] : undefined;
     const cloudState = e.cloudConnection ? this.hass.states[e.cloudConnection]?.state : undefined;
+    const detection = this._detection();
 
     return html`
       <ha-card>
@@ -149,6 +151,14 @@ export class KibbleCard extends LitElement {
               .entries=${scheduleEntries}
               .scheduleCardStateEntity=${e.scheduleCardState}
             ></kibble-schedule-summary>
+            <kibble-detection
+              class="detection-row"
+              .imageUrl=${detection.imageUrl}
+              .when=${detection.when}
+              .detectionClass=${detection.detectionClass}
+              .catName=${detection.catName}
+              .todayCount=${detection.todayCount}
+            ></kibble-detection>
             <kibble-footer
               class="footer"
               .cloudState=${cloudState}
@@ -198,6 +208,34 @@ export class KibbleCard extends LitElement {
     const state = this.hass.states[id];
     if (!state) return null;
     return relativeTime(new Date(state.last_changed), new Date());
+  }
+
+  /** The detection row's view model. Everything is optional: a feeder that has never detected
+   * anything, or an older integration without these entities, yields all-nulls and the row
+   * renders nothing rather than an empty frame. */
+  private _detection(): {
+    imageUrl: string | null;
+    when: string | null;
+    detectionClass: string | null;
+    catName: string | null;
+    todayCount: number | null;
+  } {
+    const sensor = this._entities.lastDetection ? this.hass.states[this._entities.lastDetection] : undefined;
+    const image = this._entities.lastDetectionImage ? this.hass.states[this._entities.lastDetectionImage] : undefined;
+    const today = this._entities.detectionsToday ? this.hass.states[this._entities.detectionsToday] : undefined;
+    // A sensor that has never fired sits at `unknown`; one whose agent is offline goes
+    // `unavailable`. Both mean "no detection to show", not "a detection at the epoch".
+    const stamp = sensor && sensor.state !== "unavailable" && sensor.state !== "unknown" ? sensor.state : null;
+    const countRaw = today && today.state !== "unavailable" && today.state !== "unknown" ? Number(today.state) : null;
+    // The sensor's own state is the detection timestamp (device_class: timestamp).
+    const when = stamp ? relativeTime(new Date(stamp), new Date()) : null;
+    return {
+      imageUrl: (image?.attributes?.entity_picture as string | undefined) ?? null,
+      when,
+      detectionClass: (sensor?.attributes?.class as string | undefined) ?? null,
+      catName: (sensor?.attributes?.cat as string | undefined) ?? null,
+      todayCount: countRaw !== null && Number.isFinite(countRaw) ? countRaw : null,
+    };
   }
 
   private _scheduleEntries(): ScheduleEntry[] {
@@ -279,7 +317,7 @@ export class KibbleCard extends LitElement {
       gap: 10px;
       padding-bottom: 10px;
       grid-template-columns: 1fr;
-      grid-template-areas: "hero" "bowl" "feed" "schedule" "footer";
+      grid-template-areas: "hero" "bowl" "feed" "schedule" "detection" "footer";
     }
     .hero {
       grid-area: hero;
@@ -394,6 +432,15 @@ export class KibbleCard extends LitElement {
       grid-area: schedule;
       padding: 0 10px;
     }
+    .detection-row {
+      grid-area: detection;
+      padding: 0 10px;
+    }
+    /* At the kiosk/compact size the feed action must stay above the fold, so the detection row
+       is the first thing to go -- it is context, not control. */
+    :host(.compact) .detection-row {
+      display: none;
+    }
     .footer {
       grid-area: footer;
       padding: 0 10px;
@@ -415,7 +462,7 @@ export class KibbleCard extends LitElement {
       .root {
         grid-template-columns: 60% 1fr;
         grid-template-rows: auto auto 1fr auto;
-        grid-template-areas: "hero bowl" "hero feed" "hero schedule" "footer footer";
+        grid-template-areas: "hero bowl" "hero feed" "hero schedule" "hero detection" "footer footer";
         gap: 4px;
         padding-bottom: 0;
       }

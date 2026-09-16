@@ -22,6 +22,7 @@ import "./components/kibble-hold-button";
 import "./components/kibble-schedule-summary";
 import "./components/kibble-settings-dialog";
 import "./components/kibble-avatar";
+import "./components/kibble-live-hero";
 import "./editor";
 import "./kibble-timeline-card";
 import "./kibble-cats-card";
@@ -125,7 +126,13 @@ export class KibbleCard extends LitElement {
         <div class="container">
           <div class="root">
             <div class="hero">
-              <div class="hero-media">${this._renderCamera(e.camera)}</div>
+              <div class="hero-media">
+                <kibble-live-hero
+                  .hass=${this.hass}
+                  .cameraEntity=${e.camera}
+                  .scryptedId=${this._config.scrypted_id}
+                ></kibble-live-hero>
+              </div>
               <div class="hero-status">
                 <span class="live-dot" ?hidden=${!overlay.live}></span>
                 ${overlay.catName
@@ -175,21 +182,6 @@ export class KibbleCard extends LitElement {
       </ha-card>
       <kibble-settings-dialog .hass=${this.hass} .entities=${e} ?open=${this._settingsOpen} @close-requested=${this._closeSettings}></kibble-settings-dialog>
     `;
-  }
-
-  private _renderCamera(cameraId: string | undefined) {
-    if (!cameraId) {
-      return html`<div class="hero-placeholder">No camera on this device</div>`;
-    }
-    if (customElements.get("hui-image")) {
-      return html`<hui-image .hass=${this.hass} .cameraImage=${cameraId} cameraView="live"></hui-image>`;
-    }
-    const state = this.hass.states[cameraId];
-    const src = state?.attributes.entity_picture as string | undefined;
-    if (!state || state.state === "unavailable" || !src) {
-      return html`<div class="hero-placeholder">Camera unavailable</div>`;
-    }
-    return html`<img src=${src} alt="Live view of the feeder" />`;
   }
 
   private _numberState(entityId: string | undefined): number | null {

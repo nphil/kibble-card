@@ -20,6 +20,8 @@ of optional fields. Container queries drive the responsive behavior, never viewp
    ```yaml
    type: custom:kibble-card
    device_id: <your Kibble device>
+   # scrypted_id: "238"           # optional: Scrypted device id of the feeder camera — turns the
+   #                              # hero into a live WebRTC stream with hold-to-talk (see below)
    # name: Plant room             # optional label shown on the camera
    # settings_hash: "#settings"   # optional: gear opens this Bubble Card pop-up instead of the in-card dialog
    # schedule_hash: "#schedule"   # optional: same, for the "Next feed" line
@@ -41,6 +43,26 @@ of optional fields. Container queries drive the responsive behavior, never viewp
 
    Or use each card's visual editor — the required field is always just the device picker. Every
    entity id is resolved from the device at render time; you never type one.
+
+### Live view and two-way audio (optional)
+
+Set `scrypted_id` and the hero gains a **Live** button: a low-latency WebRTC stream, a speaker
+toggle, and **hold-to-talk** straight to the feeder. Requirements:
+
+- [Scrypted](https://scrypted.app) with the feeder camera added, the
+  [Kibble Scrypted plugin](https://github.com/nphil/kibble/tree/main/scrypted-plugin) attached to
+  it (it provides the `Intercom` interface the return audio rides), and that mixin ordered
+  **before** the WebRTC and HomeKit mixins — otherwise those plugins can't see `Intercom` and
+  negotiate audio as rejected.
+- The [Scrypted HA integration](https://github.com/koush/ha_scrypted) (HACS). The card reads its
+  `sensor.scrypted_token_*` entity and talks to Scrypted through HA's own authenticated proxy, so
+  no extra host, port or credential is configured here and nothing is exposed.
+- `scrypted_id` is the camera's Scrypted device id (the number in its Scrypted URL, also shown as
+  the "Scrypted NVR Card id").
+
+Video and audio both come from Scrypted, which already holds the feeder's one persistent stream —
+the card never opens a second connection to the feeder itself. Talk is press-and-hold (pointer,
+touch or keyboard) so the feeder's speaker session lasts exactly as long as the button is held.
 
 ## What it looks like
 

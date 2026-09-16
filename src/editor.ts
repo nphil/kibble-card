@@ -16,6 +16,7 @@ interface SchemaField {
 const SCHEMA: SchemaField[] = [
   { name: "device_id", required: true, selector: { device: { filter: { integration: "kibble" } } } },
   { name: "name", selector: { text: {} } },
+  { name: "scrypted_id", selector: { text: {} } },
   { name: "settings_hash", selector: { text: {} } },
   { name: "schedule_hash", selector: { text: {} } },
 ];
@@ -23,6 +24,7 @@ const SCHEMA: SchemaField[] = [
 const FIELD_LABELS: Record<string, string> = {
   device_id: "Kibble device",
   name: "Name (optional)",
+  scrypted_id: "Scrypted camera id (live view + talk)",
   settings_hash: "Settings pop-up hash (optional)",
   schedule_hash: "Schedule pop-up hash (optional)",
 };

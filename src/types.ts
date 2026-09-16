@@ -65,6 +65,11 @@ export interface KibbleCardConfig {
   // defines its own `#settings`/`#schedule` pop-ups.
   settings_hash?: string;
   schedule_hash?: string;
+  /** Scrypted device id of the feeder camera (Scrypted → camera → "Scrypted NVR Card id", or
+   * the number in its device URL). Set it and the hero plays Scrypted's WebRTC stream with
+   * push-to-talk; leave it empty and the hero stays a snapshot. Scrypted is the only path to the
+   * feeder's audio/video, so there is no second stream to configure. */
+  scrypted_id?: string;
 }
 
 export interface KibbleTimelineCardConfig {

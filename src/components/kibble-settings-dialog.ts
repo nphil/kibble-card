@@ -101,7 +101,10 @@ export class KibbleSettingsDialog extends LitElement {
     return html`
       <section>
         <h3>Per-hopper feed</h3>
-        <p class="hint">Runs one auger at a time — useful for wear-leveling or working around a jam.</p>
+        <p class="hint">
+          Targets one auger's amount byte. This feeder's firmware spins both augers anyway, so
+          expect roughly double into the bowl until a hopper divider is fitted.
+        </p>
         <div class="hoppers">
           ${feedAmountHopper1
             ? html`

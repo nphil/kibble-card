@@ -554,7 +554,10 @@ var F=globalThis,j=F.ShadowRoot&&(F.ShadyCSS===void 0||F.ShadyCSS.nativeShadow)&
     `:a}_renderHopperSection(){let{feedAmountHopper1:e,feedAmountHopper2:i,feedButtonHopper1:n,feedButtonHopper2:r}=this.entities;return l`
       <section>
         <h3>Per-hopper feed</h3>
-        <p class="hint">Runs one auger at a time — useful for wear-leveling or working around a jam.</p>
+        <p class="hint">
+          Targets one auger's amount byte. This feeder's firmware spins both augers anyway, so
+          expect roughly double into the bowl until a hopper divider is fitted.
+        </p>
         <div class="hoppers">
           ${e?l`
                 <div class="hopper">

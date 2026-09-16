@@ -41,7 +41,7 @@ var ae = j ? (s3) => s3 : (s3) => s3 instanceof CSSStyleSheet ? ((t) => {
   for (let i of t.cssRules) e += i.cssText;
   return T(e);
 })(s3) : s3;
-var { is: vt, defineProperty: $t, getOwnPropertyDescriptor: yt, getOwnPropertyNames: xt, getOwnPropertySymbols: Ct, getPrototypeOf: kt } = Object;
+var { is: _t, defineProperty: yt, getOwnPropertyDescriptor: $t, getOwnPropertyNames: xt, getOwnPropertySymbols: Ct, getPrototypeOf: kt } = Object;
 var q = globalThis;
 var Ie = q.trustedTypes;
 var wt = Ie ? Ie.emptyScript : "";
@@ -76,10 +76,10 @@ var le = { toAttribute(s3, t) {
   }
   return e;
 } };
-var ze = (s3, t) => !vt(s3, t);
+var ze = (s3, t) => !_t(s3, t);
 var Be = { attribute: true, type: String, converter: le, reflect: false, useDefault: false, hasChanged: ze };
 Symbol.metadata ??= Symbol("metadata"), q.litPropertyMetadata ??= /* @__PURE__ */ new WeakMap();
-var y = class extends HTMLElement {
+var $ = class extends HTMLElement {
   static addInitializer(t) {
     this._$Ei(), (this.l ??= []).push(t);
   }
@@ -89,11 +89,11 @@ var y = class extends HTMLElement {
   static createProperty(t, e = Be) {
     if (e.state && (e.attribute = false), this._$Ei(), this.prototype.hasOwnProperty(t) && ((e = Object.create(e)).wrapped = true), this.elementProperties.set(t, e), !e.noAccessor) {
       let i = Symbol(), n = this.getPropertyDescriptor(t, i, e);
-      n !== void 0 && $t(this.prototype, t, n);
+      n !== void 0 && yt(this.prototype, t, n);
     }
   }
   static getPropertyDescriptor(t, e, i) {
-    let { get: n, set: r } = yt(this.prototype, t) ?? { get() {
+    let { get: n, set: r } = $t(this.prototype, t) ?? { get() {
       return this[e];
     }, set(o) {
       this[e] = o;
@@ -259,7 +259,7 @@ var y = class extends HTMLElement {
   firstUpdated(t) {
   }
 };
-y.elementStyles = [], y.shadowRootOptions = { mode: "open" }, y[D("elementProperties")] = /* @__PURE__ */ new Map(), y[D("finalized")] = /* @__PURE__ */ new Map(), At?.({ ReactiveElement: y }), (q.reactiveElementVersions ??= []).push("2.1.2");
+$.elementStyles = [], $.shadowRootOptions = { mode: "open" }, $[D("elementProperties")] = /* @__PURE__ */ new Map(), $[D("finalized")] = /* @__PURE__ */ new Map(), At?.({ ReactiveElement: $ }), (q.reactiveElementVersions ??= []).push("2.1.2");
 var ce = globalThis;
 var Ue = (s3) => s3;
 var W = ce.trustedTypes;
@@ -285,7 +285,7 @@ var We = /"/g;
 var Ye = /^(?:script|style|textarea|title)$/i;
 var me = (s3) => (t, ...e) => ({ _$litType$: s3, strings: t, values: e });
 var l = me(1);
-var v = me(2);
+var _ = me(2);
 var oi = me(3);
 var A = Symbol.for("lit-noChange");
 var a = Symbol.for("lit-nothing");
@@ -300,8 +300,8 @@ var Xe = (s3, t) => {
   for (let d = 0; d < e; d++) {
     let c = s3[d], m, f, u = -1, g = 0;
     for (; g < c.length && (o.lastIndex = g, f = o.exec(c), f !== null); ) g = o.lastIndex, o === O ? f[1] === "!--" ? o = Fe : f[1] !== void 0 ? o = je : f[2] !== void 0 ? (Ye.test(f[2]) && (n = RegExp("</" + f[2], "g")), o = C) : f[3] !== void 0 && (o = C) : o === C ? f[0] === ">" ? (o = n ?? O, u = -1) : f[1] === void 0 ? u = -2 : (u = o.lastIndex - f[2].length, m = f[1], o = f[3] === void 0 ? C : f[3] === '"' ? We : qe) : o === We || o === qe ? o = C : o === Fe || o === je ? o = O : (o = C, n = void 0);
-    let _ = o === C && s3[d + 1].startsWith("/>") ? " " : "";
-    r += o === O ? c + St : u >= 0 ? (i.push(m), c.slice(0, u) + ue + c.slice(u) + x + _) : c + x + (u === -2 ? d : _);
+    let v = o === C && s3[d + 1].startsWith("/>") ? " " : "";
+    r += o === O ? c + St : u >= 0 ? (i.push(m), c.slice(0, u) + ue + c.slice(u) + x + v) : c + x + (u === -2 ? d : v);
   }
   return [Qe(s3, r + (s3[e] || "<?>") + (t === 2 ? "</svg>" : t === 3 ? "</math>" : "")), i];
 };
@@ -317,14 +317,14 @@ var z = class s {
     for (; (n = k.nextNode()) !== null && c.length < d; ) {
       if (n.nodeType === 1) {
         if (n.hasAttributes()) for (let u of n.getAttributeNames()) if (u.endsWith(ue)) {
-          let g = f[o++], _ = n.getAttribute(u).split(x), H = /([.?@])?(.*)/.exec(g);
-          c.push({ type: 1, index: r, name: H[2], strings: _, ctor: H[1] === "." ? Z : H[1] === "?" ? Y : H[1] === "@" ? Q : E }), n.removeAttribute(u);
+          let g = f[o++], v = n.getAttribute(u).split(x), H = /([.?@])?(.*)/.exec(g);
+          c.push({ type: 1, index: r, name: H[2], strings: v, ctor: H[1] === "." ? Z : H[1] === "?" ? Y : H[1] === "@" ? Q : E }), n.removeAttribute(u);
         } else u.startsWith(x) && (c.push({ type: 6, index: r }), n.removeAttribute(u));
         if (Ye.test(n.tagName)) {
           let u = n.textContent.split(x), g = u.length - 1;
           if (g > 0) {
             n.textContent = W ? W.emptyScript : "";
-            for (let _ = 0; _ < g; _++) n.append(u[_], I()), k.nextNode(), c.push({ type: 2, index: ++r });
+            for (let v = 0; v < g; v++) n.append(u[v], I()), k.nextNode(), c.push({ type: 2, index: ++r });
             n.append(u[g], I());
           }
         }
@@ -506,7 +506,7 @@ var et = (s3, t, e) => {
   return n._$AI(s3), n;
 };
 var be = globalThis;
-var h = class extends y {
+var h = class extends $ {
   constructor() {
     super(...arguments), this.renderOptions = { host: this }, this._$Do = void 0;
   }
@@ -590,12 +590,12 @@ function ge(s3, t) {
   let i = Math.floor(e / 60);
   return i < 24 ? `${i}h ago` : `${Math.floor(i / 24)}d ago`;
 }
-function _e(s3, t) {
+function ve(s3, t) {
   return s3 === "unreachable" ? "Feeder unreachable \u2014 check that kibbled is running" : s3 === "dispensing" ? "Dispensing\u2026" : t ? `Fed ${t}` : "Ready to feed";
 }
 var Rt = { cog: "M12,15.5A3.5,3.5 0 0,1 8.5,12A3.5,3.5 0 0,1 12,8.5A3.5,3.5 0 0,1 15.5,12A3.5,3.5 0 0,1 12,15.5M19.43,12.97C19.47,12.65 19.5,12.33 19.5,12C19.5,11.67 19.47,11.34 19.43,11L21.54,9.37C21.73,9.22 21.78,8.95 21.66,8.73L19.66,5.27C19.54,5.05 19.27,4.96 19.05,5.05L16.56,6.05C16.04,5.66 15.5,5.32 14.87,5.07L14.5,2.42C14.46,2.18 14.25,2 14,2H10C9.75,2 9.54,2.18 9.5,2.42L9.13,5.07C8.5,5.32 7.96,5.66 7.44,6.05L4.95,5.05C4.73,4.96 4.46,5.05 4.34,5.27L2.34,8.73C2.21,8.95 2.27,9.22 2.46,9.37L4.57,11C4.53,11.34 4.5,11.67 4.5,12C4.5,12.33 4.53,12.65 4.57,12.97L2.46,14.63C2.27,14.78 2.21,15.05 2.34,15.27L4.34,18.73C4.46,18.95 4.73,19.03 4.95,18.95L7.44,17.94C7.96,18.34 8.5,18.68 9.13,18.93L9.5,21.58C9.54,21.82 9.75,22 10,22H14C14.25,22 14.46,21.82 14.5,21.58L14.87,18.93C15.5,18.67 16.04,18.34 16.56,17.94L19.05,18.95C19.27,19.03 19.54,18.95 19.66,18.73L21.66,15.27C21.78,15.05 21.73,14.78 21.54,14.63L19.43,12.97Z", cloudCheck: "M13 19C13 19.34 13.04 19.67 13.09 20H6.5C5 20 3.69 19.5 2.61 18.43C1.54 17.38 1 16.09 1 14.58C1 13.28 1.39 12.12 2.17 11.1S4 9.43 5.25 9.15C5.67 7.62 6.5 6.38 7.75 5.43S10.42 4 12 4C13.95 4 15.6 4.68 16.96 6.04C18.32 7.4 19 9.05 19 11C20.15 11.13 21.1 11.63 21.86 12.5C22.37 13.07 22.7 13.71 22.86 14.42C21.82 13.54 20.5 13 19 13C18.89 13 18.79 13 18.68 13C18.62 13 18.56 13 18.5 13H17V11C17 9.62 16.5 8.44 15.54 7.46C14.56 6.5 13.38 6 12 6S9.44 6.5 8.46 7.46C7.5 8.44 7 9.62 7 11H6.5C5.53 11 4.71 11.34 4.03 12.03C3.34 12.71 3 13.53 3 14.5S3.34 16.29 4.03 17C4.71 17.66 5.53 18 6.5 18H13.09C13.04 18.33 13 18.66 13 19M17.75 19.43L16.16 17.84L15 19L17.75 22L22.5 17.25L21.34 15.84L17.75 19.43Z", cloudLock: "M6.5 18H13V20H6.5C5 20 3.69 19.5 2.61 18.43C1.54 17.38 1 16.09 1 14.58C1 13.28 1.39 12.12 2.17 11.1S4 9.43 5.25 9.15C5.67 7.62 6.5 6.38 7.75 5.43S10.42 4 12 4C13.95 4 15.6 4.68 16.96 6.04C18.08 7.16 18.73 8.5 18.93 10C18.23 10 17.56 10.19 16.95 10.46C16.84 9.31 16.38 8.31 15.54 7.46C14.56 6.5 13.38 6 12 6S9.44 6.5 8.46 7.46C7.5 8.44 7 9.62 7 11H6.5C5.53 11 4.71 11.34 4.03 12.03C3.34 12.71 3 13.53 3 14.5S3.34 16.29 4.03 17C4.71 17.66 5.53 18 6.5 18M23 17.3V20.8C23 21.4 22.4 22 21.7 22H16.2C15.6 22 15 21.4 15 20.7V17.2C15 16.6 15.6 16 16.2 16V14.5C16.2 13.1 17.6 12 19 12S21.8 13.1 21.8 14.5V16C22.4 16 23 16.6 23 17.3M20.5 14.5C20.5 13.7 19.8 13.2 19 13.2S17.5 13.7 17.5 14.5V16H20.5V14.5Z", cloudAlert: "M21.86 12.5C21.1 11.63 20.15 11.13 19 11C19 9.05 18.32 7.4 16.96 6.04C15.6 4.68 13.95 4 12 4C10.42 4 9 4.47 7.75 5.43S5.67 7.62 5.25 9.15C4 9.43 2.96 10.08 2.17 11.1S1 13.28 1 14.58C1 16.09 1.54 17.38 2.61 18.43C3.69 19.5 5 20 6.5 20H18.5C19.75 20 20.81 19.56 21.69 18.69C22.56 17.81 23 16.75 23 15.5C23 14.35 22.62 13.35 21.86 12.5M20.27 17.27C19.79 17.76 19.2 18 18.5 18H6.5C5.53 18 4.71 17.66 4.03 17C3.34 16.29 3 15.47 3 14.5S3.34 12.71 4.03 12.03C4.71 11.34 5.53 11 6.5 11H7C7 9.62 7.5 8.44 8.46 7.46C9.44 6.5 10.62 6 12 6S14.56 6.5 15.54 7.46C16.5 8.44 17 9.62 17 11V13H18.5C19.2 13 19.79 13.24 20.27 13.73S21 14.8 21 15.5 20.76 16.79 20.27 17.27M11 15H13V17H11V15M11 7H13V13H11V7Z", cloudQuestion: "M21.86 12.5C21.1 11.63 20.15 11.13 19 11C19 9.05 18.32 7.4 16.96 6.04C15.6 4.68 13.95 4 12 4C10.42 4 9 4.47 7.75 5.43S5.67 7.62 5.25 9.15C4 9.43 2.96 10.08 2.17 11.1S1 13.28 1 14.58C1 16.09 1.54 17.38 2.61 18.43C3.69 19.5 5 20 6.5 20H18.5C19.75 20 20.81 19.56 21.69 18.69C22.56 17.81 23 16.75 23 15.5C23 14.35 22.62 13.35 21.86 12.5M20.27 17.27C19.79 17.76 19.2 18 18.5 18H6.5C5.53 18 4.71 17.66 4.03 17C3.34 16.29 3 15.47 3 14.5S3.34 12.71 4.03 12.03C4.71 11.34 5.53 11 6.5 11H7C7 9.62 7.5 8.44 8.46 7.46C9.44 6.5 10.62 6 12 6S14.56 6.5 15.54 7.46C16.5 8.44 17 9.62 17 11V13H18.5C19.2 13 19.79 13.24 20.27 13.73S21 14.8 21 15.5 20.76 16.79 20.27 17.27M11 15H13V17H11V15M14.43 8.68C14.97 9.13 15.24 9.75 15.24 10.5C15.24 11 15.09 11.41 14.8 11.82C14.5 12.21 14.13 12.5 13.67 12.75C13.41 12.91 13.24 13.07 13.15 13.26C13.06 13.45 13 13.69 13 14H11C11 13.45 11.11 13.08 11.3 12.82C11.5 12.56 11.85 12.25 12.37 11.91C12.63 11.75 12.84 11.56 13 11.32C13.15 11.09 13.23 10.81 13.23 10.5C13.23 10.18 13.14 9.94 12.96 9.76C12.78 9.56 12.5 9.47 12.2 9.47C11.93 9.47 11.71 9.55 11.5 9.7C11.35 9.85 11.25 10.08 11.25 10.39H9.28C9.23 9.64 9.5 9 10.06 8.59C10.6 8.2 11.31 8 12.2 8C13.14 8 13.89 8.23 14.43 8.68Z", airFilter: "M19,18.31V20A2,2 0 0,1 17,22H7A2,2 0 0,1 5,20V16.3C4.54,16.12 3.95,16 3,16A1,1 0 0,1 2,15A1,1 0 0,1 3,14C3.82,14 4.47,14.08 5,14.21V12.3C4.54,12.12 3.95,12 3,12A1,1 0 0,1 2,11A1,1 0 0,1 3,10C3.82,10 4.47,10.08 5,10.21V8.3C4.54,8.12 3.95,8 3,8A1,1 0 0,1 2,7A1,1 0 0,1 3,6C3.82,6 4.47,6.08 5,6.21V4A2,2 0 0,1 7,2H17A2,2 0 0,1 19,4V6.16C20.78,6.47 21.54,7.13 21.71,7.29C22.1,7.68 22.1,8.32 21.71,8.71C21.32,9.1 20.8,9.09 20.29,8.71V8.71C20.29,8.71 19.25,8 17,8C15.74,8 14.91,8.41 13.95,8.9C12.91,9.41 11.74,10 10,10C9.64,10 9.31,10 9,9.96V7.95C9.3,8 9.63,8 10,8C11.26,8 12.09,7.59 13.05,7.11C14.09,6.59 15.27,6 17,6V4H7V20H17V18C18.5,18 18.97,18.29 19,18.31M17,10C15.27,10 14.09,10.59 13.05,11.11C12.09,11.59 11.26,12 10,12C9.63,12 9.3,12 9,11.95V13.96C9.31,14 9.64,14 10,14C11.74,14 12.91,13.41 13.95,12.9C14.91,12.42 15.74,12 17,12C19.25,12 20.29,12.71 20.29,12.71V12.71C20.8,13.1 21.32,13.1 21.71,12.71C22.1,12.32 22.1,11.69 21.71,11.29C21.5,11.08 20.25,10 17,10M17,14C15.27,14 14.09,14.59 13.05,15.11C12.09,15.59 11.26,16 10,16C9.63,16 9.3,16 9,15.95V17.96C9.31,18 9.64,18 10,18C11.74,18 12.91,17.41 13.95,16.9C14.91,16.42 15.74,16 17,16C19.25,16 20.29,16.71 20.29,16.71V16.71C20.8,17.1 21.32,17.1 21.71,16.71C22.1,16.32 22.1,15.69 21.71,15.29C21.5,15.08 20.25,14 17,14Z", wifi: "M12,21L15.6,16.2C14.6,15.45 13.35,15 12,15C10.65,15 9.4,15.45 8.4,16.2L12,21M12,3C7.95,3 4.21,4.34 1.2,6.6L3,9C5.5,7.12 8.62,6 12,6C15.38,6 18.5,7.12 21,9L22.8,6.6C19.79,4.34 16.05,3 12,3M12,9C9.3,9 6.81,9.89 4.8,11.4L6.6,13.8C8.1,12.67 9.97,12 12,12C14.03,12 15.9,12.67 17.4,13.8L19.2,11.4C17.19,9.89 14.7,9 12,9Z", chevronDown: "M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z", close: "M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z", weatherNight: "M17.75,4.09L15.22,6.03L16.13,9.09L13.5,7.28L10.87,9.09L11.78,6.03L9.25,4.09L12.44,4L13.5,1L14.56,4L17.75,4.09M21.25,11L19.61,12.25L20.2,14.23L18.5,13.06L16.8,14.23L17.39,12.25L15.75,11L17.81,10.95L18.5,9L19.19,10.95L21.25,11M18.97,15.95C19.8,15.87 20.69,17.05 20.16,17.8C19.84,18.25 19.5,18.67 19.08,19.07C15.17,23 8.84,23 4.94,19.07C1.03,15.17 1.03,8.83 4.94,4.93C5.34,4.53 5.76,4.17 6.21,3.85C6.96,3.32 8.14,4.21 8.06,5.04C7.79,7.9 8.75,10.87 10.95,13.06C13.14,15.26 16.1,16.22 18.97,15.95M17.33,17.97C14.5,17.81 11.7,16.64 9.53,14.5C7.36,12.31 6.2,9.5 6.04,6.68C3.23,9.82 3.34,14.64 6.35,17.66C9.37,20.67 14.19,20.78 17.33,17.97Z", ledOn: "M11,0V4H13V0H11M18.3,2.29L15.24,5.29L16.64,6.71L19.7,3.71L18.3,2.29M5.71,2.29L4.29,3.71L7.29,6.71L8.71,5.29L5.71,2.29M12,6A4,4 0 0,0 8,10V16H6V18H9V23H11V18H13V23H15V18H18V16H16V10A4,4 0 0,0 12,6M2,9V11H6V9H2M18,9V11H22V9H18Z", microphone: "M12,2A3,3 0 0,1 15,5V11A3,3 0 0,1 12,14A3,3 0 0,1 9,11V5A3,3 0 0,1 12,2M19,11C19,14.53 16.39,17.44 13,17.93V21H11V17.93C7.61,17.44 5,14.53 5,11H7A5,5 0 0,0 12,16A5,5 0 0,0 17,11H19Z", volumeHigh: "M14,3.23V5.29C16.89,6.15 19,8.83 19,12C19,15.17 16.89,17.84 14,18.7V20.77C18,19.86 21,16.28 21,12C21,7.72 18,4.14 14,3.23M16.5,12C16.5,10.23 15.5,8.71 14,7.97V16C15.5,15.29 16.5,13.76 16.5,12M3,9V15H7L12,20V4L7,9H3Z", openInNew: "M14,3V5H17.59L7.76,14.83L9.17,16.24L19,6.41V10H21V3M19,19H5V5H12V3H5C3.89,3 3,3.9 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V12H19V19Z", speaker: "M12,12A3,3 0 0,0 9,15A3,3 0 0,0 12,18A3,3 0 0,0 15,15A3,3 0 0,0 12,12M12,20A5,5 0 0,1 7,15A5,5 0 0,1 12,10A5,5 0 0,1 17,15A5,5 0 0,1 12,20M12,4A2,2 0 0,1 14,6A2,2 0 0,1 12,8C10.89,8 10,7.1 10,6C10,4.89 10.89,4 12,4M17,2H7C5.89,2 5,2.89 5,4V20A2,2 0 0,0 7,22H17A2,2 0 0,0 19,20V4C19,2.89 18.1,2 17,2Z" };
-function $(s3) {
-  return v`<svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor" aria-hidden="true"><path d=${Rt[s3]}></path></svg>`;
+function y(s3) {
+  return _`<svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor" aria-hidden="true"><path d=${Rt[s3]}></path></svg>`;
 }
 var st = "#F4A452";
 var nt = "#DE8A3A";
@@ -607,7 +607,7 @@ function at(s3, t) {
   return s3 === null && t === null ? { split: false, hopper1: null, hopper2: null, combined: null } : s3 === null || t === null ? { split: false, hopper1: s3, hopper2: t, combined: s3 ?? t } : Math.abs(s3 - t) < 5 ? { split: false, hopper1: s3, hopper2: t, combined: Math.round((s3 + t) / 2) } : { split: true, hopper1: s3, hopper2: t, combined: null };
 }
 function lt() {
-  return v`
+  return _`
     <svg viewBox="0 0 256 256" fill="currentColor">
       <circle cx="128" cy="128" r="88" />
       <path d="M 45.31 97.9 L 11.26 43.1 Q 10.8 29.65 24.12 27.78 L 84 51.79 Z" />
@@ -622,12 +622,12 @@ var R = 60;
 var M = 116;
 var dt = 40;
 var U = 178;
-var ve = 46;
+var _e = 46;
 var Ot = 10;
 var L = 78;
-var $e = 86;
+var ye = 86;
 var It = 46;
-var Bt = `M ${p + M} ${R} C ${p + M} ${R + 50}, ${p + 70} ${U - 13}, ${p + ve} ${U} A ${ve} ${Ot} 0 0 1 ${p - ve} ${U} C ${p - 70} ${U - 13}, ${p - M} ${R + 50}, ${p - M} ${R} A ${M} ${dt} 0 0 0 ${p + M} ${R} Z`;
+var Bt = `M ${p + M} ${R} C ${p + M} ${R + 50}, ${p + 70} ${U - 13}, ${p + _e} ${U} A ${_e} ${Ot} 0 0 1 ${p - _e} ${U} C ${p - 70} ${U - 13}, ${p - M} ${R + 50}, ${p - M} ${R} A ${M} ${dt} 0 0 0 ${p + M} ${R} Z`;
 var xe = [-0.6, -0.32, -0.06, 0.2, 0.46, 0.66, -0.46, 0.08, 0.34, -0.2];
 function zt(s3, t, e) {
   let i = (s3 + t) / 2;
@@ -640,18 +640,18 @@ function Ut(s3, t, e, i) {
 function ct(s3, t, e, i) {
   let n = [0, 120, 240].map((r) => {
     let o = (r + i) * Math.PI / 180;
-    return v`<circle cx=${(s3 + Math.cos(o) * e * 0.55).toFixed(1)} cy=${(t + Math.sin(o) * e * 0.55).toFixed(1)} r=${(e * 0.62).toFixed(1)} />`;
+    return _`<circle cx=${(s3 + Math.cos(o) * e * 0.55).toFixed(1)} cy=${(t + Math.sin(o) * e * 0.55).toFixed(1)} r=${(e * 0.62).toFixed(1)} />`;
   });
-  return v`<g>${n}</g>`;
+  return _`<g>${n}</g>`;
 }
-function ye(s3, t, e, i) {
+function $e(s3, t, e, i) {
   if (e <= 0.02) return a;
   let n = It * e, r = Math.round(6 + 4 * e), o = [];
   for (let d = 0; d < r; d++) {
-    let c = (d + 0.5) / r, m = s3 + (t - s3) * c, f = Ut(c, s3, t, n), u = xe[(d + i) % xe.length] * 6, g = 5.5 + (d + i) % 3 * 1.4, _ = d === 0 || d === r - 1 ? d === 0 ? -3 : 3 : 0;
-    o.push(ct(m + _, f + u - 2, g, d * 47 + i * 13));
+    let c = (d + 0.5) / r, m = s3 + (t - s3) * c, f = Ut(c, s3, t, n), u = xe[(d + i) % xe.length] * 6, g = 5.5 + (d + i) % 3 * 1.4, v = d === 0 || d === r - 1 ? d === 0 ? -3 : 3 : 0;
+    o.push(ct(m + v, f + u - 2, g, d * 47 + i * 13));
   }
-  return v`
+  return _`
     <path d=${zt(s3, t, n)} class="fill" />
     <g class="texture">${o}</g>
   `;
@@ -700,22 +700,22 @@ var Ce = class extends h {
   }
   _renderSingleBasin(e) {
     let i = e / 100;
-    return v`
+    return _`
       <g>
         <ellipse cx=${p} cy="62" rx="100" ry="32" class="basin-far" />
         <ellipse cx=${p} cy="68" rx="90" ry="25" class="basin-near" />
-        ${ye(p - $e * (0.32 + 0.68 * Math.sqrt(i)), p + $e * (0.32 + 0.68 * Math.sqrt(i)), i, 0)}
+        ${$e(p - ye * (0.32 + 0.68 * Math.sqrt(i)), p + ye * (0.32 + 0.68 * Math.sqrt(i)), i, 0)}
       </g>
     `;
   }
   _renderSplitBasin(e, i) {
     let n = p - 44, r = p + 44, o = 40, d = e / 100, c = i / 100;
-    return v`
+    return _`
       <g>
         <ellipse cx=${p} cy="62" rx="100" ry="32" class="basin-far" />
         <ellipse cx=${p} cy="68" rx="90" ry="25" class="basin-near" />
-        ${ye(n - o * (0.35 + 0.65 * Math.sqrt(d)), n + o * (0.35 + 0.65 * Math.sqrt(d)), d, 1)}
-        ${ye(r - o * (0.35 + 0.65 * Math.sqrt(c)), r + o * (0.35 + 0.65 * Math.sqrt(c)), c, 4)}
+        ${$e(n - o * (0.35 + 0.65 * Math.sqrt(d)), n + o * (0.35 + 0.65 * Math.sqrt(d)), d, 1)}
+        ${$e(r - o * (0.35 + 0.65 * Math.sqrt(c)), r + o * (0.35 + 0.65 * Math.sqrt(c)), c, 4)}
         <g class="divider">
           <line x1=${p - 3} y1="46" x2=${p - 3} y2="90" />
           <line x1=${p + 3} y1="46" x2=${p + 3} y2="90" />
@@ -725,10 +725,10 @@ var Ce = class extends h {
   }
   _renderFallingKibble() {
     let e = xe.slice(0, 7).map((i, n) => {
-      let r = p + i * ($e - 6), c = `--fall-delay:${n * 70}ms;--fall-duration:320ms;--fall-rotate:${(i * 180).toFixed(0)}deg;--fall-to:${L - 30}px;`;
-      return v`<g class="drop" style=${c}>${ct(r, 0, 7, i * 60)}</g>`;
+      let r = p + i * (ye - 6), c = `--fall-delay:${n * 70}ms;--fall-duration:320ms;--fall-rotate:${(i * 180).toFixed(0)}deg;--fall-to:${L - 30}px;`;
+      return _`<g class="drop" style=${c}>${ct(r, 0, 7, i * 60)}</g>`;
     });
-    return v`<g class="drops">${e}</g>`;
+    return _`<g class="drops">${e}</g>`;
   }
   static {
     this.styles = b`
@@ -1109,16 +1109,16 @@ var Se = class extends h {
     return l`
       <div class="footer">
         <button type="button" class="glance ${t === "blocked" ? "warn" : ""}" title=${jt[t]} @click=${this._openSettings}>
-          ${$(ut[t])}
+          ${y(ut[t])}
         </button>
         ${this.desiccantDays == null ? a : l`
               <button type="button" class="glance" title="Desiccant left" @click=${this._openSettings}>
-                ${$("airFilter")}<span>${this.desiccantDays}d</span>
+                ${y("airFilter")}<span>${this.desiccantDays}d</span>
               </button>
             `}
         ${this.wifiLabel ? l`
               <button type="button" class="glance" title="Wi-Fi" @click=${this._openSettings}>
-                ${$("wifi")}<span>${this.wifiLabel}</span>
+                ${y("wifi")}<span>${this.wifiLabel}</span>
               </button>
             ` : a}
       </div>
@@ -1402,7 +1402,7 @@ var Ne = class extends h {
     return l`
       <button type="button" class="row" @click=${this._toggle} aria-expanded=${this._expanded}>
         <span>${i}</span>
-        <span class="chevron ${this._expanded ? "open" : ""}">${$("chevronDown")}</span>
+        <span class="chevron ${this._expanded ? "open" : ""}">${y("chevronDown")}</span>
       </button>
       ${this._expanded ? l`<div class="expanded">${this._renderExpanded()}</div>` : a}
     `;
@@ -1531,7 +1531,7 @@ var Re = class extends h {
       <div class="panel" role="dialog" aria-modal="true" aria-label="Kibble settings" @keydown=${this._onKeydown}>
         <header>
           <h2>Settings</h2>
-          <button type="button" class="icon-button" @click=${this._close} aria-label="Close">${$("close")}</button>
+          <button type="button" class="icon-button" @click=${this._close} aria-label="Close">${y("close")}</button>
         </header>
         <div class="body">
           ${e.feedButtonHopper1 || e.feedButtonHopper2 ? this._renderHopperSection() : a}
@@ -1543,7 +1543,7 @@ var Re = class extends h {
           ${e.dishBefore || e.dishAfter ? this._renderDishPhotos() : a}
           ${e.speaker ? this._renderSpeaker() : a}
           <button type="button" class="device-link" @click=${this._openDevicePage}>
-            Open device page ${$("openInNew")}
+            Open device page ${y("openInNew")}
           </button>
         </div>
       </div>
@@ -1609,7 +1609,7 @@ var Re = class extends h {
     let r = this.hass.states[e], o = r?.state === "on", d = !r || r.state === "unavailable";
     return l`
       <button type="button" class="toggle-row" ?disabled=${d} @click=${() => this._toggleSwitch(e)}>
-        <span class="toggle-icon">${$(i)}</span>
+        <span class="toggle-icon">${y(i)}</span>
         <span class="toggle-label">${n}</span>
         <span class="toggle-pill ${o ? "on" : ""}"><span class="toggle-knob"></span></span>
       </button>
@@ -1713,6 +1713,14 @@ var Re = class extends h {
   }
   static {
     this.styles = b`
+    /* When closed, render() returns nothing -- but the HOST still exists, and a host with
+       position: fixed and inset: 0 is a full-viewport box that keeps receiving pointer events.
+       Without this rule an invisible empty overlay sits on top of Home Assistant and silently
+       eats every click on the page (sidebar included) for as long as the card is on a
+       dashboard. The open property reflects to an attribute, so the closed state is styleable. */
+    :host(:not([open])) {
+      display: none;
+    }
     :host {
       position: fixed;
       inset: 0;
@@ -2055,7 +2063,7 @@ var Ve = class extends h {
   }
   render() {
     if (!this._config || !this.hass) return a;
-    let e = this._entities, i = e.feeding ? this.hass.states[e.feeding]?.state : void 0, r = [e.feeding, e.bowlFill1, e.bowlFill2, e.schedule].filter((re) => !!re).map((re) => this.hass.states[re]?.state), o = it(r, i), d = i === "on", c = this._numberState(e.bowlFill1), m = this._numberState(e.bowlFill2), f = this._catName(), u = o === "idle" ? _e(o, this._lastFedRelative(i)) : _e(o, null), g = this._scheduleEntries(), _ = this._numberState(e.feedAmount) ?? 1, H = this._numberState(e.desiccantDays), ne = e.wifiNetwork ? this.hass.states[e.wifiNetwork] : void 0, _t = e.cloudConnection ? this.hass.states[e.cloudConnection]?.state : void 0, P = this._detection();
+    let e = this._entities, i = e.feeding ? this.hass.states[e.feeding]?.state : void 0, r = [e.feeding, e.bowlFill1, e.bowlFill2, e.schedule].filter((re) => !!re).map((re) => this.hass.states[re]?.state), o = it(r, i), d = i === "on", c = this._numberState(e.bowlFill1), m = this._numberState(e.bowlFill2), f = this._catName(), u = o === "idle" ? ve(o, this._lastFedRelative(i)) : ve(o, null), g = this._scheduleEntries(), v = this._numberState(e.feedAmount) ?? 1, H = this._numberState(e.desiccantDays), ne = e.wifiNetwork ? this.hass.states[e.wifiNetwork] : void 0, vt = e.cloudConnection ? this.hass.states[e.cloudConnection]?.state : void 0, P = this._detection();
     return l`
       <ha-card>
         <div class="container">
@@ -2063,7 +2071,7 @@ var Ve = class extends h {
             <div class="hero">
               <div class="hero-media">${this._renderCamera(e.camera)}</div>
               <div class="hero-progress" data-active=${o === "dispensing"}></div>
-              <button class="gear-button" aria-label="Settings" @click=${this._openSettings}>${$("cog")}</button>
+              <button class="gear-button" aria-label="Settings" @click=${this._openSettings}>${y("cog")}</button>
               ${this._config.name ? l`<div class="name-chip">${this._config.name}</div>` : a}
             </div>
             <kibble-bowl
@@ -2077,13 +2085,13 @@ var Ve = class extends h {
             <div class="feed-controls">
               <kibble-segmented-picker
                 class="picker-full"
-                .value=${_}
+                .value=${v}
                 ?disabled=${o === "unreachable" || d}
                 @portion-selected=${this._onPortionSelected}
               ></kibble-segmented-picker>
               <kibble-stepper
                 class="picker-compact"
-                .value=${_}
+                .value=${v}
                 ?disabled=${o === "unreachable" || d}
                 @value-selected=${this._onPortionSelected}
               ></kibble-stepper>
@@ -2110,7 +2118,7 @@ var Ve = class extends h {
             ></kibble-detection>
             <kibble-footer
               class="footer"
-              .cloudState=${_t}
+              .cloudState=${vt}
               .desiccantDays=${H}
               .wifiLabel=${ne && ne.state !== "unavailable" ? ne.state : null}
               @open-settings=${this._openSettings}

@@ -303,6 +303,14 @@ export class KibbleSettingsDialog extends LitElement {
   }
 
   static styles = css`
+    /* When closed, render() returns nothing -- but the HOST still exists, and a host with
+       position: fixed and inset: 0 is a full-viewport box that keeps receiving pointer events.
+       Without this rule an invisible empty overlay sits on top of Home Assistant and silently
+       eats every click on the page (sidebar included) for as long as the card is on a
+       dashboard. The open property reflects to an attribute, so the closed state is styleable. */
+    :host(:not([open])) {
+      display: none;
+    }
     :host {
       position: fixed;
       inset: 0;

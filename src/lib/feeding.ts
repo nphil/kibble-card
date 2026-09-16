@@ -1,5 +1,7 @@
 /** Pure feeder-status derivation and its display text. Kept free of hass/entity plumbing so the
- * unavailable/dispensing/idle boundary can be unit tested against plain state strings. */
+ * unavailable/dispensing/idle boundary can be unit tested against plain state strings. Relative-
+ * time formatting itself lives in `relative-time.ts` (shared with the sentence-form presentation
+ * other cards use); import `relativeTimeCompact` from there directly. */
 
 export type FeederStatus = "idle" | "dispensing" | "unreachable";
 
@@ -16,18 +18,6 @@ export function deriveFeederStatus(
     return "unreachable";
   }
   return feedingState === "on" ? "dispensing" : "idle";
-}
-
-/** Minutes-precision relative-time label ("Fed 2h ago"). `from`/`now` are both real Dates so the
- * rounding boundaries are exercised directly in tests, no fake timers required. */
-export function relativeTime(from: Date, now: Date): string {
-  const diffMinutes = Math.floor(Math.max(0, now.getTime() - from.getTime()) / 60000);
-  if (diffMinutes < 1) return "just now";
-  if (diffMinutes < 60) return `${diffMinutes}m ago`;
-  const diffHours = Math.floor(diffMinutes / 60);
-  if (diffHours < 24) return `${diffHours}h ago`;
-  const diffDays = Math.floor(diffHours / 24);
-  return `${diffDays}d ago`;
 }
 
 /** The single status line shown with the bowl: never a raw state string, always the interface's

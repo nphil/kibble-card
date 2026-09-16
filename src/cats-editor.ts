@@ -1,11 +1,9 @@
-/** Visual editor: one required field (the Kibble device) and one optional one (a display name).
- * Every other entity id is resolved from the device at render time — the user never types one.
- * Uses HA's own `ha-form` when it's registered (every real dashboard); falls back to a plain
- * `<select>` built from the device/entity registries so the editor still works standalone.
+/** Visual editor for `kibble-cats-card`: the device picker plus an optional label and an
+ * optional confidence threshold. Mirrors `editor.ts`'s dual `ha-form`/plain-`<select>` pattern.
  */
 
 import { LitElement, css, html, nothing } from "lit";
-import type { HomeAssistant, KibbleCardConfig } from "./types";
+import type { HomeAssistant, KibbleCatsCardConfig } from "./types";
 
 interface SchemaField {
   name: string;
@@ -16,27 +14,25 @@ interface SchemaField {
 const SCHEMA: SchemaField[] = [
   { name: "device_id", required: true, selector: { device: { filter: { integration: "kibble" } } } },
   { name: "name", selector: { text: {} } },
-  { name: "settings_hash", selector: { text: {} } },
-  { name: "schedule_hash", selector: { text: {} } },
+  { name: "confidence", selector: { number: { min: 0, max: 1, step: 0.05, mode: "box" } } },
 ];
 
 const FIELD_LABELS: Record<string, string> = {
   device_id: "Kibble device",
   name: "Name (optional)",
-  settings_hash: "Settings pop-up hash (optional)",
-  schedule_hash: "Schedule pop-up hash (optional)",
+  confidence: "Classifier confidence needed to suggest it (optional, default 0.7)",
 };
 
-export class KibbleCardEditor extends LitElement {
+export class KibbleCatsCardEditor extends LitElement {
   static properties = {
     hass: { attribute: false },
     _config: { state: true },
   };
 
   declare hass: HomeAssistant;
-  declare _config: KibbleCardConfig | undefined;
+  declare _config: KibbleCatsCardConfig | undefined;
 
-  setConfig(config: KibbleCardConfig): void {
+  setConfig(config: KibbleCatsCardConfig): void {
     this._config = config;
   }
 
@@ -83,28 +79,21 @@ export class KibbleCardEditor extends LitElement {
           />
         </label>
         <label>
-          <span>Settings pop-up hash (optional)</span>
+          <span>Classifier confidence needed to suggest it (optional, default 0.7)</span>
           <input
-            type="text"
-            placeholder="#settings"
-            .value=${this._config?.settings_hash ?? ""}
-            @change=${(event: Event) => this._updateSettingsHash((event.target as HTMLInputElement).value)}
-          />
-        </label>
-        <label>
-          <span>Schedule pop-up hash (optional)</span>
-          <input
-            type="text"
-            placeholder="#schedule"
-            .value=${this._config?.schedule_hash ?? ""}
-            @change=${(event: Event) => this._updateScheduleHash((event.target as HTMLInputElement).value)}
+            type="number"
+            min="0"
+            max="1"
+            step="0.05"
+            .value=${this._config?.confidence != null ? String(this._config.confidence) : ""}
+            @change=${(event: Event) => this._updateConfidence((event.target as HTMLInputElement).value)}
           />
         </label>
       </div>
     `;
   }
 
-  private _formValueChanged(event: CustomEvent<{ value: KibbleCardConfig }>): void {
+  private _formValueChanged(event: CustomEvent<{ value: KibbleCatsCardConfig }>): void {
     this._config = event.detail.value;
     this._fireConfigChanged();
   }
@@ -121,15 +110,10 @@ export class KibbleCardEditor extends LitElement {
     this._fireConfigChanged();
   }
 
-  private _updateSettingsHash(value: string): void {
+  private _updateConfidence(value: string): void {
     if (!this._config) return;
-    this._config = { ...this._config, settings_hash: value || undefined };
-    this._fireConfigChanged();
-  }
-
-  private _updateScheduleHash(value: string): void {
-    if (!this._config) return;
-    this._config = { ...this._config, schedule_hash: value || undefined };
+    const parsed = Number(value);
+    this._config = { ...this._config, confidence: value && Number.isFinite(parsed) ? parsed : undefined };
     this._fireConfigChanged();
   }
 
@@ -164,10 +148,10 @@ export class KibbleCardEditor extends LitElement {
   `;
 }
 
-customElements.define("kibble-card-editor", KibbleCardEditor);
+customElements.define("kibble-cats-card-editor", KibbleCatsCardEditor);
 
 declare global {
   interface HTMLElementTagNameMap {
-    "kibble-card-editor": KibbleCardEditor;
+    "kibble-cats-card-editor": KibbleCatsCardEditor;
   }
 }

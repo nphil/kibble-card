@@ -5,11 +5,20 @@
  * state per `number.py` and stays available even when the agent is down.
  */
 
-import type { DeviceRegistryEntry, EntityRegistryEntry, HassEntityState } from "../src/types";
+import type {
+  CatSample,
+  DeviceRegistryEntry,
+  EntityRegistryEntry,
+  HassEntityState,
+  KibbleCatSummary,
+  PendingFaceCrop,
+  TimelineItem,
+} from "../src/types";
 
 export type ScenarioName = "idle" | "dispensing" | "unreachable";
 
 export const DEVICE_ID = "kibble-device-1";
+export const ENTRY_ID = "kibble-entry-1";
 
 export interface Fixture {
   device: DeviceRegistryEntry;
@@ -42,6 +51,7 @@ const DEVICE: DeviceRegistryEntry = {
   name_by_user: null,
   model: "YumShare Dual 2",
   manufacturer: "Petkit",
+  config_entries: [ENTRY_ID],
 };
 
 const ENTITY_IDS = {
@@ -69,6 +79,9 @@ const ENTITY_IDS = {
   lastDetection: "sensor.plant_room_cat_feeder_last_detection",
   detectionsToday: "sensor.plant_room_cat_feeder_detections_today",
   lastDetectionImage: "image.plant_room_cat_feeder_last_detection",
+  dishBefore: "image.plant_room_cat_feeder_dish_before",
+  dishAfter: "image.plant_room_cat_feeder_dish_after",
+  pendingFace: "image.plant_room_cat_feeder_pending_face",
 } as const;
 
 function registryFor(includeWifi: boolean): Record<string, EntityRegistryEntry> {
@@ -96,6 +109,9 @@ function registryFor(includeWifi: boolean): Record<string, EntityRegistryEntry> 
     [ENTITY_IDS.lastDetection]: entry(ENTITY_IDS.lastDetection, "last_detection"),
     [ENTITY_IDS.detectionsToday]: entry(ENTITY_IDS.detectionsToday, "detections_today"),
     [ENTITY_IDS.lastDetectionImage]: entry(ENTITY_IDS.lastDetectionImage, "last_detection"),
+    [ENTITY_IDS.dishBefore]: entry(ENTITY_IDS.dishBefore, "dish_before"),
+    [ENTITY_IDS.dishAfter]: entry(ENTITY_IDS.dishAfter, "dish_after"),
+    [ENTITY_IDS.pendingFace]: entry(ENTITY_IDS.pendingFace, "pending_face"),
   };
   if (includeWifi) {
     registry[ENTITY_IDS.wifiNetwork] = entry(ENTITY_IDS.wifiNetwork, "wifi_network");
@@ -140,6 +156,9 @@ function buildIdle(): Fixture {
     [ENTITY_IDS.lastDetectionImage]: state(ENTITY_IDS.lastDetectionImage, minutesAgo(14), {
       entity_picture: "./camera-frame.svg",
     }),
+    [ENTITY_IDS.dishBefore]: state(ENTITY_IDS.dishBefore, minutesAgo(390), { entity_picture: "./camera-frame.svg" }),
+    [ENTITY_IDS.dishAfter]: state(ENTITY_IDS.dishAfter, minutesAgo(390), { entity_picture: "./camera-frame.svg" }),
+    [ENTITY_IDS.pendingFace]: state(ENTITY_IDS.pendingFace, minutesAgo(6), { status: "pending" }),
   };
   return { device: DEVICE, entities: registryFor(false), states };
 }
@@ -171,6 +190,9 @@ function buildDispensing(): Fixture {
     [ENTITY_IDS.lastDetectionImage]: state(ENTITY_IDS.lastDetectionImage, minutesAgo(1), {
       entity_picture: "./camera-frame.svg",
     }),
+    [ENTITY_IDS.dishBefore]: state(ENTITY_IDS.dishBefore, minutesAgo(1), { entity_picture: "./camera-frame.svg" }),
+    [ENTITY_IDS.dishAfter]: state(ENTITY_IDS.dishAfter, minutesAgo(1), { entity_picture: "./camera-frame.svg" }),
+    [ENTITY_IDS.pendingFace]: state(ENTITY_IDS.pendingFace, minutesAgo(1), { status: "pending" }),
     [ENTITY_IDS.wifiNetwork]: state(ENTITY_IDS.wifiNetwork, "Good (-52 dBm)"),
   };
   return { device: DEVICE, entities: registryFor(true), states };
@@ -198,6 +220,9 @@ function buildUnreachable(): Fixture {
     [ENTITY_IDS.lastDetection]: state(ENTITY_IDS.lastDetection, "unavailable", {}),
     [ENTITY_IDS.detectionsToday]: state(ENTITY_IDS.detectionsToday, "unavailable", {}),
     [ENTITY_IDS.lastDetectionImage]: state(ENTITY_IDS.lastDetectionImage, "unavailable", {}),
+    [ENTITY_IDS.dishBefore]: state(ENTITY_IDS.dishBefore, "unavailable", {}),
+    [ENTITY_IDS.dishAfter]: state(ENTITY_IDS.dishAfter, "unavailable", {}),
+    [ENTITY_IDS.pendingFace]: state(ENTITY_IDS.pendingFace, "unavailable", {}),
   };
   return { device: DEVICE, entities: registryFor(false), states };
 }
@@ -207,3 +232,114 @@ export function buildFixture(scenario: ScenarioName): Fixture {
   if (scenario === "dispensing") return buildDispensing();
   return buildUnreachable();
 }
+
+// ---- `kibble/*` WS fixture data, for kibble-timeline-card and kibble-cats-card. Shares the
+// same device/entry above -- all three cards in the harness point at one feeder. ----
+
+function secondsAgo(minutes: number): number {
+  return Math.floor(Date.now() / 1000) - minutes * 60;
+}
+
+/** Unix seconds for a specific local time today (or `daysAgo` days before today) -- lets the
+ * timeline fixture read as "a day's worth of activity at plausible hours" instead of a run of
+ * evenly-spaced offsets from "now". */
+function localTime(hour: number, minute: number, daysAgo = 0): number {
+  const d = new Date();
+  d.setDate(d.getDate() - daysAgo);
+  d.setHours(hour, minute, 0, 0);
+  return Math.floor(d.getTime() / 1000);
+}
+
+export const CATS: KibbleCatSummary[] = [
+  { name: "Kitty", samples: 12, last_seen: secondsAgo(126), avatar: "1789500000-kitty.jpg", vendor_pet_id: 101321480, color_index: 0 },
+  { name: "Pancake", samples: 9, last_seen: secondsAgo(1), avatar: "1789500600-pancake.jpg", vendor_pet_id: 101321488, color_index: 1 },
+];
+
+/** 14 pending crops, oldest first (the agent's own `GET /faces/pending` order -- "newest
+ * last"), deliberately mixed: classifier-confident, classifier-vs-vendor disagreement, vendor-
+ * only, and a few with no signal at all so the "tap opens the picker instead" path has
+ * something to exercise. */
+export const PENDING_CROPS: PendingFaceCrop[] = [
+  { name: `${secondsAgo(340)}-101321480.jpg`, ts: secondsAgo(340), vendor_pet_id: 101321480, vendor_cat: "Kitty", guess: { cat: "Kitty", score: 0.91 } },
+  { name: `${secondsAgo(325)}-101321488.jpg`, ts: secondsAgo(325), vendor_pet_id: 101321488, vendor_cat: "Pancake", guess: { cat: "Pancake", score: 0.85 } },
+  { name: `${secondsAgo(310)}-101321480.jpg`, ts: secondsAgo(310), vendor_pet_id: 101321480, vendor_cat: "Kitty", guess: { cat: "Kitty", score: 0.88 } },
+  // Disagreement: the classifier isn't confident, and the feeder's own vendor id says Kitty --
+  // the suggestion chip should defer to the vendor id here, not the low-confidence guess.
+  { name: `${secondsAgo(295)}-101321480.jpg`, ts: secondsAgo(295), vendor_pet_id: 101321480, vendor_cat: "Kitty", guess: { cat: "Pancake", score: 0.45 } },
+  { name: `${secondsAgo(280)}-101321488.jpg`, ts: secondsAgo(280), vendor_pet_id: 101321488, vendor_cat: "Pancake", guess: null },
+  { name: `${secondsAgo(265)}-101321480.jpg`, ts: secondsAgo(265), vendor_pet_id: 101321480, vendor_cat: "Kitty", guess: null },
+  // No classifier guess and no vendor match at all -- tapping this one has nothing to confirm.
+  { name: `${secondsAgo(250)}-unknown.jpg`, ts: secondsAgo(250), vendor_pet_id: null, vendor_cat: null, guess: null },
+  { name: `${secondsAgo(235)}-101321480.jpg`, ts: secondsAgo(235), vendor_pet_id: 101321480, vendor_cat: "Kitty", guess: { cat: "Kitty", score: 0.73 } },
+  // Below the confidence bar with no vendor match to fall back to: also no suggestion.
+  { name: `${secondsAgo(220)}-101321480.jpg`, ts: secondsAgo(220), vendor_pet_id: 101321480, vendor_cat: null, guess: { cat: "Kitty", score: 0.3 } },
+  { name: `${secondsAgo(205)}-101321488.jpg`, ts: secondsAgo(205), vendor_pet_id: 101321488, vendor_cat: "Pancake", guess: { cat: "Pancake", score: 0.95 } },
+  { name: `${secondsAgo(190)}-unknown.jpg`, ts: secondsAgo(190), vendor_pet_id: null, vendor_cat: null, guess: null },
+  // Exactly at the default confidence threshold -- still counts as confident.
+  { name: `${secondsAgo(175)}-101321480.jpg`, ts: secondsAgo(175), vendor_pet_id: 101321480, vendor_cat: null, guess: { cat: "Kitty", score: 0.7 } },
+  { name: `${secondsAgo(160)}-101321480.jpg`, ts: secondsAgo(160), vendor_pet_id: 101321480, vendor_cat: "Kitty", guess: null },
+  // Just below threshold with no vendor match either.
+  { name: `${secondsAgo(6)}-101321488.jpg`, ts: secondsAgo(6), vendor_pet_id: 101321488, vendor_cat: null, guess: { cat: "Pancake", score: 0.68 } },
+];
+
+function samplesFor(catName: string, count: number, startMinutesAgo: number): CatSample[] {
+  return Array.from({ length: count }, (_, i) => {
+    const ts = secondsAgo(startMinutesAgo + i * 720);
+    return { name: `${ts}-${catName.toLowerCase()}.jpg`, ts };
+  });
+}
+
+export const SAMPLES_BY_CAT: Record<string, CatSample[]> = {
+  Kitty: samplesFor("Kitty", 12, 200),
+  Pancake: samplesFor("Pancake", 9, 400),
+};
+
+/** One day of merged detections + feeds, newest first (per DESIGN.md's data contract), plus a
+ * couple of "yesterday" rows so day-separator grouping has more than one bucket to show. */
+export const TIMELINE_ITEMS: TimelineItem[] = [
+  { kind: "detection", ts: localTime(18, 4), class: "eat", cat: "Pancake", pet_id: 101321488, vendor_cat: "Pancake", image: `${localTime(18, 4)}-event.jpg` },
+  { kind: "detection", ts: localTime(17, 22), class: "visit", cat: "Pancake", pet_id: 101321488, vendor_cat: "Pancake", image: `${localTime(17, 22)}-event.jpg` },
+  { kind: "detection", ts: localTime(15, 50), class: "visit", cat: null, pet_id: null, vendor_cat: null, image: `${localTime(15, 50)}-event.jpg` },
+  { kind: "detection", ts: localTime(12, 10), class: "eat", cat: "Kitty", pet_id: 101321480, vendor_cat: "Kitty", image: `${localTime(12, 10)}-event.jpg` },
+  {
+    kind: "feed",
+    ts: localTime(12, 0),
+    amount: 3,
+    hopper: "both",
+    outcome: null,
+    before: `${localTime(12, 0)}-before.jpg`,
+    after: `${localTime(12, 0)}-after.jpg`,
+  },
+  { kind: "detection", ts: localTime(9, 45), class: "track", cat: "Kitty", pet_id: 101321480, vendor_cat: "Kitty", image: null },
+  { kind: "detection", ts: localTime(8, 5), class: "face", cat: null, pet_id: null, vendor_cat: null, image: `${localTime(8, 5)}-event.jpg` },
+  {
+    kind: "feed",
+    ts: localTime(7, 30),
+    amount: 5,
+    hopper: "both",
+    outcome: null,
+    before: `${localTime(7, 30)}-before.jpg`,
+    after: `${localTime(7, 30)}-after.jpg`,
+  },
+  { kind: "detection", ts: localTime(7, 28), class: "eat", cat: "Kitty", pet_id: 101321480, vendor_cat: "Kitty", image: `${localTime(7, 28)}-event.jpg` },
+  { kind: "detection", ts: localTime(19, 10, 1), class: "eat", cat: "Pancake", pet_id: 101321488, vendor_cat: "Pancake", image: `${localTime(19, 10, 1)}-event.jpg` },
+  {
+    kind: "feed",
+    ts: localTime(18, 0, 1),
+    amount: 5,
+    hopper: "1",
+    outcome: null,
+    before: `${localTime(18, 0, 1)}-before.jpg`,
+    after: `${localTime(18, 0, 1)}-after.jpg`,
+  },
+  { kind: "detection", ts: localTime(12, 15, 1), class: "eat", cat: "Kitty", pet_id: 101321480, vendor_cat: "Kitty", image: `${localTime(12, 15, 1)}-event.jpg` },
+  {
+    kind: "feed",
+    ts: localTime(7, 30, 1),
+    amount: null,
+    hopper: null,
+    outcome: null,
+    before: null,
+    after: null,
+  },
+];

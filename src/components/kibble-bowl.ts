@@ -7,7 +7,6 @@
 import { LitElement, css, html, nothing, svg, type SVGTemplateResult } from "lit";
 import type { PropertyValues } from "lit";
 import { combineBowlFill } from "../lib/bowl-fill";
-import { catSilhouette } from "../lib/brand-shapes";
 import { KIBBLE_FALL_DURATION_MS, prefersReducedMotion } from "../styles/tokens";
 
 const VIEW_W = 260;
@@ -73,16 +72,12 @@ export class KibbleBowl extends LitElement {
   static properties = {
     hopper1: { type: Number },
     hopper2: { type: Number },
-    catName: { type: String },
     feeding: { type: Boolean },
-    statusText: { type: String },
   };
 
   declare hopper1: number | null;
   declare hopper2: number | null;
-  declare catName: string | null;
   declare feeding: boolean;
-  declare statusText: string;
 
   private _wasFeeding = false;
   private _dropping = false;
@@ -92,9 +87,7 @@ export class KibbleBowl extends LitElement {
     super();
     this.hopper1 = null;
     this.hopper2 = null;
-    this.catName = null;
     this.feeding = false;
-    this.statusText = "";
   }
 
   disconnectedCallback(): void {
@@ -121,7 +114,6 @@ export class KibbleBowl extends LitElement {
       <div class="wrap">
         <svg class="art" viewBox="0 0 ${VIEW_W} ${VIEW_H}" aria-hidden="true" preserveAspectRatio="xMidYMin meet">
           <ellipse cx=${CX} cy=${FOOT_CY + 14} rx="66" ry="9" class="shadow" />
-          ${this.catName ? html`<g class="cat" transform="translate(96 -6) scale(0.27)">${catSilhouette()}</g>` : nothing}
           <path class="body" d=${BODY_PATH} />
           ${display.split ? this._renderSplitBasin(display.hopper1!, display.hopper2!) : this._renderSingleBasin(display.combined ?? 0)}
           <ellipse cx=${CX} cy=${RIM_CY} rx=${RIM_RX} ry=${RIM_RY} class="rim" />
@@ -135,8 +127,6 @@ export class KibbleBowl extends LitElement {
               `
             : html`<span class="fill-number">${display.combined == null ? "\u2014" : html`${Math.round(display.combined)}<small>%</small>`}</span>`}
         </div>
-        ${this.catName ? html`<div class="cat-name">${this.catName}</div>` : nothing}
-        <div class="status" data-feeding=${this.feeding}>${this.statusText}</div>
       </div>
     `;
   }
@@ -230,9 +220,6 @@ export class KibbleBowl extends LitElement {
     .texture circle {
       fill: var(--kibble-amber-dark);
     }
-    .cat {
-      fill: var(--secondary-text-color);
-    }
     .drops circle {
       fill: var(--kibble-amber-dark);
       animation: kibble-drop var(--fall-duration) cubic-bezier(0.4, 0, 1, 1) var(--fall-delay) both;
@@ -256,7 +243,7 @@ export class KibbleBowl extends LitElement {
       margin-top: -6px;
     }
     .fill-number {
-      font-size: var(--kibble-number-size, 32px);
+      font-size: var(--kibble-number-size, 34px);
       font-weight: 700;
       line-height: 1;
       color: var(--primary-text-color);
@@ -268,21 +255,7 @@ export class KibbleBowl extends LitElement {
       margin-left: 1px;
     }
     .fill-number.split {
-      font-size: calc(var(--kibble-number-size, 32px) * 0.72);
-    }
-    .cat-name {
-      font-size: var(--kibble-catname-size, 13px);
-      font-weight: 600;
-      color: var(--secondary-text-color);
-    }
-    .status {
-      font-size: var(--kibble-status-size, 15px);
-      color: var(--secondary-text-color);
-      text-align: center;
-    }
-    .status[data-feeding="true"] {
-      color: var(--kibble-amber-dark);
-      font-weight: 600;
+      font-size: calc(var(--kibble-number-size, 34px) * 0.72);
     }
   `;
 }

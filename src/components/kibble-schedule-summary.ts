@@ -21,12 +21,17 @@ export class KibbleScheduleSummary extends LitElement {
     hass: { attribute: false },
     entries: { attribute: false },
     scheduleCardStateEntity: { type: String },
+    scheduleHash: { type: String },
     deviceName: { type: String },
   };
 
   declare hass: HomeAssistant;
   declare entries: ScheduleEntry[];
   declare scheduleCardStateEntity: string | undefined;
+  // Set (a dashboard defines a `#schedule` Bubble Card pop-up): tapping navigates there instead
+  // of expanding in place. Unset (the HACS default): the embed/fallback list below still works
+  // exactly as before, so the card stays whole with zero dashboard setup.
+  declare scheduleHash: string | undefined;
   declare deviceName: string;
 
   private _expanded = false;
@@ -47,6 +52,14 @@ export class KibbleScheduleSummary extends LitElement {
   render() {
     const now = new Date();
     const summary = scheduleSummary(this.entries, now);
+    if (this.scheduleHash) {
+      return html`
+        <button type="button" class="row" @click=${this._toggle} aria-label="Open schedule">
+          <span>${summary}</span>
+          <span class="chevron">${mdiIcon("openInNew")}</span>
+        </button>
+      `;
+    }
     return html`
       <button type="button" class="row" @click=${this._toggle} aria-expanded=${this._expanded}>
         <span>${summary}</span>
@@ -122,6 +135,10 @@ export class KibbleScheduleSummary extends LitElement {
   };
 
   private _toggle(): void {
+    if (this.scheduleHash) {
+      window.location.hash = this.scheduleHash;
+      return;
+    }
     this._expanded = !this._expanded;
     this.requestUpdate();
   }

@@ -6,21 +6,25 @@
 
 import { LitElement, css, html, nothing, unsafeCSS } from "lit";
 import type { PropertyValues } from "lit";
-import type { HomeAssistant, KibbleCardConfig } from "./types";
+import type { HomeAssistant, KibbleCardConfig, KibbleCatSummary } from "./types";
 import { resolveKibbleEntities, type KibbleEntities } from "./lib/resolve-entities";
-import { deriveFeederStatus, relativeTime, statusText } from "./lib/feeding";
+import { resolveEntryId } from "./lib/entry-id";
+import { deriveFeederStatus, statusText, type FeederStatus } from "./lib/feeding";
+import { relativeTimeSentence } from "./lib/relative-time";
+import { WsQuery, watchKey } from "./lib/ws-query";
 import type { ScheduleEntry } from "./lib/schedule";
 import { mdiIcon } from "./lib/mdi-icons";
-import { KIOSK_MIN_HEIGHT_PX, KIBBLE_AMBER, KIBBLE_AMBER_DARK, KIBBLE_INK_ON_AMBER } from "./styles/tokens";
+import { KIOSK_MIN_HEIGHT_PX, KIBBLE_AMBER, KIBBLE_AMBER_DARK, KIBBLE_INK_ON_AMBER, KIBBLE_LIVE } from "./styles/tokens";
 import "./components/kibble-bowl";
 import "./components/kibble-segmented-picker";
 import "./components/kibble-stepper";
 import "./components/kibble-hold-button";
-import "./components/kibble-footer";
-import "./components/kibble-detection";
 import "./components/kibble-schedule-summary";
 import "./components/kibble-settings-dialog";
+import "./components/kibble-avatar";
 import "./editor";
+import "./kibble-timeline-card";
+import "./kibble-cats-card";
 
 const EMPTY_ENTITIES: KibbleEntities = { deviceId: "", catPresence: [] };
 
@@ -36,7 +40,11 @@ export class KibbleCard extends LitElement {
   declare _settingsOpen: boolean;
 
   private _entities: KibbleEntities = EMPTY_ENTITIES;
+  private _entryId: string | undefined;
   private _resizeObserver: ResizeObserver | undefined;
+  // The status overlay's avatar needs the named cat's color/photo from the roster; a private
+  // field (not a reactive property) since `WsQuery` drives its own `requestUpdate` on change.
+  private _catsQuery = new WsQuery<{ cats: KibbleCatSummary[] }>(() => this.requestUpdate());
 
   constructor() {
     super();
@@ -83,6 +91,16 @@ export class KibbleCard extends LitElement {
   protected willUpdate(changed: PropertyValues): void {
     if ((changed.has("hass") || changed.has("_config")) && this._config?.device_id && this.hass) {
       this._entities = resolveKibbleEntities(this.hass.entities ?? {}, this._config.device_id);
+      this._entryId = resolveEntryId(this.hass.devices ?? {}, this._config.device_id);
+    }
+    // Only worth asking for the cat roster once there is a name to look up (`lastSeenPet`) and
+    // somewhere to ask (`entryId`, `callWS`) -- most of the time this simply never fires.
+    const callWS = this.hass?.callWS;
+    if (this.hass && this._entryId && callWS && this._entities.lastSeenPet) {
+      const entryId = this._entryId;
+      this._catsQuery.sync(watchKey(this.hass, [this._entities.lastSeenPet]), () =>
+        callWS({ type: "kibble/cats", entry_id: entryId }).then((result) => result as { cats: KibbleCatSummary[] }),
+      );
     }
   }
 
@@ -98,14 +116,9 @@ export class KibbleCard extends LitElement {
 
     const hopper1 = this._numberState(e.bowlFill1);
     const hopper2 = this._numberState(e.bowlFill2);
-    const catName = this._catName();
-    const text = status === "idle" ? statusText(status, this._lastFedRelative(feedingState)) : statusText(status, null);
     const scheduleEntries = this._scheduleEntries();
     const feedAmount = this._numberState(e.feedAmount) ?? 1;
-    const desiccantDays = this._numberState(e.desiccantDays);
-    const wifiState = e.wifiNetwork ? this.hass.states[e.wifiNetwork] : undefined;
-    const cloudState = e.cloudConnection ? this.hass.states[e.cloudConnection]?.state : undefined;
-    const detection = this._detection();
+    const overlay = this._heroOverlay(status);
 
     return html`
       <ha-card>
@@ -113,18 +126,23 @@ export class KibbleCard extends LitElement {
           <div class="root">
             <div class="hero">
               <div class="hero-media">${this._renderCamera(e.camera)}</div>
-              <div class="hero-progress" data-active=${status === "dispensing"}></div>
+              <div class="hero-status">
+                <span class="live-dot" ?hidden=${!overlay.live}></span>
+                ${overlay.catName
+                  ? html`<kibble-avatar
+                      .hass=${this.hass}
+                      .name=${overlay.catName}
+                      .colorIndex=${overlay.colorIndex}
+                      .entryId=${this._entryId}
+                      .sampleName=${overlay.avatarSample}
+                    ></kibble-avatar>`
+                  : nothing}
+                <span class="hero-status-text" data-tone=${overlay.tone}>${overlay.text}</span>
+              </div>
               <button class="gear-button" aria-label="Settings" @click=${this._openSettings}>${mdiIcon("cog")}</button>
               ${this._config.name ? html`<div class="name-chip">${this._config.name}</div>` : nothing}
             </div>
-            <kibble-bowl
-              class="bowl-block"
-              .hopper1=${hopper1}
-              .hopper2=${hopper2}
-              .catName=${catName}
-              .feeding=${feeding}
-              .statusText=${text}
-            ></kibble-bowl>
+            <kibble-bowl class="bowl-block" .hopper1=${hopper1} .hopper2=${hopper2} .feeding=${feeding}></kibble-bowl>
             <div class="feed-controls">
               <kibble-segmented-picker
                 class="picker-full"
@@ -150,22 +168,8 @@ export class KibbleCard extends LitElement {
               .hass=${this.hass}
               .entries=${scheduleEntries}
               .scheduleCardStateEntity=${e.scheduleCardState}
+              .scheduleHash=${this._config.schedule_hash}
             ></kibble-schedule-summary>
-            <kibble-detection
-              class="detection-row"
-              .imageUrl=${detection.imageUrl}
-              .when=${detection.when}
-              .detectionClass=${detection.detectionClass}
-              .catName=${detection.catName}
-              .todayCount=${detection.todayCount}
-            ></kibble-detection>
-            <kibble-footer
-              class="footer"
-              .cloudState=${cloudState}
-              .desiccantDays=${desiccantDays}
-              .wifiLabel=${wifiState && wifiState.state !== "unavailable" ? wifiState.state : null}
-              @open-settings=${this._openSettings}
-            ></kibble-footer>
           </div>
         </div>
       </ha-card>
@@ -194,48 +198,52 @@ export class KibbleCard extends LitElement {
     return Number.isFinite(value) ? value : null;
   }
 
-  private _catName(): string | null {
-    const id = this._entities.lastSeenPet;
-    if (!id) return null;
-    const state = this.hass.states[id]?.state;
-    if (!state || state === "unavailable" || state.toLowerCase() === "unknown") return null;
-    return state;
-  }
-
-  private _lastFedRelative(feedingState: string | undefined): string | null {
-    const id = this._entities.feeding;
-    if (!id || feedingState !== "off") return null;
-    const state = this.hass.states[id];
-    if (!state) return null;
-    return relativeTime(new Date(state.last_changed), new Date());
-  }
-
-  /** The detection row's view model. Everything is optional: a feeder that has never detected
-   * anything, or an older integration without these entities, yields all-nulls and the row
-   * renders nothing rather than an empty frame. */
-  private _detection(): {
-    imageUrl: string | null;
-    when: string | null;
-    detectionClass: string | null;
+  /** The video status overlay's full view model. `tone` is "error" only for unreachable (the
+   * one case that's actually a problem) and "amber" for dispensing (an active, positive state,
+   * matching the accent used everywhere else feeding is in progress); everything else is plain
+   * overlay text. The avatar fields are populated only in the idle "who was last seen" case. */
+  private _heroOverlay(status: FeederStatus): {
+    text: string;
+    tone: "normal" | "amber" | "error";
+    live: boolean;
     catName: string | null;
-    todayCount: number | null;
+    colorIndex: number | null;
+    avatarSample: string | null;
   } {
-    const sensor = this._entities.lastDetection ? this.hass.states[this._entities.lastDetection] : undefined;
-    const image = this._entities.lastDetectionImage ? this.hass.states[this._entities.lastDetectionImage] : undefined;
-    const today = this._entities.detectionsToday ? this.hass.states[this._entities.detectionsToday] : undefined;
-    // A sensor that has never fired sits at `unknown`; one whose agent is offline goes
-    // `unavailable`. Both mean "no detection to show", not "a detection at the epoch".
-    const stamp = sensor && sensor.state !== "unavailable" && sensor.state !== "unknown" ? sensor.state : null;
-    const countRaw = today && today.state !== "unavailable" && today.state !== "unknown" ? Number(today.state) : null;
-    // The sensor's own state is the detection timestamp (device_class: timestamp).
-    const when = stamp ? relativeTime(new Date(stamp), new Date()) : null;
+    const cameraId = this._entities.camera;
+    const cameraState = cameraId ? this.hass.states[cameraId] : undefined;
+    const live = cameraState !== undefined && cameraState.state !== "unavailable";
+
+    if (status === "unreachable") {
+      return { text: statusText(status, null), tone: "error", live, catName: null, colorIndex: null, avatarSample: null };
+    }
+    if (status === "dispensing") {
+      return { text: statusText(status, null), tone: "amber", live, catName: null, colorIndex: null, avatarSample: null };
+    }
+    const seen = this._catSeen();
+    if (!seen) {
+      return { text: "Ready to feed", tone: "normal", live, catName: null, colorIndex: null, avatarSample: null };
+    }
+    const roster = this._catsQuery.state.data?.cats.find((cat) => cat.name === seen.name) ?? null;
     return {
-      imageUrl: (image?.attributes?.entity_picture as string | undefined) ?? null,
-      when,
-      detectionClass: (sensor?.attributes?.class as string | undefined) ?? null,
-      catName: (sensor?.attributes?.cat as string | undefined) ?? null,
-      todayCount: countRaw !== null && Number.isFinite(countRaw) ? countRaw : null,
+      text: `${seen.name} seen ${seen.relative}`,
+      tone: "normal",
+      live,
+      catName: seen.name,
+      colorIndex: roster?.color_index ?? null,
+      avatarSample: roster?.avatar ?? null,
     };
+  }
+
+  /** Who was last seen and how long ago, straight off `lastSeenPet`'s own state/`last_changed` --
+   * `null` covers both "no such entity" and the sensor's own unknown/unavailable idle value. */
+  private _catSeen(): { name: string; relative: string } | null {
+    const id = this._entities.lastSeenPet;
+    const entityState = id ? this.hass.states[id] : undefined;
+    if (!entityState || entityState.state === "unavailable" || entityState.state.toLowerCase() === "unknown") {
+      return null;
+    }
+    return { name: entityState.state, relative: relativeTimeSentence(new Date(entityState.last_changed), new Date()) };
   }
 
   private _scheduleEntries(): ScheduleEntry[] {
@@ -262,7 +270,16 @@ export class KibbleCard extends LitElement {
     this.hass.callService("kibble", "cancel_feed", { device_id: this._entities.deviceId });
   };
 
+  // Unset `settings_hash` (the HACS default -- the card stands alone with no pop-up dashboard):
+  // open the in-card dialog, exactly as before. Set (a dashboard that defines a `#settings`
+  // Bubble Card pop-up): navigate there instead, so the whole dashboard shares one settings
+  // surface rather than this card keeping a second, inconsistent one alive underneath it.
   private _openSettings = (): void => {
+    const hash = this._config?.settings_hash;
+    if (hash) {
+      window.location.hash = hash;
+      return;
+    }
     this._settingsOpen = true;
   };
 
@@ -277,26 +294,23 @@ export class KibbleCard extends LitElement {
       --kibble-amber: ${unsafeCSS(KIBBLE_AMBER)};
       --kibble-amber-dark: ${unsafeCSS(KIBBLE_AMBER_DARK)};
       --kibble-ink-on-amber: ${unsafeCSS(KIBBLE_INK_ON_AMBER)};
+      --kibble-live: ${unsafeCSS(KIBBLE_LIVE)};
       --kibble-touch-target: 48px;
       --kibble-feed-button-height: 56px;
-      --kibble-number-size: 32px;
+      --kibble-number-size: 34px;
       --kibble-feed-label-size: 18px;
-      --kibble-status-size: 15px;
-      --kibble-catname-size: 13px;
+      --kibble-status-size: 22px;
       --kibble-segment-size: 16px;
       --kibble-schedule-size: 14px;
-      --kibble-footer-size: 12px;
     }
     :host(.kiosk) {
       --kibble-touch-target: 60px;
       --kibble-feed-button-height: 72px;
-      --kibble-number-size: 40px;
+      --kibble-number-size: 42px;
       --kibble-feed-label-size: 22px;
-      --kibble-status-size: 19px;
-      --kibble-catname-size: 16px;
+      --kibble-status-size: 27px;
       --kibble-segment-size: 20px;
       --kibble-schedule-size: 17px;
-      --kibble-footer-size: 15px;
     }
     ha-card {
       overflow: hidden;
@@ -317,7 +331,7 @@ export class KibbleCard extends LitElement {
       gap: 10px;
       padding-bottom: 10px;
       grid-template-columns: 1fr;
-      grid-template-areas: "hero" "bowl" "feed" "schedule" "detection" "footer";
+      grid-template-areas: "hero" "bowl" "feed" "schedule";
     }
     .hero {
       grid-area: hero;
@@ -346,32 +360,47 @@ export class KibbleCard extends LitElement {
       color: #bbb;
       font-size: 14px;
     }
-    .hero-progress {
+    /* The live dot + latest cat + avatar: the one thing this restyle puts front and center --
+     * "who has been by" belongs on the video itself, not buried in a footer row. */
+    .hero-status {
       position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      height: 3px;
-      background: transparent;
+      top: 8px;
+      left: 8px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      max-width: calc(100% - 56px);
+      width: fit-content;
+      padding: 5px 10px 5px 8px;
+      border-radius: 999px;
+      background: rgba(0, 0, 0, 0.45);
+      color: #fff;
     }
-    .hero-progress[data-active="true"] {
-      background: linear-gradient(90deg, transparent, var(--kibble-amber), transparent);
-      background-size: 200% 100%;
-      animation: kibble-sweep 1.4s ease-in-out infinite;
+    .live-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--kibble-live);
+      flex: 0 0 auto;
     }
-    @media (prefers-reduced-motion: reduce) {
-      .hero-progress[data-active="true"] {
-        animation: none;
-        background: var(--kibble-amber);
-      }
+    .live-dot[hidden] {
+      display: none;
     }
-    @keyframes kibble-sweep {
-      0% {
-        background-position: 200% 0;
-      }
-      100% {
-        background-position: -200% 0;
-      }
+    .hero-status kibble-avatar {
+      --kibble-avatar-size: 20px;
+    }
+    .hero-status-text {
+      font-size: 13px;
+      font-weight: 500;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .hero-status-text[data-tone="amber"] {
+      color: var(--kibble-amber);
+    }
+    .hero-status-text[data-tone="error"] {
+      color: var(--error-color, #ff8a80);
     }
     .gear-button {
       position: absolute;
@@ -430,20 +459,7 @@ export class KibbleCard extends LitElement {
     }
     .schedule-row {
       grid-area: schedule;
-      padding: 0 10px;
-    }
-    .detection-row {
-      grid-area: detection;
-      padding: 0 10px;
-    }
-    /* At the kiosk/compact size the feed action must stay above the fold, so the detection row
-       is the first thing to go -- it is context, not control. */
-    :host(.compact) .detection-row {
-      display: none;
-    }
-    .footer {
-      grid-area: footer;
-      padding: 0 10px;
+      padding: 0 10px 6px;
     }
     :host(.compact) .root {
       gap: 6px;
@@ -451,6 +467,9 @@ export class KibbleCard extends LitElement {
     :host(.compact) .hero {
       height: 80px;
       padding-bottom: 0;
+    }
+    :host(.compact) .hero-status-text {
+      font-size: 12px;
     }
     :host(.compact) .bowl-block {
       padding-top: 2px;
@@ -461,8 +480,8 @@ export class KibbleCard extends LitElement {
     @container (min-width: 640px) {
       .root {
         grid-template-columns: 60% 1fr;
-        grid-template-rows: auto auto 1fr auto;
-        grid-template-areas: "hero bowl" "hero feed" "hero schedule" "hero detection" "footer footer";
+        grid-template-rows: auto auto 1fr;
+        grid-template-areas: "hero bowl" "hero feed" "hero schedule";
         gap: 4px;
         padding-bottom: 0;
       }
@@ -487,8 +506,6 @@ export class KibbleCard extends LitElement {
         grid-area: bowl;
         padding: 4px 16px 0;
         --kibble-bowl-max-width: 210px;
-        --kibble-catname-size: unset;
-        --kibble-status-size: unset;
       }
       .feed-controls {
         grid-area: feed;
@@ -498,12 +515,8 @@ export class KibbleCard extends LitElement {
       }
       .schedule-row {
         grid-area: schedule;
-        padding: 2px 16px;
+        padding: 2px 16px 10px;
         align-self: start;
-      }
-      .footer {
-        grid-area: footer;
-        padding: 0 16px 2px;
       }
     }
   `;
@@ -515,7 +528,7 @@ window.customCards = window.customCards || [];
 window.customCards.push({
   type: "kibble-card",
   name: "Kibble",
-  description: "The full daily control surface for a Kibble Petkit feeder: live camera, bowl status, feed, and schedule.",
+  description: "The full daily control surface for a Kibble Petkit feeder: live camera, who's been by, feed, and schedule.",
   preview: true,
 });
 

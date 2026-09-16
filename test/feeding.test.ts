@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { deriveFeederStatus, relativeTime, statusText } from "../src/lib/feeding";
+import { deriveFeederStatus, statusText } from "../src/lib/feeding";
 
 describe("deriveFeederStatus", () => {
   test("is unreachable when every core sensor is down", () => {
@@ -16,26 +16,6 @@ describe("deriveFeederStatus", () => {
 
   test("is idle when reachable and not feeding", () => {
     expect(deriveFeederStatus(["62", "58", "3"], "off")).toBe("idle");
-  });
-});
-
-describe("relativeTime", () => {
-  const base = new Date(2026, 0, 1, 12, 0, 0);
-
-  test("collapses sub-minute gaps to just now", () => {
-    expect(relativeTime(base, new Date(2026, 0, 1, 12, 0, 30))).toBe("just now");
-  });
-
-  test("uses minutes under an hour", () => {
-    expect(relativeTime(base, new Date(2026, 0, 1, 12, 45, 0))).toBe("45m ago");
-  });
-
-  test("uses hours under a day", () => {
-    expect(relativeTime(base, new Date(2026, 0, 1, 14, 0, 0))).toBe("2h ago");
-  });
-
-  test("uses days at 24h and beyond", () => {
-    expect(relativeTime(base, new Date(2026, 0, 3, 12, 0, 0))).toBe("2d ago");
   });
 });
 

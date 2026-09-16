@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <!-- Dev-harness stand-in for a labelled face crop / sample / avatar photo: reads as "a cat",
+       not as the video background. Every avatar, pending crop and gallery sample in the
+       harness reuses this one placeholder rather than the camera-frame art. -->
+  <defs>
+    <radialGradient id="fur" cx="50%" cy="38%" r="70%">
+      <stop offset="0%" stop-color="#dba86a"/>
+      <stop offset="100%" stop-color="#a66f3c"/>
+    </radialGradient>
+  </defs>
+  <rect width="200" height="200" fill="url(#fur)"/>
+  <path d="M 52 76 L 30 38 Q 28 28 40 26 L 78 54 Z" fill="#c98f57"/>
+  <path d="M 122 54 L 160 26 Q 172 28 170 38 L 148 76 Z" fill="#c98f57"/>
+  <circle cx="100" cy="112" r="58" fill="#c98f57"/>
+  <circle cx="80" cy="106" r="6" fill="#2a1c12"/>
+  <circle cx="120" cy="106" r="6" fill="#2a1c12"/>
+  <path d="M 90 128 Q 100 134 110 128" stroke="#2a1c12" stroke-width="3" fill="none" stroke-linecap="round"/>
+</svg>

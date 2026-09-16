@@ -1,15 +1,13 @@
 # Kibble Card
 
-A Lovelace card for the [Kibble](https://github.com/nphil/kibble) Petkit feeder integration — the
-full daily control surface, not a bag of switches. One illustrated bowl (fill level, split
-chambers, a peeking cat when one's been seen recently), a live camera hero, a press-and-hold feed
-action, and a one-line schedule summary. Everything secondary (per-hopper feed, night vision,
-microphone, volume, cloud, Wi-Fi/desiccant detail) lives behind the settings gear.
+Three Lovelace cards for the [Kibble](https://github.com/nphil/kibble) Petkit feeder integration:
+`kibble-card` (the daily hero — live camera with a "who's been by" overlay, bowl status, feed,
+schedule), `kibble-timeline-card` (today's feeds and visits as one rail, with photos), and
+`kibble-cats-card` (enrolled cats plus a one-tap training inbox for the feeder's own face crops).
+Full design rationale in [`DESIGN.md`](DESIGN.md).
 
-The card is one responsive component — no layout config. Container queries drive three width
-bands (stacked under 360px, camera-hero-with-overlay from 360–640px, two-column above 640px), and
-a height-aware scale step enlarges type and touch targets once the card's own box clears ~440px
-tall — the kiosk/panel case, e.g. an ESPHome touch display running a single-card dashboard.
+Every card is one responsive component — no layout config beyond the device picker and a couple
+of optional fields. Container queries drive the responsive behavior, never viewport queries.
 
 ## Install (HACS)
 
@@ -17,60 +15,106 @@ tall — the kiosk/panel case, e.g. an ESPHome touch display running a single-ca
 2. Install "Kibble Card", then add it as a Lovelace resource if HACS doesn't do so automatically
    (Settings → Dashboards → Resources → `/hacsfiles/kibble-card/kibble-card.js`, type: JavaScript
    Module).
-3. Add the card to a dashboard:
+3. Add whichever cards you want to a dashboard:
 
    ```yaml
    type: custom:kibble-card
    device_id: <your Kibble device>
-   # name: Plant room       # optional label shown on the camera
+   # name: Plant room             # optional label shown on the camera
+   # settings_hash: "#settings"   # optional: gear opens this Bubble Card pop-up instead of the in-card dialog
+   # schedule_hash: "#schedule"   # optional: same, for the "Next feed" line
    ```
 
-   Or use the visual editor — the only field is the device picker. Every entity id is resolved
-   from the device at render time; you never type one.
+   ```yaml
+   type: custom:kibble-timeline-card
+   device_id: <your Kibble device>
+   # name: Today                  # optional label
+   # limit: 30                    # optional: rows shown before "Show more" (default 30)
+   ```
+
+   ```yaml
+   type: custom:kibble-cats-card
+   device_id: <your Kibble device>
+   # name: Cats                   # optional label
+   # confidence: 0.7              # optional: classifier score needed to trust its own guess over the feeder's onboard id (default 0.7)
+   ```
+
+   Or use each card's visual editor — the required field is always just the device picker. Every
+   entity id is resolved from the device at render time; you never type one.
 
 ## What it looks like
 
-Rendered against a mock `hass` (see [`dev/`](dev)) at every required width/theme/state
-combination — [`screenshots/`](screenshots) has the full set. A representative sample:
+Rendered against a mock `hass` (see [`dev/`](dev)) at 380/768/1200px in both themes —
+[`screenshots/`](screenshots) has the full set for all three cards. A representative sample:
 
 | | Light | Dark |
 |---|---|---|
-| Idle, phone width (480px) | ![idle light 480](screenshots/idle-light-480.png) | ![idle dark 480](screenshots/idle-dark-480.png) |
-| Dispensing, two-column (1024px) | ![dispensing light 1024](screenshots/dispensing-light-1024.png) | ![dispensing dark 1024](screenshots/dispensing-dark-1024.png) |
-| Unreachable, 800×480 kiosk panel | ![unreachable light panel](screenshots/unreachable-light-800x480.png) | ![unreachable dark panel](screenshots/unreachable-dark-800x480.png) |
-| Idle, 480×480 kiosk panel | ![idle light square panel](screenshots/idle-light-480x480.png) | ![idle dark square panel](screenshots/idle-dark-480x480.png) |
+| Hero, idle, phone width (380px) | ![hero idle light 380](screenshots/hero-idle-light-380.png) | ![hero idle dark 380](screenshots/hero-idle-dark-380.png) |
+| Hero, idle, two-column (1200px) | ![hero idle light 1200](screenshots/hero-idle-light-1200.png) | ![hero idle dark 1200](screenshots/hero-idle-dark-1200.png) |
+| Timeline, tablet width (768px) | ![timeline light 768](screenshots/timeline-light-768.png) | ![timeline dark 768](screenshots/timeline-dark-768.png) |
+| Cats, wide (1200px) | ![cats light 1200](screenshots/cats-light-1200.png) | ![cats dark 1200](screenshots/cats-dark-1200.png) |
 
-The dispensing screenshots show the split-bowl path (the two augers reading more than 5 points
-apart); every other state shows the single shared-bowl path, matching the feeder's divider-removed
-reality.
+The hero's dispensing/unreachable states and the original idle/kiosk-panel set from the v0.1.x
+bowl redesign are still under `screenshots/` (`idle-*`, `dispensing-*`, `unreachable-*`); the
+`hero-idle-*`, `timeline-*` and `cats-*` files above are this restyle's own set.
 
 ## Design
 
-- **The bowl is the status.** A custom SVG (traced from the integration's own brand icon — same
-  cat ears/head, same rounded-square kibble-piece motif) shows fill level, splits into two
-  chambers only when the augers disagree by 5 points or more, and gets a small ink cat silhouette
-  when `last_seen_pet` names someone. A one-shot, ~900ms kibble-drop animation plays once when a
-  feed starts, skipped entirely under `prefers-reduced-motion`.
+- **The video tells you who's been by.** A status overlay on the camera itself — a live dot
+  (only when the camera is actually streaming), the cat's own avatar, and a plain sentence
+  ("Pancake seen 4 min ago") — replaces the old footer/detection row entirely; it reads
+  "Dispensing…" or the unreachable message in place of that sentence while either is true.
+- **The bowl is pure status.** The same custom SVG (traced from the integration's own brand icon)
+  shows fill level and splits into two chambers only when the augers disagree by 5 points or
+  more — no cat name or status text on it anymore, since that moved to the video overlay above.
+  A one-shot, ~900ms kibble-drop animation plays once when a feed starts, skipped entirely under
+  `prefers-reduced-motion` — the only other motion on the card besides the hold-to-feed ring.
 - **Three actions on the face:** a 1–5 segmented portion picker (or a big +/− stepper wherever six
   48px+ segments genuinely don't fit — both read the same `number.feed_amount` entity live), the
   press-and-hold feed button (600ms, the anti-accident lock for a touchscreen a cat can step on;
-  becomes **Cancel** on a single tap while dispensing), and the schedule one-liner.
+  becomes **Cancel** on a single tap while dispensing), and the schedule one-liner ("Next feed
+  07:30, three a day" — no middle dots).
 - **Everything else is behind the gear**: per-hopper feed (the wear-leveling/jam-workaround case),
   night vision / status LED / microphone, volume, the Petkit cloud switch (tap-twice confirm — it
   opens/closes an external pathway), Wi-Fi and desiccant detail, before/after dish photos and the
-  speaker when the integration ships them, and a link to the device page.
-- **Colour is the host theme.** Every structural colour is an HA theme variable
-  (`--ha-card-background`, `--primary-text-color`, `--secondary-text-color`, `--divider-color`,
-  `--primary-color`, `--ha-card-border-radius`, `--ha-card-box-shadow`). Amber is the one fixed
-  accent (feed action, dispensing state, the cloud-blocked footer glyph); everything on top of the
-  live camera (the gear, the name chip) uses a fixed dark scrim + white ink, the same treatment
-  every video UI uses, independent of app theme.
+  speaker when the integration ships them, and a link to the device page. Set `settings_hash` /
+  `schedule_hash` and a dashboard-level Bubble Card pop-up takes over instead; leave them unset
+  and the card stays whole with zero dashboard setup, exactly as before.
+- **Colour is the host theme**, plus two fixed accents used for exactly one thing each: amber for
+  feeding (feed action, dispensing state) and a fixed red for the live-video dot only — never
+  reused for errors, which use the theme's own `--error-color`. The cat palette (four colours,
+  assigned by each cat's stable `color_index`) is what every avatar/monogram draws from, on the
+  hero, the timeline and the cats card alike.
 - **Degrades honestly.** A camera-less device shows "No camera on this device," not a blank box.
-  An unreachable agent shows "Feeder unreachable — check that kibbled is running" and disables the
-  feed controls (the persisted portion amount still shows — it's HA-local `RestoreEntity` state,
-  not device-backed, per `number.py`). Entities the integration hasn't shipped yet (`last_seen_pet`,
-  per-cat presence, dish photos, the speaker, Wi-Fi) are resolved defensively and simply don't
-  render a section when absent.
+  An unreachable agent shows "Feeder unreachable — check that kibbled is running" in the status
+  overlay and disables the feed controls (the persisted portion amount still shows — it's
+  HA-local `RestoreEntity` state, not device-backed, per `number.py`). Entities the integration
+  hasn't shipped yet are resolved defensively and simply don't render when absent.
+
+### Timeline
+
+A rail, not stacked cards: a thin vertical line with times hanging to its left, grouped into day
+buckets ("Today", "Yesterday", then a weekday+date). Detections show the cat's avatar (a neutral
+silhouette for an unidentified "a cat") and a verb by class (ate/came by/identified); feed rows
+show the amount and hopper (never the outcome field — the agent has no failed/cancelled variant)
+with before/after thumbnails. Tapping any thumbnail opens a lightbox; Escape or the backdrop
+closes it and returns focus to whatever was tapped.
+
+### Cats
+
+Enrolled cats up top (avatar, sample count, "seen ..." sentence, a presence ring when currently
+at the bowl) plus an inline "Add a cat" form, then the training inbox: every pending face crop
+with a suggestion chip (the classifier's own guess once it clears `confidence`, else the feeder's
+onboard identification, else nothing to confirm) so the default gesture is one tap that means
+"yes". Confirming is optimistic with a 5-second undo; a per-crop chooser (tap the small button, or
+press and hold the crop) opens a picker with every cat plus "Not a cat"/"Skip" — real reserved
+buckets the agent understands, not a client-side dismiss. Per-cat galleries below let you remove a
+mislabelled sample, which returns it to the inbox.
+
+**v1 scope note:** DESIGN.md's "Select mode" bulk bar (checkbox multi-select, "Confirm all
+&lt;cat&gt;" / "Label as…" across many crops at once) is not built yet — every crop in this
+version is confirmed or corrected one at a time. Everything else in DESIGN.md's cats-card plan
+(suggestions, the picker, undo, galleries, empty/error states, keyboard nav) is implemented.
 
 ## Schedule card integration
 
@@ -116,20 +160,26 @@ The card's exact proposed `dispenser-schedule-card` config lives in
 bun install
 bun run typecheck        # src/ + dev/, browser DOM lib only
 bun run typecheck:test    # test/ + src/lib/, with bun-types for bun:test
-bun test                  # pure-logic unit tests (entity resolution, schedule math, feeding state)
-bun run build              # dist/kibble-card.js, minified, Lit bundled in
+bun test                  # pure-logic unit tests: entity resolution, entry_id, schedule math,
+                           # feeding state, relative time, WS watch keys, image URL building,
+                           # cat colours, suggestion choice, timeline verb/grouping
+bun run build              # dist/kibble-card.js, minified, all three cards + Lit bundled in
 ```
 
 ### Local visual harness
 
-No real Home Assistant needed — `dev/` renders the card against a mock `hass` built from
-fixtures matching the live entity model, with a `callService` that logs (and, for `number.set_value`
-/ `switch.toggle`, actually mutates the mock state so clicking around behaves like the real thing).
+No real Home Assistant needed — `dev/` renders any of the three cards against a mock `hass`
+built from fixtures matching the live entity and `kibble/*` WS models, with a `callService` /
+`callWS` that actually mutates the mock state (labelling a crop really moves it into a cat's
+gallery, with a matching `hass` reassignment so the UI updates live) so clicking around behaves
+like the real thing.
 
 ```sh
 bun run harness   # builds both bundles, serves dev/ at http://localhost:4173
 ```
 
-Then open `http://localhost:4173/?scenario=idle&theme=light&width=480` — query params:
-`scenario` (`idle` | `dispensing` | `unreachable`), `theme` (`light` | `dark`), `width`, `height`
-(omit for natural content height; set both for a fixed kiosk-panel box), `name` (optional label).
+Then open `http://localhost:4173/?card=hero&scenario=idle&theme=light&width=480` — query params:
+`card` (`hero` | `timeline` | `cats`, default `hero`), `scenario` (`idle` | `dispensing` |
+`unreachable`, hero only), `theme` (`light` | `dark`), `width`, `height` (omit for natural content
+height; set both for a fixed kiosk-panel box), `name` (optional label, all cards), `settings_hash`
+/ `schedule_hash` (hero), `limit` (timeline), `confidence` (cats).

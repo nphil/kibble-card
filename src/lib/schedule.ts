@@ -48,15 +48,21 @@ export function nextScheduled(entries: ScheduleEntry[], now: Date): NextSchedule
   return best;
 }
 
-/** The one-line summary shown on the card face, e.g. "3 scheduled · next 18:00". */
+const COUNT_WORDS = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"];
+
+/** The one-line summary shown on the card face: "Next feed 18:00, three a day", "All feeds
+ * paused" when entries exist but none are enabled, or "No schedule set" when there are none at
+ * all. The count is enabled entries only -- a paused entry doesn't actually feed anyone, so it
+ * shouldn't count toward "how many times a day this happens". */
 export function scheduleSummary(entries: ScheduleEntry[], now: Date): string {
   if (entries.length === 0) {
     return "No schedule set";
   }
-  const countLabel = entries.length === 1 ? "1 scheduled" : `${entries.length} scheduled`;
   const next = nextScheduled(entries, now);
   if (!next) {
-    return `${countLabel} \u00b7 all paused`;
+    return "All feeds paused";
   }
-  return `${countLabel} \u00b7 next ${next.entry.time}`;
+  const enabledCount = entries.filter((entry) => entry.enabled).length;
+  const countWord = COUNT_WORDS[enabledCount] ?? String(enabledCount);
+  return `Next feed ${next.entry.time}, ${countWord} a day`;
 }

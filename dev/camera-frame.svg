@@ -1,25 +1,21 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 480" width="640" height="480">
+  <!-- Dev-harness stand-in for a live camera frame: a dim, desaturated vignette reading as
+       video footage, not an illustrated room. DESIGN.md is explicit that the hero shows the
+       real feed, so the placeholder should read as "camera", never as cartoon decor. -->
   <defs>
-    <linearGradient id="wall" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#d9cdb8"/>
-      <stop offset="1" stop-color="#c3b59c"/>
-    </linearGradient>
+    <radialGradient id="vignette" cx="50%" cy="40%" r="75%">
+      <stop offset="0%" stop-color="#40454a"/>
+      <stop offset="70%" stop-color="#24282c"/>
+      <stop offset="100%" stop-color="#101214"/>
+    </radialGradient>
     <linearGradient id="floor" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#8a6f56"/>
-      <stop offset="1" stop-color="#6b5340"/>
+      <stop offset="0" stop-color="#2c2f32"/>
+      <stop offset="1" stop-color="#191b1d"/>
     </linearGradient>
   </defs>
-  <rect width="640" height="300" fill="url(#wall)"/>
-  <rect y="300" width="640" height="180" fill="url(#floor)"/>
-  <rect y="292" width="640" height="10" fill="#4d3c2e"/>
-  <g opacity="0.5">
-    <rect x="0" y="330" width="640" height="2" fill="#59452f"/>
-    <rect x="0" y="380" width="640" height="2" fill="#59452f"/>
-    <rect x="0" y="430" width="640" height="2" fill="#59452f"/>
-  </g>
-  <ellipse cx="320" cy="270" rx="150" ry="26" fill="#000" opacity="0.18"/>
-  <ellipse cx="320" cy="260" rx="120" ry="34" fill="#efe3d0"/>
-  <ellipse cx="320" cy="254" rx="96" ry="24" fill="#d8c7a8"/>
-  <circle cx="120" cy="120" r="46" fill="#efe3d0" opacity="0.5"/>
-  <rect x="500" y="60" width="90" height="130" rx="6" fill="#efe3d0" opacity="0.35"/>
+  <rect width="640" height="480" fill="url(#vignette)"/>
+  <rect y="330" width="640" height="150" fill="url(#floor)"/>
+  <ellipse cx="320" cy="340" rx="150" ry="18" fill="#000" opacity="0.35"/>
+  <ellipse cx="320" cy="332" rx="118" ry="26" fill="#4a4d50"/>
+  <ellipse cx="320" cy="326" rx="94" ry="18" fill="#3a3d40"/>
 </svg>

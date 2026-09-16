@@ -59,18 +59,32 @@ describe("nextScheduled", () => {
 });
 
 describe("scheduleSummary", () => {
-  test("reports count and next time", () => {
+  test("names the next time and spells the enabled count as a word", () => {
     const now = new Date(2026, 0, 1, 8, 0);
     const entries = [entryAt("18:00"), entryAt("07:00", false), entryAt("12:30")];
 
-    expect(scheduleSummary(entries, now)).toBe("3 scheduled \u00b7 next 12:30");
+    expect(scheduleSummary(entries, now)).toBe("Next feed 12:30, two a day");
   });
 
-  test("reports all-paused when entries exist but none are enabled", () => {
+  test("counts only enabled entries, not paused ones", () => {
+    const now = new Date(2026, 0, 1, 8, 0);
+    const entries = [entryAt("09:00"), entryAt("10:00", false), entryAt("11:00", false)];
+
+    expect(scheduleSummary(entries, now)).toBe("Next feed 09:00, one a day");
+  });
+
+  test("falls back to a numeral once the count exceeds the spelled-out words", () => {
+    const now = new Date(2026, 0, 1, 0, 0);
+    const entries = Array.from({ length: 11 }, (_, i) => entryAt(`${String(i).padStart(2, "0")}:00`, true, `e${i}`));
+
+    expect(scheduleSummary(entries, now)).toBe("Next feed 00:00, 11 a day");
+  });
+
+  test("reports all feeds paused when entries exist but none are enabled", () => {
     const now = new Date(2026, 0, 1, 8, 0);
     const entries = [entryAt("09:00", false)];
 
-    expect(scheduleSummary(entries, now)).toBe("1 scheduled \u00b7 all paused");
+    expect(scheduleSummary(entries, now)).toBe("All feeds paused");
   });
 
   test("reports no schedule set when the list is empty", () => {

@@ -33,6 +33,17 @@ describe("resolveKibbleEntities", () => {
     expect(result.feedButton).toBe("button.plant_room_cat_feeder_feed");
   });
 
+  test("resolves the singular pending-face image without matching the plural diagnostic sensor", () => {
+    const registry = byId([
+      entry({ entity_id: "image.plant_room_cat_feeder_pending_face", translation_key: "pending_face" }),
+      entry({ entity_id: "sensor.plant_room_cat_feeder_pending_faces", translation_key: "pending_faces" }),
+    ]);
+
+    const result = resolveKibbleEntities(registry, "feeder-1");
+
+    expect(result.pendingFace).toBe("image.plant_room_cat_feeder_pending_face");
+  });
+
   test("falls back to entity_id suffix when translation_key is missing", () => {
     const registry = byId([
       entry({ entity_id: "number.plant_room_cat_feeder_feed_amount", translation_key: null }),

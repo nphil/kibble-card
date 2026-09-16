@@ -44,6 +44,12 @@ export interface KibbleEntities {
   lastDetection?: string;
   detectionsToday?: string;
   lastDetectionImage?: string;
+  // The image whose `image_last_updated` timestamp changes on every pending-queue mutation
+  // (advances to a new crop, or the current one's status flips once labelled) -- the training
+  // inbox and the cats-card watch this to know when to re-read `kibble/faces/pending`, since
+  // the diagnostic `sensor.*_pending_faces` count is disabled by default and can't be relied on
+  // for that. See resolve-entities.test.ts and DESIGN.md's data-contract section.
+  pendingFace?: string;
 }
 
 interface RoleRule {
@@ -81,6 +87,7 @@ const RULES: Record<RuleRole, RoleRule> = {
   lastDetection: { domain: "sensor", translationKeys: ["last_detection"], idSuffixes: ["_last_detection"] },
   detectionsToday: { domain: "sensor", translationKeys: ["detections_today"], idSuffixes: ["_detections_today"] },
   lastDetectionImage: { domain: "image", translationKeys: ["last_detection"], idSuffixes: ["_last_detection"] },
+  pendingFace: { domain: "image", translationKeys: ["pending_face"], idSuffixes: ["_pending_face"] },
 };
 
 function domainOf(entityId: string): string {

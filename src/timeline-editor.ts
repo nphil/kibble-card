@@ -15,12 +15,14 @@ const SCHEMA: SchemaField[] = [
   { name: "device_id", required: true, selector: { device: { filter: { integration: "kibble" } } } },
   { name: "name", selector: { text: {} } },
   { name: "limit", selector: { number: { min: 1, mode: "box" } } },
+  { name: "show_visits", selector: { boolean: {} } },
 ];
 
 const FIELD_LABELS: Record<string, string> = {
   device_id: "Kibble device",
   name: "Name (optional)",
   limit: "Rows before \u201cShow more\u201d (optional, default 30)",
+  show_visits: "Show bare \u201ca cat came by\u201d rows (optional, default off)",
 };
 
 export class KibbleTimelineCardEditor extends LitElement {
@@ -87,6 +89,14 @@ export class KibbleTimelineCardEditor extends LitElement {
             @change=${(event: Event) => this._updateLimit((event.target as HTMLInputElement).value)}
           />
         </label>
+        <label class="checkbox">
+          <input
+            type="checkbox"
+            .checked=${this._config?.show_visits ?? false}
+            @change=${(event: Event) => this._updateShowVisits((event.target as HTMLInputElement).checked)}
+          />
+          <span>Show bare "a cat came by" rows</span>
+        </label>
       </div>
     `;
   }
@@ -115,6 +125,12 @@ export class KibbleTimelineCardEditor extends LitElement {
     this._fireConfigChanged();
   }
 
+  private _updateShowVisits(value: boolean): void {
+    if (!this._config) return;
+    this._config = { ...this._config, show_visits: value ? true : undefined };
+    this._fireConfigChanged();
+  }
+
   private _fireConfigChanged(): void {
     this.dispatchEvent(new CustomEvent("config-changed", { detail: { config: this._config }, bubbles: true, composed: true }));
   }
@@ -134,7 +150,7 @@ export class KibbleTimelineCardEditor extends LitElement {
       color: var(--primary-text-color);
     }
     select,
-    input {
+    input:not([type="checkbox"]) {
       min-height: 40px;
       border-radius: 8px;
       border: 1px solid var(--divider-color);
@@ -142,6 +158,15 @@ export class KibbleTimelineCardEditor extends LitElement {
       color: var(--primary-text-color);
       padding: 0 10px;
       font: inherit;
+    }
+    .checkbox {
+      flex-direction: row;
+      align-items: center;
+      gap: 8px;
+    }
+    .checkbox input {
+      width: 18px;
+      height: 18px;
     }
   `;
 }

@@ -2,8 +2,9 @@
 
 Three Lovelace cards for the [Kibble](https://github.com/nphil/kibble) Petkit feeder integration:
 `kibble-card` (the daily hero — live camera with a "who's been by" overlay, bowl status, feed,
-schedule), `kibble-timeline-card` (today's feeds and visits as one rail, with photos), and
-`kibble-cats-card` (enrolled cats plus a one-tap training inbox for the feeder's own face crops).
+schedule), `kibble-timeline-card` (today's feeds and who's been by, as one rail, with photos), and
+`kibble-cats-card` (enrolled cats you can delete or add training photos to, plus a one-tap
+inbox for the feeder's own face crops).
 Full design rationale in [`DESIGN.md`](DESIGN.md).
 
 Every card is one responsive component — no layout config beyond the device picker and a couple
@@ -32,6 +33,7 @@ of optional fields. Container queries drive the responsive behavior, never viewp
    device_id: <your Kibble device>
    # name: Today                  # optional label
    # limit: 30                    # optional: rows shown before "Show more" (default 30)
+   # show_visits: false           # optional: also show bare "a cat came by" rows (default hidden)
    ```
 
    ```yaml
@@ -116,22 +118,31 @@ bowl redesign are still under `screenshots/` (`idle-*`, `dispensing-*`, `unreach
 ### Timeline
 
 A rail, not stacked cards: a thin vertical line with times hanging to its left, grouped into day
-buckets ("Today", "Yesterday", then a weekday+date). Detections show the cat's avatar (a neutral
-silhouette for an unidentified "a cat") and a verb by class (ate/came by/identified); feed rows
-show the amount and hopper (never the outcome field — the agent has no failed/cancelled variant)
-with before/after thumbnails. Tapping any thumbnail opens a lightbox; Escape or the backdrop
-closes it and returns focus to whatever was tapped.
+buckets ("Today", "Yesterday", then a weekday+date). Bare "a cat came by" visits are hidden by
+default (`show_visits: true` brings them back) — what's left is the *named* cat that was actually
+at the bowl, shown with the **live** photo from that moment (never a stored training sample):
+"Pancake ate" when paired with a real eat detection, "Pancake was at the bowl" otherwise, or "A
+cat ate" when nobody was identified nearby. Feed rows show the amount and hopper, a quiet
+"(scheduled)" tag for a scheduler-fired cycle, and before/after bowl thumbnails each captioned.
+Tapping any thumbnail opens a lightbox; Escape or the backdrop closes it and returns focus to
+whatever was tapped.
 
 ### Cats
 
 Enrolled cats up top (avatar, sample count, "seen ..." sentence, a presence ring when currently
-at the bowl) plus an inline "Add a cat" form, then the training inbox: every pending face crop
-with a suggestion chip (the classifier's own guess once it clears `confidence`, else the feeder's
-onboard identification, else nothing to confirm) so the default gesture is one tap that means
-"yes". Confirming is optimistic with a 5-second undo; a per-crop chooser (tap the small button, or
-press and hold the crop) opens a picker with every cat plus "Not a cat"/"Skip" — real reserved
-buckets the agent understands, not a client-side dismiss. Per-cat galleries below let you remove a
-mislabelled sample, which returns it to the inbox.
+at the bowl), each with a small menu (⋮) for **Delete cat…** (a second tap confirms — deleting
+drops every labelled sample and the classifier model) and **Add photos**: pick one or more of
+your own photos and a crop dialog walks through them one at a time — drag the square to cover the
+cat's face, drag its corner to resize (always 1:1, pointer and touch both work), a live preview
+shows exactly the 224×224 JPEG that will upload. A photo the classifier isn't confident is a face
+still gets kept, with a small note saying so. Below the cats: an inline "Add a cat" form, then the
+training inbox for the feeder's own face crops, with a suggestion chip (the classifier's own guess
+once it clears `confidence`, else the feeder's onboard identification, else nothing to confirm) so
+the default gesture is one tap that means "yes". Confirming is optimistic with a 5-second undo; a
+per-crop chooser (tap the small button, or press and hold the crop) opens a picker with every cat
+plus "Not a cat"/"Skip" — real reserved buckets the agent understands, not a client-side dismiss.
+Per-cat galleries below let you remove any sample — a trained crop returns to the inbox, an
+uploaded photo is just deleted.
 
 **v1 scope note:** DESIGN.md's "Select mode" bulk bar (checkbox multi-select, "Confirm all
 &lt;cat&gt;" / "Label as…" across many crops at once) is not built yet — every crop in this
@@ -184,7 +195,8 @@ bun run typecheck        # src/ + dev/, browser DOM lib only
 bun run typecheck:test    # test/ + src/lib/, with bun-types for bun:test
 bun test                  # pure-logic unit tests: entity resolution, entry_id, schedule math,
                            # feeding state, relative time, WS watch keys, image URL building,
-                           # cat colours, suggestion choice, timeline verb/grouping
+                           # cat colours, suggestion choice, timeline row/verb selection, visit
+                           # filtering, feed summary, day grouping
 bun run build              # dist/kibble-card.js, minified, all three cards + Lit bundled in
 ```
 
@@ -204,4 +216,4 @@ Then open `http://localhost:4173/?card=hero&scenario=idle&theme=light&width=480`
 `card` (`hero` | `timeline` | `cats`, default `hero`), `scenario` (`idle` | `dispensing` |
 `unreachable`, hero only), `theme` (`light` | `dark`), `width`, `height` (omit for natural content
 height; set both for a fixed kiosk-panel box), `name` (optional label, all cards), `settings_hash`
-/ `schedule_hash` (hero), `limit` (timeline), `confidence` (cats).
+/ `schedule_hash` (hero), `limit` / `show_visits` (timeline), `confidence` (cats).

@@ -1,25 +1,26 @@
-/** The feeder's activity as one rail: detections and feed cycles merged server-side and grouped
- * by day, newest first. A list with a thin time rail, not stacked cards -- DESIGN.md's timeline
- * is a real sequence, so a day separator carries the "01/02/03" job a numbered marker would
- * elsewhere. See README.md and DESIGN.md for the full design rationale.
+/** The feeder's activity as one rail: identifications, feed cycles and (opt-in) bare visits
+ * merged server-side and grouped by day, newest first. A list with a thin time rail, not
+ * stacked cards -- DESIGN.md's timeline is a real sequence, so a day separator carries the
+ * "01/02/03" job a numbered marker would elsewhere. See README.md and DESIGN.md for the full
+ * design rationale.
  */
 
 import { LitElement, css, html, nothing } from "lit";
 import type { PropertyValues } from "lit";
 import type {
   HomeAssistant,
-  KibbleCatSummary,
   KibbleTimelineCardConfig,
-  TimelineDetectionItem,
+  TimelineEatItem,
   TimelineFeedItem,
+  TimelineIdentifiedItem,
   TimelineItem,
+  TimelineVisitItem,
 } from "./types";
 import { resolveKibbleEntities, type KibbleEntities } from "./lib/resolve-entities";
 import { resolveEntryId } from "./lib/entry-id";
 import { WsQuery, watchKey } from "./lib/ws-query";
 import { ImageUrlCache, kibbleImageUrl } from "./lib/image-cache";
-import { detectionVerb, feedSummary, groupByDay, type TimelineDay } from "./lib/timeline";
-import "./components/kibble-avatar";
+import { detectionHeadline, feedSummary, filterVisits, groupByDay, type TimelineDay } from "./lib/timeline";
 import "./components/kibble-lightbox";
 import "./timeline-editor";
 
@@ -44,7 +45,6 @@ export class KibbleTimelineCard extends LitElement {
   private _entities: KibbleEntities = EMPTY_ENTITIES;
   private _entryId: string | undefined;
   private _timelineQuery = new WsQuery<{ items: TimelineItem[] }>(() => this.requestUpdate());
-  private _catsQuery = new WsQuery<{ cats: KibbleCatSummary[] }>(() => this.requestUpdate());
   private _imageCache = new ImageUrlCache();
   private _lightboxTrigger: HTMLElement | null = null;
 
@@ -89,17 +89,18 @@ export class KibbleTimelineCard extends LitElement {
     const callWS = this.hass?.callWS;
     if (this.hass && this._entryId && callWS) {
       const entryId = this._entryId;
-      const key = watchKey(this.hass, [this._entities.lastDetection, this._entities.feeding, this._entities.dishAfter]);
-      this._timelineQuery.sync(key, () => callWS({ type: "kibble/timeline", entry_id: entryId }).then((r) => r as { items: TimelineItem[] }));
-      this._catsQuery.sync(key, () => callWS({ type: "kibble/cats", entry_id: entryId }).then((r) => r as { cats: KibbleCatSummary[] }));
+      const includeVisits = this._config?.show_visits === true;
+      const key = `${watchKey(this.hass, [this._entities.lastDetection, this._entities.feeding, this._entities.dishAfter])}|visits=${includeVisits}`;
+      this._timelineQuery.sync(key, () =>
+        callWS({ type: "kibble/timeline", entry_id: entryId, include_visits: includeVisits }).then((r) => r as { items: TimelineItem[] }),
+      );
     }
   }
 
   render() {
     if (!this._config || !this.hass) return nothing;
     const timelineState = this._timelineQuery.state;
-    const catsByName = new Map((this._catsQuery.state.data?.cats ?? []).map((cat) => [cat.name, cat] as const));
-    const items = timelineState.data?.items ?? [];
+    const items = filterVisits(timelineState.data?.items ?? [], this._config.show_visits === true);
     const visible = items.slice(0, this._visibleCount);
     const days = groupByDay(visible, new Date());
     const hasMore = items.length > visible.length;
@@ -112,7 +113,7 @@ export class KibbleTimelineCard extends LitElement {
           <div class="rail">
             ${timelineState.error ? this._renderError(timelineState.error) : nothing}
             ${showEmpty ? this._renderEmpty() : nothing}
-            ${days.map((day) => this._renderDay(day, catsByName))}
+            ${days.map((day) => this._renderDay(day))}
             ${hasMore ? html`<button type="button" class="show-more" @click=${this._showMore}>Show more</button>` : nothing}
           </div>
         </div>
@@ -139,34 +140,58 @@ export class KibbleTimelineCard extends LitElement {
     `;
   }
 
-  private _renderDay(day: TimelineDay, catsByName: Map<string, KibbleCatSummary>) {
+  private _renderDay(day: TimelineDay) {
     return html`
       <div class="day">
         <div class="day-label">${day.label}</div>
-        <div class="day-items">
-          ${day.items.map((item) => (item.kind === "detection" ? this._renderDetection(item, catsByName) : this._renderFeed(item)))}
-        </div>
+        <div class="day-items">${day.items.map((item) => this._renderItem(item))}</div>
       </div>
     `;
   }
 
-  private _renderDetection(item: TimelineDetectionItem, catsByName: Map<string, KibbleCatSummary>) {
-    const cat = item.cat ? catsByName.get(item.cat) : undefined;
+  private _renderItem(item: TimelineItem) {
+    if (item.kind === "identified") return this._renderIdentified(item);
+    if (item.kind === "eat") return this._renderEat(item);
+    if (item.kind === "visit") return this._renderVisit(item);
+    return this._renderFeed(item);
+  }
+
+  /** The named cat that was actually at the bowl -- no avatar (the name is already the first
+   * word of the sentence) and the *live* image from the paired eat/visit, never a stored
+   * training sample. */
+  private _renderIdentified(item: TimelineIdentifiedItem) {
     const time = this._timeLabel(item.ts);
-    const who = item.cat ?? "a cat";
     return html`
       <div class="row">
         <span class="time">${time}</span>
-        <kibble-avatar
-          class="row-avatar"
-          .hass=${this.hass}
-          .name=${item.cat}
-          .colorIndex=${cat?.color_index ?? null}
-          .entryId=${this._entryId}
-          .sampleName=${cat?.avatar ?? null}
-        ></kibble-avatar>
-        <span class="row-text">${who} ${detectionVerb(item.class)}</span>
-        ${item.image && this._entryId ? this._renderThumb(kibbleImageUrl(this._entryId, "event", item.image), `${who}, ${time}`) : nothing}
+        <span class="row-text">${detectionHeadline(item)}</span>
+        ${item.image && this._entryId ? this._renderThumb(kibbleImageUrl(this._entryId, "track", item.image), `${item.cat}, ${time}`) : nothing}
+      </div>
+    `;
+  }
+
+  /** An "eat" with nobody identified nearby -- still worth a row (food left the bowl), just
+   * never a guessed name. */
+  private _renderEat(item: TimelineEatItem) {
+    const time = this._timeLabel(item.ts);
+    return html`
+      <div class="row">
+        <span class="time">${time}</span>
+        <span class="row-text">${detectionHeadline(item)}</span>
+        ${item.image && this._entryId ? this._renderThumb(kibbleImageUrl(this._entryId, "event", item.image), `A cat, ${time}`) : nothing}
+      </div>
+    `;
+  }
+
+  /** Only ever rendered when `show_visits` opts back into the noise this card hides by
+   * default -- see `lib/timeline.ts#filterVisits`. */
+  private _renderVisit(item: TimelineVisitItem) {
+    const time = this._timeLabel(item.ts);
+    return html`
+      <div class="row">
+        <span class="time">${time}</span>
+        <span class="row-text">${detectionHeadline(item)}</span>
+        ${item.image && this._entryId ? this._renderThumb(kibbleImageUrl(this._entryId, "event", item.image), `A cat, ${time}`) : nothing}
       </div>
     `;
   }
@@ -174,13 +199,20 @@ export class KibbleTimelineCard extends LitElement {
   private _renderFeed(item: TimelineFeedItem) {
     const time = this._timeLabel(item.ts);
     const entryId = this._entryId;
+    const summary = feedSummary(item);
     return html`
       <div class="row row-feed">
         <span class="time">${time}</span>
-        <span class="row-text feed-text">${feedSummary(item)}</span>
+        <span class="row-text feed-text">
+          ${summary.headline}${summary.scheduled ? html` <span class="quiet">(scheduled)</span>` : nothing}
+        </span>
         <div class="feed-thumbs">
-          ${item.before && entryId ? this._renderThumb(kibbleImageUrl(entryId, "feed", item.before), `Bowl before the ${time} feed`) : nothing}
-          ${item.after && entryId ? this._renderThumb(kibbleImageUrl(entryId, "feed", item.after), `Bowl after the ${time} feed`) : nothing}
+          ${item.before && entryId
+            ? this._renderCaptionedThumb(kibbleImageUrl(entryId, "feed", item.before), `Bowl before the ${time} feed`, "before")
+            : nothing}
+          ${item.after && entryId
+            ? this._renderCaptionedThumb(kibbleImageUrl(entryId, "feed", item.after), `Bowl after the ${time} feed`, "after")
+            : nothing}
         </div>
       </div>
     `;
@@ -192,6 +224,15 @@ export class KibbleTimelineCard extends LitElement {
       <button type="button" class="thumb" ?disabled=${!url} aria-label=${`View photo: ${alt}`} @click=${(event: Event) => this._openLightbox(event, url, alt)}>
         ${url ? html`<img src=${url} alt="" loading="lazy" />` : nothing}
       </button>
+    `;
+  }
+
+  private _renderCaptionedThumb(path: string, alt: string, caption: string) {
+    return html`
+      <div class="thumb-slot">
+        ${this._renderThumb(path, alt)}
+        <span class="thumb-caption">${caption}</span>
+      </div>
     `;
   }
 
@@ -207,7 +248,10 @@ export class KibbleTimelineCard extends LitElement {
     const callWS = this.hass?.callWS;
     if (!callWS || !this._entryId) return;
     const entryId = this._entryId;
-    this._timelineQuery.refresh(() => callWS({ type: "kibble/timeline", entry_id: entryId }).then((r) => r as { items: TimelineItem[] }));
+    const includeVisits = this._config?.show_visits === true;
+    this._timelineQuery.refresh(() =>
+      callWS({ type: "kibble/timeline", entry_id: entryId, include_visits: includeVisits }).then((r) => r as { items: TimelineItem[] }),
+    );
   };
 
   private _openLightbox(event: Event, url: string | null, alt: string): void {
@@ -307,10 +351,6 @@ export class KibbleTimelineCard extends LitElement {
       font-variant-numeric: tabular-nums;
       color: var(--secondary-text-color);
     }
-    .row-avatar {
-      --kibble-avatar-size: 28px;
-      flex: 0 0 auto;
-    }
     .row-text {
       flex: 1 1 auto;
       min-width: 0;
@@ -328,8 +368,23 @@ export class KibbleTimelineCard extends LitElement {
     }
     .feed-thumbs {
       display: flex;
-      gap: 4px;
+      align-items: flex-start;
+      gap: 8px;
       flex: 0 0 auto;
+    }
+    .thumb-slot {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+    }
+    .thumb-caption {
+      font-size: 10px;
+      color: var(--secondary-text-color);
+    }
+    .quiet {
+      font-weight: 400;
+      color: var(--secondary-text-color);
     }
     .thumb {
       flex: 0 0 auto;
@@ -398,7 +453,7 @@ window.customCards = window.customCards || [];
 window.customCards.push({
   type: "kibble-timeline-card",
   name: "Kibble Timeline",
-  description: "Today's feeds and visits as one rail, newest first, with day separators and photos.",
+  description: "Today's feeds and who's been by, one rail, newest first, with day separators and photos.",
   preview: true,
 });
 

@@ -252,7 +252,7 @@ function localTime(hour: number, minute: number, daysAgo = 0): number {
 
 export const CATS: KibbleCatSummary[] = [
   { name: "Kitty", samples: 12, last_seen: secondsAgo(126), avatar: "1789500000-kitty.jpg", vendor_pet_id: 101321480, color_index: 0 },
-  { name: "Pancake", samples: 9, last_seen: secondsAgo(1), avatar: "1789500600-pancake.jpg", vendor_pet_id: 101321488, color_index: 1 },
+  { name: "Pancake", samples: 11, last_seen: secondsAgo(1), avatar: "1789500600-pancake.jpg", vendor_pet_id: 101321488, color_index: 1 },
 ];
 
 /** 14 pending crops, oldest first (the agent's own `GET /faces/pending` order -- "newest
@@ -289,57 +289,66 @@ function samplesFor(catName: string, count: number, startMinutesAgo: number): Ca
   });
 }
 
+/** A cat's own uploaded photos: named the way the agent's `POST /faces/upload` actually
+ * produces (`upload-<unix_ms>.jpg`, never the vendor's `<ts>-<petid>.jpg`), so the cats card's
+ * gallery has something to exercise the upload-aware remove path
+ * (`kibble/faces/delete_sample`, not `unlabel_face`) against. */
+function uploadSamplesFor(catName: string, count: number, startMinutesAgo: number): CatSample[] {
+  return Array.from({ length: count }, (_, i) => {
+    const ts = secondsAgo(startMinutesAgo + i * 20);
+    return { name: `upload-${ts}000.jpg`, ts };
+  });
+}
+
 export const SAMPLES_BY_CAT: Record<string, CatSample[]> = {
   Kitty: samplesFor("Kitty", 12, 200),
-  Pancake: samplesFor("Pancake", 9, 400),
+  Pancake: [...samplesFor("Pancake", 9, 400), ...uploadSamplesFor("Pancake", 2, 15)],
 };
 
-/** One day of merged detections + feeds, newest first (per DESIGN.md's data contract), plus a
- * couple of "yesterday" rows so day-separator grouping has more than one bucket to show. */
+/** One day of merged identifications, eats, visits and feeds, newest first (per DESIGN.md's
+ * data contract), plus a couple of "yesterday" rows so day-separator grouping has more than one
+ * bucket to show. Deliberately mixed: a named cat that ate (with its live photo), a named cat
+ * merely "at the bowl" (paired with a visit's photo, and once with no photo at all -- a fresh
+ * identification whose eat/visit hasn't been polled yet), an unnamed "eat", bare visits (only
+ * ever shown when `show_visits` is on), and feeds spanning manual/scheduled and known/unknown
+ * amounts. */
 export const TIMELINE_ITEMS: TimelineItem[] = [
-  { kind: "detection", ts: localTime(18, 4), class: "eat", cat: "Pancake", pet_id: 101321488, vendor_cat: "Pancake", image: `${localTime(18, 4)}-event.jpg` },
-  { kind: "detection", ts: localTime(17, 22), class: "visit", cat: "Pancake", pet_id: 101321488, vendor_cat: "Pancake", image: `${localTime(17, 22)}-event.jpg` },
-  { kind: "detection", ts: localTime(15, 50), class: "visit", cat: null, pet_id: null, vendor_cat: null, image: `${localTime(15, 50)}-event.jpg` },
-  { kind: "detection", ts: localTime(12, 10), class: "eat", cat: "Kitty", pet_id: 101321480, vendor_cat: "Kitty", image: `${localTime(12, 10)}-event.jpg` },
+  { kind: "identified", ts: localTime(18, 4), cat: "Pancake", paired_class: "eat", image: `${localTime(18, 4)}-event.jpg` },
+  { kind: "identified", ts: localTime(17, 22), cat: "Pancake", paired_class: "visit", image: `${localTime(17, 22)}-event.jpg` },
+  { kind: "visit", ts: localTime(15, 50), image: `${localTime(15, 50)}-event.jpg` },
+  { kind: "identified", ts: localTime(12, 10), cat: "Kitty", paired_class: "eat", image: `${localTime(12, 10)}-event.jpg` },
   {
     kind: "feed",
     ts: localTime(12, 0),
     amount: 3,
     hopper: "both",
-    outcome: null,
+    manual: true,
     before: `${localTime(12, 0)}-before.jpg`,
     after: `${localTime(12, 0)}-after.jpg`,
   },
-  { kind: "detection", ts: localTime(9, 45), class: "track", cat: "Kitty", pet_id: 101321480, vendor_cat: "Kitty", image: null },
-  { kind: "detection", ts: localTime(8, 5), class: "face", cat: null, pet_id: null, vendor_cat: null, image: `${localTime(8, 5)}-event.jpg` },
+  { kind: "identified", ts: localTime(9, 45), cat: "Kitty", paired_class: null, image: null },
+  { kind: "eat", ts: localTime(8, 5), image: `${localTime(8, 5)}-event.jpg` },
   {
     kind: "feed",
     ts: localTime(7, 30),
     amount: 5,
     hopper: "both",
-    outcome: null,
+    manual: false,
     before: `${localTime(7, 30)}-before.jpg`,
     after: `${localTime(7, 30)}-after.jpg`,
   },
-  { kind: "detection", ts: localTime(7, 28), class: "eat", cat: "Kitty", pet_id: 101321480, vendor_cat: "Kitty", image: `${localTime(7, 28)}-event.jpg` },
-  { kind: "detection", ts: localTime(19, 10, 1), class: "eat", cat: "Pancake", pet_id: 101321488, vendor_cat: "Pancake", image: `${localTime(19, 10, 1)}-event.jpg` },
+  { kind: "identified", ts: localTime(7, 28), cat: "Kitty", paired_class: "eat", image: `${localTime(7, 28)}-event.jpg` },
+  { kind: "identified", ts: localTime(19, 10, 1), cat: "Pancake", paired_class: "eat", image: `${localTime(19, 10, 1)}-event.jpg` },
   {
     kind: "feed",
     ts: localTime(18, 0, 1),
     amount: 5,
     hopper: "1",
-    outcome: null,
+    manual: true,
     before: `${localTime(18, 0, 1)}-before.jpg`,
     after: `${localTime(18, 0, 1)}-after.jpg`,
   },
-  { kind: "detection", ts: localTime(12, 15, 1), class: "eat", cat: "Kitty", pet_id: 101321480, vendor_cat: "Kitty", image: `${localTime(12, 15, 1)}-event.jpg` },
-  {
-    kind: "feed",
-    ts: localTime(7, 30, 1),
-    amount: null,
-    hopper: null,
-    outcome: null,
-    before: null,
-    after: null,
-  },
+  { kind: "eat", ts: localTime(12, 15, 1), image: `${localTime(12, 15, 1)}-event.jpg` },
+  { kind: "feed", ts: localTime(7, 30, 1), amount: null, hopper: null, manual: false, before: null, after: null },
+  { kind: "visit", ts: localTime(7, 10, 1), image: null },
 ];

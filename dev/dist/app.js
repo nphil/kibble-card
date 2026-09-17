@@ -9808,17 +9808,21 @@ var KibbleCardEditor = class extends i4 {
   }
 };
 customElements.define("kibble-card-editor", KibbleCardEditor);
-function detectionVerb(detectionClass) {
-  if (detectionClass === "eat") return "ate";
-  if (detectionClass === "visit") return "came by";
-  if (detectionClass === "face" || detectionClass === "track") return "identified";
-  return "was seen";
+function detectionHeadline(item) {
+  if (item.kind === "identified") return `${item.cat} ${item.paired_class === "eat" ? "ate" : "was at the bowl"}`;
+  if (item.kind === "eat") return "A cat ate";
+  return "A cat came by";
+}
+function filterVisits(items, showVisits) {
+  if (showVisits) return items;
+  return items.filter((item) => item.kind !== "visit");
 }
 function feedSummary(item) {
-  if (item.amount == null) return "Fed";
+  const scheduled = !item.manual;
+  if (item.amount == null) return { headline: "Fed", scheduled };
   const portionWord = item.amount === 1 ? "portion" : "portions";
   const hopperClause = item.hopper && item.hopper !== "both" ? ` from hopper ${item.hopper}` : "";
-  return `Fed ${item.amount} ${portionWord}${hopperClause}`;
+  return { headline: `Fed ${item.amount} ${portionWord}${hopperClause}`, scheduled };
 }
 function dayKey(date) {
   return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
@@ -9962,12 +9966,14 @@ customElements.define("kibble-lightbox", KibbleLightbox);
 var SCHEMA2 = [
   { name: "device_id", required: true, selector: { device: { filter: { integration: "kibble" } } } },
   { name: "name", selector: { text: {} } },
-  { name: "limit", selector: { number: { min: 1, mode: "box" } } }
+  { name: "limit", selector: { number: { min: 1, mode: "box" } } },
+  { name: "show_visits", selector: { boolean: {} } }
 ];
 var FIELD_LABELS2 = {
   device_id: "Kibble device",
   name: "Name (optional)",
-  limit: "Rows before \u201CShow more\u201D (optional, default 30)"
+  limit: "Rows before \u201CShow more\u201D (optional, default 30)",
+  show_visits: "Show bare \u201Ca cat came by\u201D rows (optional, default off)"
 };
 var KibbleTimelineCardEditor = class extends i4 {
   constructor() {
@@ -10031,6 +10037,14 @@ var KibbleTimelineCardEditor = class extends i4 {
             @change=${(event) => this._updateLimit(event.target.value)}
           />
         </label>
+        <label class="checkbox">
+          <input
+            type="checkbox"
+            .checked=${this._config?.show_visits ?? false}
+            @change=${(event) => this._updateShowVisits(event.target.checked)}
+          />
+          <span>Show bare "a cat came by" rows</span>
+        </label>
       </div>
     `;
   }
@@ -10054,6 +10068,11 @@ var KibbleTimelineCardEditor = class extends i4 {
     this._config = { ...this._config, limit: value && Number.isFinite(parsed) ? parsed : void 0 };
     this._fireConfigChanged();
   }
+  _updateShowVisits(value) {
+    if (!this._config) return;
+    this._config = { ...this._config, show_visits: value ? true : void 0 };
+    this._fireConfigChanged();
+  }
   _fireConfigChanged() {
     this.dispatchEvent(new CustomEvent("config-changed", { detail: { config: this._config }, bubbles: true, composed: true }));
   }
@@ -10073,7 +10092,7 @@ var KibbleTimelineCardEditor = class extends i4 {
       color: var(--primary-text-color);
     }
     select,
-    input {
+    input:not([type="checkbox"]) {
       min-height: 40px;
       border-radius: 8px;
       border: 1px solid var(--divider-color);
@@ -10081,6 +10100,15 @@ var KibbleTimelineCardEditor = class extends i4 {
       color: var(--primary-text-color);
       padding: 0 10px;
       font: inherit;
+    }
+    .checkbox {
+      flex-direction: row;
+      align-items: center;
+      gap: 8px;
+    }
+    .checkbox input {
+      width: 18px;
+      height: 18px;
     }
   `;
   }
@@ -10093,7 +10121,6 @@ var KibbleTimelineCard = class extends i4 {
     super();
     this._entities = EMPTY_ENTITIES;
     this._timelineQuery = new WsQuery(() => this.requestUpdate());
-    this._catsQuery = new WsQuery(() => this.requestUpdate());
     this._imageCache = new ImageUrlCache();
     this._lightboxTrigger = null;
     this._showMore = () => {
@@ -10103,7 +10130,10 @@ var KibbleTimelineCard = class extends i4 {
       const callWS = this.hass?.callWS;
       if (!callWS || !this._entryId) return;
       const entryId = this._entryId;
-      this._timelineQuery.refresh(() => callWS({ type: "kibble/timeline", entry_id: entryId }).then((r6) => r6));
+      const includeVisits = this._config?.show_visits === true;
+      this._timelineQuery.refresh(
+        () => callWS({ type: "kibble/timeline", entry_id: entryId, include_visits: includeVisits }).then((r6) => r6)
+      );
     };
     this._closeLightbox = () => {
       this._lightboxUrl = null;
@@ -10152,16 +10182,18 @@ var KibbleTimelineCard = class extends i4 {
     const callWS = this.hass?.callWS;
     if (this.hass && this._entryId && callWS) {
       const entryId = this._entryId;
-      const key = watchKey(this.hass, [this._entities.lastDetection, this._entities.feeding, this._entities.dishAfter]);
-      this._timelineQuery.sync(key, () => callWS({ type: "kibble/timeline", entry_id: entryId }).then((r6) => r6));
-      this._catsQuery.sync(key, () => callWS({ type: "kibble/cats", entry_id: entryId }).then((r6) => r6));
+      const includeVisits = this._config?.show_visits === true;
+      const key = `${watchKey(this.hass, [this._entities.lastDetection, this._entities.feeding, this._entities.dishAfter])}|visits=${includeVisits}`;
+      this._timelineQuery.sync(
+        key,
+        () => callWS({ type: "kibble/timeline", entry_id: entryId, include_visits: includeVisits }).then((r6) => r6)
+      );
     }
   }
   render() {
     if (!this._config || !this.hass) return A;
     const timelineState = this._timelineQuery.state;
-    const catsByName = new Map((this._catsQuery.state.data?.cats ?? []).map((cat) => [cat.name, cat]));
-    const items = timelineState.data?.items ?? [];
+    const items = filterVisits(timelineState.data?.items ?? [], this._config.show_visits === true);
     const visible = items.slice(0, this._visibleCount);
     const days = groupByDay(visible, /* @__PURE__ */ new Date());
     const hasMore = items.length > visible.length;
@@ -10173,7 +10205,7 @@ var KibbleTimelineCard = class extends i4 {
           <div class="rail">
             ${timelineState.error ? this._renderError(timelineState.error) : A}
             ${showEmpty ? this._renderEmpty() : A}
-            ${days.map((day) => this._renderDay(day, catsByName))}
+            ${days.map((day) => this._renderDay(day))}
             ${hasMore ? b2`<button type="button" class="show-more" @click=${this._showMore}>Show more</button>` : A}
           </div>
         </div>
@@ -10197,46 +10229,70 @@ var KibbleTimelineCard = class extends i4 {
       </div>
     `;
   }
-  _renderDay(day, catsByName) {
+  _renderDay(day) {
     return b2`
       <div class="day">
         <div class="day-label">${day.label}</div>
-        <div class="day-items">
-          ${day.items.map((item) => item.kind === "detection" ? this._renderDetection(item, catsByName) : this._renderFeed(item))}
-        </div>
+        <div class="day-items">${day.items.map((item) => this._renderItem(item))}</div>
       </div>
     `;
   }
-  _renderDetection(item, catsByName) {
-    const cat = item.cat ? catsByName.get(item.cat) : void 0;
+  _renderItem(item) {
+    if (item.kind === "identified") return this._renderIdentified(item);
+    if (item.kind === "eat") return this._renderEat(item);
+    if (item.kind === "visit") return this._renderVisit(item);
+    return this._renderFeed(item);
+  }
+  /** The named cat that was actually at the bowl -- no avatar (the name is already the first
+   * word of the sentence) and the *live* image from the paired eat/visit, never a stored
+   * training sample. */
+  _renderIdentified(item) {
     const time = this._timeLabel(item.ts);
-    const who = item.cat ?? "a cat";
     return b2`
       <div class="row">
         <span class="time">${time}</span>
-        <kibble-avatar
-          class="row-avatar"
-          .hass=${this.hass}
-          .name=${item.cat}
-          .colorIndex=${cat?.color_index ?? null}
-          .entryId=${this._entryId}
-          .sampleName=${cat?.avatar ?? null}
-        ></kibble-avatar>
-        <span class="row-text">${who} ${detectionVerb(item.class)}</span>
-        ${item.image && this._entryId ? this._renderThumb(kibbleImageUrl(this._entryId, "event", item.image), `${who}, ${time}`) : A}
+        <span class="row-text">${detectionHeadline(item)}</span>
+        ${item.image && this._entryId ? this._renderThumb(kibbleImageUrl(this._entryId, "track", item.image), `${item.cat}, ${time}`) : A}
+      </div>
+    `;
+  }
+  /** An "eat" with nobody identified nearby -- still worth a row (food left the bowl), just
+   * never a guessed name. */
+  _renderEat(item) {
+    const time = this._timeLabel(item.ts);
+    return b2`
+      <div class="row">
+        <span class="time">${time}</span>
+        <span class="row-text">${detectionHeadline(item)}</span>
+        ${item.image && this._entryId ? this._renderThumb(kibbleImageUrl(this._entryId, "event", item.image), `A cat, ${time}`) : A}
+      </div>
+    `;
+  }
+  /** Only ever rendered when `show_visits` opts back into the noise this card hides by
+   * default -- see `lib/timeline.ts#filterVisits`. */
+  _renderVisit(item) {
+    const time = this._timeLabel(item.ts);
+    return b2`
+      <div class="row">
+        <span class="time">${time}</span>
+        <span class="row-text">${detectionHeadline(item)}</span>
+        ${item.image && this._entryId ? this._renderThumb(kibbleImageUrl(this._entryId, "event", item.image), `A cat, ${time}`) : A}
       </div>
     `;
   }
   _renderFeed(item) {
     const time = this._timeLabel(item.ts);
     const entryId = this._entryId;
+    const summary = feedSummary(item);
     return b2`
       <div class="row row-feed">
         <span class="time">${time}</span>
-        <span class="row-text feed-text">${feedSummary(item)}</span>
+        <span class="row-text feed-text">
+          ${summary.headline}${summary.scheduled ? b2` <span class="quiet">(scheduled)</span>` : A}
+        </span>
         <div class="feed-thumbs">
-          ${item.before && entryId ? this._renderThumb(kibbleImageUrl(entryId, "feed", item.before), `Bowl before the ${time} feed`) : A}
-          ${item.after && entryId ? this._renderThumb(kibbleImageUrl(entryId, "feed", item.after), `Bowl after the ${time} feed`) : A}
+          ${item.before && entryId ? this._renderCaptionedThumb(kibbleImageUrl(entryId, "feed", item.before), `Bowl before the ${time} feed`, "before") : A}
+          ${item.after && entryId ? this._renderCaptionedThumb(kibbleImageUrl(entryId, "feed", item.after), `Bowl after the ${time} feed`, "after") : A}
         </div>
       </div>
     `;
@@ -10247,6 +10303,14 @@ var KibbleTimelineCard = class extends i4 {
       <button type="button" class="thumb" ?disabled=${!url} aria-label=${`View photo: ${alt}`} @click=${(event) => this._openLightbox(event, url, alt)}>
         ${url ? b2`<img src=${url} alt="" loading="lazy" />` : A}
       </button>
+    `;
+  }
+  _renderCaptionedThumb(path, alt, caption) {
+    return b2`
+      <div class="thumb-slot">
+        ${this._renderThumb(path, alt)}
+        <span class="thumb-caption">${caption}</span>
+      </div>
     `;
   }
   _timeLabel(ts) {
@@ -10343,10 +10407,6 @@ var KibbleTimelineCard = class extends i4 {
       font-variant-numeric: tabular-nums;
       color: var(--secondary-text-color);
     }
-    .row-avatar {
-      --kibble-avatar-size: 28px;
-      flex: 0 0 auto;
-    }
     .row-text {
       flex: 1 1 auto;
       min-width: 0;
@@ -10364,8 +10424,23 @@ var KibbleTimelineCard = class extends i4 {
     }
     .feed-thumbs {
       display: flex;
-      gap: 4px;
+      align-items: flex-start;
+      gap: 8px;
       flex: 0 0 auto;
+    }
+    .thumb-slot {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+    }
+    .thumb-caption {
+      font-size: 10px;
+      color: var(--secondary-text-color);
+    }
+    .quiet {
+      font-weight: 400;
+      color: var(--secondary-text-color);
     }
     .thumb {
       flex: 0 0 auto;
@@ -10445,6 +10520,431 @@ function chooseSuggestion(crop, confidence) {
   }
   return null;
 }
+var CROP_SIZE_PX = 224;
+var INITIAL_SELECTION_FRACTION = 0.7;
+var MIN_SELECTION_FRACTION = 0.15;
+var KibbleCropDialog = class extends i4 {
+  constructor() {
+    super();
+    this._imgRef = e5();
+    this._canvasRef = e5();
+    this._cancelButtonRef = e5();
+    this._objectUrl = null;
+    this._resolvedFile = null;
+    this._naturalWidth = 0;
+    this._naturalHeight = 0;
+    this._selection = null;
+    this._lastBlob = null;
+    this._dragState = null;
+    this._keydownHandler = (event) => {
+      if (event.key === "Escape" && this.open) {
+        event.preventDefault();
+        this._close();
+      }
+    };
+    this._onImageLoad = () => {
+      const img = this._imgRef.value;
+      if (!img) return;
+      this._naturalWidth = img.naturalWidth;
+      this._naturalHeight = img.naturalHeight;
+      const size = Math.min(this._naturalWidth, this._naturalHeight) * INITIAL_SELECTION_FRACTION;
+      this._selection = { x: (this._naturalWidth - size) / 2, y: (this._naturalHeight - size) / 2, size };
+      this.requestUpdate();
+      this._drawPreview();
+    };
+    this._onPointerMove = (event) => {
+      const drag = this._dragState;
+      if (!drag || drag.pointerId !== event.pointerId || drag.scale === 0) return;
+      event.preventDefault();
+      const dx = (event.clientX - drag.startClientX) / drag.scale;
+      const dy = (event.clientY - drag.startClientY) / drag.scale;
+      if (drag.mode === "move") {
+        this._selection = this._clamp({ ...drag.startSelection, x: drag.startSelection.x + dx, y: drag.startSelection.y + dy });
+      } else {
+        const delta = Math.max(dx, dy);
+        this._selection = this._clamp({ ...drag.startSelection, size: drag.startSelection.size + delta });
+      }
+      this.requestUpdate();
+      this._drawPreview();
+    };
+    this._endDrag = (event) => {
+      if (this._dragState?.pointerId === event.pointerId) this._dragState = null;
+    };
+    this._onSelectionKeydown = (event) => {
+      if (!this._selection || this._naturalWidth === 0) return;
+      const step = Math.max(2, Math.round(Math.min(this._naturalWidth, this._naturalHeight) * 0.02));
+      const sel = { ...this._selection };
+      switch (event.key) {
+        case "ArrowLeft":
+          sel.x -= step;
+          break;
+        case "ArrowRight":
+          sel.x += step;
+          break;
+        case "ArrowUp":
+          sel.y -= step;
+          break;
+        case "ArrowDown":
+          sel.y += step;
+          break;
+        case "+":
+        case "=":
+          sel.x -= step / 2;
+          sel.y -= step / 2;
+          sel.size += step;
+          break;
+        case "-":
+        case "_":
+          sel.x += step / 2;
+          sel.y += step / 2;
+          sel.size -= step;
+          break;
+        default:
+          return;
+      }
+      event.preventDefault();
+      this._selection = this._clamp(sel);
+      this.requestUpdate();
+      this._drawPreview();
+    };
+    this._useCrop = () => {
+      const canvas = this._canvasRef.value;
+      if (!canvas || !this._selection) return;
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) return;
+          this._lastBlob = blob;
+          this.dispatchEvent(new CustomEvent("use-crop", { detail: { blob }, bubbles: true, composed: true }));
+        },
+        "image/jpeg",
+        0.9
+      );
+    };
+    this._retry = () => {
+      if (!this._lastBlob) return;
+      this.dispatchEvent(new CustomEvent("use-crop", { detail: { blob: this._lastBlob }, bubbles: true, composed: true }));
+    };
+    this._close = () => {
+      this.dispatchEvent(new CustomEvent("close-requested", { bubbles: true, composed: true }));
+    };
+    this.open = false;
+    this.file = null;
+    this.catName = null;
+    this.queueIndex = 0;
+    this.queueTotal = 1;
+    this.busy = false;
+    this.error = null;
+  }
+  static {
+    this.properties = {
+      open: { type: Boolean, reflect: true },
+      file: { attribute: false },
+      catName: { type: String, attribute: "cat-name" },
+      queueIndex: { type: Number, attribute: "queue-index" },
+      queueTotal: { type: Number, attribute: "queue-total" },
+      busy: { type: Boolean },
+      error: { type: String }
+    };
+  }
+  connectedCallback() {
+    super.connectedCallback();
+    window.addEventListener("keydown", this._keydownHandler);
+  }
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    window.removeEventListener("keydown", this._keydownHandler);
+    if (this._objectUrl) URL.revokeObjectURL(this._objectUrl);
+  }
+  willUpdate() {
+    if (this.file !== this._resolvedFile) {
+      this._resolvedFile = this.file;
+      if (this._objectUrl) URL.revokeObjectURL(this._objectUrl);
+      this._objectUrl = this.file ? URL.createObjectURL(this.file) : null;
+      this._naturalWidth = 0;
+      this._naturalHeight = 0;
+      this._selection = null;
+      this._lastBlob = null;
+    }
+  }
+  updated(changed) {
+    if (changed.has("open") && this.open) {
+      this._cancelButtonRef.value?.focus();
+    }
+  }
+  render() {
+    if (!this.open) return A;
+    const showQueue = this.queueTotal > 1;
+    const isLast = this.queueIndex >= this.queueTotal - 1;
+    return b2`
+      <div class="backdrop" @click=${this._close} role="dialog" aria-modal="true" aria-label=${`Crop a photo of ${this.catName ?? "this cat"}`}>
+        <div class="sheet" @click=${(event) => event.stopPropagation()}>
+          <div class="heading">
+            <span>Add a photo of ${this.catName ?? "this cat"}</span>
+            ${showQueue ? b2`<span class="queue">Photo ${this.queueIndex + 1} of ${this.queueTotal}</span>` : A}
+          </div>
+          <div class="stage">
+            ${this._objectUrl ? b2`<img ${n5(this._imgRef)} src=${this._objectUrl} alt="" @load=${this._onImageLoad} />` : A}
+            ${this._selection ? this._renderSelection() : A}
+          </div>
+          <div class="preview-row">
+            <canvas ${n5(this._canvasRef)} class="preview" width=${CROP_SIZE_PX} height=${CROP_SIZE_PX} aria-hidden="true"></canvas>
+            <p class="hint">
+              Drag the square to cover the cat's face, drag its corner to resize. This becomes the training photo
+              -- ${CROP_SIZE_PX}\u00d7${CROP_SIZE_PX}.
+            </p>
+          </div>
+          ${this.error ? b2`
+                <div class="error">
+                  <span>${this.error}</span>
+                  <button type="button" @click=${this._retry}>Try again</button>
+                </div>
+              ` : A}
+          <div class="actions">
+            <button type="button" class="cancel" ${n5(this._cancelButtonRef)} ?disabled=${this.busy} @click=${this._close}>
+              ${showQueue && !isLast ? "Skip" : "Cancel"}
+            </button>
+            <button type="button" class="use" ?disabled=${this.busy || !this._selection} @click=${this._useCrop}>
+              ${this.busy ? "Uploading\u2026" : "Use this crop"}
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+  _renderSelection() {
+    const img = this._imgRef.value;
+    const sel = this._selection;
+    if (!img || !sel || this._naturalWidth === 0) return A;
+    const imgRect = img.getBoundingClientRect();
+    const stageRect = img.parentElement.getBoundingClientRect();
+    const scale = imgRect.width / this._naturalWidth;
+    const left = imgRect.left - stageRect.left + sel.x * scale;
+    const top = imgRect.top - stageRect.top + sel.y * scale;
+    const size = sel.size * scale;
+    return b2`
+      <div
+        class="selection"
+        tabindex="0"
+        role="group"
+        aria-label="Face crop area"
+        style="left: ${left}px; top: ${top}px; width: ${size}px; height: ${size}px;"
+        @pointerdown=${(event) => this._beginDrag(event, "move")}
+        @pointermove=${this._onPointerMove}
+        @pointerup=${this._endDrag}
+        @pointercancel=${this._endDrag}
+        @keydown=${this._onSelectionKeydown}
+      >
+        <div
+          class="handle"
+          @pointerdown=${(event) => this._beginDrag(event, "resize")}
+          @pointermove=${this._onPointerMove}
+          @pointerup=${this._endDrag}
+          @pointercancel=${this._endDrag}
+        ></div>
+      </div>
+    `;
+  }
+  _beginDrag(event, mode) {
+    if (mode === "resize") event.stopPropagation();
+    const img = this._imgRef.value;
+    if (!img || !this._selection || this._naturalWidth === 0) return;
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    this._dragState = {
+      mode,
+      pointerId: event.pointerId,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      startSelection: { ...this._selection },
+      scale: img.getBoundingClientRect().width / this._naturalWidth
+    };
+  }
+  _clamp(sel) {
+    const maxSize = Math.min(this._naturalWidth, this._naturalHeight);
+    const minSize = Math.max(8, maxSize * MIN_SELECTION_FRACTION);
+    const size = Math.min(Math.max(sel.size, minSize), maxSize);
+    const x2 = Math.min(Math.max(sel.x, 0), this._naturalWidth - size);
+    const y3 = Math.min(Math.max(sel.y, 0), this._naturalHeight - size);
+    return { x: x2, y: y3, size };
+  }
+  _drawPreview() {
+    const canvas = this._canvasRef.value;
+    const img = this._imgRef.value;
+    const sel = this._selection;
+    if (!canvas || !img || !sel) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.clearRect(0, 0, CROP_SIZE_PX, CROP_SIZE_PX);
+    ctx.drawImage(img, sel.x, sel.y, sel.size, sel.size, 0, 0, CROP_SIZE_PX, CROP_SIZE_PX);
+  }
+  static {
+    this.styles = i`
+    :host {
+      display: contents;
+    }
+    .backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.6);
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      z-index: 1000;
+      box-sizing: border-box;
+    }
+    @media (min-width: 480px) {
+      .backdrop {
+        align-items: center;
+        padding: 24px;
+      }
+    }
+    .sheet {
+      width: 100%;
+      max-width: 420px;
+      max-height: 92vh;
+      overflow-y: auto;
+      background: var(--ha-card-background, var(--card-background-color, #fff));
+      border-radius: 16px 16px 0 0;
+      padding: 16px;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    @media (min-width: 480px) {
+      .sheet {
+        border-radius: 16px;
+      }
+    }
+    .heading {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--primary-text-color);
+    }
+    .queue {
+      font-size: 12px;
+      font-weight: 400;
+      color: var(--secondary-text-color);
+      white-space: nowrap;
+    }
+    .stage {
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #000;
+      border-radius: 8px;
+      max-height: 50vh;
+    }
+    .stage img {
+      display: block;
+      max-width: 100%;
+      max-height: 50vh;
+      user-select: none;
+      -webkit-user-drag: none;
+    }
+    .selection {
+      position: absolute;
+      box-sizing: border-box;
+      border: 2px solid #fff;
+      box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.55);
+      cursor: move;
+      touch-action: none;
+    }
+    .selection:focus-visible {
+      outline: 2px solid var(--primary-color, #03a9f4);
+      outline-offset: 2px;
+    }
+    .handle {
+      position: absolute;
+      right: -9px;
+      bottom: -9px;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: #fff;
+      border: 2px solid var(--primary-color, #03a9f4);
+      cursor: nwse-resize;
+      touch-action: none;
+    }
+    .preview-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .preview {
+      flex: 0 0 auto;
+      width: 72px;
+      height: 72px;
+      border-radius: 8px;
+      background: color-mix(in srgb, var(--primary-text-color) 8%, transparent);
+    }
+    .hint {
+      margin: 0;
+      font-size: 12px;
+      color: var(--secondary-text-color);
+    }
+    .error {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      background: color-mix(in srgb, var(--error-color, #db4437) 10%, transparent);
+      color: var(--error-color, #db4437);
+      font-size: 13px;
+    }
+    .error button {
+      flex: 0 0 auto;
+      border: 1px solid currentColor;
+      background: none;
+      color: inherit;
+      border-radius: 8px;
+      padding: 6px 10px;
+      font: inherit;
+      cursor: pointer;
+      min-height: 36px;
+    }
+    .actions {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+    .actions button {
+      min-height: 44px;
+      border-radius: 8px;
+      border: none;
+      font: inherit;
+      font-weight: 600;
+      cursor: pointer;
+      padding: 0 16px;
+    }
+    .cancel {
+      background: color-mix(in srgb, var(--primary-text-color) 8%, transparent);
+      color: var(--primary-text-color);
+    }
+    .use {
+      background: color-mix(in srgb, var(--primary-color, #03a9f4) 14%, transparent);
+      color: var(--primary-color, #03a9f4);
+    }
+    .actions button:disabled {
+      opacity: 0.5;
+      cursor: default;
+    }
+    .actions button:focus-visible {
+      outline: 2px solid var(--primary-color, #03a9f4);
+      outline-offset: 2px;
+    }
+  `;
+  }
+};
+customElements.define("kibble-crop-dialog", KibbleCropDialog);
 var KibbleFacePicker = class extends i4 {
   constructor() {
     super();
@@ -10738,6 +11238,7 @@ customElements.define("kibble-cats-card-editor", KibbleCatsCardEditor);
 var EMPTY_ENTITIES2 = { deviceId: "", catPresence: [] };
 var DEFAULT_CONFIDENCE = 0.7;
 var UNDO_WINDOW_MS = 5e3;
+var DELETE_CONFIRM_WINDOW_MS = 3e3;
 var KibbleCatsCard = class extends i4 {
   constructor() {
     super();
@@ -10748,6 +11249,49 @@ var KibbleCatsCard = class extends i4 {
     this._imageCache = new ImageUrlCache();
     this._lastPendingData = null;
     this._pickerTrigger = null;
+    this._fileInputRef = e5();
+    this._onCatMenuFocusOut = (event) => {
+      const container = event.currentTarget;
+      const next = event.relatedTarget;
+      if (!next || !container.contains(next)) this._closeCatMenu();
+    };
+    this._onCatMenuKeydown = (event) => {
+      if (event.key !== "Escape") return;
+      const trigger = event.currentTarget.querySelector(".cat-menu-trigger");
+      this._closeCatMenu();
+      trigger?.focus();
+    };
+    this._onFilesChosen = (event) => {
+      const input = event.target;
+      const files = input.files ? Array.from(input.files).filter((file) => file.type.startsWith("image/")) : [];
+      input.value = "";
+      if (files.length === 0) return;
+      this._uploadQueue = files;
+      this._uploadQueueTotal = files.length;
+      this._uploadError = null;
+    };
+    this._onUseCrop = (event) => {
+      const cat = this._uploadCat;
+      if (!cat) return;
+      this._uploadBusy = true;
+      this._uploadError = null;
+      this._blobToBase64(event.detail.blob).then((jpegB64) => {
+        const request = this._callWS("kibble/faces/upload", { cat, jpeg_b64: jpegB64 });
+        if (!request) throw new Error("Not connected.");
+        return request;
+      }).then((result) => {
+        this._uploadBusy = false;
+        if (result.low_quality) this._uploadNotice = "The model isn't confident this is a face.";
+        this._advanceUploadQueue();
+        this._refreshAll();
+      }).catch((err) => {
+        this._uploadBusy = false;
+        this._uploadError = describeWsError(err);
+      });
+    };
+    this._onCropDialogClosed = () => {
+      this._advanceUploadQueue();
+    };
     this._closePicker = () => {
       this._pickerCrop = null;
       this._pickerTrigger?.focus();
@@ -10765,6 +11309,14 @@ var KibbleCatsCard = class extends i4 {
     this._addBusy = false;
     this._addError = null;
     this._actionError = null;
+    this._openMenuFor = null;
+    this._deleteConfirmFor = null;
+    this._uploadQueue = [];
+    this._uploadQueueTotal = 0;
+    this._uploadCat = null;
+    this._uploadBusy = false;
+    this._uploadError = null;
+    this._uploadNotice = null;
   }
   static {
     this.properties = {
@@ -10776,7 +11328,15 @@ var KibbleCatsCard = class extends i4 {
       _addName: { state: true },
       _addBusy: { state: true },
       _addError: { state: true },
-      _actionError: { state: true }
+      _actionError: { state: true },
+      _openMenuFor: { state: true },
+      _deleteConfirmFor: { state: true },
+      _uploadQueue: { state: true },
+      _uploadQueueTotal: { state: true },
+      _uploadCat: { state: true },
+      _uploadBusy: { state: true },
+      _uploadError: { state: true },
+      _uploadNotice: { state: true }
     };
   }
   setConfig(config) {
@@ -10799,6 +11359,7 @@ var KibbleCatsCard = class extends i4 {
     super.disconnectedCallback();
     this._imageCache.dispose();
     clearTimeout(this._undoTimer);
+    clearTimeout(this._deleteConfirmTimer);
   }
   _confidence() {
     return this._config?.confidence ?? DEFAULT_CONFIDENCE;
@@ -10836,11 +11397,14 @@ var KibbleCatsCard = class extends i4 {
     const presentNames = new Set(
       this._entities.catPresence.filter((p3) => this.hass.states[p3.entityId]?.state === "on").map((p3) => p3.name)
     );
+    const uploadFile = this._uploadQueue[0] ?? null;
+    const uploadIndex = this._uploadQueueTotal - this._uploadQueue.length;
     return b2`
       <ha-card>
         <div class="container">
           ${this._config.name ? b2`<div class="label">${this._config.name}</div>` : A}
           ${this._actionError ? this._renderActionError() : A}
+          ${this._uploadNotice ? this._renderUploadNotice() : A}
           <section class="header">
             ${cats.length === 0 ? b2`<p class="empty">No cats yet. Add one to start training.</p>` : b2`<div class="cat-list">${cats.map((cat) => this._renderCatHeader(cat, presentNames.has(cat.name)))}</div>`}
             ${this._renderAddCat()}
@@ -10864,6 +11428,18 @@ var KibbleCatsCard = class extends i4 {
         @choice=${this._onPickerChoice}
         @close-requested=${this._closePicker}
       ></kibble-face-picker>
+      <input type="file" accept="image/*" multiple class="visually-hidden" ${n5(this._fileInputRef)} @change=${this._onFilesChosen} />
+      <kibble-crop-dialog
+        ?open=${uploadFile !== null}
+        .file=${uploadFile}
+        .catName=${this._uploadCat}
+        .queueIndex=${uploadIndex}
+        .queueTotal=${this._uploadQueueTotal}
+        .busy=${this._uploadBusy}
+        .error=${this._uploadError}
+        @use-crop=${this._onUseCrop}
+        @close-requested=${this._onCropDialogClosed}
+      ></kibble-crop-dialog>
     `;
   }
   _renderCatHeader(cat, present) {
@@ -10881,6 +11457,19 @@ var KibbleCatsCard = class extends i4 {
         <div class="cat-text">
           <span class="cat-name">${cat.name}</span>
           <span class="cat-meta">${cat.samples === 1 ? "1 sample" : `${cat.samples} samples`}, ${seen}</span>
+        </div>
+        <div class="cat-menu" @focusout=${this._onCatMenuFocusOut} @keydown=${this._onCatMenuKeydown}>
+          <button
+            type="button"
+            class="cat-menu-trigger"
+            aria-haspopup="menu"
+            aria-expanded=${this._openMenuFor === cat.name}
+            aria-label=${`Options for ${cat.name}`}
+            @click=${() => this._toggleCatMenu(cat.name)}
+          >
+            &#8942;
+          </button>
+          ${this._openMenuFor === cat.name ? this._renderCatMenu(cat) : A}
         </div>
       </div>
     `;
@@ -10918,6 +11507,101 @@ var KibbleCatsCard = class extends i4 {
     } finally {
       this._addBusy = false;
     }
+  }
+  _renderCatMenu(cat) {
+    const confirming = this._deleteConfirmFor === cat.name;
+    return b2`
+      <div class="menu" role="menu">
+        <button type="button" role="menuitem" @click=${() => this._startAddPhotos(cat.name)}>Add photos</button>
+        <button type="button" role="menuitem" class="danger ${confirming ? "confirming" : ""}" @click=${() => this._onDeleteCatClick(cat.name)}>
+          ${confirming ? "Tap again to delete" : "Delete cat\u2026"}
+        </button>
+      </div>
+    `;
+  }
+  _toggleCatMenu(name) {
+    this._openMenuFor = this._openMenuFor === name ? null : name;
+  }
+  _closeCatMenu() {
+    this._openMenuFor = null;
+    clearTimeout(this._deleteConfirmTimer);
+    this._deleteConfirmFor = null;
+  }
+  /** Tap-twice confirm, the same window/pattern `kibble-settings-dialog`'s cloud toggle uses --
+   * deleting a cat is destructive (it drops every labelled sample and the classifier model) so
+   * it needs a second, deliberate tap rather than a single accidental one. */
+  _onDeleteCatClick(name) {
+    if (this._deleteConfirmFor === name) {
+      clearTimeout(this._deleteConfirmTimer);
+      this._deleteConfirmFor = null;
+      this._openMenuFor = null;
+      this._deleteCat(name);
+      return;
+    }
+    this._deleteConfirmFor = name;
+    this._deleteConfirmTimer = setTimeout(() => {
+      this._deleteConfirmFor = null;
+      this.requestUpdate();
+    }, DELETE_CONFIRM_WINDOW_MS);
+  }
+  _deleteCat(name) {
+    const request = this._callWS("kibble/cats/delete", { name });
+    if (!request) return;
+    request.then(() => {
+      this._sampleQueries.delete(name);
+      this._refreshCats();
+    }).catch((err) => {
+      this._actionError = { message: `Couldn't delete ${name}. ${describeWsError(err)}`, retry: () => this._deleteCat(name) };
+    });
+  }
+  _startAddPhotos(name) {
+    this._openMenuFor = null;
+    this._uploadCat = name;
+    this._fileInputRef.value?.click();
+  }
+  _advanceUploadQueue() {
+    this._uploadQueue = this._uploadQueue.slice(1);
+    this._uploadError = null;
+    if (this._uploadQueue.length === 0) {
+      this._uploadCat = null;
+      this._uploadQueueTotal = 0;
+    }
+  }
+  /** Pure base64, no `data:` URL prefix -- the integration base64-decodes this straight into
+   * the raw JPEG bytes `POST /faces/upload` expects. */
+  _blobToBase64(blob) {
+    return blob.arrayBuffer().then((buffer) => {
+      const bytes = new Uint8Array(buffer);
+      let binary = "";
+      for (let i6 = 0; i6 < bytes.length; i6++) binary += String.fromCharCode(bytes[i6]);
+      return btoa(binary);
+    });
+  }
+  /** Shared `entry_id`-injecting wrapper for the three cat-management commands this card calls
+   * over WS directly (delete cat, upload a sample, delete an uploaded sample) -- `null` when
+   * the connection or entry isn't resolved yet, the same guard every WS call site here already
+   * repeats individually. */
+  _callWS(type, payload) {
+    const callWS = this.hass?.callWS;
+    const entryId = this._entryId;
+    if (!callWS || !entryId) return null;
+    return callWS({ type, entry_id: entryId, ...payload }).then((r6) => r6);
+  }
+  _renderUploadNotice() {
+    return b2`
+      <div class="notice">
+        <span>${this._uploadNotice}</span>
+        <button
+          type="button"
+          aria-label="Dismiss"
+          @click=${() => {
+      this._uploadNotice = null;
+    }}
+        >
+          &times;
+        </button>
+      </div>
+    `;
   }
   _renderCrop(crop) {
     const suggestion = chooseSuggestion(crop, this._confidence());
@@ -11060,7 +11744,18 @@ var KibbleCatsCard = class extends i4 {
       </div>
     `;
   }
+  /** `upload-*` samples came in through `kibble/faces/upload`, never through the pending-crop
+   * inbox -- unlabelling would try to move a name `GET /faces/pending` never produced, so
+   * removing one goes through the dedicated `kibble/faces/delete_sample` command instead. */
   _removeSample(cat, sample) {
+    if (sample.name.startsWith("upload-")) {
+      const request = this._callWS("kibble/faces/delete_sample", { cat, name: sample.name });
+      if (!request) return;
+      request.then(() => this._refreshAll()).catch((err) => {
+        this._actionError = { message: `Couldn't remove this sample. ${describeWsError(err)}`, retry: () => this._removeSample(cat, sample) };
+      });
+      return;
+    }
     if (!this._entities.deviceId) return;
     const deviceId = this._entities.deviceId;
     this.hass.callService("kibble", "unlabel_face", { device_id: deviceId, cat, name: sample.name }).then(() => this._refreshAll()).catch((err) => {
@@ -11145,6 +11840,39 @@ var KibbleCatsCard = class extends i4 {
       cursor: pointer;
       min-height: 36px;
     }
+    .notice {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      background: color-mix(in srgb, var(--primary-text-color) 6%, transparent);
+      color: var(--secondary-text-color);
+      font-size: var(--kibble-text-caption);
+    }
+    .notice button {
+      flex: 0 0 auto;
+      border: none;
+      background: none;
+      color: inherit;
+      font-size: 16px;
+      line-height: 1;
+      cursor: pointer;
+      min-width: 32px;
+      min-height: 32px;
+    }
+    .visually-hidden {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
     .header {
       display: flex;
       flex-direction: column;
@@ -11180,6 +11908,64 @@ var KibbleCatsCard = class extends i4 {
     .cat-meta {
       font-size: var(--kibble-text-caption);
       color: var(--secondary-text-color);
+    }
+    .cat-menu {
+      position: relative;
+      margin-left: auto;
+    }
+    .cat-menu-trigger {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      border: none;
+      background: none;
+      color: var(--secondary-text-color);
+      font-size: 18px;
+      line-height: 1;
+      cursor: pointer;
+    }
+    .cat-menu-trigger:hover {
+      background: color-mix(in srgb, var(--primary-text-color) 8%, transparent);
+    }
+    .menu {
+      position: absolute;
+      top: 100%;
+      right: 0;
+      z-index: 5;
+      margin-top: 4px;
+      min-width: 160px;
+      display: flex;
+      flex-direction: column;
+      padding: 6px;
+      border-radius: 10px;
+      background: var(--ha-card-background, var(--card-background-color, #fff));
+      box-shadow: var(--ha-card-box-shadow, 0 4px 16px rgba(0, 0, 0, 0.25));
+    }
+    .menu button {
+      border: none;
+      background: none;
+      color: var(--primary-text-color);
+      font: inherit;
+      font-size: var(--kibble-text-body);
+      text-align: left;
+      padding: 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      min-height: 40px;
+    }
+    .menu button:hover {
+      background: color-mix(in srgb, var(--primary-text-color) 6%, transparent);
+    }
+    .menu .danger {
+      color: var(--error-color, #db4437);
+    }
+    .menu .danger.confirming {
+      background: color-mix(in srgb, var(--error-color, #db4437) 12%, transparent);
+    }
+    .cat-menu-trigger:focus-visible,
+    .menu button:focus-visible {
+      outline: 2px solid var(--primary-color, #03a9f4);
+      outline-offset: -2px;
     }
     .add-cat {
       display: flex;
@@ -12146,7 +12932,7 @@ function localTime(hour, minute, daysAgo = 0) {
 }
 var CATS = [
   { name: "Kitty", samples: 12, last_seen: secondsAgo(126), avatar: "1789500000-kitty.jpg", vendor_pet_id: 101321480, color_index: 0 },
-  { name: "Pancake", samples: 9, last_seen: secondsAgo(1), avatar: "1789500600-pancake.jpg", vendor_pet_id: 101321488, color_index: 1 }
+  { name: "Pancake", samples: 11, last_seen: secondsAgo(1), avatar: "1789500600-pancake.jpg", vendor_pet_id: 101321488, color_index: 1 }
 ];
 var PENDING_CROPS = [
   { name: `${secondsAgo(340)}-101321480.jpg`, ts: secondsAgo(340), vendor_pet_id: 101321480, vendor_cat: "Kitty", guess: { cat: "Kitty", score: 0.91 } },
@@ -12176,56 +12962,55 @@ function samplesFor(catName, count, startMinutesAgo) {
     return { name: `${ts}-${catName.toLowerCase()}.jpg`, ts };
   });
 }
+function uploadSamplesFor(catName, count, startMinutesAgo) {
+  return Array.from({ length: count }, (_2, i6) => {
+    const ts = secondsAgo(startMinutesAgo + i6 * 20);
+    return { name: `upload-${ts}000.jpg`, ts };
+  });
+}
 var SAMPLES_BY_CAT = {
   Kitty: samplesFor("Kitty", 12, 200),
-  Pancake: samplesFor("Pancake", 9, 400)
+  Pancake: [...samplesFor("Pancake", 9, 400), ...uploadSamplesFor("Pancake", 2, 15)]
 };
 var TIMELINE_ITEMS = [
-  { kind: "detection", ts: localTime(18, 4), class: "eat", cat: "Pancake", pet_id: 101321488, vendor_cat: "Pancake", image: `${localTime(18, 4)}-event.jpg` },
-  { kind: "detection", ts: localTime(17, 22), class: "visit", cat: "Pancake", pet_id: 101321488, vendor_cat: "Pancake", image: `${localTime(17, 22)}-event.jpg` },
-  { kind: "detection", ts: localTime(15, 50), class: "visit", cat: null, pet_id: null, vendor_cat: null, image: `${localTime(15, 50)}-event.jpg` },
-  { kind: "detection", ts: localTime(12, 10), class: "eat", cat: "Kitty", pet_id: 101321480, vendor_cat: "Kitty", image: `${localTime(12, 10)}-event.jpg` },
+  { kind: "identified", ts: localTime(18, 4), cat: "Pancake", paired_class: "eat", image: `${localTime(18, 4)}-event.jpg` },
+  { kind: "identified", ts: localTime(17, 22), cat: "Pancake", paired_class: "visit", image: `${localTime(17, 22)}-event.jpg` },
+  { kind: "visit", ts: localTime(15, 50), image: `${localTime(15, 50)}-event.jpg` },
+  { kind: "identified", ts: localTime(12, 10), cat: "Kitty", paired_class: "eat", image: `${localTime(12, 10)}-event.jpg` },
   {
     kind: "feed",
     ts: localTime(12, 0),
     amount: 3,
     hopper: "both",
-    outcome: null,
+    manual: true,
     before: `${localTime(12, 0)}-before.jpg`,
     after: `${localTime(12, 0)}-after.jpg`
   },
-  { kind: "detection", ts: localTime(9, 45), class: "track", cat: "Kitty", pet_id: 101321480, vendor_cat: "Kitty", image: null },
-  { kind: "detection", ts: localTime(8, 5), class: "face", cat: null, pet_id: null, vendor_cat: null, image: `${localTime(8, 5)}-event.jpg` },
+  { kind: "identified", ts: localTime(9, 45), cat: "Kitty", paired_class: null, image: null },
+  { kind: "eat", ts: localTime(8, 5), image: `${localTime(8, 5)}-event.jpg` },
   {
     kind: "feed",
     ts: localTime(7, 30),
     amount: 5,
     hopper: "both",
-    outcome: null,
+    manual: false,
     before: `${localTime(7, 30)}-before.jpg`,
     after: `${localTime(7, 30)}-after.jpg`
   },
-  { kind: "detection", ts: localTime(7, 28), class: "eat", cat: "Kitty", pet_id: 101321480, vendor_cat: "Kitty", image: `${localTime(7, 28)}-event.jpg` },
-  { kind: "detection", ts: localTime(19, 10, 1), class: "eat", cat: "Pancake", pet_id: 101321488, vendor_cat: "Pancake", image: `${localTime(19, 10, 1)}-event.jpg` },
+  { kind: "identified", ts: localTime(7, 28), cat: "Kitty", paired_class: "eat", image: `${localTime(7, 28)}-event.jpg` },
+  { kind: "identified", ts: localTime(19, 10, 1), cat: "Pancake", paired_class: "eat", image: `${localTime(19, 10, 1)}-event.jpg` },
   {
     kind: "feed",
     ts: localTime(18, 0, 1),
     amount: 5,
     hopper: "1",
-    outcome: null,
+    manual: true,
     before: `${localTime(18, 0, 1)}-before.jpg`,
     after: `${localTime(18, 0, 1)}-after.jpg`
   },
-  { kind: "detection", ts: localTime(12, 15, 1), class: "eat", cat: "Kitty", pet_id: 101321480, vendor_cat: "Kitty", image: `${localTime(12, 15, 1)}-event.jpg` },
-  {
-    kind: "feed",
-    ts: localTime(7, 30, 1),
-    amount: null,
-    hopper: null,
-    outcome: null,
-    before: null,
-    after: null
-  }
+  { kind: "eat", ts: localTime(12, 15, 1), image: `${localTime(12, 15, 1)}-event.jpg` },
+  { kind: "feed", ts: localTime(7, 30, 1), amount: null, hopper: null, manual: false, before: null, after: null },
+  { kind: "visit", ts: localTime(7, 10, 1), image: null }
 ];
 
 // dev/mock-hass.ts
@@ -12313,10 +13098,21 @@ function createMockHass(scenario, onChange) {
     callWS: async (msg) => {
       const type = msg.type;
       if (type === "kibble/timeline") {
-        return { items: [...timelineItems] };
+        const includeVisits = msg.include_visits === true;
+        const items = includeVisits ? timelineItems : timelineItems.filter((item) => item.kind !== "visit");
+        return { items: [...items] };
       }
       if (type === "kibble/cats") {
         return { cats: cats.map((cat) => ({ ...cat })) };
+      }
+      if (type === "kibble/cats/delete") {
+        const name = msg.name;
+        const index = name ? cats.findIndex((cat) => cat.name === name) : -1;
+        if (!name || index === -1) throw { code: "not_found", message: `Unknown cat ${String(name)}` };
+        cats.splice(index, 1);
+        delete samplesByCat[name];
+        notify();
+        return {};
       }
       if (type === "kibble/faces/pending") {
         return { crops: [...pending] };
@@ -12324,6 +13120,32 @@ function createMockHass(scenario, onChange) {
       if (type === "kibble/faces/samples") {
         const cat = msg.cat;
         return { samples: cat ? [...samplesByCat[cat] ?? []] : [] };
+      }
+      if (type === "kibble/faces/upload") {
+        const cat = msg.cat;
+        const rosterEntry = cat ? cats.find((c5) => c5.name === cat) : void 0;
+        if (!cat || !rosterEntry) throw { code: "not_found", message: `Unknown cat ${String(cat)}` };
+        const gallery = samplesByCat[cat] ?? (samplesByCat[cat] = []);
+        const ts = Math.floor(Date.now() / 1e3);
+        const name = `upload-${Date.now()}.jpg`;
+        gallery.push({ name, ts });
+        rosterEntry.samples = gallery.length;
+        rosterEntry.last_seen = Math.max(rosterEntry.last_seen ?? 0, ts);
+        notify();
+        const lowQuality = gallery.length % 3 === 0;
+        return lowQuality ? { name, samples: gallery.length, low_quality: true } : { name, samples: gallery.length };
+      }
+      if (type === "kibble/faces/delete_sample") {
+        const cat = msg.cat;
+        const name = msg.name;
+        const gallery = cat ? samplesByCat[cat] : void 0;
+        const index = gallery && name ? gallery.findIndex((sample) => sample.name === name) : -1;
+        if (!gallery || index === -1) throw { code: "not_found", message: "Unknown sample" };
+        gallery.splice(index, 1);
+        const rosterEntry = cats.find((c5) => c5.name === cat);
+        if (rosterEntry) rosterEntry.samples = gallery.length;
+        notify();
+        return {};
       }
       throw { code: "unknown_command", message: `Unknown command: ${String(type)}` };
     },
@@ -12350,6 +13172,8 @@ function configFor(card, params, name) {
     if (name) config2.name = name;
     const limit = params.get("limit");
     if (limit) config2.limit = Number(limit);
+    const showVisits = params.get("show_visits");
+    if (showVisits) config2.show_visits = showVisits === "true";
     return config2;
   }
   if (card === "cats") {

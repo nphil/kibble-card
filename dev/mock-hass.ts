@@ -120,10 +120,21 @@ export function createMockHass(scenario: ScenarioName, onChange?: () => void): H
     callWS: async (msg) => {
       const type = msg.type as string | undefined;
       if (type === "kibble/timeline") {
-        return { items: [...timelineItems] };
+        const includeVisits = msg.include_visits === true;
+        const items = includeVisits ? timelineItems : timelineItems.filter((item) => item.kind !== "visit");
+        return { items: [...items] };
       }
       if (type === "kibble/cats") {
         return { cats: cats.map((cat) => ({ ...cat })) };
+      }
+      if (type === "kibble/cats/delete") {
+        const name = msg.name as string | undefined;
+        const index = name ? cats.findIndex((cat) => cat.name === name) : -1;
+        if (!name || index === -1) throw { code: "not_found", message: `Unknown cat ${String(name)}` };
+        cats.splice(index, 1);
+        delete samplesByCat[name];
+        notify();
+        return {};
       }
       if (type === "kibble/faces/pending") {
         return { crops: [...pending] };
@@ -131,6 +142,34 @@ export function createMockHass(scenario: ScenarioName, onChange?: () => void): H
       if (type === "kibble/faces/samples") {
         const cat = msg.cat as string | undefined;
         return { samples: cat ? [...(samplesByCat[cat] ?? [])] : [] };
+      }
+      if (type === "kibble/faces/upload") {
+        const cat = msg.cat as string | undefined;
+        const rosterEntry = cat ? cats.find((c) => c.name === cat) : undefined;
+        if (!cat || !rosterEntry) throw { code: "not_found", message: `Unknown cat ${String(cat)}` };
+        const gallery = samplesByCat[cat] ?? (samplesByCat[cat] = []);
+        const ts = Math.floor(Date.now() / 1000);
+        const name = `upload-${Date.now()}.jpg`;
+        gallery.push({ name, ts });
+        rosterEntry.samples = gallery.length;
+        rosterEntry.last_seen = Math.max(rosterEntry.last_seen ?? 0, ts);
+        notify();
+        // Harness stand-in for the classifier's own quality gate: every third upload for a cat
+        // reads as low-confidence, so the low_quality note has something to exercise.
+        const lowQuality = gallery.length % 3 === 0;
+        return lowQuality ? { name, samples: gallery.length, low_quality: true } : { name, samples: gallery.length };
+      }
+      if (type === "kibble/faces/delete_sample") {
+        const cat = msg.cat as string | undefined;
+        const name = msg.name as string | undefined;
+        const gallery = cat ? samplesByCat[cat] : undefined;
+        const index = gallery && name ? gallery.findIndex((sample) => sample.name === name) : -1;
+        if (!gallery || index === -1) throw { code: "not_found", message: "Unknown sample" };
+        gallery.splice(index, 1);
+        const rosterEntry = cats.find((c) => c.name === cat);
+        if (rosterEntry) rosterEntry.samples = gallery.length;
+        notify();
+        return {};
       }
       throw { code: "unknown_command", message: `Unknown command: ${String(type)}` };
     },

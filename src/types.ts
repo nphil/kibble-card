@@ -78,6 +78,10 @@ export interface KibbleTimelineCardConfig {
   name?: string;
   /** Rows shown before "Show more"; the WS command itself caps at 100. */
   limit?: number;
+  /** Also show bare "a cat came by" visit rows (passed to `kibble/timeline` as
+   * `include_visits`). Off by default -- an unnamed visit with no feed or identification
+   * nearby is noise; see `lib/timeline.ts#filterVisits`. */
+  show_visits?: boolean;
 }
 
 export interface KibbleCatsCardConfig {
@@ -92,15 +96,40 @@ export interface KibbleCatsCardConfig {
 // ---- `kibble/*` WebSocket payload shapes (custom_components/kibble, DESIGN.md "Data
 // contracts") -- every `ts` is unix seconds, passed through unconverted from the agent. ----
 
-export interface TimelineDetectionItem {
-  kind: "detection";
+export interface TimelineIdentifiedItem {
+  kind: "identified";
   ts: number;
-  class: string;
-  cat: string | null;
-  pet_id: number | null;
-  vendor_cat: string | null;
-  /** Bare filename under the HTTP image view's `event` kind, or `null` if the agent never
-   * captured one for this row. */
+  /** Resolved via the integration's `vendor_pet_ids` option; the literal fallback name "Unknown
+   * cat" when the feeder's vendor id isn't mapped to one yet. Never null -- this row always
+   * names *someone*, unlike a bare "detection" row ever did. */
+  cat: string;
+  /** Which class the live image (if any) came from -- `"eat"` when this identification paired
+   * with a real eat detection (food actually left the bowl), `"visit"` when it only paired
+   * with a visit, `null` when nothing paired nearby at all. Picks "ate" vs "was at the bowl" in
+   * `lib/timeline.ts#detectionHeadline`; never infer the verb from `image` instead. */
+  paired_class: "eat" | "visit" | null;
+  /** Bare token for the HTTP image view's `track` kind (`kibbleImageUrl(entryId, "track",
+   * image)`) -- a track carries no filename of its own, so the view resolves the actual paired
+   * eat/visit JPEG by ts server-side. `null` when no candidate was found nearby (a fresh
+   * identification can self-correct once its eat/visit is polled). */
+  image: string | null;
+}
+
+export interface TimelineVisitItem {
+  kind: "visit";
+  ts: number;
+  /** Bare filename under the HTTP image view's `event` kind, or `null`. Only present in a
+   * `kibble/timeline` response when the card requested `include_visits: true` -- see
+   * `lib/timeline.ts#filterVisits` and `KibbleTimelineCardConfig.show_visits`. */
+  image: string | null;
+}
+
+export interface TimelineEatItem {
+  kind: "eat";
+  ts: number;
+  /** Bare filename under the HTTP image view's `event` kind, or `null`. An "eat" only ever
+   * appears unpaired like this when no `track` identification landed nearby -- a named
+   * identification absorbs its eat's image into `TimelineIdentifiedItem` instead. */
   image: string | null;
 }
 
@@ -109,15 +138,16 @@ export interface TimelineFeedItem {
   ts: number;
   amount: number | null;
   hopper: string | null;
-  /** Always `null` today -- the agent has no failed/cancelled feed variant, so there is
-   * nothing honest to report here. Never rendered; see `lib/timeline.ts#feedSummary`. */
-  outcome: string | null;
+  /** `false` for a scheduler-fired cycle, `true` for one associated with a manual `POST /feed`
+   * (or the `feed` service) -- drives the quiet "(scheduled)" tag; see
+   * `lib/timeline.ts#feedSummary`. */
+  manual: boolean;
   /** Bare filenames under the HTTP image view's `feed` kind. */
   before: string | null;
   after: string | null;
 }
 
-export type TimelineItem = TimelineDetectionItem | TimelineFeedItem;
+export type TimelineItem = TimelineIdentifiedItem | TimelineVisitItem | TimelineEatItem | TimelineFeedItem;
 
 export interface KibbleCatSummary {
   name: string;
@@ -147,4 +177,11 @@ export interface PendingFaceCrop {
 export interface CatSample {
   name: string;
   ts: number;
+}
+
+/** `POST /faces/upload`'s response shape, passed through verbatim by `kibble/faces/upload`. */
+export interface FaceUploadResult {
+  name: string;
+  samples: number;
+  low_quality?: boolean;
 }

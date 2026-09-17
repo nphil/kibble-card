@@ -1,5 +1,6 @@
 /** Dev harness bootstrap. Reads `?card=hero|timeline|cats&scenario=idle|dispensing|unreachable
- * &theme=light|dark&width=<px>&height=<px>&name=<text>&limit=<n>&confidence=<0-1>` from the URL,
+ * &theme=light|dark&width=<px>&height=<px>&name=<text>&limit=<n>&show_visits=<bool>&confidence=<0-1>`
+ * from the URL,
  * mounts one real card against the mock hass, and sets `window.__kibbleReady` once it has
  * actually finished rendering so the screenshot script isn't guessing with a fixed delay.
  * `card` defaults to `hero` (the original single-card harness URLs keep working unchanged);
@@ -38,6 +39,8 @@ function configFor(card: CardName, params: URLSearchParams, name: string | undef
     if (name) config.name = name;
     const limit = params.get("limit");
     if (limit) config.limit = Number(limit);
+    const showVisits = params.get("show_visits");
+    if (showVisits) config.show_visits = showVisits === "true";
     return config;
   }
   if (card === "cats") {

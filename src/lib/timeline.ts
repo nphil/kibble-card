@@ -1,28 +1,49 @@
-/** Pure timeline presentation: verb-by-class, feed-row copy, and day-separator grouping. Kept
- * free of hass/WS plumbing so the grouping boundaries (midnight, "Today"/"Yesterday") and the
- * feed sentence assembly are directly unit testable against plain timeline items. `kibble/
- * timeline` already merges detections and feeds server-side, newest first -- this module groups
- * that single merged list into day buckets, it never re-sorts or re-merges two separate lists.
+/** Pure timeline presentation: headline text, visit filtering, feed-row copy, and day-separator
+ * grouping. Kept free of hass/WS plumbing so the grouping boundaries (midnight, "Today"/
+ * "Yesterday"), the "hide bare visits" rule and the feed sentence assembly are directly unit
+ * testable against plain timeline items. `kibble/timeline` already merges identifications,
+ * visits, eats and feed cycles server-side, newest first -- this module only groups that single
+ * merged list into day buckets and decides what each row says, it never re-sorts or re-merges.
  */
 
-import type { TimelineFeedItem, TimelineItem } from "../types";
+import type { TimelineFeedItem, TimelineIdentifiedItem, TimelineEatItem, TimelineItem, TimelineVisitItem } from "../types";
 
-/** Never a raw class string, even for a class this card doesn't yet know about -- "was seen" is
- * the honest fallback for anything the agent might add later. */
-export function detectionVerb(detectionClass: string): string {
-  if (detectionClass === "eat") return "ate";
-  if (detectionClass === "visit") return "came by";
-  if (detectionClass === "face" || detectionClass === "track") return "identified";
-  return "was seen";
+/** The row headline for every non-feed kind. Never a raw class string: an "identified" row
+ * always names the cat the integration resolved (falling back to its own literal "Unknown cat"
+ * upstream, never here), an "eat" with nobody identified nearby reads as "A cat ate", and a
+ * (normally hidden) "visit" reads as "A cat came by" -- the same honest, ungoessed copy this
+ * card has always used for a detection with no name attached. */
+export function detectionHeadline(item: TimelineIdentifiedItem | TimelineEatItem | TimelineVisitItem): string {
+  if (item.kind === "identified") return `${item.cat} ${item.paired_class === "eat" ? "ate" : "was at the bowl"}`;
+  if (item.kind === "eat") return "A cat ate";
+  return "A cat came by";
 }
 
-/** "Fed 5 portions from hopper 1" / "Fed 1 portion" / "Fed" -- `outcome` is never shown: the
- * agent has no failed/cancelled feed variant, so there is nothing honest to report there. */
-export function feedSummary(item: Pick<TimelineFeedItem, "amount" | "hopper">): string {
-  if (item.amount == null) return "Fed";
+/** Drops bare "visit" rows unless `showVisits` is set. `kibble/timeline`'s own `include_visits`
+ * parameter should already keep these out of the response by default -- this is the card's own
+ * belt-and-suspenders guard (and what makes the "hide visits" rule directly unit testable
+ * without a mock WS connection), not a substitute for asking the server to skip the work. */
+export function filterVisits(items: TimelineItem[], showVisits: boolean): TimelineItem[] {
+  if (showVisits) return items;
+  return items.filter((item) => item.kind !== "visit");
+}
+
+export interface FeedSummary {
+  /** "Fed 5 portions from hopper 1" / "Fed 1 portion" / "Fed" -- `outcome` is never shown: the
+   * agent has no failed/cancelled feed variant, so there is nothing honest to report there. */
+  headline: string;
+  /** True for a scheduler-fired cycle (`!manual`) -- the caller renders this as a quiet,
+   * secondary tag alongside `headline` rather than folding it into the same sentence, so it
+   * reads as a subtle detail rather than a competing headline. */
+  scheduled: boolean;
+}
+
+export function feedSummary(item: Pick<TimelineFeedItem, "amount" | "hopper" | "manual">): FeedSummary {
+  const scheduled = !item.manual;
+  if (item.amount == null) return { headline: "Fed", scheduled };
   const portionWord = item.amount === 1 ? "portion" : "portions";
   const hopperClause = item.hopper && item.hopper !== "both" ? ` from hopper ${item.hopper}` : "";
-  return `Fed ${item.amount} ${portionWord}${hopperClause}`;
+  return { headline: `Fed ${item.amount} ${portionWord}${hopperClause}`, scheduled };
 }
 
 export interface TimelineDay {

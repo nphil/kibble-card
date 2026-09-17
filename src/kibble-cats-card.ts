@@ -24,6 +24,21 @@ import "./components/kibble-face-picker";
 import "./cats-editor";
 
 const EMPTY_ENTITIES: KibbleEntities = { deviceId: "", catPresence: [] };
+
+function catSectionId(name: string): string {
+  return `cat-${name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+}
+
+/** The cat named by a `#cat=<name>` hash (URL-encoded), else null. */
+export function catFromHash(hash: string): string | null {
+  const match = /^#cat=(.+)$/.exec(hash);
+  if (!match) return null;
+  try {
+    return decodeURIComponent(match[1]);
+  } catch {
+    return null;
+  }
+}
 const DEFAULT_CONFIDENCE = 0.7;
 const UNDO_WINDOW_MS = 5000;
 const DELETE_CONFIRM_WINDOW_MS = 3000;
@@ -128,8 +143,16 @@ export class KibbleCatsCard extends LitElement {
     return document.createElement("kibble-cats-card-editor");
   }
 
+  connectedCallback(): void {
+    super.connectedCallback();
+    window.addEventListener("location-changed", this._onLocationChanged);
+    window.addEventListener("hashchange", this._onLocationChanged);
+  }
+
   disconnectedCallback(): void {
     super.disconnectedCallback();
+    window.removeEventListener("location-changed", this._onLocationChanged);
+    window.removeEventListener("hashchange", this._onLocationChanged);
     this._imageCache.dispose();
     clearTimeout(this._undoTimer);
     clearTimeout(this._deleteConfirmTimer);
@@ -137,6 +160,26 @@ export class KibbleCatsCard extends LitElement {
 
   private _confidence(): number {
     return this._config?.confidence ?? DEFAULT_CONFIDENCE;
+  }
+
+  /** `/cat-feeder/cats#cat=Pancake` (what the feeder view's cat tiles navigate to) lands on
+   * that cat's section: scrolled into view and briefly lit, once its gallery has rendered. */
+  private _scrolledTo: string | null = null;
+
+  private _onLocationChanged = (): void => {
+    this._scrolledTo = null;
+    this.requestUpdate();
+  };
+
+  protected updated(): void {
+    const target = catFromHash(window.location.hash);
+    if (!target || this._scrolledTo === target) return;
+    const section = this.renderRoot.querySelector<HTMLElement>(`#${CSS.escape(catSectionId(target))}`);
+    if (!section) return;
+    this._scrolledTo = target;
+    section.scrollIntoView({ behavior: "smooth", block: "start" });
+    section.classList.add("lit");
+    setTimeout(() => section.classList.remove("lit"), 2400);
   }
 
   protected willUpdate(changed: PropertyValues): void {
@@ -597,29 +640,43 @@ export class KibbleCatsCard extends LitElement {
     `;
   }
 
+  /** Per cat: the feeder's own captures first ("Sightings", newest first, each with when it
+   * happened -- this is exactly what the "last here" on the feeder view counts, so tapping that
+   * tile lands here and finds the same evidence), then the reference photos someone uploaded. */
   private _renderGallery(cat: KibbleCatSummary) {
     const query = this._sampleQueries.get(cat.name);
     const samples = query?.state.data?.samples ?? [];
     if (samples.length === 0 && cat.samples === 0) return nothing;
+    const sightings = samples.filter((sample) => !sample.name.startsWith("upload-")).sort((a, b) => b.ts - a.ts);
+    const references = samples.filter((sample) => sample.name.startsWith("upload-")).sort((a, b) => b.ts - a.ts);
+    const now = new Date();
     return html`
-      <section class="gallery">
-        <div class="gallery-heading">${cat.name}, ${cat.samples === 1 ? "1 sample" : `${cat.samples} samples`}</div>
-        <div class="gallery-grid">
-          ${samples.map((sample) => this._renderSample(cat.name, sample))}
-        </div>
+      <section class="gallery" id=${catSectionId(cat.name)}>
+        <div class="gallery-heading">${cat.name}</div>
+        <div class="gallery-sub">${sightings.length === 0 ? "No sightings yet" : sightings.length === 1 ? "1 sighting" : `${sightings.length} sightings`}</div>
+        ${sightings.length > 0
+          ? html`<div class="gallery-grid">
+              ${sightings.map((sample) => this._renderSample(cat.name, sample, relativeTimeSentence(new Date(sample.ts * 1000), now)))}
+            </div>`
+          : nothing}
+        ${references.length > 0
+          ? html`<div class="gallery-sub">${references.length === 1 ? "1 reference photo" : `${references.length} reference photos`}</div>
+              <div class="gallery-grid">${references.map((sample) => this._renderSample(cat.name, sample, null))}</div>`
+          : nothing}
       </section>
     `;
   }
 
-  private _renderSample(catName: string, sample: CatSample) {
+  private _renderSample(catName: string, sample: CatSample, caption: string | null) {
     const path = this._entryId ? kibbleImageUrl(this._entryId, `sample/${catName}`, sample.name) : null;
     const url = path ? this._imageCache.get(this.hass, path, () => this.requestUpdate()) : null;
     return html`
       <div class="sample">
-        ${url ? html`<img src=${url} alt="" loading="lazy" />` : nothing}
+        ${url ? html`<img src=${url} alt="" loading="lazy" title=${new Date(sample.ts * 1000).toLocaleString()} />` : nothing}
         <button type="button" class="remove" aria-label=${`Remove this sample of ${catName}`} @click=${() => this._removeSample(catName, sample)}>
           ${"\u00d7"}
         </button>
+        ${caption ? html`<span class="caption">${caption}</span>` : nothing}
       </div>
     `;
   }
@@ -1021,6 +1078,34 @@ export class KibbleCatsCard extends LitElement {
       font-size: var(--kibble-text-body);
       font-weight: 600;
       color: var(--primary-text-color);
+    }
+    .gallery-sub {
+      font-size: var(--kibble-text-caption, 12px);
+      color: var(--secondary-text-color);
+    }
+    .gallery {
+      scroll-margin-top: 16px;
+      border-radius: 12px;
+      transition: box-shadow 600ms ease;
+    }
+    .gallery.lit {
+      box-shadow: 0 0 0 3px var(--kibble-amber, #f2a33c);
+    }
+    .sample .caption {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      padding: 1px 3px;
+      font-size: 10px;
+      line-height: 1.2;
+      color: #fff;
+      background: rgba(0, 0, 0, 0.55);
+      text-align: center;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      border-radius: 0 0 8px 8px;
     }
     .gallery-grid {
       display: flex;

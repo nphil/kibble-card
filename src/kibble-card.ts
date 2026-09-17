@@ -326,12 +326,13 @@ export class KibbleCard extends LitElement {
       grid-template-columns: 1fr;
       grid-template-areas: "hero" "bowl" "feed" "schedule";
     }
+    /* The feeder's streams are 16:10 (1152x720 sub, 1728x1080 main): the hero keeps that ratio
+     * so the fisheye frame is never cropped or stretched to fit a layout guess. */
     .hero {
       grid-area: hero;
       position: relative;
       overflow: hidden;
-      height: 0;
-      padding-bottom: 42%;
+      aspect-ratio: 16 / 10;
       background: #1c1c1c;
       border-radius: var(--ha-card-border-radius, 12px) var(--ha-card-border-radius, 12px) 0 0;
     }
@@ -458,8 +459,8 @@ export class KibbleCard extends LitElement {
       gap: 6px;
     }
     :host(.compact) .hero {
+      aspect-ratio: auto;
       height: 80px;
-      padding-bottom: 0;
     }
     :host(.compact) .hero-status-text {
       font-size: 12px;
@@ -473,15 +474,14 @@ export class KibbleCard extends LitElement {
     @container (min-width: 640px) {
       .root {
         grid-template-columns: 60% 1fr;
-        grid-template-rows: auto auto 1fr;
+        grid-template-rows: auto auto auto;
         grid-template-areas: "hero bowl" "hero feed" "hero schedule";
         gap: 4px;
         padding-bottom: 0;
       }
       .hero {
         grid-area: hero;
-        padding-bottom: 0;
-        height: 100%;
+        align-self: start;
         border-radius: var(--ha-card-border-radius, 12px) 0 0 var(--ha-card-border-radius, 12px);
       }
       .bowl-block,

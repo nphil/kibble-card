@@ -13,15 +13,21 @@ import { KIBBLE_FALL_DURATION_MS, prefersReducedMotion } from "../styles/tokens"
 const VIEW_W = 260;
 const VIEW_H = 156;
 const CX = 130;
-/** The bowl's open top edge and the basin's lowest point: the gauge runs between them. */
-const TOP_Y = 34;
-const BOTTOM_Y = 132;
-const LEFT_X = 22;
-const RIGHT_X = 238;
-const STROKE = 5;
+/** Rim line and the basin's lowest point: the gauge runs between them. */
+const TOP_Y = 36;
+const RIM_RX = 106;
+const BASIN_RY = 94;
+const BOTTOM_Y = TOP_Y + BASIN_RY;
+const STROKE = 3.5;
+/** Gap between the wall and the level, so the fill reads as contents, not as a second outline. */
+const INSET = 6;
 
-/** Open top, shallow curved basin: the fill is clipped to this same shape. */
-const BOWL_PATH = `M ${LEFT_X} ${TOP_Y} C ${LEFT_X} ${TOP_Y + 74}, ${CX - 62} ${BOTTOM_Y}, ${CX} ${BOTTOM_Y} C ${CX + 62} ${BOTTOM_Y}, ${RIGHT_X} ${TOP_Y + 74}, ${RIGHT_X} ${TOP_Y} Z`;
+/** The bowl: an open rim line and a true half-ellipse basin below it. */
+const BOWL_PATH = `M ${CX - RIM_RX} ${TOP_Y} A ${RIM_RX} ${BASIN_RY} 0 0 0 ${CX + RIM_RX} ${TOP_Y}`;
+/** The same half-ellipse, inset: what the level is clipped to. */
+const CONTENT_PATH = `M ${CX - RIM_RX + INSET} ${TOP_Y + INSET} A ${RIM_RX - INSET} ${BASIN_RY - INSET} 0 0 0 ${CX + RIM_RX - INSET} ${TOP_Y + INSET} Z`;
+const CONTENT_TOP = TOP_Y + INSET;
+const CONTENT_BOTTOM = BOTTOM_Y - INSET;
 
 const SCATTER = [-0.6, -0.32, -0.06, 0.2, 0.46, 0.66, -0.46];
 
@@ -85,41 +91,44 @@ export class KibbleBowl extends LitElement {
       <svg class="art" viewBox="0 0 ${VIEW_W} ${VIEW_H}" role="img" aria-label=${label} preserveAspectRatio="xMidYMid meet">
         <title>${label}</title>
         <defs>
-          <clipPath id="bowl-clip"><path d=${BOWL_PATH} /></clipPath>
+          <clipPath id="bowl-content"><path d=${CONTENT_PATH} /></clipPath>
         </defs>
-        <path class="basin" d=${BOWL_PATH} />
-        <g clip-path="url(#bowl-clip)">
+        <path class="basin" d=${`${BOWL_PATH} Z`} />
+        <g clip-path="url(#bowl-content)">
           ${display.split ? this._renderSplitFill(display.hopper1!, display.hopper2!) : this._renderFill(display.combined ?? 0, 0, VIEW_W)}
         </g>
-        ${display.split ? svg`<line class="divider" x1=${CX} y1=${TOP_Y + 10} x2=${CX} y2=${BOTTOM_Y - 8} />` : nothing}
+        ${display.split ? svg`<line class="divider" x1=${CX} y1=${CONTENT_TOP + 6} x2=${CX} y2=${CONTENT_BOTTOM - 4} />` : nothing}
         <path class="outline" d=${BOWL_PATH} />
-        <line class="foot" x1=${CX - 34} y1=${BOTTOM_Y + 14} x2=${CX + 34} y2=${BOTTOM_Y + 14} />
+        <line class="rim" x1=${CX - RIM_RX} y1=${TOP_Y} x2=${CX + RIM_RX} y2=${TOP_Y} />
+        <line class="foot" x1=${CX - 30} y1=${BOTTOM_Y + 12} x2=${CX + 30} y2=${BOTTOM_Y + 12} />
         ${this._dropping ? this._renderFallingKibble() : nothing}
       </svg>
     `;
   }
 
-  /** The level: a rect clipped to the bowl, its top edge set by the fill fraction between the
-   * basin floor and the open top. `x`/`w` bound it horizontally for the split view. */
+  /** The level: a rect clipped to the inset basin, its top edge set by the fill fraction. Nothing
+   * is drawn at zero -- an empty hopper is an empty bowl, not a sliver. `x`/`w` bound the rect
+   * horizontally for the split view. */
   private _renderFill(fraction0to100: number, x: number, w: number) {
     const fraction = Math.max(0, Math.min(1, fraction0to100 / 100));
-    const top = BOTTOM_Y - (BOTTOM_Y - TOP_Y) * fraction;
-    return svg`<rect class="fill" x=${x} y=${top} width=${w} height=${BOTTOM_Y - top + STROKE} rx="0" />`;
+    if (fraction === 0) return nothing;
+    const top = CONTENT_BOTTOM - (CONTENT_BOTTOM - CONTENT_TOP) * fraction;
+    return svg`<rect class="fill" x=${x} y=${top} width=${w} height=${CONTENT_BOTTOM - top + 1} />`;
   }
 
   private _renderSplitFill(hopper1: number, hopper2: number) {
     return svg`
-      ${this._renderFill(hopper1, 0, CX)}
-      ${this._renderFill(hopper2, CX, VIEW_W - CX)}
+      ${this._renderFill(hopper1, 0, CX - 1)}
+      ${this._renderFill(hopper2, CX + 1, VIEW_W - CX - 1)}
     `;
   }
 
   private _renderFallingKibble() {
     const pieces = SCATTER.slice(0, 7).map((t, i) => {
-      const x = CX + t * 80;
+      const x = CX + t * 70;
       const delayMs = i * 70;
       const durationMs = 320;
-      const style = `--fall-delay:${delayMs}ms;--fall-duration:${durationMs}ms;--fall-rotate:${(t * 180).toFixed(0)}deg;--fall-to:${BOTTOM_Y - 60}px;`;
+      const style = `--fall-delay:${delayMs}ms;--fall-duration:${durationMs}ms;--fall-rotate:${(t * 180).toFixed(0)}deg;--fall-to:${CONTENT_BOTTOM - 70}px;`;
       return svg`<g class="drop" style=${style}>${cloverPiece(x, 0, 7, t * 60)}</g>`;
     });
     return svg`<g class="drops">${pieces}</g>`;
@@ -141,22 +150,24 @@ export class KibbleBowl extends LitElement {
       fill: var(--secondary-background-color, rgba(127, 127, 127, 0.12));
     }
     .outline,
+    .rim,
     .foot {
       fill: none;
       stroke: var(--primary-text-color);
       stroke-width: ${STROKE};
       stroke-linecap: round;
       stroke-linejoin: round;
+      shape-rendering: geometricPrecision;
     }
     .foot {
-      opacity: 0.55;
+      opacity: 0.45;
     }
     .divider {
       stroke: var(--primary-text-color);
       stroke-width: 2;
       stroke-linecap: round;
-      stroke-dasharray: 1 7;
-      opacity: 0.55;
+      stroke-dasharray: 0.1 6;
+      opacity: 0.4;
     }
     .fill {
       fill: var(--kibble-amber);

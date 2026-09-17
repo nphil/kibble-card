@@ -7814,12 +7814,16 @@ function combineBowlFill(hopper1, hopper2) {
 var VIEW_W = 260;
 var VIEW_H = 156;
 var CX = 130;
-var TOP_Y = 34;
-var BOTTOM_Y = 132;
-var LEFT_X = 22;
-var RIGHT_X = 238;
-var STROKE = 5;
-var BOWL_PATH = `M ${LEFT_X} ${TOP_Y} C ${LEFT_X} ${TOP_Y + 74}, ${CX - 62} ${BOTTOM_Y}, ${CX} ${BOTTOM_Y} C ${CX + 62} ${BOTTOM_Y}, ${RIGHT_X} ${TOP_Y + 74}, ${RIGHT_X} ${TOP_Y} Z`;
+var TOP_Y = 36;
+var RIM_RX = 106;
+var BASIN_RY = 94;
+var BOTTOM_Y = TOP_Y + BASIN_RY;
+var STROKE = 3.5;
+var INSET = 6;
+var BOWL_PATH = `M ${CX - RIM_RX} ${TOP_Y} A ${RIM_RX} ${BASIN_RY} 0 0 0 ${CX + RIM_RX} ${TOP_Y}`;
+var CONTENT_PATH = `M ${CX - RIM_RX + INSET} ${TOP_Y + INSET} A ${RIM_RX - INSET} ${BASIN_RY - INSET} 0 0 0 ${CX + RIM_RX - INSET} ${TOP_Y + INSET} Z`;
+var CONTENT_TOP = TOP_Y + INSET;
+var CONTENT_BOTTOM = BOTTOM_Y - INSET;
 var SCATTER = [-0.6, -0.32, -0.06, 0.2, 0.46, 0.66, -0.46];
 function cloverPiece(x2, y3, r6, rotationDeg) {
   const lobes = [0, 120, 240].map((angle) => {
@@ -7867,38 +7871,41 @@ var KibbleBowl = class extends i4 {
       <svg class="art" viewBox="0 0 ${VIEW_W} ${VIEW_H}" role="img" aria-label=${label} preserveAspectRatio="xMidYMid meet">
         <title>${label}</title>
         <defs>
-          <clipPath id="bowl-clip"><path d=${BOWL_PATH} /></clipPath>
+          <clipPath id="bowl-content"><path d=${CONTENT_PATH} /></clipPath>
         </defs>
-        <path class="basin" d=${BOWL_PATH} />
-        <g clip-path="url(#bowl-clip)">
+        <path class="basin" d=${`${BOWL_PATH} Z`} />
+        <g clip-path="url(#bowl-content)">
           ${display.split ? this._renderSplitFill(display.hopper1, display.hopper2) : this._renderFill(display.combined ?? 0, 0, VIEW_W)}
         </g>
-        ${display.split ? w`<line class="divider" x1=${CX} y1=${TOP_Y + 10} x2=${CX} y2=${BOTTOM_Y - 8} />` : A}
+        ${display.split ? w`<line class="divider" x1=${CX} y1=${CONTENT_TOP + 6} x2=${CX} y2=${CONTENT_BOTTOM - 4} />` : A}
         <path class="outline" d=${BOWL_PATH} />
-        <line class="foot" x1=${CX - 34} y1=${BOTTOM_Y + 14} x2=${CX + 34} y2=${BOTTOM_Y + 14} />
+        <line class="rim" x1=${CX - RIM_RX} y1=${TOP_Y} x2=${CX + RIM_RX} y2=${TOP_Y} />
+        <line class="foot" x1=${CX - 30} y1=${BOTTOM_Y + 12} x2=${CX + 30} y2=${BOTTOM_Y + 12} />
         ${this._dropping ? this._renderFallingKibble() : A}
       </svg>
     `;
   }
-  /** The level: a rect clipped to the bowl, its top edge set by the fill fraction between the
-   * basin floor and the open top. `x`/`w` bound it horizontally for the split view. */
+  /** The level: a rect clipped to the inset basin, its top edge set by the fill fraction. Nothing
+   * is drawn at zero -- an empty hopper is an empty bowl, not a sliver. `x`/`w` bound the rect
+   * horizontally for the split view. */
   _renderFill(fraction0to100, x2, w2) {
     const fraction = Math.max(0, Math.min(1, fraction0to100 / 100));
-    const top = BOTTOM_Y - (BOTTOM_Y - TOP_Y) * fraction;
-    return w`<rect class="fill" x=${x2} y=${top} width=${w2} height=${BOTTOM_Y - top + STROKE} rx="0" />`;
+    if (fraction === 0) return A;
+    const top = CONTENT_BOTTOM - (CONTENT_BOTTOM - CONTENT_TOP) * fraction;
+    return w`<rect class="fill" x=${x2} y=${top} width=${w2} height=${CONTENT_BOTTOM - top + 1} />`;
   }
   _renderSplitFill(hopper1, hopper2) {
     return w`
-      ${this._renderFill(hopper1, 0, CX)}
-      ${this._renderFill(hopper2, CX, VIEW_W - CX)}
+      ${this._renderFill(hopper1, 0, CX - 1)}
+      ${this._renderFill(hopper2, CX + 1, VIEW_W - CX - 1)}
     `;
   }
   _renderFallingKibble() {
     const pieces = SCATTER.slice(0, 7).map((t5, i6) => {
-      const x2 = CX + t5 * 80;
+      const x2 = CX + t5 * 70;
       const delayMs = i6 * 70;
       const durationMs = 320;
-      const style = `--fall-delay:${delayMs}ms;--fall-duration:${durationMs}ms;--fall-rotate:${(t5 * 180).toFixed(0)}deg;--fall-to:${BOTTOM_Y - 60}px;`;
+      const style = `--fall-delay:${delayMs}ms;--fall-duration:${durationMs}ms;--fall-rotate:${(t5 * 180).toFixed(0)}deg;--fall-to:${CONTENT_BOTTOM - 70}px;`;
       return w`<g class="drop" style=${style}>${cloverPiece(x2, 0, 7, t5 * 60)}</g>`;
     });
     return w`<g class="drops">${pieces}</g>`;
@@ -7920,22 +7927,24 @@ var KibbleBowl = class extends i4 {
       fill: var(--secondary-background-color, rgba(127, 127, 127, 0.12));
     }
     .outline,
+    .rim,
     .foot {
       fill: none;
       stroke: var(--primary-text-color);
       stroke-width: ${STROKE};
       stroke-linecap: round;
       stroke-linejoin: round;
+      shape-rendering: geometricPrecision;
     }
     .foot {
-      opacity: 0.55;
+      opacity: 0.45;
     }
     .divider {
       stroke: var(--primary-text-color);
       stroke-width: 2;
       stroke-linecap: round;
-      stroke-dasharray: 1 7;
-      opacity: 0.55;
+      stroke-dasharray: 0.1 6;
+      opacity: 0.4;
     }
     .fill {
       fill: var(--kibble-amber);
@@ -11559,12 +11568,13 @@ var KibbleCard = class extends i4 {
       grid-template-columns: 1fr;
       grid-template-areas: "hero" "bowl" "feed" "schedule";
     }
+    /* The feeder's streams are 16:10 (1152x720 sub, 1728x1080 main): the hero keeps that ratio
+     * so the fisheye frame is never cropped or stretched to fit a layout guess. */
     .hero {
       grid-area: hero;
       position: relative;
       overflow: hidden;
-      height: 0;
-      padding-bottom: 42%;
+      aspect-ratio: 16 / 10;
       background: #1c1c1c;
       border-radius: var(--ha-card-border-radius, 12px) var(--ha-card-border-radius, 12px) 0 0;
     }
@@ -11658,7 +11668,7 @@ var KibbleCard = class extends i4 {
     .bowl-block {
       grid-area: bowl;
       padding: 8px 14px 0;
-      --kibble-bowl-max-width: 170px;
+      --kibble-bowl-max-width: 250px;
     }
     .feed-controls {
       grid-area: feed;
@@ -11691,30 +11701,29 @@ var KibbleCard = class extends i4 {
       gap: 6px;
     }
     :host(.compact) .hero {
+      aspect-ratio: auto;
       height: 80px;
-      padding-bottom: 0;
     }
     :host(.compact) .hero-status-text {
       font-size: 12px;
     }
     :host(.compact) .bowl-block {
       padding-top: 2px;
-      --kibble-bowl-max-width: 190px;
+      --kibble-bowl-max-width: 230px;
     }
 
     /* >=640px: two columns, camera left full height, bowl/feed/schedule stacked on the right. */
     @container (min-width: 640px) {
       .root {
         grid-template-columns: 60% 1fr;
-        grid-template-rows: auto auto 1fr;
+        grid-template-rows: auto auto auto;
         grid-template-areas: "hero bowl" "hero feed" "hero schedule";
         gap: 4px;
         padding-bottom: 0;
       }
       .hero {
         grid-area: hero;
-        padding-bottom: 0;
-        height: 100%;
+        align-self: start;
         border-radius: var(--ha-card-border-radius, 12px) 0 0 var(--ha-card-border-radius, 12px);
       }
       .bowl-block,
@@ -11731,7 +11740,7 @@ var KibbleCard = class extends i4 {
       .bowl-block {
         grid-area: bowl;
         padding: 4px 16px 0;
-        --kibble-bowl-max-width: 210px;
+        --kibble-bowl-max-width: 250px;
       }
       .feed-controls {
         grid-area: feed;

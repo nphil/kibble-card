@@ -36,7 +36,8 @@ const PORTION_OPTIONS = [1, 2, 3, 4, 5] as const;
 /** Bubble's `styles` hook: the feed row is the card's one accent-filled control, so it wears
  * the amber the native hold button always did (theme-overridable through the same variables). */
 const FEED_ROW_STYLES = `
-  .bubble-button-card-container { background: var(--kibble-amber, #f2a33c) !important; }
+  .bubble-button-card-container { background: var(--kibble-amber, #f2a33c) !important; height: 56px !important; }
+  .bubble-name { font-size: 17px; font-weight: 600; }
   .bubble-name, .bubble-icon { color: var(--kibble-ink-on-amber, #241a07) !important; }
   .bubble-icon-container { background: color-mix(in srgb, var(--kibble-ink-on-amber, #241a07) 12%, transparent) !important; }
 `;
@@ -44,14 +45,17 @@ const FEED_ROW_STYLES = `
  * default); the selected one wears the accent. `selected` is 1-based, 0 for none. */
 function portionRowStyles(selected: number, disabled: boolean): string {
   return `
-  .bubble-button-card-container { background: transparent !important; box-shadow: none !important; }
-  .bubble-sub-button-container { width: 100%; display: grid !important; grid-template-columns: repeat(5, 1fr); gap: 6px; }
-  .bubble-sub-button { min-width: 0 !important; margin: 0 !important; justify-content: center; font-weight: 600; ${disabled ? "opacity: 0.5;" : ""} }
+  .bubble-button-card-container { background: transparent !important; box-shadow: none !important; height: auto !important; min-height: 0 !important; }
+  .bubble-button-card { padding: 0 !important; height: auto !important; }
+  .bubble-sub-button-container { width: 100%; display: grid !important; grid-template-columns: repeat(5, 1fr); gap: 8px; margin: 0 !important; }
+  .bubble-sub-button { min-width: 0 !important; height: var(--kibble-touch-target, 48px) !important; margin: 0 !important; padding: 0 !important; justify-content: center; font-size: 17px; font-weight: 600; ${disabled ? "opacity: 0.5;" : ""} }
+  .bubble-sub-button .bubble-sub-button-name-container { margin: 0 !important; }
   ${selected ? `.bubble-sub-button-${selected} { background: var(--kibble-amber, #f2a33c) !important; color: var(--kibble-ink-on-amber, #241a07) !important; }` : ""}
 `;
 }
 const FEEDING_ROW_STYLES = `
-  .bubble-button-card-container { background: var(--error-color, #d9534f) !important; }
+  .bubble-button-card-container { background: var(--error-color, #d9534f) !important; height: 56px !important; }
+  .bubble-name { font-size: 17px; font-weight: 600; }
   .bubble-name, .bubble-icon { color: #fff !important; }
 `;
 

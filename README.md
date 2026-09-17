@@ -121,7 +121,7 @@ A rail, not stacked cards: a thin vertical line with times hanging to its left, 
 buckets ("Today", "Yesterday", then a weekday+date). Bare "a cat came by" visits are hidden by
 default (`show_visits: true` brings them back) — what's left is the *named* cat that was actually
 at the bowl, shown with the **live** photo from that moment (never a stored training sample):
-"Pancake ate" when paired with a real eat detection, "Pancake was at the bowl" otherwise, or "A
+"Pancake ate" when paired with a real eat detection, "Pancake was here" otherwise (seen in view, not necessarily at the bowl), or "A
 cat ate" when nobody was identified nearby. Feed rows show the amount and hopper, a quiet
 "(scheduled)" tag for a scheduler-fired cycle, and before/after bowl thumbnails each captioned.
 Tapping any thumbnail opens a lightbox; Escape or the backdrop closes it and returns focus to

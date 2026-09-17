@@ -14,11 +14,10 @@ import type { TimelineFeedItem, TimelineIdentifiedItem, TimelineEatItem, Timelin
  * (normally hidden) "visit" reads as "A cat came by" -- the same honest, ungoessed copy this
  * card has always used for a detection with no name attached. */
 export function detectionHeadline(item: TimelineIdentifiedItem | TimelineEatItem | TimelineVisitItem): string {
-  if (item.kind === "identified") {
-    if (item.paired_class === "eat") return `${item.cat} ate`;
-    if (item.paired_class === "face") return `${item.cat} was here`;
-    return `${item.cat} was at the bowl`;
-  }
+  // Only the vendor's `eat` detection means the cat was actually at the bowl eating; a
+  // `visit`/`face`/unpaired identification is just "seen in view" -- the camera sees the whole
+  // room, and "at the bowl" for a cat walking past was a lie.
+  if (item.kind === "identified") return item.paired_class === "eat" ? `${item.cat} ate` : `${item.cat} was here`;
   if (item.kind === "eat") return "A cat ate";
   return "A cat came by";
 }

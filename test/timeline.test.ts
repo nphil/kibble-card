@@ -23,12 +23,12 @@ describe("detectionHeadline", () => {
     expect(detectionHeadline(identified({ ts: 0, cat: "Pancake", paired_class: "eat" }))).toBe("Pancake ate");
   });
 
-  test("names the cat but says \"was at the bowl\" when only paired with a visit", () => {
-    expect(detectionHeadline(identified({ ts: 0, cat: "Kitty", paired_class: "visit" }))).toBe("Kitty was at the bowl");
+  test("names the cat but says \"was here\" when only paired with a visit", () => {
+    expect(detectionHeadline(identified({ ts: 0, cat: "Kitty", paired_class: "visit" }))).toBe("Kitty was here");
   });
 
-  test("names the cat but says \"was at the bowl\" when nothing paired at all", () => {
-    expect(detectionHeadline(identified({ ts: 0, cat: "Kitty", paired_class: null }))).toBe("Kitty was at the bowl");
+  test("names the cat but says \"was here\" when nothing paired at all", () => {
+    expect(detectionHeadline(identified({ ts: 0, cat: "Kitty", paired_class: null }))).toBe("Kitty was here");
     expect(detectionHeadline(identified({ ts: 0, cat: "Pancake", paired_class: "face", image_kind: "event" }))).toBe("Pancake was here");
   });
 

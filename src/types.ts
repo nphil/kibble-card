@@ -105,7 +105,7 @@ export interface TimelineIdentifiedItem {
   cat: string;
   /** Which class the live image (if any) came from -- `"eat"` when this identification paired
    * with a real eat detection (food actually left the bowl), `"visit"` when it only paired
-   * with a visit, `null` when nothing paired nearby at all. Picks "ate" vs "was at the bowl" in
+   * with a visit, `null` when nothing paired nearby at all. Picks "ate" vs "was here" in
    * `lib/timeline.ts#detectionHeadline`; never infer the verb from `image` instead. */
   paired_class: "eat" | "visit" | "face" | null;
   /** Which HTTP image view kind resolves `image`: `track` (a vendor track, paired server-side

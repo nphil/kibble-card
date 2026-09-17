@@ -255,7 +255,7 @@ export class KibbleCatsCard extends LitElement {
             </div>
             ${this._pendingQuery.state.error ? this._renderPendingError() : nothing}
             ${crops.length === 0 && !this._pendingQuery.state.error
-              ? html`<p class="empty">Nothing to review. New crops arrive when a cat is identified at the bowl.</p>`
+              ? html`<p class="empty">Nothing to review. New crops arrive when the feeder identifies a cat in view.</p>`
               : html`<div class="crop-grid" @keydown=${this._onGridKeydown}>${crops.map((crop) => this._renderCrop(crop, catNames))}</div>`}
           </section>
           ${cats.map((cat) => this._renderGallery(cat))}

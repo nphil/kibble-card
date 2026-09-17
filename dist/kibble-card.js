@@ -139,10 +139,12 @@ ${t.peerName}:${t.selfName}`)}};Me.RPCResultError=fe;try{let i=FinalizationRegis
       opacity: 0.5;
     }
     .unknown {
-      fill: var(--silo-glass-edge);
-      font-size: 34px;
+      /* Same ink as the printed window marks, just larger: legible against the dark glass in
+       * either theme, still clearly a label rather than a level. */
+      fill: var(--secondary-text-color, var(--primary-text-color));
+      font-size: 40px;
       font-weight: 700;
-      opacity: 0.55;
+      opacity: 0.6;
     }
     .mark {
       fill: var(--secondary-text-color, var(--primary-text-color));

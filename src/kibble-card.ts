@@ -160,12 +160,12 @@ export class KibbleCard extends LitElement {
     const e = this._entities;
 
     const feedingState = e.feeding ? this.hass.states[e.feeding]?.state : undefined;
-    const coreIds = [e.feeding, e.bowlFill1, e.schedule].filter((id): id is string => Boolean(id));
+    const coreIds = [e.feeding, e.bowlFill, e.schedule].filter((id): id is string => Boolean(id));
     const coreStates = coreIds.map((id) => this.hass.states[id]?.state);
     const status = deriveFeederStatus(coreStates, feedingState);
     const feeding = feedingState === "on";
 
-    const bowlFill = this._numberState(e.bowlFill1);
+    const bowlFill = this._numberState(e.bowlFill);
     const hopperLevel1 = parseHopperLevel(e.hopperLevel1 && this.hass.states[e.hopperLevel1]?.state);
     const hopperLevel2 = parseHopperLevel(e.hopperLevel2 && this.hass.states[e.hopperLevel2]?.state);
     const scheduleEntries = this._scheduleEntries();

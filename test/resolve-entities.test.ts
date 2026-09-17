@@ -15,7 +15,7 @@ describe("resolveKibbleEntities", () => {
     const registry = byId([
       entry({ entity_id: "camera.plant_room_cat_feeder", translation_key: null }),
       entry({ entity_id: "binary_sensor.plant_room_cat_feeder_feeding", translation_key: "feeding" }),
-      entry({ entity_id: "sensor.plant_room_cat_feeder_bowl_fill_1", translation_key: "bowl_fill_1" }),
+      entry({ entity_id: "sensor.plant_room_cat_feeder_bowl_fill", translation_key: "bowl_fill" }),
       entry({ entity_id: "button.plant_room_cat_feeder_feed", translation_key: "feed" }),
       // Same translation_key, different device — must not leak in.
       entry({
@@ -29,7 +29,7 @@ describe("resolveKibbleEntities", () => {
 
     expect(result.camera).toBe("camera.plant_room_cat_feeder");
     expect(result.feeding).toBe("binary_sensor.plant_room_cat_feeder_feeding");
-    expect(result.bowlFill1).toBe("sensor.plant_room_cat_feeder_bowl_fill_1");
+    expect(result.bowlFill).toBe("sensor.plant_room_cat_feeder_bowl_fill");
     expect(result.feedButton).toBe("button.plant_room_cat_feeder_feed");
   });
 

@@ -151,20 +151,41 @@ Agent (`kibbled`, port 8765):
 
 Home Assistant integration (`custom_components/kibble`):
 
-- WebSocket commands, all taking `entry_id`:
-  - `kibble/timeline` → `{"items":[...]}` merging detections (`kind:"detection"`, `class`,
-    `ts`, `cat`, `pet_id`, `vendor_cat`, `image`) and feed cycles (`kind:"feed"`, `ts`,
-    `amount`, `hopper`, `outcome`, `before`, `after`), newest first, at most 100.
-  - `kibble/cats` → `{"cats":[{"name","samples","last_seen","avatar","vendor_pet_id","color_index"}]}`.
-  - `kibble/faces/pending` → `{"crops":[{name, ts, vendor_pet_id, vendor_cat, guess}]}`.
-  - `kibble/faces/samples` `{cat}` → `{"samples":[{name, ts}]}`.
+- WebSocket commands, all taking `entry_id` (`custom_components/kibble/websocket.py`):
+  - `kibble/timeline` (`include_visits`, default `false`) → `{"items":[...]}`, newest first, at
+    most 100. Each item has a `kind` and `ts`, plus:
+    - `"identified"` (a vendor `track`, or a `face` crop someone labelled): `cat` (never null --
+      falls back to "Unknown cat"), `paired_class` (`"eat"|"visit"|"face"|null`, which detection
+      class the image came from), `image_kind` (`"track"|"event"`, which HTTP image view kind
+      resolves `image`), `image` (bare token for that kind, or `null` if nothing paired).
+    - `"visit"` / `"eat"` (a detection no `identified` row already claimed as its pairing image;
+      `visit` rows only appear when `include_visits` is true): `image` (bare `event`-kind
+      filename, or `null`).
+    - `"feed"`: `amount`, `hopper` (`"1"|"2"|"both"|null`), `manual`, `before`, `after` (bare
+      `feed`-kind filenames, or `null`).
+  - `kibble/cats` → `{"cats":[{name, samples, last_seen, avatar, vendor_pet_id, color_index}]}`;
+    `color_index` is this cat's 0-based rank in name-sorted order (one stable palette slot per
+    enrolled cat). `kibble/cats/delete {name}` deletes one, forwarding to the agent.
+  - `kibble/faces/pending` → `{"crops":[{name, ts, vendor_pet_id, vendor_cat, guess}]}`, where
+    `guess` is `{cat, score}|null`. `kibble/faces/samples {cat}` → `{"samples":[{name, ts}]}`.
+  - `kibble/faces/upload {cat, jpeg_b64}` uploads a browser-cropped reference photo (base64,
+    decoded server-side) straight onto a cat, bypassing the pending-crop queue; returns the
+    agent's `{name, samples, low_quality?}`. `kibble/faces/delete_sample {cat, name}` removes an
+    uploaded (`upload-*`) sample, since it never had a pending-queue entry for `unlabel_face` to
+    move it back to.
 - HTTP view, authenticated, `GET /api/kibble/{entry_id}/image/{kind}/{name}` with `kind` one of
-  `event`, `feed`, `pending`, `sample/{cat}`; proxies the JPEG with its content type and
-  `Cache-Control: private, max-age=31536000, immutable` (names are unique per capture). Cards
-  fetch with `hass.fetchWithAuth` and display object URLs.
-- Services: existing `label_face`, `add_cat`; new `unlabel_face {cat, name}`.
-- Cards re-read a WS command when the relevant entity changes (`sensor.*_last_detection`,
-  `sensor.*_pending_faces`, `sensor.*_last_seen_pet`); push makes that near-instant.
+  `event`, `feed`, `track`, `pending`, `sample/{cat}`; proxies the JPEG with its content type and
+  `Cache-Control: private, max-age=31536000, immutable` (names are unique per capture, except
+  `track` which re-resolves its pairing live from the agent). Cards fetch with
+  `hass.fetchWithAuth` and display object URLs (`lib/image-cache.ts`).
+- Services: `label_face {device_id, crop_id, cat}`, `unlabel_face {device_id, cat, name}`,
+  `add_cat {device_id, name}`.
+- Cards re-read a WS command when the relevant entity's state changes (`lib/ws-query.ts`'s
+  `watchKey`, called from each card's `willUpdate`): `kibble-timeline-card` watches
+  `sensor.*_last_detection` plus the feeding/dish-after entities; `kibble-cats-card` watches
+  `image.*_pending_face` plus `sensor.*_last_seen_pet`; `kibble-card`'s cat-roster read watches
+  `sensor.*_last_seen_pet`. The `kibble` repo's agent-side WebSocket push (`docs/33-local-push.md`
+  there) makes that near-instant.
 
 Cards (`kibble-card` repo, one bundle `kibble-card.js`): `kibble-card` (hero), `kibble-timeline-card`,
 `kibble-cats-card`. Each has a visual editor with only the device picker; every entity id is

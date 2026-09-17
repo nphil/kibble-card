@@ -296,30 +296,41 @@ export class KibbleCard extends LitElement {
   // `fire-dom-event` tagged with a `kibble` verb the handler below dispatches on.
   private _portionConfigs(selected: number | null, disabled: boolean): Record<string, unknown>[] {
     const none = { action: "none" };
-    return PORTION_OPTIONS.map((portion) => ({
-      card_type: "button",
-      button_type: "name",
-      name: String(portion),
-      show_icon: false,
-      show_state: false,
-      styles: portionStyles(portion === selected, disabled),
-      tap_action: disabled ? none : { action: "fire-dom-event", kibble: "portion", portion },
-      double_tap_action: none,
-      hold_action: none,
-    }));
+    return PORTION_OPTIONS.map((portion) => {
+      const actions = {
+        tap_action: disabled ? none : { action: "fire-dom-event", kibble: "portion", portion },
+        double_tap_action: none,
+        hold_action: none,
+      };
+      return {
+        card_type: "button",
+        button_type: "name",
+        name: String(portion),
+        show_icon: false,
+        show_state: false,
+        styles: portionStyles(portion === selected, disabled),
+        // Bubble wires top-level actions to the icon and `button_action` to the button body.
+        ...actions,
+        button_action: actions,
+      };
+    });
   }
 
   private _feedRowConfig(feeding: boolean, disabled: boolean): Record<string, unknown> {
     const none = { action: "none" };
+    const actions = {
+      tap_action: feeding && !disabled ? { action: "fire-dom-event", kibble: "cancel" } : none,
+      double_tap_action: none,
+      hold_action: !feeding && !disabled ? { action: "fire-dom-event", kibble: "feed" } : none,
+    };
     return {
       card_type: "button",
       button_type: "name",
       name: disabled ? "Feeder unreachable" : feeding ? "Feeding… tap to cancel" : "Hold to feed",
       icon: feeding ? "mdi:stop-circle-outline" : "mdi:bowl-mix",
       styles: feeding ? FEEDING_ROW_STYLES : FEED_ROW_STYLES,
-      tap_action: feeding && !disabled ? { action: "fire-dom-event", kibble: "cancel" } : none,
-      double_tap_action: none,
-      hold_action: !feeding && !disabled ? { action: "fire-dom-event", kibble: "feed" } : none,
+      ...actions,
+      button_action: actions,
     };
   }
 

@@ -40,6 +40,16 @@ const FEED_ROW_STYLES = `
   .bubble-name, .bubble-icon { color: var(--kibble-ink-on-amber, #241a07) !important; }
   .bubble-icon-container { background: color-mix(in srgb, var(--kibble-ink-on-amber, #241a07) 12%, transparent) !important; }
 `;
+/** Five equal sub-buttons across the whole row (Bubble right-aligns them after the name by
+ * default); the selected one wears the accent. `selected` is 1-based, 0 for none. */
+function portionRowStyles(selected: number, disabled: boolean): string {
+  return `
+  .bubble-button-card-container { background: transparent !important; box-shadow: none !important; }
+  .bubble-sub-button-container { width: 100%; display: grid !important; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+  .bubble-sub-button { min-width: 0 !important; margin: 0 !important; justify-content: center; font-weight: 600; ${disabled ? "opacity: 0.5;" : ""} }
+  ${selected ? `.bubble-sub-button-${selected} { background: var(--kibble-amber, #f2a33c) !important; color: var(--kibble-ink-on-amber, #241a07) !important; }` : ""}
+`;
+}
 const FEEDING_ROW_STYLES = `
   .bubble-button-card-container { background: var(--error-color, #d9534f) !important; }
   .bubble-name, .bubble-icon { color: #fff !important; }
@@ -280,20 +290,22 @@ export class KibbleCard extends LitElement {
   // `fire-dom-event` tagged with a `kibble` verb the handler below dispatches on.
   private _portionRowConfig(selected: number | null, disabled: boolean): Record<string, unknown> {
     const none = { action: "none" };
+    const selectedIndex = selected === null ? -1 : PORTION_OPTIONS.indexOf(selected as (typeof PORTION_OPTIONS)[number]);
     return {
       card_type: "button",
       button_type: "name",
-      icon: "mdi:counter",
+      show_icon: false,
       show_name: false,
       show_state: false,
       tap_action: none,
       double_tap_action: none,
       hold_action: none,
+      styles: portionRowStyles(selectedIndex + 1, disabled),
       sub_button: PORTION_OPTIONS.map((portion) => ({
         name: String(portion),
         show_name: true,
         show_icon: false,
-        show_background: portion === selected,
+        show_background: true,
         tap_action: disabled ? none : { action: "fire-dom-event", kibble: "portion", portion },
         double_tap_action: none,
         hold_action: none,

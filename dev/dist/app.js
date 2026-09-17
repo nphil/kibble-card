@@ -7811,19 +7811,21 @@ function combineBowlFill(hopper1, hopper2) {
   }
   return { split: true, hopper1, hopper2, combined: null };
 }
-var VIEW_W = 260;
-var VIEW_H = 156;
-var CX = 130;
-var TOP_Y = 36;
-var RIM_RX = 106;
-var BASIN_RY = 94;
-var BOTTOM_Y = TOP_Y + BASIN_RY;
-var STROKE = 3.5;
-var BOWL_PATH = `M ${CX - RIM_RX} ${TOP_Y} A ${RIM_RX} ${BASIN_RY} 0 0 0 ${CX + RIM_RX} ${TOP_Y}`;
-var CONTENT_PATH = `${BOWL_PATH} Z`;
-var CONTENT_TOP = TOP_Y + 2;
-var CONTENT_BOTTOM = BOTTOM_Y;
-var SCATTER = [-0.6, -0.32, -0.06, 0.2, 0.46, 0.66, -0.46];
+var VIEW_W = 200;
+var VIEW_H = 240;
+var CX = 100;
+var BODY_X = 36;
+var BODY_Y = 14;
+var BODY_W = 128;
+var BODY_H = 200;
+var BODY_R = 18;
+var WIN_TOP = 44;
+var WIN_BOTTOM = 184;
+var WIN_W = 24;
+var WIN_R = 10;
+var WIN_GAP = 36;
+var TEXTURE_STEP = 9;
+var SCATTER = [-0.5, -0.2, 0.1, 0.4, -0.35, 0.25, 0];
 function cloverPiece(x2, y3, r6, rotationDeg) {
   const lobes = [0, 120, 240].map((angle) => {
     const rad = (angle + rotationDeg) * Math.PI / 180;
@@ -7865,59 +7867,87 @@ var KibbleBowl = class extends i4 {
   }
   render() {
     const display = combineBowlFill(this.hopper1, this.hopper2);
-    const label = display.split ? `Hopper 1 ${Math.round(display.hopper1)}%, hopper 2 ${Math.round(display.hopper2)}%` : display.combined == null ? "Bowl level unknown" : `Bowl ${Math.round(display.combined)}% full`;
+    const label = display.split ? `Hopper 1 ${Math.round(display.hopper1)}%, hopper 2 ${Math.round(display.hopper2)}%` : display.combined == null ? "Hopper level unknown" : `Hopper ${Math.round(display.combined)}% full`;
+    const windows = display.split ? [
+      { x: CX - WIN_GAP / 2 - WIN_W, w: WIN_W, mark: "01", fraction: display.hopper1 / 100 },
+      { x: CX + WIN_GAP / 2, w: WIN_W, mark: "02", fraction: display.hopper2 / 100 }
+    ] : [{ x: CX - WIN_W, w: WIN_W * 2, mark: null, fraction: (display.combined ?? 0) / 100 }];
     return b2`
       <svg class="art" viewBox="0 0 ${VIEW_W} ${VIEW_H}" role="img" aria-label=${label} preserveAspectRatio="xMidYMid meet">
         <title>${label}</title>
         <defs>
-          <clipPath id="bowl-content"><path d=${CONTENT_PATH} /></clipPath>
-          <linearGradient id="bowl-food" x1="0" y1="0" x2="0" y2="1">
+          <linearGradient id="silo-body" x1="0" x2="1">
+            <stop offset="0" stop-color="var(--silo-shade)" />
+            <stop offset="0.18" stop-color="var(--silo-light)" />
+            <stop offset="0.62" stop-color="var(--silo-mid)" />
+            <stop offset="1" stop-color="var(--silo-dark)" />
+          </linearGradient>
+          <linearGradient id="silo-cap" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="var(--silo-light)" />
+            <stop offset="1" stop-color="var(--silo-shade)" />
+          </linearGradient>
+          <linearGradient id="silo-glass" x1="0" x2="1">
+            <stop offset="0" stop-color="var(--silo-glass-edge)" />
+            <stop offset="0.5" stop-color="var(--silo-glass)" />
+            <stop offset="1" stop-color="var(--silo-glass-edge)" />
+          </linearGradient>
+          <linearGradient id="silo-food" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0" stop-color="var(--kibble-amber)" />
             <stop offset="1" stop-color="var(--kibble-amber-dark)" />
           </linearGradient>
-          <linearGradient id="bowl-shade" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stop-color="var(--primary-text-color)" stop-opacity="0.04" />
-            <stop offset="1" stop-color="var(--primary-text-color)" stop-opacity="0.14" />
-          </linearGradient>
+          <filter id="silo-shadow" x="-40%" y="-40%" width="180%" height="220%"><feGaussianBlur stdDeviation="8" /></filter>
+          <filter id="silo-inner" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="2.4" /></filter>
+          ${windows.map((w2, i6) => w`<clipPath id=${`silo-win-${i6}`}><rect x=${w2.x} y=${WIN_TOP} width=${w2.w} height=${WIN_BOTTOM - WIN_TOP} rx=${WIN_R} /></clipPath>`)}
         </defs>
-        <path class="basin" d=${CONTENT_PATH} />
-        <path class="basin-shade" d=${CONTENT_PATH} />
-        <g clip-path="url(#bowl-content)">
-          ${display.split ? this._renderSplitFill(display.hopper1, display.hopper2) : this._renderFill(display.combined ?? 0, 0, VIEW_W)}
-        </g>
-        ${display.split ? w`<line class="divider" x1=${CX} y1=${CONTENT_TOP + 6} x2=${CX} y2=${CONTENT_BOTTOM - 4} />` : A}
-        <path class="outline" d=${BOWL_PATH} />
-        <line class="rim" x1=${CX - RIM_RX - 6} y1=${TOP_Y} x2=${CX + RIM_RX + 6} y2=${TOP_Y} />
-        <line class="foot" x1=${CX - 30} y1=${BOTTOM_Y + 12} x2=${CX + 30} y2=${BOTTOM_Y + 12} />
+        <ellipse class="shadow" cx=${CX} cy=${BODY_Y + BODY_H + 8} rx="66" ry="8" filter="url(#silo-shadow)" />
+        <rect class="body" x=${BODY_X} y=${BODY_Y} width=${BODY_W} height=${BODY_H} rx=${BODY_R} />
+        <rect class="cap" x=${BODY_X} y=${BODY_Y} width=${BODY_W} height="26" rx="13" />
+        <rect class="cap-highlight" x=${BODY_X + 6} y=${BODY_Y + 6} width=${BODY_W - 12} height="9" rx="4.5" />
+        <rect class="body-edge" x=${BODY_X} y=${BODY_Y} width=${BODY_W} height=${BODY_H} rx=${BODY_R} />
+        ${windows.map((w2, i6) => this._renderWindow(w2, i6))}
+        <rect class="chute" x=${CX - 14} y=${BODY_Y + BODY_H} width="28" height="8" rx="3" />
         ${this._dropping ? this._renderFallingKibble() : A}
       </svg>
     `;
   }
-  /** The level: a rect clipped to the inset basin, its top edge set by the fill fraction. Nothing
-   * is drawn at zero -- an empty hopper is an empty bowl, not a sliver. `x`/`w` bound the rect
-   * horizontally for the split view. */
-  _renderFill(fraction0to100, x2, w2) {
-    const fraction = Math.max(0, Math.min(1, fraction0to100 / 100));
-    if (fraction === 0) return A;
-    const top = CONTENT_BOTTOM - (CONTENT_BOTTOM - CONTENT_TOP) * fraction;
+  /** One sight window: recessed dark glass with an inner shadow, the level clipped to it with a
+   * kibble texture and a surface highlight (nothing at zero — an empty hopper is an empty window,
+   * not a sliver), a vertical reflection, and the printed mark above. */
+  _renderWindow(w2, i6) {
+    const fraction = Math.max(0, Math.min(1, w2.fraction));
+    const top = WIN_BOTTOM - (WIN_BOTTOM - WIN_TOP) * fraction;
+    const clip = `url(#silo-win-${i6})`;
+    const dots = [];
+    if (fraction > 0) {
+      let row = 0;
+      for (let y3 = top + 6; y3 < WIN_BOTTOM; y3 += TEXTURE_STEP, row += 1) {
+        const x2 = w2.x + w2.w / 2 + (row % 2 === 0 ? -w2.w * 0.22 : w2.w * 0.22);
+        dots.push(w`<circle cx=${x2.toFixed(1)} cy=${y3.toFixed(1)} r="2.6" />`);
+      }
+    }
     return w`
-      <rect class="fill" x=${x2} y=${top} width=${w2} height=${CONTENT_BOTTOM - top + 2} />
-      <rect class="fill-surface" x=${x2} y=${top} width=${w2} height="3" />
-    `;
-  }
-  _renderSplitFill(hopper1, hopper2) {
-    return w`
-      ${this._renderFill(hopper1, 0, CX - 1)}
-      ${this._renderFill(hopper2, CX + 1, VIEW_W - CX - 1)}
+      <g>
+        <rect class="glass" x=${w2.x} y=${WIN_TOP} width=${w2.w} height=${WIN_BOTTOM - WIN_TOP} rx=${WIN_R} />
+        <g clip-path=${clip}>
+          <rect class="glass-inner" x=${w2.x - 2} y=${WIN_TOP - 8} width=${w2.w + 4} height=${WIN_BOTTOM - WIN_TOP + 4} rx=${WIN_R} filter="url(#silo-inner)" />
+          ${fraction > 0 ? w`
+                <rect class="fill" x=${w2.x} y=${top} width=${w2.w} height=${WIN_BOTTOM - top + 2} />
+                <g class="texture">${dots}</g>
+                <rect class="fill-surface" x=${w2.x} y=${top} width=${w2.w} height="2" />
+              ` : A}
+          <rect class="reflection" x=${w2.x + 2.5} y=${WIN_TOP + 3} width="4.5" height=${WIN_BOTTOM - WIN_TOP - 6} rx="2.25" />
+        </g>
+        ${w2.mark ? w`<text class="mark" x=${w2.x + w2.w / 2} y=${WIN_TOP - 9} text-anchor="middle">${w2.mark}</text>` : A}
+      </g>
     `;
   }
   _renderFallingKibble() {
-    const pieces = SCATTER.slice(0, 7).map((t5, i6) => {
-      const x2 = CX + t5 * 70;
+    const pieces = SCATTER.map((t5, i6) => {
+      const x2 = CX + t5 * 20;
       const delayMs = i6 * 70;
-      const durationMs = 320;
-      const style = `--fall-delay:${delayMs}ms;--fall-duration:${durationMs}ms;--fall-rotate:${(t5 * 180).toFixed(0)}deg;--fall-to:${CONTENT_BOTTOM - 70}px;`;
-      return w`<g class="drop" style=${style}>${cloverPiece(x2, 0, 7, t5 * 60)}</g>`;
+      const durationMs = 380;
+      const style = `--fall-delay:${delayMs}ms;--fall-duration:${durationMs}ms;--fall-rotate:${(t5 * 180).toFixed(0)}deg;--fall-to:20px;`;
+      return w`<g class="drop" style=${style}>${cloverPiece(x2, BODY_Y + BODY_H + 12, 6, t5 * 60)}</g>`;
     });
     return w`<g class="drops">${pieces}</g>`;
   }
@@ -7925,48 +7955,82 @@ var KibbleBowl = class extends i4 {
     this.styles = i`
     :host {
       display: block;
+      /* The plastic: the card background lifted toward the text colour in four steps, so the
+       * lit face, the mid tone, the turned edges and the cap all come from the theme. */
+      --silo-base: var(--card-background-color, var(--ha-card-background, #fff));
+      --silo-ink: var(--primary-text-color, #222);
+      --silo-light: color-mix(in srgb, var(--silo-base) 78%, var(--silo-ink));
+      --silo-mid: color-mix(in srgb, var(--silo-base) 84%, var(--silo-ink));
+      --silo-shade: color-mix(in srgb, var(--silo-base) 68%, var(--silo-ink));
+      --silo-dark: color-mix(in srgb, var(--silo-base) 58%, var(--silo-ink));
+      /* The sight window shows the hopper's interior: always darker than the plastic, in both
+       * themes, so the level reads as something inside the body. */
+      --silo-glass: color-mix(in srgb, var(--silo-base) 40%, #000);
+      --silo-glass-edge: color-mix(in srgb, var(--silo-base) 52%, #000);
     }
     .art {
       display: block;
       width: 100%;
-      max-width: var(--kibble-bowl-max-width, 280px);
+      max-width: var(--kibble-bowl-max-width, 190px);
       height: auto;
       margin: 0 auto;
       overflow: visible;
     }
-    .basin {
-      fill: var(--secondary-background-color, rgba(127, 127, 127, 0.12));
+    .shadow {
+      fill: var(--primary-text-color);
+      opacity: 0.32;
     }
-    .basin-shade {
-      fill: url(#bowl-shade);
+    .body {
+      fill: url(#silo-body);
     }
-    .outline,
-    .rim,
-    .foot {
+    /* On a light card the near-white plastic needs an edge to read as an object; on a dark
+     * card the same 0.14 alpha of the text colour is invisible, which is the point. */
+    .body-edge {
       fill: none;
       stroke: var(--primary-text-color);
-      stroke-width: ${STROKE};
-      stroke-linecap: round;
-      stroke-linejoin: round;
-      shape-rendering: geometricPrecision;
+      stroke-opacity: 0.14;
+      stroke-width: 1;
     }
-    .foot {
-      opacity: 0.45;
+    .cap {
+      fill: url(#silo-cap);
     }
-    .divider {
-      stroke: var(--primary-text-color);
-      stroke-width: 2;
-      stroke-linecap: round;
-      stroke-dasharray: 0.1 6;
-      opacity: 0.4;
+    .cap-highlight {
+      fill: var(--silo-ink);
+      opacity: 0.16;
+    }
+    .chute {
+      fill: var(--silo-shade);
+    }
+    .glass {
+      fill: url(#silo-glass);
+    }
+    .glass-inner {
+      fill: #000;
+      opacity: 0.35;
+    }
+    .reflection {
+      fill: #fff;
+      opacity: 0.14;
     }
     .fill {
-      fill: url(#bowl-food);
+      fill: url(#silo-food);
       transition: y 500ms cubic-bezier(0.2, 0.8, 0.2, 1), height 500ms cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+    .texture circle {
+      fill: var(--kibble-amber-dark);
+      opacity: 0.55;
     }
     .fill-surface {
       fill: #fff;
-      opacity: 0.28;
+      opacity: 0.5;
+    }
+    .mark {
+      fill: var(--secondary-text-color, var(--primary-text-color));
+      opacity: 0.7;
+      font-size: 9.5px;
+      font-weight: 600;
+      letter-spacing: 0.14em;
+      font-family: inherit;
     }
     .drops circle {
       fill: var(--kibble-amber-dark);
@@ -7974,7 +8038,7 @@ var KibbleBowl = class extends i4 {
     }
     @keyframes kibble-drop {
       from {
-        transform: translateY(-40px) rotate(0deg);
+        transform: translateY(0) rotate(0deg);
         opacity: 0;
       }
       15% {
@@ -7982,7 +8046,7 @@ var KibbleBowl = class extends i4 {
       }
       to {
         transform: translateY(var(--fall-to)) rotate(var(--fall-rotate));
-        opacity: 1;
+        opacity: 0;
       }
     }
   `;
@@ -11686,7 +11750,7 @@ var KibbleCard = class extends i4 {
     .bowl-block {
       grid-area: bowl;
       padding: 8px 14px 0;
-      --kibble-bowl-max-width: 250px;
+      --kibble-bowl-max-width: 170px;
     }
     .feed-controls {
       grid-area: feed;
@@ -11727,7 +11791,7 @@ var KibbleCard = class extends i4 {
     }
     :host(.compact) .bowl-block {
       padding-top: 2px;
-      --kibble-bowl-max-width: 230px;
+      --kibble-bowl-max-width: 160px;
     }
 
     /* >=640px: two columns, camera left full height, bowl/feed/schedule stacked on the right. */
@@ -11758,7 +11822,7 @@ var KibbleCard = class extends i4 {
       .bowl-block {
         grid-area: bowl;
         padding: 4px 16px 0;
-        --kibble-bowl-max-width: 250px;
+        --kibble-bowl-max-width: 170px;
       }
       .feed-controls {
         grid-area: feed;

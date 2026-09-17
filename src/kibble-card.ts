@@ -426,7 +426,7 @@ export class KibbleCard extends LitElement {
     .bowl-block {
       grid-area: bowl;
       padding: 8px 14px 0;
-      --kibble-bowl-max-width: 250px;
+      --kibble-bowl-max-width: 170px;
     }
     .feed-controls {
       grid-area: feed;
@@ -467,7 +467,7 @@ export class KibbleCard extends LitElement {
     }
     :host(.compact) .bowl-block {
       padding-top: 2px;
-      --kibble-bowl-max-width: 230px;
+      --kibble-bowl-max-width: 160px;
     }
 
     /* >=640px: two columns, camera left full height, bowl/feed/schedule stacked on the right. */
@@ -498,7 +498,7 @@ export class KibbleCard extends LitElement {
       .bowl-block {
         grid-area: bowl;
         padding: 4px 16px 0;
-        --kibble-bowl-max-width: 250px;
+        --kibble-bowl-max-width: 170px;
       }
       .feed-controls {
         grid-area: feed;

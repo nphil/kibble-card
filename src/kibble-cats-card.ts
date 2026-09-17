@@ -10,12 +10,13 @@
 
 import { LitElement, css, html, nothing } from "lit";
 import { createRef, ref } from "lit/directives/ref.js";
-import type { CatSample, FaceUploadResult, HomeAssistant, KibbleCatSummary, KibbleCatsCardConfig, PendingFaceCrop } from "./types";
+import type { CatSample, FaceUploadResult, HomeAssistant, KibbleCatSummary, KibbleCatsCardConfig, PendingFaceCrop, TimelineIdentifiedItem, TimelineItem } from "./types";
 import { resolveKibbleEntities, type KibbleEntities } from "./lib/resolve-entities";
 import { resolveEntryId } from "./lib/entry-id";
 import { WsQuery, watchKey, describeWsError } from "./lib/ws-query";
 import { ImageUrlCache, kibbleImageUrl } from "./lib/image-cache";
 import { relativeTimeSentence } from "./lib/relative-time";
+import { detectionHeadline } from "./lib/timeline";
 import { chooseSuggestion } from "./lib/suggestion";
 import "./components/kibble-avatar";
 import "./components/kibble-crop-dialog";
@@ -101,6 +102,9 @@ export class KibbleCatsCard extends LitElement {
   private _catsQuery = new WsQuery<{ cats: KibbleCatSummary[] }>(() => this.requestUpdate());
   private _pendingQuery = new WsQuery<{ crops: PendingFaceCrop[] }>(() => this.requestUpdate());
   private _sampleQueries = new Map<string, WsQuery<{ samples: CatSample[] }>>();
+  /** The same identified rows the timeline shows -- a "sighting" here means exactly what
+   * "Kitty was here" means there, so the two never disagree about how often a cat came by. */
+  private _timelineQuery = new WsQuery<{ items: TimelineItem[] }>(() => this.requestUpdate());
   private _imageCache = new ImageUrlCache();
   private _lastPendingData: { crops: PendingFaceCrop[] } | null = null;
   private _undoTimer: number | undefined;
@@ -205,6 +209,7 @@ export class KibbleCatsCard extends LitElement {
       const key = watchKey(this.hass, [this._entities.pendingFace, this._entities.lastSeenPet]);
       this._catsQuery.sync(key, () => callWS({ type: "kibble/cats", entry_id: entryId }).then((r) => r as { cats: KibbleCatSummary[] }));
       this._pendingQuery.sync(key, () => callWS({ type: "kibble/faces/pending", entry_id: entryId }).then((r) => r as { crops: PendingFaceCrop[] }));
+      this._timelineQuery.sync(key, () => callWS({ type: "kibble/timeline", entry_id: entryId, include_visits: false }).then((r) => r as { items: TimelineItem[] }));
       for (const cat of this._catsQuery.state.data?.cats ?? []) {
         if (this._sampleQueries.has(cat.name)) continue;
         const query = new WsQuery<{ samples: CatSample[] }>(() => this.requestUpdate());
@@ -664,10 +669,11 @@ export class KibbleCatsCard extends LitElement {
    * tile lands here and finds the same evidence), then the reference photos someone uploaded. */
   private _renderGallery(cat: KibbleCatSummary) {
     const query = this._sampleQueries.get(cat.name);
-    const samples = query?.state.data?.samples ?? [];
-    if (samples.length === 0 && cat.samples === 0) return nothing;
-    const sightings = samples.filter((sample) => !sample.name.startsWith("upload-")).sort((a, b) => b.ts - a.ts);
-    const references = samples.filter((sample) => sample.name.startsWith("upload-")).sort((a, b) => b.ts - a.ts);
+    const samples = (query?.state.data?.samples ?? []).slice().sort((a, b) => b.ts - a.ts);
+    const sightings = (this._timelineQuery.state.data?.items ?? []).filter(
+      (item): item is TimelineIdentifiedItem => item.kind === "identified" && item.cat === cat.name,
+    );
+    if (samples.length === 0 && cat.samples === 0 && sightings.length === 0) return nothing;
     const now = new Date();
     return html`
       <section class="gallery" id=${catSectionId(cat.name)}>
@@ -677,15 +683,29 @@ export class KibbleCatsCard extends LitElement {
           <span class="gallery-sub">${sightings.length === 0 ? "No sightings yet" : sightings.length === 1 ? "1 sighting" : `${sightings.length} sightings`}</span>
         </div>
         ${sightings.length > 0
-          ? html`<div class="gallery-grid">
-              ${sightings.map((sample) => this._renderSample(cat.name, sample, relativeTimeSentence(new Date(sample.ts * 1000), now)))}
-            </div>`
+          ? html`<div class="gallery-grid">${sightings.map((item) => this._renderSighting(item, now))}</div>`
           : nothing}
-        ${references.length > 0
-          ? html`<div class="gallery-sub">${references.length === 1 ? "1 reference photo" : `${references.length} reference photos`}</div>
-              <div class="gallery-grid">${references.map((sample) => this._renderSample(cat.name, sample, null))}</div>`
+        ${samples.length > 0
+          ? html`<div class="gallery-sub">${samples.length === 1 ? "1 training photo" : `${samples.length} training photos`}</div>
+              <div class="gallery-grid">${samples.map((sample) => this._renderSample(cat.name, sample, null))}</div>`
           : nothing}
       </section>
+    `;
+  }
+
+  /** One identified visit, with the live image from that moment when the feeder kept one
+   * (a vendor `track` pairs with the nearest visit/eat frame; a labelled face crop is its own
+   * image) -- the same picture the timeline row shows. */
+  private _renderSighting(item: TimelineIdentifiedItem, now: Date) {
+    const when = relativeTimeSentence(new Date(item.ts * 1000), now);
+    const path = item.image && this._entryId ? kibbleImageUrl(this._entryId, item.image_kind, item.image) : null;
+    const url = path ? this._imageCache.get(this.hass, path, () => this.requestUpdate()) : null;
+    const title = `${detectionHeadline(item)}, ${new Date(item.ts * 1000).toLocaleString()}`;
+    return html`
+      <div class="sample sighting" title=${title}>
+        ${url ? html`<img src=${url} alt="" loading="lazy" />` : html`<kibble-avatar .hass=${this.hass} .name=${null} .colorIndex=${null} .entryId=${this._entryId} .sampleName=${null}></kibble-avatar>`}
+        <span class="caption">${item.paired_class === "eat" ? "ate · " : ""}${when}</span>
+      </div>
     `;
   }
 
@@ -742,6 +762,11 @@ export class KibbleCatsCard extends LitElement {
   private _refreshAll(): void {
     this._refreshCats();
     this._refreshPending();
+    if (this.hass?.callWS && this._entryId) {
+      const callWS = this.hass.callWS;
+      const entryId = this._entryId;
+      this._timelineQuery.refresh(() => callWS({ type: "kibble/timeline", entry_id: entryId, include_visits: false }).then((r) => r as { items: TimelineItem[] }));
+    }
     const callWS = this.hass?.callWS;
     if (!callWS || !this._entryId) return;
     const entryId = this._entryId;
@@ -1117,6 +1142,12 @@ export class KibbleCatsCard extends LitElement {
     .gallery-sub {
       font-size: var(--kibble-text-caption, 12px);
       color: var(--secondary-text-color);
+    }
+    .sample.sighting kibble-avatar {
+      display: block;
+      width: 100%;
+      height: 100%;
+      --kibble-avatar-size: 56px;
     }
     .sample .caption {
       position: absolute;

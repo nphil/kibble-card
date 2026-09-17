@@ -19,15 +19,13 @@ const RIM_RX = 106;
 const BASIN_RY = 94;
 const BOTTOM_Y = TOP_Y + BASIN_RY;
 const STROKE = 3.5;
-/** Gap between the wall and the level, so the fill reads as contents, not as a second outline. */
-const INSET = 6;
 
 /** The bowl: an open rim line and a true half-ellipse basin below it. */
 const BOWL_PATH = `M ${CX - RIM_RX} ${TOP_Y} A ${RIM_RX} ${BASIN_RY} 0 0 0 ${CX + RIM_RX} ${TOP_Y}`;
-/** The same half-ellipse, inset: what the level is clipped to. */
-const CONTENT_PATH = `M ${CX - RIM_RX + INSET} ${TOP_Y + INSET} A ${RIM_RX - INSET} ${BASIN_RY - INSET} 0 0 0 ${CX + RIM_RX - INSET} ${TOP_Y + INSET} Z`;
-const CONTENT_TOP = TOP_Y + INSET;
-const CONTENT_BOTTOM = BOTTOM_Y - INSET;
+/** The closed basin: what the level is clipped to (the outline is drawn over the edge). */
+const CONTENT_PATH = `${BOWL_PATH} Z`;
+const CONTENT_TOP = TOP_Y + 2;
+const CONTENT_BOTTOM = BOTTOM_Y;
 
 const SCATTER = [-0.6, -0.32, -0.06, 0.2, 0.46, 0.66, -0.46];
 
@@ -92,14 +90,23 @@ export class KibbleBowl extends LitElement {
         <title>${label}</title>
         <defs>
           <clipPath id="bowl-content"><path d=${CONTENT_PATH} /></clipPath>
+          <linearGradient id="bowl-food" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="var(--kibble-amber)" />
+            <stop offset="1" stop-color="var(--kibble-amber-dark)" />
+          </linearGradient>
+          <linearGradient id="bowl-shade" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="var(--primary-text-color)" stop-opacity="0.04" />
+            <stop offset="1" stop-color="var(--primary-text-color)" stop-opacity="0.14" />
+          </linearGradient>
         </defs>
-        <path class="basin" d=${`${BOWL_PATH} Z`} />
+        <path class="basin" d=${CONTENT_PATH} />
+        <path class="basin-shade" d=${CONTENT_PATH} />
         <g clip-path="url(#bowl-content)">
           ${display.split ? this._renderSplitFill(display.hopper1!, display.hopper2!) : this._renderFill(display.combined ?? 0, 0, VIEW_W)}
         </g>
         ${display.split ? svg`<line class="divider" x1=${CX} y1=${CONTENT_TOP + 6} x2=${CX} y2=${CONTENT_BOTTOM - 4} />` : nothing}
         <path class="outline" d=${BOWL_PATH} />
-        <line class="rim" x1=${CX - RIM_RX} y1=${TOP_Y} x2=${CX + RIM_RX} y2=${TOP_Y} />
+        <line class="rim" x1=${CX - RIM_RX - 6} y1=${TOP_Y} x2=${CX + RIM_RX + 6} y2=${TOP_Y} />
         <line class="foot" x1=${CX - 30} y1=${BOTTOM_Y + 12} x2=${CX + 30} y2=${BOTTOM_Y + 12} />
         ${this._dropping ? this._renderFallingKibble() : nothing}
       </svg>
@@ -113,7 +120,10 @@ export class KibbleBowl extends LitElement {
     const fraction = Math.max(0, Math.min(1, fraction0to100 / 100));
     if (fraction === 0) return nothing;
     const top = CONTENT_BOTTOM - (CONTENT_BOTTOM - CONTENT_TOP) * fraction;
-    return svg`<rect class="fill" x=${x} y=${top} width=${w} height=${CONTENT_BOTTOM - top + 1} />`;
+    return svg`
+      <rect class="fill" x=${x} y=${top} width=${w} height=${CONTENT_BOTTOM - top + 2} />
+      <rect class="fill-surface" x=${x} y=${top} width=${w} height="3" />
+    `;
   }
 
   private _renderSplitFill(hopper1: number, hopper2: number) {
@@ -149,6 +159,9 @@ export class KibbleBowl extends LitElement {
     .basin {
       fill: var(--secondary-background-color, rgba(127, 127, 127, 0.12));
     }
+    .basin-shade {
+      fill: url(#bowl-shade);
+    }
     .outline,
     .rim,
     .foot {
@@ -170,8 +183,12 @@ export class KibbleBowl extends LitElement {
       opacity: 0.4;
     }
     .fill {
-      fill: var(--kibble-amber);
+      fill: url(#bowl-food);
       transition: y 500ms cubic-bezier(0.2, 0.8, 0.2, 1), height 500ms cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+    .fill-surface {
+      fill: #fff;
+      opacity: 0.28;
     }
     .drops circle {
       fill: var(--kibble-amber-dark);

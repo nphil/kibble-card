@@ -282,12 +282,17 @@ export class KibbleCard extends LitElement {
       return { text: statusText(status, null), tone: "amber", live, catName: null, colorIndex: null, avatarSample: null };
     }
     const seen = this._catSeen();
+    // The feeder's own eat detector is up: a meal is happening right now, which outranks
+    // "seen N minutes ago". The cat is whoever was last identified -- the identification
+    // arrives a few seconds before the eat verdict on the same visit.
+    const eatingId = this._entities.eating;
+    const eating = eatingId !== undefined && this.hass.states[eatingId]?.state === "on";
     if (!seen) {
-      return { text: "Ready to feed", tone: "normal", live, catName: null, colorIndex: null, avatarSample: null };
+      return { text: eating ? "Eating now" : "Ready to feed", tone: "normal", live, catName: null, colorIndex: null, avatarSample: null };
     }
     const roster = this._catsQuery.state.data?.cats.find((cat) => cat.name === seen.name) ?? null;
     return {
-      text: `${seen.name} seen ${seen.relative}`,
+      text: eating ? `${seen.name} is eating` : `${seen.name} seen ${seen.relative}`,
       tone: "normal",
       live,
       catName: seen.name,

@@ -224,7 +224,9 @@ export class KibbleLiveHero extends LitElement {
    * than starting/stopping a timer around every play/reconnect transition, and the playing/
    * reconnecting guards make it a no-op the rest of the time. */
   private _checkStall = (): void => {
-    if (!this._playing || this._reconnecting) return;
+    // A hidden tab throttles media and timers alike; its silence is not a dead stream. The
+    // visibility handler re-checks freshness the moment the tab is seen again.
+    if (!this._playing || this._reconnecting || document.hidden) return;
     if (performance.now() - this._lastProgress > STALL_MS) this._beginReconnect();
   };
 
@@ -243,9 +245,9 @@ export class KibbleLiveHero extends LitElement {
       this.requestUpdate();
       return;
     }
-    // Was still "playing" through a shorter hidden spell: confirm it actually survived rather
-    // than assuming so, since a backgrounded tab can silently starve the video of frames.
-    if (this._playing && performance.now() - this._lastProgress > STALL_MS) this._beginReconnect();
+    // Was still "playing" through a shorter hidden spell: the video was throttled, not
+    // necessarily dead. Give it a fresh STALL_MS to prove itself before the checker judges.
+    if (this._playing) this._lastProgress = performance.now();
   };
 
   /** A tab hidden past `HIDDEN_PAUSE_MS` stops decoding video nobody can see -- saves CPU and

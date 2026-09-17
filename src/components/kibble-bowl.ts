@@ -17,7 +17,7 @@ import { combineBowlFill } from "../lib/bowl-fill";
 import { KIBBLE_FALL_DURATION_MS, prefersReducedMotion } from "../styles/tokens";
 
 const VIEW_W = 200;
-const VIEW_H = 240;
+const VIEW_H = 224;
 const CX = 100;
 const BODY_X = 36;
 const BODY_Y = 14;
@@ -127,17 +127,14 @@ export class KibbleBowl extends LitElement {
             <stop offset="0" stop-color="var(--kibble-amber)" />
             <stop offset="1" stop-color="var(--kibble-amber-dark)" />
           </linearGradient>
-          <filter id="silo-shadow" x="-40%" y="-40%" width="180%" height="220%"><feGaussianBlur stdDeviation="8" /></filter>
           <filter id="silo-inner" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="2.4" /></filter>
           ${windows.map((w, i) => svg`<clipPath id=${`silo-win-${i}`}><rect x=${w.x} y=${WIN_TOP} width=${w.w} height=${WIN_BOTTOM - WIN_TOP} rx=${WIN_R} /></clipPath>`)}
         </defs>
-        <ellipse class="shadow" cx=${CX} cy=${BODY_Y + BODY_H + 8} rx="66" ry="8" filter="url(#silo-shadow)" />
         <rect class="body" x=${BODY_X} y=${BODY_Y} width=${BODY_W} height=${BODY_H} rx=${BODY_R} />
         <rect class="cap" x=${BODY_X} y=${BODY_Y} width=${BODY_W} height="26" rx="13" />
         <rect class="cap-highlight" x=${BODY_X + 6} y=${BODY_Y + 6} width=${BODY_W - 12} height="9" rx="4.5" />
         <rect class="body-edge" x=${BODY_X} y=${BODY_Y} width=${BODY_W} height=${BODY_H} rx=${BODY_R} />
         ${windows.map((w, i) => this._renderWindow(w, i))}
-        <rect class="chute" x=${CX - 14} y=${BODY_Y + BODY_H} width="28" height="8" rx="3" />
         ${this._dropping ? this._renderFallingKibble() : nothing}
       </svg>
     `;
@@ -183,7 +180,7 @@ export class KibbleBowl extends LitElement {
       const delayMs = i * 70;
       const durationMs = 380;
       const style = `--fall-delay:${delayMs}ms;--fall-duration:${durationMs}ms;--fall-rotate:${(t * 180).toFixed(0)}deg;--fall-to:20px;`;
-      return svg`<g class="drop" style=${style}>${cloverPiece(x, BODY_Y + BODY_H + 12, 6, t * 60)}</g>`;
+      return svg`<g class="drop" style=${style}>${cloverPiece(x, BODY_Y + BODY_H + 4, 6, t * 60)}</g>`;
     });
     return svg`<g class="drops">${pieces}</g>`;
   }
@@ -212,10 +209,6 @@ export class KibbleBowl extends LitElement {
       margin: 0 auto;
       overflow: visible;
     }
-    .shadow {
-      fill: var(--primary-text-color);
-      opacity: 0.32;
-    }
     .body {
       fill: url(#silo-body);
     }
@@ -233,9 +226,6 @@ export class KibbleBowl extends LitElement {
     .cap-highlight {
       fill: var(--silo-ink);
       opacity: 0.16;
-    }
-    .chute {
-      fill: var(--silo-shade);
     }
     .glass {
       fill: url(#silo-glass);

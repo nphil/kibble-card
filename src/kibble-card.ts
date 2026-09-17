@@ -41,16 +41,14 @@ const FEED_ROW_STYLES = `
   .bubble-name, .bubble-icon { color: var(--kibble-ink-on-amber, #241a07) !important; }
   .bubble-icon-container { background: color-mix(in srgb, var(--kibble-ink-on-amber, #241a07) 12%, transparent) !important; }
 `;
-/** Five equal sub-buttons across the whole row (Bubble right-aligns them after the name by
- * default); the selected one wears the accent. `selected` is 1-based, 0 for none. */
-function portionRowStyles(selected: number, disabled: boolean): string {
+/** One portion button: a plain Bubble name button, number centred, 48px tall; the selected
+ * one wears the accent. */
+function portionStyles(selected: boolean, disabled: boolean): string {
   return `
-  .bubble-button-card-container { background: transparent !important; box-shadow: none !important; height: auto !important; min-height: 0 !important; }
-  .bubble-button-card { padding: 0 !important; height: auto !important; }
-  .bubble-sub-button-container { width: 100%; display: grid !important; grid-template-columns: repeat(5, 1fr); gap: 8px; margin: 0 !important; }
-  .bubble-sub-button { min-width: 0 !important; height: var(--kibble-touch-target, 48px) !important; margin: 0 !important; padding: 0 !important; justify-content: center; font-size: 17px; font-weight: 600; ${disabled ? "opacity: 0.5;" : ""} }
-  .bubble-sub-button .bubble-sub-button-name-container { margin: 0 !important; }
-  ${selected ? `.bubble-sub-button-${selected} { background: var(--kibble-amber, #f2a33c) !important; color: var(--kibble-ink-on-amber, #241a07) !important; }` : ""}
+  .bubble-button-card-container { height: var(--kibble-touch-target, 48px) !important; ${selected ? "background: var(--kibble-amber, #f2a33c) !important;" : ""} ${disabled ? "opacity: 0.5;" : ""} }
+  .bubble-button-card { padding: 0 !important; }
+  .bubble-name-container { margin: 0 !important; justify-content: center; width: 100%; }
+  .bubble-name { font-size: 17px; font-weight: 600; ${selected ? "color: var(--kibble-ink-on-amber, #241a07) !important;" : ""} }
 `;
 }
 const FEEDING_ROW_STYLES = `
@@ -190,7 +188,11 @@ export class KibbleCard extends LitElement {
             <kibble-bowl class="bowl-block" .hopper1=${hopper1} .hopper2=${hopper2} .feeding=${feeding}></kibble-bowl>
             <div class="feed-controls" @hass-action=${this._onBubbleAction}>
               ${this._bubble
-                ? html`<kibble-bubble-row .hass=${this.hass} .config=${this._portionRowConfig(feedAmount, status === "unreachable" || feeding)}></kibble-bubble-row>
+                ? html`<div class="portions">
+                      ${this._portionConfigs(feedAmount, status === "unreachable" || feeding).map(
+                        (config) => html`<kibble-bubble-row .hass=${this.hass} .config=${config}></kibble-bubble-row>`,
+                      )}
+                    </div>
                     <kibble-bubble-row .hass=${this.hass} .config=${this._feedRowConfig(feeding, status === "unreachable")}></kibble-bubble-row>`
                 : html`<kibble-segmented-picker
                       class="picker-full"
@@ -292,29 +294,19 @@ export class KibbleCard extends LitElement {
   // The two Bubble rows. Bubble handles the gestures (tap / hold) and reports them as HA's
   // standard `hass-action` event carrying the action config, so each action here is a
   // `fire-dom-event` tagged with a `kibble` verb the handler below dispatches on.
-  private _portionRowConfig(selected: number | null, disabled: boolean): Record<string, unknown> {
+  private _portionConfigs(selected: number | null, disabled: boolean): Record<string, unknown>[] {
     const none = { action: "none" };
-    const selectedIndex = selected === null ? -1 : PORTION_OPTIONS.indexOf(selected as (typeof PORTION_OPTIONS)[number]);
-    return {
+    return PORTION_OPTIONS.map((portion) => ({
       card_type: "button",
       button_type: "name",
+      name: String(portion),
       show_icon: false,
-      show_name: false,
       show_state: false,
-      tap_action: none,
+      styles: portionStyles(portion === selected, disabled),
+      tap_action: disabled ? none : { action: "fire-dom-event", kibble: "portion", portion },
       double_tap_action: none,
       hold_action: none,
-      styles: portionRowStyles(selectedIndex + 1, disabled),
-      sub_button: PORTION_OPTIONS.map((portion) => ({
-        name: String(portion),
-        show_name: true,
-        show_icon: false,
-        show_background: true,
-        tap_action: disabled ? none : { action: "fire-dom-event", kibble: "portion", portion },
-        double_tap_action: none,
-        hold_action: none,
-      })),
-    };
+    }));
   }
 
   private _feedRowConfig(feeding: boolean, disabled: boolean): Record<string, unknown> {
@@ -538,6 +530,14 @@ export class KibbleCard extends LitElement {
       display: flex;
       flex-direction: column;
       gap: 8px;
+    }
+    .portions {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 8px;
+    }
+    .portions > * {
+      min-width: 0;
       container-type: inline-size;
       container-name: feed-controls;
     }

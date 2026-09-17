@@ -9,7 +9,6 @@
  */
 
 import { LitElement, css, html, nothing } from "lit";
-import type { PropertyValues } from "lit";
 import { createRef, ref } from "lit/directives/ref.js";
 import type { CatSample, FaceUploadResult, HomeAssistant, KibbleCatSummary, KibbleCatsCardConfig, PendingFaceCrop } from "./types";
 import { resolveKibbleEntities, type KibbleEntities } from "./lib/resolve-entities";
@@ -94,6 +93,11 @@ export class KibbleCatsCard extends LitElement {
 
   private _entities: KibbleEntities = EMPTY_ENTITIES;
   private _entryId: string | undefined;
+  // See `kibble-card.ts`'s identical fields: avoids recomputing entity-role resolution on
+  // every `hass` tick (which is most of them, system-wide) when the registries didn't move.
+  private _resolvedEntities: HomeAssistant["entities"] | undefined;
+  private _resolvedDevices: HomeAssistant["devices"] | undefined;
+  private _resolvedDeviceId: string | undefined;
   private _catsQuery = new WsQuery<{ cats: KibbleCatSummary[] }>(() => this.requestUpdate());
   private _pendingQuery = new WsQuery<{ crops: PendingFaceCrop[] }>(() => this.requestUpdate());
   private _sampleQueries = new Map<string, WsQuery<{ samples: CatSample[] }>>();
@@ -182,10 +186,18 @@ export class KibbleCatsCard extends LitElement {
     setTimeout(() => section.classList.remove("lit"), 2400);
   }
 
-  protected willUpdate(changed: PropertyValues): void {
-    if ((changed.has("hass") || changed.has("_config")) && this._config?.device_id && this.hass) {
-      this._entities = resolveKibbleEntities(this.hass.entities ?? {}, this._config.device_id);
-      this._entryId = resolveEntryId(this.hass.devices ?? {}, this._config.device_id);
+  protected willUpdate(): void {
+    const deviceId = this._config?.device_id;
+    if (
+      this.hass &&
+      deviceId &&
+      (this.hass.entities !== this._resolvedEntities || this.hass.devices !== this._resolvedDevices || deviceId !== this._resolvedDeviceId)
+    ) {
+      this._resolvedEntities = this.hass.entities;
+      this._resolvedDevices = this.hass.devices;
+      this._resolvedDeviceId = deviceId;
+      this._entities = resolveKibbleEntities(this.hass.entities ?? {}, deviceId);
+      this._entryId = resolveEntryId(this.hass.devices ?? {}, deviceId);
     }
     const callWS = this.hass?.callWS;
     if (this.hass && this._entryId && callWS) {
@@ -198,8 +210,14 @@ export class KibbleCatsCard extends LitElement {
         const query = new WsQuery<{ samples: CatSample[] }>(() => this.requestUpdate());
         this._sampleQueries.set(cat.name, query);
       }
+      // Samples only actually change on a label/unlabel/upload/delete -- every card-driven one
+      // of those already calls `_refreshAll()` directly. `pendingFace` (not `lastSeenPet`) is
+      // the one push signal worth resyncing on top of that: it also catches another session's
+      // edit, without every enrolled cat's full sample list refetching on every bare detection
+      // (`lastSeenPet` changes on *any* cat seen at the bowl, labelled or not).
+      const samplesKey = watchKey(this.hass, [this._entities.pendingFace]);
       for (const [name, query] of this._sampleQueries) {
-        query.sync(key, () => callWS({ type: "kibble/faces/samples", entry_id: entryId, cat: name }).then((r) => r as { samples: CatSample[] }));
+        query.sync(samplesKey, () => callWS({ type: "kibble/faces/samples", entry_id: entryId, cat: name }).then((r) => r as { samples: CatSample[] }));
       }
     }
     // Fresh server data supersedes any optimistic hide -- clear once a new fetch result lands.
@@ -214,6 +232,7 @@ export class KibbleCatsCard extends LitElement {
     const cats = this._catsQuery.state.data?.cats ?? [];
     const allCrops = this._pendingQuery.state.data?.crops ?? [];
     const crops = allCrops.filter((crop) => !this._hiddenCrops.has(crop.name));
+    const catNames = new Set(cats.map((cat) => cat.name));
     const presentNames = new Set(
       this._entities.catPresence.filter((p) => this.hass.states[p.entityId]?.state === "on").map((p) => p.name),
     );
@@ -237,7 +256,7 @@ export class KibbleCatsCard extends LitElement {
             ${this._pendingQuery.state.error ? this._renderPendingError() : nothing}
             ${crops.length === 0 && !this._pendingQuery.state.error
               ? html`<p class="empty">Nothing to review. New crops arrive when a cat is identified at the bowl.</p>`
-              : html`<div class="crop-grid" @keydown=${this._onGridKeydown}>${crops.map((crop) => this._renderCrop(crop))}</div>`}
+              : html`<div class="crop-grid" @keydown=${this._onGridKeydown}>${crops.map((crop) => this._renderCrop(crop, catNames))}</div>`}
           </section>
           ${cats.map((cat) => this._renderGallery(cat))}
         </div>
@@ -500,8 +519,8 @@ export class KibbleCatsCard extends LitElement {
     `;
   }
 
-  private _renderCrop(crop: PendingFaceCrop) {
-    const suggestion = chooseSuggestion(crop, this._confidence());
+  private _renderCrop(crop: PendingFaceCrop, catNames: ReadonlySet<string>) {
+    const suggestion = chooseSuggestion(crop, this._confidence(), catNames);
     const path = this._entryId ? kibbleImageUrl(this._entryId, "pending", crop.name) : null;
     const url = path ? this._imageCache.get(this.hass, path, () => this.requestUpdate()) : null;
     return html`
@@ -652,8 +671,11 @@ export class KibbleCatsCard extends LitElement {
     const now = new Date();
     return html`
       <section class="gallery" id=${catSectionId(cat.name)}>
-        <div class="gallery-heading">${cat.name}</div>
-        <div class="gallery-sub">${sightings.length === 0 ? "No sightings yet" : sightings.length === 1 ? "1 sighting" : `${sightings.length} sightings`}</div>
+        <div class="gallery-header">
+          <kibble-avatar .hass=${this.hass} .name=${cat.name} .colorIndex=${cat.color_index} .entryId=${this._entryId} .sampleName=${cat.avatar}></kibble-avatar>
+          <span class="gallery-name">${cat.name}</span>
+          <span class="gallery-sub">${sightings.length === 0 ? "No sightings yet" : sightings.length === 1 ? "1 sighting" : `${sightings.length} sightings`}</span>
+        </div>
         ${sightings.length > 0
           ? html`<div class="gallery-grid">
               ${sightings.map((sample) => this._renderSample(cat.name, sample, relativeTimeSentence(new Date(sample.ts * 1000), now)))}
@@ -1073,8 +1095,21 @@ export class KibbleCatsCard extends LitElement {
       gap: 8px;
       padding-top: 12px;
       border-top: 1px solid var(--divider-color);
+      scroll-margin-top: 16px;
     }
-    .gallery-heading {
+    .gallery-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border-radius: 8px;
+      outline: 2px solid transparent;
+      outline-offset: 4px;
+      transition: outline-color 600ms ease;
+    }
+    .gallery.lit .gallery-header {
+      outline-color: var(--kibble-amber, #f2a33c);
+    }
+    .gallery-name {
       font-size: var(--kibble-text-body);
       font-weight: 600;
       color: var(--primary-text-color);
@@ -1082,14 +1117,6 @@ export class KibbleCatsCard extends LitElement {
     .gallery-sub {
       font-size: var(--kibble-text-caption, 12px);
       color: var(--secondary-text-color);
-    }
-    .gallery {
-      scroll-margin-top: 16px;
-      border-radius: 12px;
-      transition: box-shadow 600ms ease;
-    }
-    .gallery.lit {
-      box-shadow: 0 0 0 3px var(--kibble-amber, #f2a33c);
     }
     .sample .caption {
       position: absolute;

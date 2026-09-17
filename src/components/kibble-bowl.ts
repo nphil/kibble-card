@@ -48,7 +48,8 @@ interface SightWindow {
   x: number;
   w: number;
   mark: string | null;
-  fraction: number;
+  /** `null` when the feeder has no valid reading -- an empty window would claim "empty". */
+  fraction: number | null;
 }
 
 export class KibbleBowl extends LitElement {
@@ -102,7 +103,7 @@ export class KibbleBowl extends LitElement {
           { x: CX - WIN_GAP / 2 - WIN_W, w: WIN_W, mark: "01", fraction: display.hopper1! / 100 },
           { x: CX + WIN_GAP / 2, w: WIN_W, mark: "02", fraction: display.hopper2! / 100 },
         ]
-      : [{ x: CX - WIN_W, w: WIN_W * 2, mark: null, fraction: (display.combined ?? 0) / 100 }];
+      : [{ x: CX - WIN_W, w: WIN_W * 2, mark: null, fraction: display.combined == null ? null : display.combined / 100 }];
 
     return html`
       <svg class="art" viewBox="0 0 ${VIEW_W} ${VIEW_H}" role="img" aria-label=${label} preserveAspectRatio="xMidYMid meet">
@@ -142,8 +143,12 @@ export class KibbleBowl extends LitElement {
 
   /** One sight window: recessed dark glass with an inner shadow, the level clipped to it with a
    * kibble texture and a surface highlight (nothing at zero — an empty hopper is an empty window,
-   * not a sliver), a vertical reflection, and the printed mark above. */
+   * not a sliver), a vertical reflection, and the printed mark above. A `null` fraction means
+   * the feeder has no reading (the vendor invalidates it and only refreshes it on demand, see
+   * kibble docs/34-bowl-fill-surplus.md): the window shows a "?" rather than reading as empty,
+   * which is the difference between "I don't know" and "your cat has no food". */
   private _renderWindow(w: SightWindow, i: number) {
+    if (w.fraction == null) return this._renderUnknownWindow(w);
     const fraction = Math.max(0, Math.min(1, w.fraction));
     const top = WIN_BOTTOM - (WIN_BOTTOM - WIN_TOP) * fraction;
     const clip = `url(#silo-win-${i})`;
@@ -169,6 +174,17 @@ export class KibbleBowl extends LitElement {
             : nothing}
           <rect class="reflection" x=${w.x + 2.5} y=${WIN_TOP + 3} width="4.5" height=${WIN_BOTTOM - WIN_TOP - 6} rx="2.25" />
         </g>
+        ${w.mark ? svg`<text class="mark" x=${w.x + w.w / 2} y=${WIN_TOP - 9} text-anchor="middle">${w.mark}</text>` : nothing}
+      </g>
+    `;
+  }
+
+  private _renderUnknownWindow(w: SightWindow) {
+    return svg`
+      <g>
+        <rect class="glass" x=${w.x} y=${WIN_TOP} width=${w.w} height=${WIN_BOTTOM - WIN_TOP} rx=${WIN_R} />
+        <rect class="reflection" x=${w.x + 2.5} y=${WIN_TOP + 3} width="4.5" height=${WIN_BOTTOM - WIN_TOP - 6} rx="2.25" />
+        <text class="unknown" x=${w.x + w.w / 2} y=${(WIN_TOP + WIN_BOTTOM) / 2} text-anchor="middle" dominant-baseline="central">?</text>
         ${w.mark ? svg`<text class="mark" x=${w.x + w.w / 2} y=${WIN_TOP - 9} text-anchor="middle">${w.mark}</text>` : nothing}
       </g>
     `;
@@ -252,6 +268,12 @@ export class KibbleBowl extends LitElement {
     .fill-surface {
       fill: #fff;
       opacity: 0.5;
+    }
+    .unknown {
+      fill: var(--silo-glass-edge);
+      font-size: 34px;
+      font-weight: 700;
+      opacity: 0.55;
     }
     .mark {
       fill: var(--secondary-text-color, var(--primary-text-color));

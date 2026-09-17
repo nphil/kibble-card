@@ -7780,7 +7780,8 @@ var MDI = {
   volumeOff: "M12,4L9.91,6.09L12,8.18M4.27,3L3,4.27L7.73,9H3V15H7L12,20V13.27L16.25,17.53C15.58,18.04 14.83,18.46 14,18.7V20.77C15.38,20.45 16.63,19.82 17.68,18.96L19.73,21L21,19.73L12,10.73M19,12C19,12.94 18.8,13.82 18.46,14.64L19.97,16.15C20.62,14.91 21,13.5 21,12C21,7.72 18,4.14 14,3.23V5.29C16.89,6.15 19,8.83 19,12M16.5,12C16.5,10.23 15.5,8.71 14,7.97V10.18L16.45,12.63C16.5,12.43 16.5,12.21 16.5,12Z",
   volumeHigh: "M14,3.23V5.29C16.89,6.15 19,8.83 19,12C19,15.17 16.89,17.84 14,18.7V20.77C18,19.86 21,16.28 21,12C21,7.72 18,4.14 14,3.23M16.5,12C16.5,10.23 15.5,8.71 14,7.97V16C15.5,15.29 16.5,13.76 16.5,12M3,9V15H7L12,20V4L7,9H3Z",
   openInNew: "M14,3V5H17.59L7.76,14.83L9.17,16.24L19,6.41V10H21V3M19,19H5V5H12V3H5C3.89,3 3,3.9 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V12H19V19Z",
-  speaker: "M12,12A3,3 0 0,0 9,15A3,3 0 0,0 12,18A3,3 0 0,0 15,15A3,3 0 0,0 12,12M12,20A5,5 0 0,1 7,15A5,5 0 0,1 12,10A5,5 0 0,1 17,15A5,5 0 0,1 12,20M12,4A2,2 0 0,1 14,6A2,2 0 0,1 12,8C10.89,8 10,7.1 10,6C10,4.89 10.89,4 12,4M17,2H7C5.89,2 5,2.89 5,4V20A2,2 0 0,0 7,22H17A2,2 0 0,0 19,20V4C19,2.89 18.1,2 17,2Z"
+  speaker: "M12,12A3,3 0 0,0 9,15A3,3 0 0,0 12,18A3,3 0 0,0 15,15A3,3 0 0,0 12,12M12,20A5,5 0 0,1 7,15A5,5 0 0,1 12,10A5,5 0 0,1 17,15A5,5 0 0,1 12,20M12,4A2,2 0 0,1 14,6A2,2 0 0,1 12,8C10.89,8 10,7.1 10,6C10,4.89 10.89,4 12,4M17,2H7C5.89,2 5,2.89 5,4V20A2,2 0 0,0 7,22H17A2,2 0 0,0 19,20V4C19,2.89 18.1,2 17,2Z",
+  refresh: "M17.65,6.35C16.2,4.9 14.21,4 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20C15.73,20 18.84,17.45 19.73,14H17.65C16.83,16.33 14.61,18 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6C13.66,6 15.14,6.69 16.22,7.78L13,11H20V4L17.65,6.35Z"
 };
 function mdiIcon(name) {
   return w`<svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor" aria-hidden="true"><path d=${MDI[name]}></path></svg>`;
@@ -8475,8 +8476,13 @@ function nextScheduled(entries, now) {
   }
   return best;
 }
+function formatClock(time, locale) {
+  const minutes = parseTimeToMinutes(time);
+  const date = new Date(2e3, 0, 1, Math.floor(minutes / 60), minutes % 60);
+  return date.toLocaleTimeString(locale, { hour: "numeric", minute: "2-digit" });
+}
 var COUNT_WORDS = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"];
-function scheduleSummary(entries, now) {
+function scheduleSummary(entries, now, locale) {
   if (entries.length === 0) {
     return "No schedule set";
   }
@@ -8486,7 +8492,7 @@ function scheduleSummary(entries, now) {
   }
   const enabledCount = entries.filter((entry2) => entry2.enabled).length;
   const countWord = COUNT_WORDS[enabledCount] ?? String(enabledCount);
-  return `Next feed ${next.entry.time}, ${countWord} a day`;
+  return `Next feed ${formatClock(next.entry.time, locale)}, ${countWord} a day`;
 }
 var DISPENSER_CARD_TAG = "dispenser-schedule-card";
 var KibbleScheduleSummary = class extends i4 {
@@ -8565,7 +8571,7 @@ var KibbleScheduleSummary = class extends i4 {
         ${sorted.map(
       (entry2) => b2`
             <li class=${entry2.enabled ? "" : "disabled"}>
-              <span class="time">${entry2.time}</span>
+              <span class="time">${formatClock(entry2.time)}</span>
               <span class="amounts">${entry2.amount_l}g + ${entry2.amount_r}g</span>
               <span class="state">${entry2.enabled ? "On" : "Paused"}</span>
             </li>
@@ -9439,10 +9445,21 @@ var ScryptedLive = class {
     this.onChange();
   }
 };
+var RECONNECT_BASE_MS = 1e3;
+var RECONNECT_MAX_MS = 3e4;
+function nextReconnectDelay(current) {
+  return Math.min(current * 2, RECONNECT_MAX_MS);
+}
+var STALL_MS = 8e3;
+var STALL_CHECK_INTERVAL_MS = 2e3;
+var HIDDEN_PAUSE_MS = 6e4;
 var KibbleLiveHero = class extends i4 {
   constructor() {
     super();
     this._starting = false;
+    this._backoffMs = RECONNECT_BASE_MS;
+    this._lastProgress = 0;
+    this._hiddenPaused = false;
     this._live = new ScryptedLive(() => {
       this._tick = (this._tick ?? 0) + 1;
     });
@@ -9451,6 +9468,7 @@ var KibbleLiveHero = class extends i4 {
       if (!token || !this.scryptedId) return;
       this._starting = true;
       this._playing = true;
+      this._lastProgress = performance.now();
       await this.updateComplete;
       const video = this.renderRoot.querySelector("#video");
       if (!video) {
@@ -9459,22 +9477,61 @@ var KibbleLiveHero = class extends i4 {
       }
       try {
         await this._live.open({ deviceId: this.scryptedId, token }, video);
+        this._reconnecting = false;
+        this._backoffMs = RECONNECT_BASE_MS;
       } catch {
-        this._playing = false;
-        this._retry = setTimeout(() => {
-          this._starting = false;
-          this.requestUpdate();
-        }, 15e3);
+        this._beginReconnect();
+        return;
+      } finally {
+        this._starting = false;
+      }
+    };
+    this._onTimeUpdate = () => {
+      this._lastProgress = performance.now();
+    };
+    this._checkStall = () => {
+      if (!this._playing || this._reconnecting) return;
+      if (performance.now() - this._lastProgress > STALL_MS) this._beginReconnect();
+    };
+    this._onVisibilityChange = () => {
+      if (document.hidden) {
+        clearTimeout(this._hiddenTimer);
+        this._hiddenTimer = setTimeout(this._pauseForHidden, HIDDEN_PAUSE_MS);
         return;
       }
-      this._starting = false;
+      clearTimeout(this._hiddenTimer);
+      this._hiddenTimer = void 0;
+      if (this._hiddenPaused) {
+        this._hiddenPaused = false;
+        this._backoffMs = RECONNECT_BASE_MS;
+        this.requestUpdate();
+        return;
+      }
+      if (this._playing && performance.now() - this._lastProgress > STALL_MS) this._beginReconnect();
+    };
+    this._pauseForHidden = () => {
+      this._hiddenTimer = void 0;
+      if (!this._playing && !this._reconnecting) return;
+      this._hiddenPaused = true;
+      this._reconnecting = false;
+      clearTimeout(this._reconnectTimer);
+      this._reconnectTimer = void 0;
+      this._live.close();
+      this._playing = false;
+      this._talking = false;
     };
     this._stop = () => {
-      clearTimeout(this._retry);
+      clearTimeout(this._reconnectTimer);
+      this._reconnectTimer = void 0;
+      clearTimeout(this._hiddenTimer);
+      this._hiddenTimer = void 0;
       this._live.close();
       this._playing = false;
       this._talking = false;
       this._starting = false;
+      this._reconnecting = false;
+      this._hiddenPaused = false;
+      this._backoffMs = RECONNECT_BASE_MS;
     };
     this._toggleMute = () => {
       this._muted = !this._muted;
@@ -9498,6 +9555,7 @@ var KibbleLiveHero = class extends i4 {
     this._playing = false;
     this._talking = false;
     this._muted = true;
+    this._reconnecting = false;
     this._tick = 0;
   }
   static {
@@ -9508,17 +9566,32 @@ var KibbleLiveHero = class extends i4 {
       _playing: { state: true },
       _talking: { state: true },
       _muted: { state: true },
+      _reconnecting: { state: true },
       _tick: { state: true }
     };
   }
+  connectedCallback() {
+    super.connectedCallback();
+    document.addEventListener("visibilitychange", this._onVisibilityChange);
+    this._stallCheckInterval = setInterval(this._checkStall, STALL_CHECK_INTERVAL_MS);
+  }
   disconnectedCallback() {
     super.disconnectedCallback();
+    document.removeEventListener("visibilitychange", this._onVisibilityChange);
+    clearInterval(this._stallCheckInterval);
+    this._stallCheckInterval = void 0;
     this._stop();
   }
   /** The stream starts on its own as soon as the card knows where to get it; the still stays
-   * underneath until the first frame paints, so the hand-over is seamless. */
+   * underneath until the first frame paints, so the hand-over is seamless. A session that turns
+   * out to be dead (peer connection disconnected/failed/closed) reroutes through the same
+   * reconnect path a stall does, instead of leaving a frozen or blank video up forever. */
   updated() {
-    if (this._playing || this._starting) return;
+    if (this._live.state === "error" && this._playing) {
+      this._beginReconnect();
+      return;
+    }
+    if (this._playing || this._starting || this._reconnecting || this._hiddenPaused) return;
     if (!this.hass || !this.scryptedId || !findScryptedToken(this.hass)) return;
     void this._start();
   }
@@ -9527,6 +9600,7 @@ var KibbleLiveHero = class extends i4 {
       <div class="frame">
         ${this._renderStill()}
         ${this._playing ? this._renderVideo() : A}
+        ${this._reconnecting ? b2`<div class="reconnect" role="status" aria-label="Reconnecting to the feeder's camera">${mdiIcon("refresh")}</div>` : A}
         <div class="controls">
           ${this._playing ? b2`<button
                 class="chip"
@@ -9547,12 +9621,19 @@ var KibbleLiveHero = class extends i4 {
                 ${mdiIcon(this._talking ? "microphone" : "microphoneOff")}
               </button>` : A}
         </div>
-        ${this._live.state === "error" ? b2`<div class="note error">${this._live.error}</div>` : A}
+        ${this._live.state === "error" && !this._reconnecting ? b2`<div class="note error">${this._live.error}</div>` : A}
       </div>
     `;
   }
   _renderVideo() {
-    return b2`<video id="video" autoplay playsinline ?muted=${this._muted} @loadedmetadata=${this._applyMute}></video>`;
+    return b2`<video
+      id="video"
+      autoplay
+      playsinline
+      ?muted=${this._muted}
+      @loadedmetadata=${this._applyMute}
+      @timeupdate=${this._onTimeUpdate}
+    ></video>`;
   }
   _renderStill() {
     if (!this.cameraEntity) return b2`<div class="placeholder">No camera on this device</div>`;
@@ -9561,6 +9642,22 @@ var KibbleLiveHero = class extends i4 {
     }
     const src = this.hass.states[this.cameraEntity]?.attributes.entity_picture;
     return typeof src === "string" ? b2`<img src=${src} alt="The feeder's camera" />` : b2`<div class="placeholder">Camera unavailable</div>`;
+  }
+  /** Tears down whatever's left of a dead session and schedules the next attempt on the
+   * exponential backoff (`lib/reconnect.ts`), capped at 30s. Idempotent against being called
+   * again while an attempt is already pending -- a second stall/error signal arriving before the
+   * backoff timer fires doesn't reset or duplicate it. */
+  _beginReconnect() {
+    this._playing = false;
+    this._reconnecting = true;
+    this._talking = false;
+    this._live.close();
+    if (this._reconnectTimer !== void 0) return;
+    this._reconnectTimer = setTimeout(() => {
+      this._reconnectTimer = void 0;
+      void this._start();
+    }, this._backoffMs);
+    this._backoffMs = nextReconnectDelay(this._backoffMs);
   }
   static {
     this.styles = i`
@@ -9633,6 +9730,33 @@ var KibbleLiveHero = class extends i4 {
       background: var(--kibble-amber, #f2a33c);
       color: var(--kibble-ink-on-amber, #241a07);
     }
+    .reconnect {
+      position: absolute;
+      top: 8px;
+      left: 8px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: rgba(0, 0, 0, 0.55);
+      color: #fff;
+      pointer-events: none;
+    }
+    .reconnect svg {
+      font-size: 16px;
+    }
+    @media (prefers-reduced-motion: no-preference) {
+      .reconnect svg {
+        animation: kibble-reconnect-spin 1.1s linear infinite;
+      }
+    }
+    @keyframes kibble-reconnect-spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
     .note {
       position: absolute;
       left: 8px;
@@ -9654,6 +9778,55 @@ var KibbleLiveHero = class extends i4 {
   }
 };
 customElements.define("kibble-live-hero", KibbleLiveHero);
+async function bubbleCardAvailable() {
+  if (customElements.get("bubble-card")) return true;
+  await Promise.race([customElements.whenDefined("bubble-card"), new Promise((r6) => setTimeout(r6, 2e3))]);
+  return Boolean(customElements.get("bubble-card"));
+}
+var KibbleBubbleRow = class extends i4 {
+  constructor() {
+    super(...arguments);
+    this._builtFor = "";
+  }
+  static {
+    this.properties = {
+      hass: { attribute: false },
+      config: { attribute: false }
+    };
+  }
+  updated() {
+    void this._sync();
+  }
+  async _sync() {
+    if (!this.config) return;
+    const key = JSON.stringify(this.config);
+    if (key !== this._builtFor) {
+      this._builtFor = key;
+      const helpers = await window.loadCardHelpers?.();
+      if (!helpers || key !== this._builtFor) return;
+      const next = helpers.createCardElement({ type: "custom:bubble-card", ...this.config });
+      this._element?.remove();
+      this._element = next;
+      this.renderRoot.querySelector(".slot")?.appendChild(next);
+    }
+    if (this._element && this.hass) this._element.hass = this.hass;
+  }
+  render() {
+    return b2`<div class="slot"></div>`;
+  }
+  static {
+    this.styles = i`
+    :host {
+      display: block;
+    }
+    .slot > * {
+      /* Bubble rows carry their own outer margin for stacking; the card lays them out itself. */
+      --bubble-margin: 0;
+    }
+  `;
+  }
+};
+customElements.define("kibble-bubble-row", KibbleBubbleRow);
 var SCHEMA = [
   { name: "device_id", required: true, selector: { device: { filter: { integration: "kibble" } } } },
   { name: "name", selector: { text: {} } },
@@ -9799,7 +9972,11 @@ var KibbleCardEditor = class extends i4 {
 };
 customElements.define("kibble-card-editor", KibbleCardEditor);
 function detectionHeadline(item) {
-  if (item.kind === "identified") return `${item.cat} ${item.paired_class === "eat" ? "ate" : "was at the bowl"}`;
+  if (item.kind === "identified") {
+    if (item.paired_class === "eat") return `${item.cat} ate`;
+    if (item.paired_class === "face") return `${item.cat} was here`;
+    return `${item.cat} was at the bowl`;
+  }
   if (item.kind === "eat") return "A cat ate";
   return "A cat came by";
 }
@@ -10164,10 +10341,14 @@ var KibbleTimelineCard = class extends i4 {
     super.disconnectedCallback();
     this._imageCache.dispose();
   }
-  willUpdate(changed) {
-    if ((changed.has("hass") || changed.has("_config")) && this._config?.device_id && this.hass) {
-      this._entities = resolveKibbleEntities(this.hass.entities ?? {}, this._config.device_id);
-      this._entryId = resolveEntryId(this.hass.devices ?? {}, this._config.device_id);
+  willUpdate() {
+    const deviceId = this._config?.device_id;
+    if (this.hass && deviceId && (this.hass.entities !== this._resolvedEntities || this.hass.devices !== this._resolvedDevices || deviceId !== this._resolvedDeviceId)) {
+      this._resolvedEntities = this.hass.entities;
+      this._resolvedDevices = this.hass.devices;
+      this._resolvedDeviceId = deviceId;
+      this._entities = resolveKibbleEntities(this.hass.entities ?? {}, deviceId);
+      this._entryId = resolveEntryId(this.hass.devices ?? {}, deviceId);
     }
     const callWS = this.hass?.callWS;
     if (this.hass && this._entryId && callWS) {
@@ -10242,7 +10423,7 @@ var KibbleTimelineCard = class extends i4 {
       <div class="row">
         <span class="time">${time}</span>
         <span class="row-text">${detectionHeadline(item)}</span>
-        ${item.image && this._entryId ? this._renderThumb(kibbleImageUrl(this._entryId, "track", item.image), `${item.cat}, ${time}`) : A}
+        ${item.image && this._entryId ? this._renderThumb(kibbleImageUrl(this._entryId, item.image_kind, item.image), `${item.cat}, ${time}`) : A}
       </div>
     `;
   }
@@ -10501,11 +10682,11 @@ window.customCards.push({
   description: "Today's feeds and who's been by, one rail, newest first, with day separators and photos.",
   preview: true
 });
-function chooseSuggestion(crop, confidence) {
-  if (crop.guess && crop.guess.score >= confidence) {
+function chooseSuggestion(crop, confidence, knownCats) {
+  if (crop.guess && crop.guess.score >= confidence && knownCats.has(crop.guess.cat)) {
     return { cat: crop.guess.cat, source: "classifier" };
   }
-  if (crop.vendor_cat) {
+  if (crop.vendor_cat && knownCats.has(crop.vendor_cat)) {
     return { cat: crop.vendor_cat, source: "vendor" };
   }
   return null;
@@ -11226,6 +11407,18 @@ var KibbleCatsCardEditor = class extends i4 {
 };
 customElements.define("kibble-cats-card-editor", KibbleCatsCardEditor);
 var EMPTY_ENTITIES2 = { deviceId: "", catPresence: [] };
+function catSectionId(name) {
+  return `cat-${name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+}
+function catFromHash(hash) {
+  const match = /^#cat=(.+)$/.exec(hash);
+  if (!match) return null;
+  try {
+    return decodeURIComponent(match[1]);
+  } catch {
+    return null;
+  }
+}
 var DEFAULT_CONFIDENCE = 0.7;
 var UNDO_WINDOW_MS = 5e3;
 var DELETE_CONFIRM_WINDOW_MS = 3e3;
@@ -11240,6 +11433,11 @@ var KibbleCatsCard = class extends i4 {
     this._lastPendingData = null;
     this._pickerTrigger = null;
     this._fileInputRef = e5();
+    this._scrolledTo = null;
+    this._onLocationChanged = () => {
+      this._scrolledTo = null;
+      this.requestUpdate();
+    };
     this._onCatMenuFocusOut = (event) => {
       const container = event.currentTarget;
       const next = event.relatedTarget;
@@ -11345,8 +11543,15 @@ var KibbleCatsCard = class extends i4 {
   static getConfigElement() {
     return document.createElement("kibble-cats-card-editor");
   }
+  connectedCallback() {
+    super.connectedCallback();
+    window.addEventListener("location-changed", this._onLocationChanged);
+    window.addEventListener("hashchange", this._onLocationChanged);
+  }
   disconnectedCallback() {
     super.disconnectedCallback();
+    window.removeEventListener("location-changed", this._onLocationChanged);
+    window.removeEventListener("hashchange", this._onLocationChanged);
     this._imageCache.dispose();
     clearTimeout(this._undoTimer);
     clearTimeout(this._deleteConfirmTimer);
@@ -11354,10 +11559,24 @@ var KibbleCatsCard = class extends i4 {
   _confidence() {
     return this._config?.confidence ?? DEFAULT_CONFIDENCE;
   }
-  willUpdate(changed) {
-    if ((changed.has("hass") || changed.has("_config")) && this._config?.device_id && this.hass) {
-      this._entities = resolveKibbleEntities(this.hass.entities ?? {}, this._config.device_id);
-      this._entryId = resolveEntryId(this.hass.devices ?? {}, this._config.device_id);
+  updated() {
+    const target = catFromHash(window.location.hash);
+    if (!target || this._scrolledTo === target) return;
+    const section = this.renderRoot.querySelector(`#${CSS.escape(catSectionId(target))}`);
+    if (!section) return;
+    this._scrolledTo = target;
+    section.scrollIntoView({ behavior: "smooth", block: "start" });
+    section.classList.add("lit");
+    setTimeout(() => section.classList.remove("lit"), 2400);
+  }
+  willUpdate() {
+    const deviceId = this._config?.device_id;
+    if (this.hass && deviceId && (this.hass.entities !== this._resolvedEntities || this.hass.devices !== this._resolvedDevices || deviceId !== this._resolvedDeviceId)) {
+      this._resolvedEntities = this.hass.entities;
+      this._resolvedDevices = this.hass.devices;
+      this._resolvedDeviceId = deviceId;
+      this._entities = resolveKibbleEntities(this.hass.entities ?? {}, deviceId);
+      this._entryId = resolveEntryId(this.hass.devices ?? {}, deviceId);
     }
     const callWS = this.hass?.callWS;
     if (this.hass && this._entryId && callWS) {
@@ -11370,8 +11589,9 @@ var KibbleCatsCard = class extends i4 {
         const query = new WsQuery(() => this.requestUpdate());
         this._sampleQueries.set(cat.name, query);
       }
+      const samplesKey = watchKey(this.hass, [this._entities.pendingFace]);
       for (const [name, query] of this._sampleQueries) {
-        query.sync(key, () => callWS({ type: "kibble/faces/samples", entry_id: entryId, cat: name }).then((r6) => r6));
+        query.sync(samplesKey, () => callWS({ type: "kibble/faces/samples", entry_id: entryId, cat: name }).then((r6) => r6));
       }
     }
     if (this._pendingQuery.state.data !== this._lastPendingData) {
@@ -11384,6 +11604,7 @@ var KibbleCatsCard = class extends i4 {
     const cats = this._catsQuery.state.data?.cats ?? [];
     const allCrops = this._pendingQuery.state.data?.crops ?? [];
     const crops = allCrops.filter((crop) => !this._hiddenCrops.has(crop.name));
+    const catNames = new Set(cats.map((cat) => cat.name));
     const presentNames = new Set(
       this._entities.catPresence.filter((p3) => this.hass.states[p3.entityId]?.state === "on").map((p3) => p3.name)
     );
@@ -11404,7 +11625,7 @@ var KibbleCatsCard = class extends i4 {
               <span>${crops.length === 1 ? "1 to review" : `${crops.length} to review`}</span>
             </div>
             ${this._pendingQuery.state.error ? this._renderPendingError() : A}
-            ${crops.length === 0 && !this._pendingQuery.state.error ? b2`<p class="empty">Nothing to review. New crops arrive when a cat is identified at the bowl.</p>` : b2`<div class="crop-grid" @keydown=${this._onGridKeydown}>${crops.map((crop) => this._renderCrop(crop))}</div>`}
+            ${crops.length === 0 && !this._pendingQuery.state.error ? b2`<p class="empty">Nothing to review. New crops arrive when a cat is identified at the bowl.</p>` : b2`<div class="crop-grid" @keydown=${this._onGridKeydown}>${crops.map((crop) => this._renderCrop(crop, catNames))}</div>`}
           </section>
           ${cats.map((cat) => this._renderGallery(cat))}
         </div>
@@ -11593,8 +11814,8 @@ var KibbleCatsCard = class extends i4 {
       </div>
     `;
   }
-  _renderCrop(crop) {
-    const suggestion = chooseSuggestion(crop, this._confidence());
+  _renderCrop(crop, catNames) {
+    const suggestion = chooseSuggestion(crop, this._confidence(), catNames);
     const path = this._entryId ? kibbleImageUrl(this._entryId, "pending", crop.name) : null;
     const url = path ? this._imageCache.get(this.hass, path, () => this.requestUpdate()) : null;
     return b2`
@@ -11709,28 +11930,41 @@ var KibbleCatsCard = class extends i4 {
       </div>
     `;
   }
+  /** Per cat: the feeder's own captures first ("Sightings", newest first, each with when it
+   * happened -- this is exactly what the "last here" on the feeder view counts, so tapping that
+   * tile lands here and finds the same evidence), then the reference photos someone uploaded. */
   _renderGallery(cat) {
     const query = this._sampleQueries.get(cat.name);
     const samples = query?.state.data?.samples ?? [];
     if (samples.length === 0 && cat.samples === 0) return A;
+    const sightings = samples.filter((sample) => !sample.name.startsWith("upload-")).sort((a3, b3) => b3.ts - a3.ts);
+    const references = samples.filter((sample) => sample.name.startsWith("upload-")).sort((a3, b3) => b3.ts - a3.ts);
+    const now = /* @__PURE__ */ new Date();
     return b2`
-      <section class="gallery">
-        <div class="gallery-heading">${cat.name}, ${cat.samples === 1 ? "1 sample" : `${cat.samples} samples`}</div>
-        <div class="gallery-grid">
-          ${samples.map((sample) => this._renderSample(cat.name, sample))}
+      <section class="gallery" id=${catSectionId(cat.name)}>
+        <div class="gallery-header">
+          <kibble-avatar .hass=${this.hass} .name=${cat.name} .colorIndex=${cat.color_index} .entryId=${this._entryId} .sampleName=${cat.avatar}></kibble-avatar>
+          <span class="gallery-name">${cat.name}</span>
+          <span class="gallery-sub">${sightings.length === 0 ? "No sightings yet" : sightings.length === 1 ? "1 sighting" : `${sightings.length} sightings`}</span>
         </div>
+        ${sightings.length > 0 ? b2`<div class="gallery-grid">
+              ${sightings.map((sample) => this._renderSample(cat.name, sample, relativeTimeSentence(new Date(sample.ts * 1e3), now)))}
+            </div>` : A}
+        ${references.length > 0 ? b2`<div class="gallery-sub">${references.length === 1 ? "1 reference photo" : `${references.length} reference photos`}</div>
+              <div class="gallery-grid">${references.map((sample) => this._renderSample(cat.name, sample, null))}</div>` : A}
       </section>
     `;
   }
-  _renderSample(catName, sample) {
+  _renderSample(catName, sample, caption) {
     const path = this._entryId ? kibbleImageUrl(this._entryId, `sample/${catName}`, sample.name) : null;
     const url = path ? this._imageCache.get(this.hass, path, () => this.requestUpdate()) : null;
     return b2`
       <div class="sample">
-        ${url ? b2`<img src=${url} alt="" loading="lazy" />` : A}
+        ${url ? b2`<img src=${url} alt="" loading="lazy" title=${new Date(sample.ts * 1e3).toLocaleString()} />` : A}
         <button type="button" class="remove" aria-label=${`Remove this sample of ${catName}`} @click=${() => this._removeSample(catName, sample)}>
           ${"\xD7"}
         </button>
+        ${caption ? b2`<span class="caption">${caption}</span>` : A}
       </div>
     `;
   }
@@ -12120,11 +12354,44 @@ var KibbleCatsCard = class extends i4 {
       gap: 8px;
       padding-top: 12px;
       border-top: 1px solid var(--divider-color);
+      scroll-margin-top: 16px;
     }
-    .gallery-heading {
+    .gallery-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border-radius: 8px;
+      outline: 2px solid transparent;
+      outline-offset: 4px;
+      transition: outline-color 600ms ease;
+    }
+    .gallery.lit .gallery-header {
+      outline-color: var(--kibble-amber, #f2a33c);
+    }
+    .gallery-name {
       font-size: var(--kibble-text-body);
       font-weight: 600;
       color: var(--primary-text-color);
+    }
+    .gallery-sub {
+      font-size: var(--kibble-text-caption, 12px);
+      color: var(--secondary-text-color);
+    }
+    .sample .caption {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      padding: 1px 3px;
+      font-size: 10px;
+      line-height: 1.2;
+      color: #fff;
+      background: rgba(0, 0, 0, 0.55);
+      text-align: center;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      border-radius: 0 0 8px 8px;
     }
     .gallery-grid {
       display: flex;
@@ -12174,11 +12441,44 @@ window.customCards.push({
   preview: true
 });
 var EMPTY_ENTITIES3 = { deviceId: "", catPresence: [] };
+var PORTION_OPTIONS = [1, 2, 3, 4, 5];
+var FEED_ROW_STYLES = `
+  .bubble-button-card-container { background: var(--kibble-amber, #f2a33c) !important; height: 56px !important; }
+  .bubble-name { font-size: 17px; font-weight: 600; }
+  .bubble-name, .bubble-icon { color: var(--kibble-ink-on-amber, #241a07) !important; }
+  .bubble-icon-container { background: color-mix(in srgb, var(--kibble-ink-on-amber, #241a07) 12%, transparent) !important; }
+`;
+function portionStyles(selected, disabled) {
+  return `
+  .bubble-button-card-container { height: var(--kibble-touch-target, 48px) !important; ${selected ? "background: var(--kibble-amber, #f2a33c) !important;" : ""} ${disabled ? "opacity: 0.5;" : ""} }
+  .bubble-button-card { padding: 0 !important; }
+  .bubble-name-container { margin: 0 !important; width: 100%; justify-content: center; }
+  .bubble-name { width: 100%; justify-content: center; text-align: center; font-size: 17px; font-weight: 600; ${selected ? "color: var(--kibble-ink-on-amber, #241a07) !important;" : ""} }
+`;
+}
+var FEEDING_ROW_STYLES = `
+  .bubble-button-card-container { background: var(--error-color, #d9534f) !important; height: 56px !important; }
+  .bubble-name { font-size: 17px; font-weight: 600; }
+  .bubble-name, .bubble-icon { color: #fff !important; }
+`;
 var KibbleCard = class extends i4 {
   constructor() {
     super();
     this._entities = EMPTY_ENTITIES3;
     this._catsQuery = new WsQuery(() => this.requestUpdate());
+    this._onBubbleAction = (event) => {
+      const detail = event.detail;
+      const action = detail?.config?.[`${detail.action}_action`];
+      if (action?.action !== "fire-dom-event" || !action.kibble) return;
+      event.stopPropagation();
+      if (action.kibble === "portion" && typeof action.portion === "number" && this._entities.feedAmount) {
+        this.hass.callService("number", "set_value", { value: action.portion }, { entity_id: this._entities.feedAmount });
+      } else if (action.kibble === "feed") {
+        this._onFeedActivate();
+      } else if (action.kibble === "cancel") {
+        this._onCancelActivate();
+      }
+    };
     this._onFeedActivate = () => {
       if (!this._entities.deviceId) return;
       const amount = this._numberState(this._entities.feedAmount) ?? 1;
@@ -12191,7 +12491,8 @@ var KibbleCard = class extends i4 {
     this._openSettings = () => {
       const hash = this._config?.settings_hash;
       if (hash) {
-        window.location.hash = hash;
+        history.pushState(null, "", hash);
+        window.dispatchEvent(new CustomEvent("location-changed", { detail: { replace: false } }));
         return;
       }
       this._settingsOpen = true;
@@ -12200,12 +12501,17 @@ var KibbleCard = class extends i4 {
       this._settingsOpen = false;
     };
     this._settingsOpen = false;
+    this._bubble = false;
+    void bubbleCardAvailable().then((ok) => {
+      this._bubble = ok;
+    });
   }
   static {
     this.properties = {
       hass: { attribute: false },
       _config: { state: true },
-      _settingsOpen: { state: true }
+      _settingsOpen: { state: true },
+      _bubble: { state: true }
     };
   }
   setConfig(config) {
@@ -12239,10 +12545,14 @@ var KibbleCard = class extends i4 {
     super.disconnectedCallback();
     this._resizeObserver?.disconnect();
   }
-  willUpdate(changed) {
-    if ((changed.has("hass") || changed.has("_config")) && this._config?.device_id && this.hass) {
-      this._entities = resolveKibbleEntities(this.hass.entities ?? {}, this._config.device_id);
-      this._entryId = resolveEntryId(this.hass.devices ?? {}, this._config.device_id);
+  willUpdate() {
+    const deviceId = this._config?.device_id;
+    if (this.hass && deviceId && (this.hass.entities !== this._resolvedEntities || this.hass.devices !== this._resolvedDevices || deviceId !== this._resolvedDeviceId)) {
+      this._resolvedEntities = this.hass.entities;
+      this._resolvedDevices = this.hass.devices;
+      this._resolvedDeviceId = deviceId;
+      this._entities = resolveKibbleEntities(this.hass.entities ?? {}, deviceId);
+      this._entryId = resolveEntryId(this.hass.devices ?? {}, deviceId);
     }
     const callWS = this.hass?.callWS;
     if (this.hass && this._entryId && callWS && this._entities.lastSeenPet) {
@@ -12294,25 +12604,30 @@ var KibbleCard = class extends i4 {
             </div>
             <div class="side">
             <kibble-bowl class="bowl-block" .hopper1=${hopper1} .hopper2=${hopper2} .feeding=${feeding}></kibble-bowl>
-            <div class="feed-controls">
-              <kibble-segmented-picker
-                class="picker-full"
-                .value=${feedAmount}
-                ?disabled=${status === "unreachable" || feeding}
-                @portion-selected=${this._onPortionSelected}
-              ></kibble-segmented-picker>
-              <kibble-stepper
-                class="picker-compact"
-                .value=${feedAmount}
-                ?disabled=${status === "unreachable" || feeding}
-                @value-selected=${this._onPortionSelected}
-              ></kibble-stepper>
-              <kibble-hold-button
-                .label=${feeding ? "Cancel" : "Hold to feed"}
-                .variant=${feeding ? "cancel" : "feed"}
-                ?disabled=${status === "unreachable"}
-                @activate=${feeding ? this._onCancelActivate : this._onFeedActivate}
-              ></kibble-hold-button>
+            <div class="feed-controls" @hass-action=${this._onBubbleAction}>
+              ${this._bubble ? b2`<div class="portions">
+                      ${this._portionConfigs(feedAmount, status === "unreachable" || feeding).map(
+      (config) => b2`<kibble-bubble-row .hass=${this.hass} .config=${config}></kibble-bubble-row>`
+    )}
+                    </div>
+                    <kibble-bubble-row .hass=${this.hass} .config=${this._feedRowConfig(feeding, status === "unreachable")}></kibble-bubble-row>` : b2`<kibble-segmented-picker
+                      class="picker-full"
+                      .value=${feedAmount}
+                      ?disabled=${status === "unreachable" || feeding}
+                      @portion-selected=${this._onPortionSelected}
+                    ></kibble-segmented-picker>
+                    <kibble-stepper
+                      class="picker-compact"
+                      .value=${feedAmount}
+                      ?disabled=${status === "unreachable" || feeding}
+                      @value-selected=${this._onPortionSelected}
+                    ></kibble-stepper>
+                    <kibble-hold-button
+                      .label=${feeding ? "Cancel" : "Hold to feed"}
+                      .variant=${feeding ? "cancel" : "feed"}
+                      ?disabled=${status === "unreachable"}
+                      @activate=${feeding ? this._onCancelActivate : this._onFeedActivate}
+                    ></kibble-hold-button>`}
             </div>
             ${this._config.schedule_hash ? A : b2`<kibble-schedule-summary
                   class="schedule-row"
@@ -12376,6 +12691,47 @@ var KibbleCard = class extends i4 {
     const attrs = this.hass.states[id]?.attributes;
     const entries = attrs?.entries;
     return Array.isArray(entries) ? entries : [];
+  }
+  // The two Bubble rows. Bubble handles the gestures (tap / hold) and reports them as HA's
+  // standard `hass-action` event carrying the action config, so each action here is a
+  // `fire-dom-event` tagged with a `kibble` verb the handler below dispatches on.
+  _portionConfigs(selected, disabled) {
+    const none = { action: "none" };
+    return PORTION_OPTIONS.map((portion) => {
+      const actions = {
+        tap_action: disabled ? none : { action: "fire-dom-event", kibble: "portion", portion },
+        double_tap_action: none,
+        hold_action: none
+      };
+      return {
+        card_type: "button",
+        button_type: "name",
+        name: String(portion),
+        show_icon: false,
+        show_state: false,
+        styles: portionStyles(portion === selected, disabled),
+        // Bubble wires top-level actions to the icon and `button_action` to the button body.
+        ...actions,
+        button_action: actions
+      };
+    });
+  }
+  _feedRowConfig(feeding, disabled) {
+    const none = { action: "none" };
+    const actions = {
+      tap_action: feeding && !disabled ? { action: "fire-dom-event", kibble: "cancel" } : none,
+      double_tap_action: none,
+      hold_action: !feeding && !disabled ? { action: "fire-dom-event", kibble: "feed" } : none
+    };
+    return {
+      card_type: "button",
+      button_type: "name",
+      name: disabled ? "Feeder unreachable" : feeding ? "Feeding\u2026 tap to cancel" : "Hold to feed",
+      icon: feeding ? "mdi:stop-circle-outline" : "mdi:bowl-mix",
+      styles: feeding ? FEEDING_ROW_STYLES : FEED_ROW_STYLES,
+      ...actions,
+      button_action: actions
+    };
   }
   _onPortionSelected(event) {
     if (!this._entities.feedAmount) return;
@@ -12539,6 +12895,14 @@ var KibbleCard = class extends i4 {
       display: flex;
       flex-direction: column;
       gap: 8px;
+    }
+    .portions {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 8px;
+    }
+    .portions > * {
+      min-width: 0;
       container-type: inline-size;
       container-name: feed-controls;
     }
@@ -12627,7 +12991,7 @@ var KibbleCard = class extends i4 {
       }
       .feed-controls {
         grid-area: unset;
-        padding: 6px 16px 0;
+        padding: 6px 16px 12px;
         --kibble-touch-target: 48px;
         --kibble-segment-size: 16px;
       }
@@ -12988,10 +13352,10 @@ var SAMPLES_BY_CAT = {
   Pancake: [...samplesFor("Pancake", 9, 400), ...uploadSamplesFor("Pancake", 2, 15)]
 };
 var TIMELINE_ITEMS = [
-  { kind: "identified", ts: localTime(18, 4), cat: "Pancake", paired_class: "eat", image: `${localTime(18, 4)}-event.jpg` },
-  { kind: "identified", ts: localTime(17, 22), cat: "Pancake", paired_class: "visit", image: `${localTime(17, 22)}-event.jpg` },
+  { kind: "identified", ts: localTime(18, 4), cat: "Pancake", paired_class: "eat", image: `${localTime(18, 4)}-event.jpg`, image_kind: "track" },
+  { kind: "identified", ts: localTime(17, 22), cat: "Pancake", paired_class: "face", image: `${localTime(17, 22)}-event.jpg`, image_kind: "event" },
   { kind: "visit", ts: localTime(15, 50), image: `${localTime(15, 50)}-event.jpg` },
-  { kind: "identified", ts: localTime(12, 10), cat: "Kitty", paired_class: "eat", image: `${localTime(12, 10)}-event.jpg` },
+  { kind: "identified", ts: localTime(12, 10), cat: "Kitty", paired_class: "eat", image: `${localTime(12, 10)}-event.jpg`, image_kind: "track" },
   {
     kind: "feed",
     ts: localTime(12, 0),
@@ -13001,7 +13365,7 @@ var TIMELINE_ITEMS = [
     before: `${localTime(12, 0)}-before.jpg`,
     after: `${localTime(12, 0)}-after.jpg`
   },
-  { kind: "identified", ts: localTime(9, 45), cat: "Kitty", paired_class: null, image: null },
+  { kind: "identified", ts: localTime(9, 45), cat: "Kitty", paired_class: null, image: null, image_kind: "track" },
   { kind: "eat", ts: localTime(8, 5), image: `${localTime(8, 5)}-event.jpg` },
   {
     kind: "feed",
@@ -13012,8 +13376,8 @@ var TIMELINE_ITEMS = [
     before: `${localTime(7, 30)}-before.jpg`,
     after: `${localTime(7, 30)}-after.jpg`
   },
-  { kind: "identified", ts: localTime(7, 28), cat: "Kitty", paired_class: "eat", image: `${localTime(7, 28)}-event.jpg` },
-  { kind: "identified", ts: localTime(19, 10, 1), cat: "Pancake", paired_class: "eat", image: `${localTime(19, 10, 1)}-event.jpg` },
+  { kind: "identified", ts: localTime(7, 28), cat: "Kitty", paired_class: "eat", image: `${localTime(7, 28)}-event.jpg`, image_kind: "track" },
+  { kind: "identified", ts: localTime(19, 10, 1), cat: "Pancake", paired_class: "eat", image: `${localTime(19, 10, 1)}-event.jpg`, image_kind: "track" },
   {
     kind: "feed",
     ts: localTime(18, 0, 1),

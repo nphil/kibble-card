@@ -1,8 +1,8 @@
-/** The bowl: the card's primary status object. A single continuous ceramic-dish silhouette
- * (rim, curved sides, a small foot, a contact shadow) that *is* the gauge: an amber level fills
- * the silhouette from the foot toward the rim in proportion to the hopper fill, split down the
- * middle when the two hoppers are reported separately. Loose kibble pieces appear only in the
- * dispensing animation.
+/** The bowl: the card's primary status object, drawn as a flat front-on silhouette — one rounded
+ * stroke, a shallow curved basin on a small foot — that *is* the gauge: an amber level rises
+ * inside it in proportion to the hopper fill, split down the middle when the two hoppers report
+ * separately. No numbers on the face; the exact percentages are the element's accessible name
+ * and tooltip. Loose kibble pieces appear only in the dispensing animation.
  */
 
 import { LitElement, css, html, nothing, svg, type SVGTemplateResult } from "lit";
@@ -11,22 +11,19 @@ import { combineBowlFill } from "../lib/bowl-fill";
 import { KIBBLE_FALL_DURATION_MS, prefersReducedMotion } from "../styles/tokens";
 
 const VIEW_W = 260;
-const VIEW_H = 200;
+const VIEW_H = 156;
 const CX = 130;
-const RIM_CY = 60;
-const RIM_RX = 116;
-const RIM_RY = 40;
-const FOOT_CY = 178;
-const FOOT_RX = 46;
-const FOOT_RY = 10;
-const FLOOR_Y = 78;
-const BASIN_HALF_W = 86;
+/** The bowl's open top edge and the basin's lowest point: the gauge runs between them. */
+const TOP_Y = 34;
+const BOTTOM_Y = 132;
+const LEFT_X = 22;
+const RIGHT_X = 238;
+const STROKE = 5;
 
-/** One continuous silhouette: rim's right point down the curved side to the foot, across the
- * foot, up the other side, closed along the rim's own near (front) arc. */
-const BODY_PATH = `M ${CX + RIM_RX} ${RIM_CY} C ${CX + RIM_RX} ${RIM_CY + 50}, ${CX + 70} ${FOOT_CY - 13}, ${CX + FOOT_RX} ${FOOT_CY} A ${FOOT_RX} ${FOOT_RY} 0 0 1 ${CX - FOOT_RX} ${FOOT_CY} C ${CX - 70} ${FOOT_CY - 13}, ${CX - RIM_RX} ${RIM_CY + 50}, ${CX - RIM_RX} ${RIM_CY} A ${RIM_RX} ${RIM_RY} 0 0 0 ${CX + RIM_RX} ${RIM_CY} Z`;
+/** Open top, shallow curved basin: the fill is clipped to this same shape. */
+const BOWL_PATH = `M ${LEFT_X} ${TOP_Y} C ${LEFT_X} ${TOP_Y + 74}, ${CX - 62} ${BOTTOM_Y}, ${CX} ${BOTTOM_Y} C ${CX + 62} ${BOTTOM_Y}, ${RIGHT_X} ${TOP_Y + 74}, ${RIGHT_X} ${TOP_Y} Z`;
 
-const SCATTER = [-0.6, -0.32, -0.06, 0.2, 0.46, 0.66, -0.46, 0.08, 0.34, -0.2];
+const SCATTER = [-0.6, -0.32, -0.06, 0.2, 0.46, 0.66, -0.46];
 
 /** The brand's kibble motif as three overlapping lobes — a rounded clover, not a circle. */
 function cloverPiece(x: number, y: number, r: number, rotationDeg: number): SVGTemplateResult {
@@ -78,45 +75,36 @@ export class KibbleBowl extends LitElement {
 
   render() {
     const display = combineBowlFill(this.hopper1, this.hopper2);
+    const label = display.split
+      ? `Hopper 1 ${Math.round(display.hopper1!)}%, hopper 2 ${Math.round(display.hopper2!)}%`
+      : display.combined == null
+        ? "Bowl level unknown"
+        : `Bowl ${Math.round(display.combined)}% full`;
 
     return html`
-      <div class="wrap">
-        <svg class="art" viewBox="0 0 ${VIEW_W} ${VIEW_H}" aria-hidden="true" preserveAspectRatio="xMidYMin meet">
-          <defs>
-            <clipPath id="bowl-clip"><path d=${BODY_PATH} /></clipPath>
-          </defs>
-          <ellipse cx=${CX} cy=${FOOT_CY + 14} rx="66" ry="9" class="shadow" />
-          <path class="body" d=${BODY_PATH} />
-          <g clip-path="url(#bowl-clip)">
-            ${display.split ? this._renderSplitFill(display.hopper1!, display.hopper2!) : this._renderFill(display.combined ?? 0, 0, VIEW_W)}
-          </g>
-          <path class="outline" d=${BODY_PATH} />
-          <ellipse cx=${CX} cy=${RIM_CY} rx=${RIM_RX} ry=${RIM_RY} class="rim" />
-          ${display.split ? svg`<line class="divider" x1=${CX} y1=${RIM_CY + RIM_RY} x2=${CX} y2=${FOOT_CY} />` : nothing}
-          ${this._dropping ? this._renderFallingKibble() : nothing}
-        </svg>
-        <div class="numbers">
-          ${display.split
-            ? html`
-                <span class="fill-number split">${Math.round(display.hopper1!)}<small>%</small></span>
-                <span class="fill-number split">${Math.round(display.hopper2!)}<small>%</small></span>
-              `
-            : html`<span class="fill-number">${display.combined == null ? "\u2014" : html`${Math.round(display.combined)}<small>%</small>`}</span>`}
-        </div>
-      </div>
+      <svg class="art" viewBox="0 0 ${VIEW_W} ${VIEW_H}" role="img" aria-label=${label} preserveAspectRatio="xMidYMid meet">
+        <title>${label}</title>
+        <defs>
+          <clipPath id="bowl-clip"><path d=${BOWL_PATH} /></clipPath>
+        </defs>
+        <path class="basin" d=${BOWL_PATH} />
+        <g clip-path="url(#bowl-clip)">
+          ${display.split ? this._renderSplitFill(display.hopper1!, display.hopper2!) : this._renderFill(display.combined ?? 0, 0, VIEW_W)}
+        </g>
+        ${display.split ? svg`<line class="divider" x1=${CX} y1=${TOP_Y + 10} x2=${CX} y2=${BOTTOM_Y - 8} />` : nothing}
+        <path class="outline" d=${BOWL_PATH} />
+        <line class="foot" x1=${CX - 34} y1=${BOTTOM_Y + 14} x2=${CX + 34} y2=${BOTTOM_Y + 14} />
+        ${this._dropping ? this._renderFallingKibble() : nothing}
+      </svg>
     `;
   }
 
-  /** The bowl silhouette is the gauge: an amber level rises from the foot toward the rim in
-   * proportion to the fill, clipped to the body so the bowl "fills up" rather than carrying a
-   * separate pile drawn on top of it. `x`/`w` bound the fill horizontally for the split view. */
+  /** The level: a rect clipped to the bowl, its top edge set by the fill fraction between the
+   * basin floor and the open top. `x`/`w` bound it horizontally for the split view. */
   private _renderFill(fraction0to100: number, x: number, w: number) {
     const fraction = Math.max(0, Math.min(1, fraction0to100 / 100));
-    const top = FOOT_CY - (FOOT_CY - (RIM_CY + RIM_RY)) * fraction;
-    return svg`
-      <rect class="fill" x=${x} y=${top} width=${w} height=${FOOT_CY - top + 20} />
-      ${fraction > 0 ? svg`<rect class="fill-surface" x=${x} y=${top - 1.5} width=${w} height="3" />` : nothing}
-    `;
+    const top = BOTTOM_Y - (BOTTOM_Y - TOP_Y) * fraction;
+    return svg`<rect class="fill" x=${x} y=${top} width=${w} height=${BOTTOM_Y - top + STROKE} rx="0" />`;
   }
 
   private _renderSplitFill(hopper1: number, hopper2: number) {
@@ -128,10 +116,10 @@ export class KibbleBowl extends LitElement {
 
   private _renderFallingKibble() {
     const pieces = SCATTER.slice(0, 7).map((t, i) => {
-      const x = CX + t * (BASIN_HALF_W - 6);
+      const x = CX + t * 80;
       const delayMs = i * 70;
       const durationMs = 320;
-      const style = `--fall-delay:${delayMs}ms;--fall-duration:${durationMs}ms;--fall-rotate:${(t * 180).toFixed(0)}deg;--fall-to:${FLOOR_Y - 30}px;`;
+      const style = `--fall-delay:${delayMs}ms;--fall-duration:${durationMs}ms;--fall-rotate:${(t * 180).toFixed(0)}deg;--fall-to:${BOTTOM_Y - 60}px;`;
       return svg`<g class="drop" style=${style}>${cloverPiece(x, 0, 7, t * 60)}</g>`;
     });
     return svg`<g class="drops">${pieces}</g>`;
@@ -141,48 +129,38 @@ export class KibbleBowl extends LitElement {
     :host {
       display: block;
     }
-    .wrap {
-      position: relative;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 2px;
-    }
     .art {
+      display: block;
       width: 100%;
       max-width: var(--kibble-bowl-max-width, 280px);
       height: auto;
+      margin: 0 auto;
       overflow: visible;
     }
-    .shadow {
-      fill: rgba(0, 0, 0, 0.16);
+    .basin {
+      fill: var(--secondary-background-color, rgba(127, 127, 127, 0.12));
     }
-    .body {
-      fill: var(--secondary-background-color, rgba(127, 127, 127, 0.1));
-    }
-    .outline {
+    .outline,
+    .foot {
       fill: none;
       stroke: var(--primary-text-color);
-      stroke-width: 2.6;
+      stroke-width: ${STROKE};
+      stroke-linecap: round;
       stroke-linejoin: round;
     }
-    .rim {
-      fill: none;
-      stroke: var(--primary-text-color);
-      stroke-width: 1.6;
+    .foot {
+      opacity: 0.55;
     }
     .divider {
       stroke: var(--primary-text-color);
-      stroke-width: 1.6;
-      stroke-dasharray: 4 4;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-dasharray: 1 7;
+      opacity: 0.55;
     }
     .fill {
       fill: var(--kibble-amber);
-      opacity: 0.9;
-      transition: y 400ms ease, height 400ms ease;
-    }
-    .fill-surface {
-      fill: var(--kibble-amber-dark);
+      transition: y 500ms cubic-bezier(0.2, 0.8, 0.2, 1), height 500ms cubic-bezier(0.2, 0.8, 0.2, 1);
     }
     .drops circle {
       fill: var(--kibble-amber-dark);
@@ -200,26 +178,6 @@ export class KibbleBowl extends LitElement {
         transform: translateY(var(--fall-to)) rotate(var(--fall-rotate));
         opacity: 1;
       }
-    }
-    .numbers {
-      display: flex;
-      gap: 22px;
-      margin-top: -6px;
-    }
-    .fill-number {
-      font-size: var(--kibble-number-size, 34px);
-      font-weight: 700;
-      line-height: 1;
-      color: var(--primary-text-color);
-      font-variant-numeric: tabular-nums;
-    }
-    .fill-number small {
-      font-size: 0.5em;
-      font-weight: 600;
-      margin-left: 1px;
-    }
-    .fill-number.split {
-      font-size: calc(var(--kibble-number-size, 34px) * 0.72);
     }
   `;
 }

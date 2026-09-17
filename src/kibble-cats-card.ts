@@ -291,7 +291,15 @@ export class KibbleCatsCard extends LitElement {
   }
 
   private _renderCatHeader(cat: KibbleCatSummary, present: boolean) {
-    const seen = cat.last_seen != null ? `seen ${relativeTimeSentence(new Date(cat.last_seen * 1000), new Date())}` : "not seen yet";
+    // Newest of: the feeder's own identifications (the timeline's sightings) and the agent's
+    // labelled-crop timestamp -- so this agrees with the sightings list below it.
+    const newest = Math.max(
+      cat.last_seen ?? 0,
+      ...(this._timelineQuery.state.data?.items ?? [])
+        .filter((item) => item.kind === "identified" && item.cat === cat.name)
+        .map((item) => item.ts),
+    );
+    const seen = newest > 0 ? `seen ${relativeTimeSentence(new Date(newest * 1000), new Date())}` : "not seen yet";
     return html`
       <div class="cat">
         <kibble-avatar

@@ -1842,7 +1842,7 @@ ${t.peerName}:${t.selfName}`)}};Oe.RPCResultError=pe;try{let i=FinalizationRegis
         @use-crop=${this._onUseCrop}
         @close-requested=${this._onCropDialogClosed}
       ></kibble-crop-dialog>
-    `}_renderCatHeader(e,r){let s=e.last_seen!=null?`seen ${Mt(new Date(e.last_seen*1e3),new Date)}`:"not seen yet";return u`
+    `}_renderCatHeader(e,r){let s=Math.max(e.last_seen??0,...(this._timelineQuery.state.data?.items??[]).filter(o=>o.kind==="identified"&&o.cat===e.name).map(o=>o.ts)),n=s>0?`seen ${Mt(new Date(s*1e3),new Date)}`:"not seen yet";return u`
       <div class="cat">
         <kibble-avatar
           class=${r?"present":""}
@@ -1854,7 +1854,7 @@ ${t.peerName}:${t.selfName}`)}};Oe.RPCResultError=pe;try{let i=FinalizationRegis
         ></kibble-avatar>
         <div class="cat-text">
           <span class="cat-name">${e.name}</span>
-          <span class="cat-meta">${e.samples===1?"1 sample":`${e.samples} samples`}, ${s}</span>
+          <span class="cat-meta">${e.samples===1?"1 sample":`${e.samples} samples`}, ${n}</span>
         </div>
         <div class="cat-menu" @focusout=${this._onCatMenuFocusOut} @keydown=${this._onCatMenuKeydown}>
           <button

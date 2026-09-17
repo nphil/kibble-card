@@ -4,7 +4,9 @@
  * the feeder's own vision estimate of bowl fullness, not a hopper sensor — kibble docs/34). When
  * the two hoppers report separately the dish is split by the divider into two cavities ("01"/"02",
  * the YumShare Dual's own marks). No numbers on the face; the exact percentage is the element's
- * accessible name and tooltip.
+ * accessible name and tooltip. Under the dish, one line of text for the hoppers themselves --
+ * the reservoirs above the bowl have only a food-shortage sensor each (empty / low / ok, never a
+ * percentage), so their state is a word, coloured only when a side needs refilling.
  *
  * Theming: every surface derives from Home Assistant's theme variables. The plastic is the card
  * background lifted toward the text colour (`color-mix`), so a dark theme gets a dark-grey dish
@@ -13,6 +15,7 @@
  */
 
 import { LitElement, css, html, nothing, svg, type SVGTemplateResult } from "lit";
+import { hopperStatus, type HopperLevel } from "../lib/hopper-status";
 import type { PropertyValues } from "lit";
 import { combineBowlFill } from "../lib/bowl-fill";
 import { KIBBLE_FALL_DURATION_MS, prefersReducedMotion } from "../styles/tokens";
@@ -93,11 +96,15 @@ export class KibbleBowl extends LitElement {
   static properties = {
     hopper1: { type: Number },
     hopper2: { type: Number },
+    hopperLevel1: { type: String },
+    hopperLevel2: { type: String },
     feeding: { type: Boolean },
   };
 
   declare hopper1: number | null;
   declare hopper2: number | null;
+  declare hopperLevel1: HopperLevel | null;
+  declare hopperLevel2: HopperLevel | null;
   declare feeding: boolean;
 
   private _wasFeeding = false;
@@ -108,6 +115,8 @@ export class KibbleBowl extends LitElement {
     super();
     this.hopper1 = null;
     this.hopper2 = null;
+    this.hopperLevel1 = null;
+    this.hopperLevel2 = null;
     this.feeding = false;
   }
 
@@ -145,6 +154,7 @@ export class KibbleBowl extends LitElement {
           { x0: CX + DIVIDER_W / 2, x1: inner1, mark: "02", fraction: display.hopper2! / 100 },
         ]
       : [{ x0: inner0, x1: inner1, mark: null, fraction: display.combined == null ? null : display.combined / 100 }];
+    const hopper = hopperStatus(this.hopperLevel1, this.hopperLevel2);
 
     return html`
       <svg class="art" viewBox="0 0 ${VIEW_W} ${VIEW_H}" role="img" aria-label=${label} preserveAspectRatio="xMidYMid meet">
@@ -178,6 +188,7 @@ export class KibbleBowl extends LitElement {
         ${cavities.map((c, i) => this._renderCavity(c, i))}
         ${this._dropping ? this._renderFallingKibble() : nothing}
       </svg>
+      ${hopper ? html`<div class="hopper" data-tone=${hopper.tone} role="status">${hopper.text}</div>` : nothing}
     `;
   }
 
@@ -243,8 +254,11 @@ export class KibbleBowl extends LitElement {
 
   static styles = css`
     :host {
-      display: block;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
       height: 100%;
+      min-height: 0;
       /* The plastic: the card background lifted toward the text colour in four steps, so the
        * lit face, the mid tone, the turned edges and the rim all come from the theme. */
       --silo-base: var(--card-background-color, var(--ha-card-background, #fff));
@@ -262,11 +276,31 @@ export class KibbleBowl extends LitElement {
       display: block;
       width: auto;
       max-width: var(--kibble-bowl-max-width, 190px);
-      height: 100%;
+      flex: 1 1 auto;
+      min-height: 0;
       max-height: 100%;
       aspect-ratio: ${VIEW_W} / ${VIEW_H};
       margin: 0 auto;
       overflow: visible;
+    }
+    /* The hopper line: secondary text when stocked, the card's amber when a side is running
+     * low, the theme's error colour when one is empty. */
+    .hopper {
+      flex: none;
+      margin-top: 4px;
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: 0.01em;
+      line-height: 1.2;
+      color: var(--secondary-text-color);
+      white-space: nowrap;
+    }
+    .hopper[data-tone="low"] {
+      color: var(--kibble-amber-dark);
+    }
+    .hopper[data-tone="empty"] {
+      color: var(--error-color, #db4437);
+      font-weight: 600;
     }
     .body {
       fill: url(#silo-body);

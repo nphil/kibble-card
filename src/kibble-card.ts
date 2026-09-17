@@ -15,6 +15,7 @@ import type { ScheduleEntry } from "./lib/schedule";
 import { mdiIcon } from "./lib/mdi-icons";
 import { KIOSK_MIN_HEIGHT_PX, KIBBLE_AMBER, KIBBLE_AMBER_DARK, KIBBLE_INK_ON_AMBER, KIBBLE_LIVE } from "./styles/tokens";
 import "./components/kibble-bowl";
+import { parseHopperLevel } from "./lib/hopper-status";
 import "./components/kibble-segmented-picker";
 import "./components/kibble-stepper";
 import "./components/kibble-hold-button";
@@ -166,6 +167,8 @@ export class KibbleCard extends LitElement {
 
     const hopper1 = this._numberState(e.bowlFill1);
     const hopper2 = this._numberState(e.bowlFill2);
+    const hopperLevel1 = parseHopperLevel(e.hopperLevel1 && this.hass.states[e.hopperLevel1]?.state);
+    const hopperLevel2 = parseHopperLevel(e.hopperLevel2 && this.hass.states[e.hopperLevel2]?.state);
     const scheduleEntries = this._scheduleEntries();
     const feedAmount = this._numberState(e.feedAmount) ?? 1;
     const overlay = this._heroOverlay(status);
@@ -199,7 +202,14 @@ export class KibbleCard extends LitElement {
               ${this._config.name ? html`<div class="name-chip">${this._config.name}</div>` : nothing}
             </div>
             <div class="side">
-            <kibble-bowl class="bowl-block" .hopper1=${hopper1} .hopper2=${hopper2} .feeding=${feeding}></kibble-bowl>
+            <kibble-bowl
+              class="bowl-block"
+              .hopper1=${hopper1}
+              .hopper2=${hopper2}
+              .hopperLevel1=${hopperLevel1}
+              .hopperLevel2=${hopperLevel2}
+              .feeding=${feeding}
+            ></kibble-bowl>
             <div class="feed-controls" @hass-action=${this._onBubbleAction}>
               ${this._bubble
                 ? html`<div class="portions">

@@ -19,7 +19,6 @@ export interface KibbleEntities {
   feeding?: string;
   eating?: string;
   bowlFill1?: string;
-  bowlFill2?: string;
   hopperLevel1?: string;
   hopperLevel2?: string;
   desiccantDays?: string;
@@ -67,7 +66,6 @@ const RULES: Record<RuleRole, RoleRule> = {
   feeding: { domain: "binary_sensor", translationKeys: ["feeding"], idSuffixes: ["_feeding"] },
   eating: { domain: "binary_sensor", translationKeys: ["eating"], idSuffixes: ["_eating"] },
   bowlFill1: { domain: "sensor", translationKeys: ["bowl_fill_1"], idSuffixes: ["_bowl_fill_1", "_bowl_fill_hopper_1"] },
-  bowlFill2: { domain: "sensor", translationKeys: ["bowl_fill_2"], idSuffixes: ["_bowl_fill_2", "_bowl_fill_hopper_2"] },
   hopperLevel1: { domain: "sensor", translationKeys: ["hopper_1_level"], idSuffixes: ["_hopper_1_level"] },
   hopperLevel2: { domain: "sensor", translationKeys: ["hopper_2_level"], idSuffixes: ["_hopper_2_level"] },
   desiccantDays: { domain: "sensor", translationKeys: ["desiccant_days", "desiccant_left"], idSuffixes: ["_desiccant_days", "_desiccant_left"] },

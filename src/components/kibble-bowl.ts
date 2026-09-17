@@ -1,10 +1,11 @@
 /** The bowl: the card's primary status object, drawn as the feeder's food bowl seen from the
  * front — a wide, low dish with a turned rim, its interior a recessed dark cavity in which a level
  * of textured kibble rises in proportion to how full the camera says the bowl is (the reading is
- * the feeder's own vision estimate of bowl fullness, not a hopper sensor — kibble docs/34). When
- * the two hoppers report separately the dish is split by the divider into two cavities ("01"/"02",
- * the YumShare Dual's own marks). No numbers on the face; the exact percentage is the element's
- * accessible name and tooltip. Under the dish, one line of text for the hoppers themselves --
+ * the feeder's own vision estimate of bowl fullness, not a hopper sensor — kibble docs/34; there is
+ * exactly one such reading, the whole bowl, so one cavity: the second value the feeder keeps beside
+ * it is the same reading snapshotted when the last meal began, not a second side). No numbers on
+ * the face; the exact percentage is the element's accessible name and tooltip. Under the dish, one
+ * line of text for the hoppers themselves --
  * the reservoirs above the bowl have only a food-shortage sensor each (empty / low / ok, never a
  * percentage), so their state is a word, coloured only when a side needs refilling.
  *
@@ -17,7 +18,6 @@
 import { LitElement, css, html, nothing, svg, type SVGTemplateResult } from "lit";
 import { hopperStatus, type HopperLevel } from "../lib/hopper-status";
 import type { PropertyValues } from "lit";
-import { combineBowlFill } from "../lib/bowl-fill";
 import { KIBBLE_FALL_DURATION_MS, prefersReducedMotion } from "../styles/tokens";
 
 const VIEW_W = 240;
@@ -34,7 +34,6 @@ const FOOT_HALF = 44;
 const CAV_TOP = RIM_Y + 8;
 const CAV_BOTTOM = 124;
 const CAV_INSET = 32;
-const DIVIDER_W = 10;
 /** Kibble texture inside the level: a fixed zig-zag of dots, clipped by the level itself. */
 const TEXTURE_STEP = 9;
 
@@ -84,25 +83,17 @@ function cavityPath(x0: number, x1: number): string {
   ].join(" ");
 }
 
-interface Cavity {
-  x0: number;
-  x1: number;
-  mark: string | null;
-  /** `null` when the feeder has no valid reading -- an empty cavity would claim "empty". */
-  fraction: number | null;
-}
 
 export class KibbleBowl extends LitElement {
   static properties = {
-    hopper1: { type: Number },
-    hopper2: { type: Number },
+    fill: { type: Number },
     hopperLevel1: { type: String },
     hopperLevel2: { type: String },
     feeding: { type: Boolean },
   };
 
-  declare hopper1: number | null;
-  declare hopper2: number | null;
+  /** Bowl fullness 0-100, `null` when the feeder has no reading. */
+  declare fill: number | null;
   declare hopperLevel1: HopperLevel | null;
   declare hopperLevel2: HopperLevel | null;
   declare feeding: boolean;
@@ -113,8 +104,7 @@ export class KibbleBowl extends LitElement {
 
   constructor() {
     super();
-    this.hopper1 = null;
-    this.hopper2 = null;
+    this.fill = null;
     this.hopperLevel1 = null;
     this.hopperLevel2 = null;
     this.feeding = false;
@@ -140,20 +130,10 @@ export class KibbleBowl extends LitElement {
   }
 
   render() {
-    const display = combineBowlFill(this.hopper1, this.hopper2);
-    const label = display.split
-      ? `Bowl side 1 ${Math.round(display.hopper1!)}%, side 2 ${Math.round(display.hopper2!)}%`
-      : display.combined == null
-        ? "Bowl level unknown"
-        : `Bowl ${Math.round(display.combined)}% full`;
-    const inner0 = RIM_X + CAV_INSET;
-    const inner1 = RIM_X + RIM_W - CAV_INSET;
-    const cavities: Cavity[] = display.split
-      ? [
-          { x0: inner0, x1: CX - DIVIDER_W / 2, mark: "01", fraction: display.hopper1! / 100 },
-          { x0: CX + DIVIDER_W / 2, x1: inner1, mark: "02", fraction: display.hopper2! / 100 },
-        ]
-      : [{ x0: inner0, x1: inner1, mark: null, fraction: display.combined == null ? null : display.combined / 100 }];
+    const label = this.fill == null ? "Bowl level unknown" : `Bowl ${Math.round(this.fill)}% full`;
+    const x0 = RIM_X + CAV_INSET;
+    const x1 = RIM_X + RIM_W - CAV_INSET;
+    const fraction = this.fill == null ? null : this.fill / 100;
     const hopper = hopperStatus(this.hopperLevel1, this.hopperLevel2);
 
     return html`
@@ -179,38 +159,36 @@ export class KibbleBowl extends LitElement {
             <stop offset="1" stop-color="var(--kibble-amber-dark)" />
           </linearGradient>
           <filter id="silo-inner" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="2.4" /></filter>
-          ${cavities.map((c, i) => svg`<clipPath id=${`silo-win-${i}`}><path d=${cavityPath(c.x0, c.x1)} /></clipPath>`)}
+          <clipPath id="silo-win"><path d=${cavityPath(x0, x1)} /></clipPath>
         </defs>
         <path class="body" d=${dishPath()} />
         <rect class="cap" x=${RIM_X - 4} y=${RIM_Y - 4} width=${RIM_W + 8} height=${RIM_H} rx="9" />
         <rect class="cap-highlight" x=${RIM_X + 6} y=${RIM_Y} width=${RIM_W - 12} height="4" rx="2" />
         <path class="body-edge" d=${dishPath()} />
-        ${cavities.map((c, i) => this._renderCavity(c, i))}
+        ${this._renderCavity(x0, x1, fraction)}
         ${this._dropping ? this._renderFallingKibble() : nothing}
       </svg>
       ${hopper ? html`<div class="hopper" data-tone=${hopper.tone} role="status">${hopper.text}</div>` : nothing}
     `;
   }
 
-  /** One cavity: recessed dark interior with an inner shadow, the level clipped to it with a
+  /** The cavity: recessed dark interior with an inner shadow, the level clipped to it with a
    * kibble texture and a surface highlight (nothing at zero — an empty bowl is an empty cavity,
-   * not a sliver), and the printed mark on the rim above. A `null` fraction means the feeder has
-   * no reading (kibble docs/34): the cavity shows a "?" rather than reading as empty, which is
-   * the difference between "I don't know" and "your cat has no food". */
-  private _renderCavity(c: Cavity, i: number) {
-    const clip = `url(#silo-win-${i})`;
-    const w = c.x1 - c.x0;
-    const markX = c.x0 + w / 2;
-    if (c.fraction == null) {
+   * not a sliver). A `null` fraction means the feeder has no reading (kibble docs/34): the
+   * cavity shows a "?" rather than reading as empty, which is the difference between "I don't
+   * know" and "your cat has no food". */
+  private _renderCavity(x0: number, x1: number, rawFraction: number | null) {
+    const w = x1 - x0;
+    const midX = x0 + w / 2;
+    if (rawFraction == null) {
       return svg`
         <g>
-          <path class="glass" d=${cavityPath(c.x0, c.x1)} />
-          <text class="unknown" x=${markX} y=${(CAV_TOP + CAV_BOTTOM) / 2 + 2} text-anchor="middle" dominant-baseline="central">?</text>
-          ${c.mark ? svg`<text class="mark" x=${markX} y=${RIM_Y + 9} text-anchor="middle">${c.mark}</text>` : nothing}
+          <path class="glass" d=${cavityPath(x0, x1)} />
+          <text class="unknown" x=${midX} y=${(CAV_TOP + CAV_BOTTOM) / 2 + 2} text-anchor="middle" dominant-baseline="central">?</text>
         </g>
       `;
     }
-    const fraction = Math.max(0, Math.min(1, c.fraction));
+    const fraction = Math.max(0, Math.min(1, rawFraction));
     const top = CAV_BOTTOM - (CAV_BOTTOM - CAV_TOP) * fraction;
     const dots: SVGTemplateResult[] = [];
     if (fraction > 0) {
@@ -218,25 +196,24 @@ export class KibbleBowl extends LitElement {
       for (let y = top + 6; y < CAV_BOTTOM; y += TEXTURE_STEP, row += 1) {
         const cols = Math.max(1, Math.floor(w / 14));
         for (let k = 0; k < cols; k += 1) {
-          const x = c.x0 + 7 + k * 14 + (row % 2 === 0 ? 0 : 7);
-          if (x < c.x1 - 6) dots.push(svg`<circle cx=${x.toFixed(1)} cy=${y.toFixed(1)} r="2.6" />`);
+          const x = x0 + 7 + k * 14 + (row % 2 === 0 ? 0 : 7);
+          if (x < x1 - 6) dots.push(svg`<circle cx=${x.toFixed(1)} cy=${y.toFixed(1)} r="2.6" />`);
         }
       }
     }
     return svg`
       <g>
-        <path class="glass" d=${cavityPath(c.x0, c.x1)} />
-        <g clip-path=${clip}>
-          <rect class="glass-inner" x=${c.x0 - 2} y=${CAV_TOP - 8} width=${w + 4} height=${CAV_BOTTOM - CAV_TOP + 4} filter="url(#silo-inner)" />
+        <path class="glass" d=${cavityPath(x0, x1)} />
+        <g clip-path="url(#silo-win)">
+          <rect class="glass-inner" x=${x0 - 2} y=${CAV_TOP - 8} width=${w + 4} height=${CAV_BOTTOM - CAV_TOP + 4} filter="url(#silo-inner)" />
           ${fraction > 0
             ? svg`
-                <rect class="fill" x=${c.x0} y=${top} width=${w} height=${CAV_BOTTOM - top + 2} />
+                <rect class="fill" x=${x0} y=${top} width=${w} height=${CAV_BOTTOM - top + 2} />
                 <g class="texture">${dots}</g>
-                <rect class="fill-surface" x=${c.x0} y=${top} width=${w} height="2" />
+                <rect class="fill-surface" x=${x0} y=${top} width=${w} height="2" />
               `
             : nothing}
         </g>
-        ${c.mark ? svg`<text class="mark" x=${markX} y=${RIM_Y + 9} text-anchor="middle">${c.mark}</text>` : nothing}
       </g>
     `;
   }
@@ -346,14 +323,6 @@ export class KibbleBowl extends LitElement {
       font-size: 36px;
       font-weight: 700;
       opacity: 0.6;
-    }
-    .mark {
-      fill: var(--secondary-text-color, var(--primary-text-color));
-      opacity: 0.7;
-      font-size: 9.5px;
-      font-weight: 600;
-      letter-spacing: 0.14em;
-      font-family: inherit;
     }
     .drops circle {
       fill: var(--kibble-amber-dark);

@@ -58,12 +58,12 @@ export interface KibbleCardConfig {
   type: string;
   device_id: string;
   name?: string;
-  // Optional Bubble Card pop-up hashes. Unset (the HACS default, card standing alone with no
-  // pop-up dashboard): the gear opens the in-card settings dialog and the schedule line
-  // expands in place, exactly as before -- the card must stay whole with zero dashboard setup.
-  // Set: gear/schedule-line navigate via `window.location.hash` instead, for a dashboard that
-  // defines its own `#settings`/`#schedule` pop-ups.
+  // Optional Bubble Card pop-up hash for the gear: unset (the HACS default) opens the in-card
+  // settings dialog; set, the gear navigates to that dashboard pop-up instead.
   settings_hash?: string;
+  // Set when the dashboard has its own schedule surface (a `#schedule` pop-up, a schedule
+  // section): the hero then omits its "Next feed" line entirely instead of duplicating it.
+  // Unset, the line expands in place with the embedded schedule editor.
   schedule_hash?: string;
   /** Scrypted device id of the feeder camera (Scrypted → camera → "Scrypted NVR Card id", or
    * the number in its device URL). Set it and the hero plays Scrypted's WebRTC stream with

@@ -26,7 +26,7 @@ const FIELD_LABELS: Record<string, string> = {
   name: "Name (optional)",
   scrypted_id: "Scrypted camera id (live view + talk)",
   settings_hash: "Settings pop-up hash (optional)",
-  schedule_hash: "Schedule pop-up hash (optional)",
+  schedule_hash: "Schedule handled by dashboard (optional hash)",
 };
 
 export class KibbleCardEditor extends LitElement {

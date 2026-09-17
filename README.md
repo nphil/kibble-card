@@ -24,7 +24,7 @@ of optional fields. Container queries drive the responsive behavior, never viewp
    #                              # hero into a live WebRTC stream with hold-to-talk (see below)
    # name: Plant room             # optional label shown on the camera
    # settings_hash: "#settings"   # optional: gear opens this Bubble Card pop-up instead of the in-card dialog
-   # schedule_hash: "#schedule"   # optional: same, for the "Next feed" line
+   # schedule_hash: "#schedule"   # optional: dashboard owns the schedule; hides the "Next feed" line
    ```
 
    ```yaml

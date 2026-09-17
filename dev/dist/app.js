@@ -1,4 +1,7059 @@
 // dist/kibble-card.js
+var __create = Object.create;
+var __defProp = Object.defineProperty;
+var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __getProtoOf = Object.getPrototypeOf;
+var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __esm = (fn, res) => function __init() {
+  return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
+};
+var __commonJS = (cb, mod) => function __require() {
+  return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
+};
+var __export = (target, all) => {
+  for (var name in all)
+    __defProp(target, name, { get: all[name], enumerable: true });
+};
+var __copyProps = (to, from, except, desc) => {
+  if (from && typeof from === "object" || typeof from === "function") {
+    for (let key of __getOwnPropNames(from))
+      if (!__hasOwnProp.call(to, key) && key !== except)
+        __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+  }
+  return to;
+};
+var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(
+  // If the importer is in node compatibility mode or this is not an ESM
+  // file that has been converted to a CommonJS file using a Babel-
+  // compatible transform (i.e. "__esModule" has not been set), then set
+  // "default" to the CommonJS "module.exports" for node compatibility.
+  isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
+  mod
+));
+var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
+var require_commons = __commonJS({
+  "node_modules/engine.io-parser/build/cjs/commons.js"(exports) {
+    "use strict";
+    Object.defineProperty(exports, "__esModule", { value: true });
+    exports.ERROR_PACKET = exports.PACKET_TYPES_REVERSE = exports.PACKET_TYPES = void 0;
+    var PACKET_TYPES = /* @__PURE__ */ Object.create(null);
+    exports.PACKET_TYPES = PACKET_TYPES;
+    PACKET_TYPES["open"] = "0";
+    PACKET_TYPES["close"] = "1";
+    PACKET_TYPES["ping"] = "2";
+    PACKET_TYPES["pong"] = "3";
+    PACKET_TYPES["message"] = "4";
+    PACKET_TYPES["upgrade"] = "5";
+    PACKET_TYPES["noop"] = "6";
+    var PACKET_TYPES_REVERSE = /* @__PURE__ */ Object.create(null);
+    exports.PACKET_TYPES_REVERSE = PACKET_TYPES_REVERSE;
+    Object.keys(PACKET_TYPES).forEach((key) => {
+      PACKET_TYPES_REVERSE[PACKET_TYPES[key]] = key;
+    });
+    var ERROR_PACKET = { type: "error", data: "parser error" };
+    exports.ERROR_PACKET = ERROR_PACKET;
+  }
+});
+var require_encodePacket_browser = __commonJS({
+  "node_modules/engine.io-parser/build/cjs/encodePacket.browser.js"(exports) {
+    "use strict";
+    Object.defineProperty(exports, "__esModule", { value: true });
+    exports.encodePacket = void 0;
+    exports.encodePacketToBinary = encodePacketToBinary;
+    var commons_js_1 = require_commons();
+    var withNativeBlob = typeof Blob === "function" || typeof Blob !== "undefined" && Object.prototype.toString.call(Blob) === "[object BlobConstructor]";
+    var withNativeArrayBuffer = typeof ArrayBuffer === "function";
+    var isView = (obj) => {
+      return typeof ArrayBuffer.isView === "function" ? ArrayBuffer.isView(obj) : obj && obj.buffer instanceof ArrayBuffer;
+    };
+    var encodePacket = ({ type, data }, supportsBinary, callback) => {
+      if (withNativeBlob && data instanceof Blob) {
+        if (supportsBinary) {
+          return callback(data);
+        } else {
+          return encodeBlobAsBase64(data, callback);
+        }
+      } else if (withNativeArrayBuffer && (data instanceof ArrayBuffer || isView(data))) {
+        if (supportsBinary) {
+          return callback(data);
+        } else {
+          return encodeBlobAsBase64(new Blob([data]), callback);
+        }
+      }
+      return callback(commons_js_1.PACKET_TYPES[type] + (data || ""));
+    };
+    exports.encodePacket = encodePacket;
+    var encodeBlobAsBase64 = (data, callback) => {
+      const fileReader = new FileReader();
+      fileReader.onload = function() {
+        const content = fileReader.result.split(",")[1];
+        callback("b" + (content || ""));
+      };
+      return fileReader.readAsDataURL(data);
+    };
+    function toArray(data) {
+      if (data instanceof Uint8Array) {
+        return data;
+      } else if (data instanceof ArrayBuffer) {
+        return new Uint8Array(data);
+      } else {
+        return new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
+      }
+    }
+    var TEXT_ENCODER;
+    function encodePacketToBinary(packet, callback) {
+      if (withNativeBlob && packet.data instanceof Blob) {
+        return packet.data.arrayBuffer().then(toArray).then(callback);
+      } else if (withNativeArrayBuffer && (packet.data instanceof ArrayBuffer || isView(packet.data))) {
+        return callback(toArray(packet.data));
+      }
+      encodePacket(packet, false, (encoded) => {
+        if (!TEXT_ENCODER) {
+          TEXT_ENCODER = new TextEncoder();
+        }
+        callback(TEXT_ENCODER.encode(encoded));
+      });
+    }
+  }
+});
+var require_base64_arraybuffer = __commonJS({
+  "node_modules/engine.io-parser/build/cjs/contrib/base64-arraybuffer.js"(exports) {
+    "use strict";
+    Object.defineProperty(exports, "__esModule", { value: true });
+    exports.decode = exports.encode = void 0;
+    var chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    var lookup = typeof Uint8Array === "undefined" ? [] : new Uint8Array(256);
+    for (let i6 = 0; i6 < chars.length; i6++) {
+      lookup[chars.charCodeAt(i6)] = i6;
+    }
+    var encode = (arraybuffer) => {
+      let bytes = new Uint8Array(arraybuffer), i6, len = bytes.length, base64 = "";
+      for (i6 = 0; i6 < len; i6 += 3) {
+        base64 += chars[bytes[i6] >> 2];
+        base64 += chars[(bytes[i6] & 3) << 4 | bytes[i6 + 1] >> 4];
+        base64 += chars[(bytes[i6 + 1] & 15) << 2 | bytes[i6 + 2] >> 6];
+        base64 += chars[bytes[i6 + 2] & 63];
+      }
+      if (len % 3 === 2) {
+        base64 = base64.substring(0, base64.length - 1) + "=";
+      } else if (len % 3 === 1) {
+        base64 = base64.substring(0, base64.length - 2) + "==";
+      }
+      return base64;
+    };
+    exports.encode = encode;
+    var decode = (base64) => {
+      let bufferLength = base64.length * 0.75, len = base64.length, i6, p3 = 0, encoded1, encoded2, encoded3, encoded4;
+      if (base64[base64.length - 1] === "=") {
+        bufferLength--;
+        if (base64[base64.length - 2] === "=") {
+          bufferLength--;
+        }
+      }
+      const arraybuffer = new ArrayBuffer(bufferLength), bytes = new Uint8Array(arraybuffer);
+      for (i6 = 0; i6 < len; i6 += 4) {
+        encoded1 = lookup[base64.charCodeAt(i6)];
+        encoded2 = lookup[base64.charCodeAt(i6 + 1)];
+        encoded3 = lookup[base64.charCodeAt(i6 + 2)];
+        encoded4 = lookup[base64.charCodeAt(i6 + 3)];
+        bytes[p3++] = encoded1 << 2 | encoded2 >> 4;
+        bytes[p3++] = (encoded2 & 15) << 4 | encoded3 >> 2;
+        bytes[p3++] = (encoded3 & 3) << 6 | encoded4 & 63;
+      }
+      return arraybuffer;
+    };
+    exports.decode = decode;
+  }
+});
+var require_decodePacket_browser = __commonJS({
+  "node_modules/engine.io-parser/build/cjs/decodePacket.browser.js"(exports) {
+    "use strict";
+    Object.defineProperty(exports, "__esModule", { value: true });
+    exports.decodePacket = void 0;
+    var commons_js_1 = require_commons();
+    var base64_arraybuffer_js_1 = require_base64_arraybuffer();
+    var withNativeArrayBuffer = typeof ArrayBuffer === "function";
+    var decodePacket = (encodedPacket, binaryType) => {
+      if (typeof encodedPacket !== "string") {
+        return {
+          type: "message",
+          data: mapBinary(encodedPacket, binaryType)
+        };
+      }
+      const type = encodedPacket.charAt(0);
+      if (type === "b") {
+        return {
+          type: "message",
+          data: decodeBase64Packet(encodedPacket.substring(1), binaryType)
+        };
+      }
+      const packetType = commons_js_1.PACKET_TYPES_REVERSE[type];
+      if (!packetType) {
+        return commons_js_1.ERROR_PACKET;
+      }
+      return encodedPacket.length > 1 ? {
+        type: commons_js_1.PACKET_TYPES_REVERSE[type],
+        data: encodedPacket.substring(1)
+      } : {
+        type: commons_js_1.PACKET_TYPES_REVERSE[type]
+      };
+    };
+    exports.decodePacket = decodePacket;
+    var decodeBase64Packet = (data, binaryType) => {
+      if (withNativeArrayBuffer) {
+        const decoded = (0, base64_arraybuffer_js_1.decode)(data);
+        return mapBinary(decoded, binaryType);
+      } else {
+        return { base64: true, data };
+      }
+    };
+    var mapBinary = (data, binaryType) => {
+      switch (binaryType) {
+        case "blob":
+          if (data instanceof Blob) {
+            return data;
+          } else {
+            return new Blob([data]);
+          }
+        case "arraybuffer":
+        default:
+          if (data instanceof ArrayBuffer) {
+            return data;
+          } else {
+            return data.buffer;
+          }
+      }
+    };
+  }
+});
+var require_cjs = __commonJS({
+  "node_modules/engine.io-parser/build/cjs/index.js"(exports) {
+    "use strict";
+    Object.defineProperty(exports, "__esModule", { value: true });
+    exports.decodePayload = exports.decodePacket = exports.encodePayload = exports.encodePacket = exports.protocol = void 0;
+    exports.createPacketEncoderStream = createPacketEncoderStream;
+    exports.createPacketDecoderStream = createPacketDecoderStream;
+    var encodePacket_js_1 = require_encodePacket_browser();
+    Object.defineProperty(exports, "encodePacket", { enumerable: true, get: function() {
+      return encodePacket_js_1.encodePacket;
+    } });
+    var decodePacket_js_1 = require_decodePacket_browser();
+    Object.defineProperty(exports, "decodePacket", { enumerable: true, get: function() {
+      return decodePacket_js_1.decodePacket;
+    } });
+    var commons_js_1 = require_commons();
+    var SEPARATOR = String.fromCharCode(30);
+    var encodePayload = (packets, callback) => {
+      const length = packets.length;
+      const encodedPackets = new Array(length);
+      let count = 0;
+      packets.forEach((packet, i6) => {
+        (0, encodePacket_js_1.encodePacket)(packet, false, (encodedPacket) => {
+          encodedPackets[i6] = encodedPacket;
+          if (++count === length) {
+            callback(encodedPackets.join(SEPARATOR));
+          }
+        });
+      });
+    };
+    exports.encodePayload = encodePayload;
+    var decodePayload = (encodedPayload, binaryType) => {
+      const encodedPackets = encodedPayload.split(SEPARATOR);
+      const packets = [];
+      for (let i6 = 0; i6 < encodedPackets.length; i6++) {
+        const decodedPacket = (0, decodePacket_js_1.decodePacket)(encodedPackets[i6], binaryType);
+        packets.push(decodedPacket);
+        if (decodedPacket.type === "error") {
+          break;
+        }
+      }
+      return packets;
+    };
+    exports.decodePayload = decodePayload;
+    function createPacketEncoderStream() {
+      return new TransformStream({
+        transform(packet, controller) {
+          (0, encodePacket_js_1.encodePacketToBinary)(packet, (encodedPacket) => {
+            const payloadLength = encodedPacket.length;
+            let header;
+            if (payloadLength < 126) {
+              header = new Uint8Array(1);
+              new DataView(header.buffer).setUint8(0, payloadLength);
+            } else if (payloadLength < 65536) {
+              header = new Uint8Array(3);
+              const view = new DataView(header.buffer);
+              view.setUint8(0, 126);
+              view.setUint16(1, payloadLength);
+            } else {
+              header = new Uint8Array(9);
+              const view = new DataView(header.buffer);
+              view.setUint8(0, 127);
+              view.setBigUint64(1, BigInt(payloadLength));
+            }
+            if (packet.data && typeof packet.data !== "string") {
+              header[0] |= 128;
+            }
+            controller.enqueue(header);
+            controller.enqueue(encodedPacket);
+          });
+        }
+      });
+    }
+    var TEXT_DECODER;
+    function totalLength(chunks) {
+      return chunks.reduce((acc, chunk) => acc + chunk.length, 0);
+    }
+    function concatChunks(chunks, size) {
+      if (chunks[0].length === size) {
+        return chunks.shift();
+      }
+      const buffer = new Uint8Array(size);
+      let j2 = 0;
+      for (let i6 = 0; i6 < size; i6++) {
+        buffer[i6] = chunks[0][j2++];
+        if (j2 === chunks[0].length) {
+          chunks.shift();
+          j2 = 0;
+        }
+      }
+      if (chunks.length && j2 < chunks[0].length) {
+        chunks[0] = chunks[0].slice(j2);
+      }
+      return buffer;
+    }
+    function createPacketDecoderStream(maxPayload, binaryType) {
+      if (!TEXT_DECODER) {
+        TEXT_DECODER = new TextDecoder();
+      }
+      const chunks = [];
+      let state2 = 0;
+      let expectedLength = -1;
+      let isBinary = false;
+      return new TransformStream({
+        transform(chunk, controller) {
+          chunks.push(chunk);
+          while (true) {
+            if (state2 === 0) {
+              if (totalLength(chunks) < 1) {
+                break;
+              }
+              const header = concatChunks(chunks, 1);
+              isBinary = (header[0] & 128) === 128;
+              expectedLength = header[0] & 127;
+              if (expectedLength < 126) {
+                state2 = 3;
+              } else if (expectedLength === 126) {
+                state2 = 1;
+              } else {
+                state2 = 2;
+              }
+            } else if (state2 === 1) {
+              if (totalLength(chunks) < 2) {
+                break;
+              }
+              const headerArray = concatChunks(chunks, 2);
+              expectedLength = new DataView(headerArray.buffer, headerArray.byteOffset, headerArray.length).getUint16(0);
+              state2 = 3;
+            } else if (state2 === 2) {
+              if (totalLength(chunks) < 8) {
+                break;
+              }
+              const headerArray = concatChunks(chunks, 8);
+              const view = new DataView(headerArray.buffer, headerArray.byteOffset, headerArray.length);
+              const n6 = view.getUint32(0);
+              if (n6 > Math.pow(2, 53 - 32) - 1) {
+                controller.enqueue(commons_js_1.ERROR_PACKET);
+                break;
+              }
+              expectedLength = n6 * Math.pow(2, 32) + view.getUint32(4);
+              state2 = 3;
+            } else {
+              if (totalLength(chunks) < expectedLength) {
+                break;
+              }
+              const data = concatChunks(chunks, expectedLength);
+              controller.enqueue((0, decodePacket_js_1.decodePacket)(isBinary ? data : TEXT_DECODER.decode(data), binaryType));
+              state2 = 0;
+            }
+            if (expectedLength === 0 || expectedLength > maxPayload) {
+              controller.enqueue(commons_js_1.ERROR_PACKET);
+              break;
+            }
+          }
+        }
+      });
+    }
+    exports.protocol = 4;
+  }
+});
+var require_cjs2 = __commonJS({
+  "node_modules/@socket.io/component-emitter/lib/cjs/index.js"(exports) {
+    exports.Emitter = Emitter;
+    function Emitter(obj) {
+      if (obj) return mixin(obj);
+    }
+    function mixin(obj) {
+      for (var key in Emitter.prototype) {
+        obj[key] = Emitter.prototype[key];
+      }
+      return obj;
+    }
+    Emitter.prototype.on = Emitter.prototype.addEventListener = function(event, fn) {
+      this._callbacks = this._callbacks || {};
+      (this._callbacks["$" + event] = this._callbacks["$" + event] || []).push(fn);
+      return this;
+    };
+    Emitter.prototype.once = function(event, fn) {
+      function on() {
+        this.off(event, on);
+        fn.apply(this, arguments);
+      }
+      on.fn = fn;
+      this.on(event, on);
+      return this;
+    };
+    Emitter.prototype.off = Emitter.prototype.removeListener = Emitter.prototype.removeAllListeners = Emitter.prototype.removeEventListener = function(event, fn) {
+      this._callbacks = this._callbacks || {};
+      if (0 == arguments.length) {
+        this._callbacks = {};
+        return this;
+      }
+      var callbacks = this._callbacks["$" + event];
+      if (!callbacks) return this;
+      if (1 == arguments.length) {
+        delete this._callbacks["$" + event];
+        return this;
+      }
+      var cb;
+      for (var i6 = 0; i6 < callbacks.length; i6++) {
+        cb = callbacks[i6];
+        if (cb === fn || cb.fn === fn) {
+          callbacks.splice(i6, 1);
+          break;
+        }
+      }
+      if (callbacks.length === 0) {
+        delete this._callbacks["$" + event];
+      }
+      return this;
+    };
+    Emitter.prototype.emit = function(event) {
+      this._callbacks = this._callbacks || {};
+      var args = new Array(arguments.length - 1), callbacks = this._callbacks["$" + event];
+      for (var i6 = 1; i6 < arguments.length; i6++) {
+        args[i6 - 1] = arguments[i6];
+      }
+      if (callbacks) {
+        callbacks = callbacks.slice(0);
+        for (var i6 = 0, len = callbacks.length; i6 < len; ++i6) {
+          callbacks[i6].apply(this, args);
+        }
+      }
+      return this;
+    };
+    Emitter.prototype.emitReserved = Emitter.prototype.emit;
+    Emitter.prototype.listeners = function(event) {
+      this._callbacks = this._callbacks || {};
+      return this._callbacks["$" + event] || [];
+    };
+    Emitter.prototype.hasListeners = function(event) {
+      return !!this.listeners(event).length;
+    };
+  }
+});
+var require_globals = __commonJS({
+  "node_modules/engine.io-client/build/cjs/globals.js"(exports) {
+    "use strict";
+    Object.defineProperty(exports, "__esModule", { value: true });
+    exports.defaultBinaryType = exports.globalThisShim = exports.nextTick = void 0;
+    exports.createCookieJar = createCookieJar;
+    exports.nextTick = (() => {
+      const isPromiseAvailable = typeof Promise === "function" && typeof Promise.resolve === "function";
+      if (isPromiseAvailable) {
+        return (cb) => Promise.resolve().then(cb);
+      } else {
+        return (cb, setTimeoutFn) => setTimeoutFn(cb, 0);
+      }
+    })();
+    exports.globalThisShim = (() => {
+      if (typeof self !== "undefined") {
+        return self;
+      } else if (typeof window !== "undefined") {
+        return window;
+      } else {
+        return Function("return this")();
+      }
+    })();
+    exports.defaultBinaryType = "arraybuffer";
+    function createCookieJar() {
+    }
+  }
+});
+var require_util = __commonJS({
+  "node_modules/engine.io-client/build/cjs/util.js"(exports) {
+    "use strict";
+    Object.defineProperty(exports, "__esModule", { value: true });
+    exports.pick = pick;
+    exports.installTimerFunctions = installTimerFunctions;
+    exports.byteLength = byteLength;
+    exports.randomString = randomString;
+    var globals_node_js_1 = require_globals();
+    function pick(obj, ...attr) {
+      return attr.reduce((acc, k2) => {
+        if (obj.hasOwnProperty(k2)) {
+          acc[k2] = obj[k2];
+        }
+        return acc;
+      }, {});
+    }
+    var NATIVE_SET_TIMEOUT = globals_node_js_1.globalThisShim.setTimeout;
+    var NATIVE_CLEAR_TIMEOUT = globals_node_js_1.globalThisShim.clearTimeout;
+    function installTimerFunctions(obj, opts) {
+      if (opts.useNativeTimers) {
+        obj.setTimeoutFn = NATIVE_SET_TIMEOUT.bind(globals_node_js_1.globalThisShim);
+        obj.clearTimeoutFn = NATIVE_CLEAR_TIMEOUT.bind(globals_node_js_1.globalThisShim);
+      } else {
+        obj.setTimeoutFn = globals_node_js_1.globalThisShim.setTimeout.bind(globals_node_js_1.globalThisShim);
+        obj.clearTimeoutFn = globals_node_js_1.globalThisShim.clearTimeout.bind(globals_node_js_1.globalThisShim);
+      }
+    }
+    var BASE64_OVERHEAD = 1.33;
+    function byteLength(obj) {
+      if (typeof obj === "string") {
+        return utf8Length(obj);
+      }
+      return Math.ceil((obj.byteLength || obj.size) * BASE64_OVERHEAD);
+    }
+    function utf8Length(str) {
+      let c5 = 0, length = 0;
+      for (let i6 = 0, l3 = str.length; i6 < l3; i6++) {
+        c5 = str.charCodeAt(i6);
+        if (c5 < 128) {
+          length += 1;
+        } else if (c5 < 2048) {
+          length += 2;
+        } else if (c5 < 55296 || c5 >= 57344) {
+          length += 3;
+        } else {
+          i6++;
+          length += 4;
+        }
+      }
+      return length;
+    }
+    function randomString() {
+      return Date.now().toString(36).substring(3) + Math.random().toString(36).substring(2, 5);
+    }
+  }
+});
+var require_parseqs = __commonJS({
+  "node_modules/engine.io-client/build/cjs/contrib/parseqs.js"(exports) {
+    "use strict";
+    Object.defineProperty(exports, "__esModule", { value: true });
+    exports.encode = encode;
+    exports.decode = decode;
+    function encode(obj) {
+      let str = "";
+      for (let i6 in obj) {
+        if (obj.hasOwnProperty(i6)) {
+          if (str.length)
+            str += "&";
+          str += encodeURIComponent(i6) + "=" + encodeURIComponent(obj[i6]);
+        }
+      }
+      return str;
+    }
+    function decode(qs) {
+      let qry = {};
+      let pairs = qs.split("&");
+      for (let i6 = 0, l3 = pairs.length; i6 < l3; i6++) {
+        let pair = pairs[i6].split("=");
+        qry[decodeURIComponent(pair[0])] = decodeURIComponent(pair[1]);
+      }
+      return qry;
+    }
+  }
+});
+var require_ms = __commonJS({
+  "node_modules/ms/index.js"(exports, module) {
+    var s5 = 1e3;
+    var m2 = s5 * 60;
+    var h5 = m2 * 60;
+    var d3 = h5 * 24;
+    var w2 = d3 * 7;
+    var y3 = d3 * 365.25;
+    module.exports = function(val, options) {
+      options = options || {};
+      var type = typeof val;
+      if (type === "string" && val.length > 0) {
+        return parse(val);
+      } else if (type === "number" && isFinite(val)) {
+        return options.long ? fmtLong(val) : fmtShort(val);
+      }
+      throw new Error(
+        "val is not a non-empty string or a valid number. val=" + JSON.stringify(val)
+      );
+    };
+    function parse(str) {
+      str = String(str);
+      if (str.length > 100) {
+        return;
+      }
+      var match = /^(-?(?:\d+)?\.?\d+) *(milliseconds?|msecs?|ms|seconds?|secs?|s|minutes?|mins?|m|hours?|hrs?|h|days?|d|weeks?|w|years?|yrs?|y)?$/i.exec(
+        str
+      );
+      if (!match) {
+        return;
+      }
+      var n6 = parseFloat(match[1]);
+      var type = (match[2] || "ms").toLowerCase();
+      switch (type) {
+        case "years":
+        case "year":
+        case "yrs":
+        case "yr":
+        case "y":
+          return n6 * y3;
+        case "weeks":
+        case "week":
+        case "w":
+          return n6 * w2;
+        case "days":
+        case "day":
+        case "d":
+          return n6 * d3;
+        case "hours":
+        case "hour":
+        case "hrs":
+        case "hr":
+        case "h":
+          return n6 * h5;
+        case "minutes":
+        case "minute":
+        case "mins":
+        case "min":
+        case "m":
+          return n6 * m2;
+        case "seconds":
+        case "second":
+        case "secs":
+        case "sec":
+        case "s":
+          return n6 * s5;
+        case "milliseconds":
+        case "millisecond":
+        case "msecs":
+        case "msec":
+        case "ms":
+          return n6;
+        default:
+          return void 0;
+      }
+    }
+    function fmtShort(ms) {
+      var msAbs = Math.abs(ms);
+      if (msAbs >= d3) {
+        return Math.round(ms / d3) + "d";
+      }
+      if (msAbs >= h5) {
+        return Math.round(ms / h5) + "h";
+      }
+      if (msAbs >= m2) {
+        return Math.round(ms / m2) + "m";
+      }
+      if (msAbs >= s5) {
+        return Math.round(ms / s5) + "s";
+      }
+      return ms + "ms";
+    }
+    function fmtLong(ms) {
+      var msAbs = Math.abs(ms);
+      if (msAbs >= d3) {
+        return plural(ms, msAbs, d3, "day");
+      }
+      if (msAbs >= h5) {
+        return plural(ms, msAbs, h5, "hour");
+      }
+      if (msAbs >= m2) {
+        return plural(ms, msAbs, m2, "minute");
+      }
+      if (msAbs >= s5) {
+        return plural(ms, msAbs, s5, "second");
+      }
+      return ms + " ms";
+    }
+    function plural(ms, msAbs, n6, name) {
+      var isPlural = msAbs >= n6 * 1.5;
+      return Math.round(ms / n6) + " " + name + (isPlural ? "s" : "");
+    }
+  }
+});
+var require_common = __commonJS({
+  "node_modules/debug/src/common.js"(exports, module) {
+    function setup(env) {
+      createDebug.debug = createDebug;
+      createDebug.default = createDebug;
+      createDebug.coerce = coerce;
+      createDebug.disable = disable;
+      createDebug.enable = enable;
+      createDebug.enabled = enabled;
+      createDebug.humanize = require_ms();
+      createDebug.destroy = destroy;
+      Object.keys(env).forEach((key) => {
+        createDebug[key] = env[key];
+      });
+      createDebug.names = [];
+      createDebug.skips = [];
+      createDebug.formatters = {};
+      function selectColor(namespace) {
+        let hash = 0;
+        for (let i6 = 0; i6 < namespace.length; i6++) {
+          hash = (hash << 5) - hash + namespace.charCodeAt(i6);
+          hash |= 0;
+        }
+        return createDebug.colors[Math.abs(hash) % createDebug.colors.length];
+      }
+      createDebug.selectColor = selectColor;
+      function createDebug(namespace) {
+        let prevTime;
+        let enableOverride = null;
+        let namespacesCache;
+        let enabledCache;
+        function debug(...args) {
+          if (!debug.enabled) {
+            return;
+          }
+          const self2 = debug;
+          const curr = Number(/* @__PURE__ */ new Date());
+          const ms = curr - (prevTime || curr);
+          self2.diff = ms;
+          self2.prev = prevTime;
+          self2.curr = curr;
+          prevTime = curr;
+          args[0] = createDebug.coerce(args[0]);
+          if (typeof args[0] !== "string") {
+            args.unshift("%O");
+          }
+          let index = 0;
+          args[0] = args[0].replace(/%([a-zA-Z%])/g, (match, format) => {
+            if (match === "%%") {
+              return "%";
+            }
+            index++;
+            const formatter = createDebug.formatters[format];
+            if (typeof formatter === "function") {
+              const val = args[index];
+              match = formatter.call(self2, val);
+              args.splice(index, 1);
+              index--;
+            }
+            return match;
+          });
+          createDebug.formatArgs.call(self2, args);
+          const logFn = self2.log || createDebug.log;
+          logFn.apply(self2, args);
+        }
+        debug.namespace = namespace;
+        debug.useColors = createDebug.useColors();
+        debug.color = createDebug.selectColor(namespace);
+        debug.extend = extend;
+        debug.destroy = createDebug.destroy;
+        Object.defineProperty(debug, "enabled", {
+          enumerable: true,
+          configurable: false,
+          get: () => {
+            if (enableOverride !== null) {
+              return enableOverride;
+            }
+            if (namespacesCache !== createDebug.namespaces) {
+              namespacesCache = createDebug.namespaces;
+              enabledCache = createDebug.enabled(namespace);
+            }
+            return enabledCache;
+          },
+          set: (v2) => {
+            enableOverride = v2;
+          }
+        });
+        if (typeof createDebug.init === "function") {
+          createDebug.init(debug);
+        }
+        return debug;
+      }
+      function extend(namespace, delimiter) {
+        const newDebug = createDebug(this.namespace + (typeof delimiter === "undefined" ? ":" : delimiter) + namespace);
+        newDebug.log = this.log;
+        return newDebug;
+      }
+      function enable(namespaces) {
+        createDebug.save(namespaces);
+        createDebug.namespaces = namespaces;
+        createDebug.names = [];
+        createDebug.skips = [];
+        const split = (typeof namespaces === "string" ? namespaces : "").trim().replace(/\s+/g, ",").split(",").filter(Boolean);
+        for (const ns of split) {
+          if (ns[0] === "-") {
+            createDebug.skips.push(ns.slice(1));
+          } else {
+            createDebug.names.push(ns);
+          }
+        }
+      }
+      function matchesTemplate(search, template) {
+        let searchIndex = 0;
+        let templateIndex = 0;
+        let starIndex = -1;
+        let matchIndex = 0;
+        while (searchIndex < search.length) {
+          if (templateIndex < template.length && (template[templateIndex] === search[searchIndex] || template[templateIndex] === "*")) {
+            if (template[templateIndex] === "*") {
+              starIndex = templateIndex;
+              matchIndex = searchIndex;
+              templateIndex++;
+            } else {
+              searchIndex++;
+              templateIndex++;
+            }
+          } else if (starIndex !== -1) {
+            templateIndex = starIndex + 1;
+            matchIndex++;
+            searchIndex = matchIndex;
+          } else {
+            return false;
+          }
+        }
+        while (templateIndex < template.length && template[templateIndex] === "*") {
+          templateIndex++;
+        }
+        return templateIndex === template.length;
+      }
+      function disable() {
+        const namespaces = [
+          ...createDebug.names,
+          ...createDebug.skips.map((namespace) => "-" + namespace)
+        ].join(",");
+        createDebug.enable("");
+        return namespaces;
+      }
+      function enabled(name) {
+        for (const skip of createDebug.skips) {
+          if (matchesTemplate(name, skip)) {
+            return false;
+          }
+        }
+        for (const ns of createDebug.names) {
+          if (matchesTemplate(name, ns)) {
+            return true;
+          }
+        }
+        return false;
+      }
+      function coerce(val) {
+        if (val instanceof Error) {
+          return val.stack || val.message;
+        }
+        return val;
+      }
+      function destroy() {
+        console.warn("Instance method `debug.destroy()` is deprecated and no longer does anything. It will be removed in the next major version of `debug`.");
+      }
+      createDebug.enable(createDebug.load());
+      return createDebug;
+    }
+    module.exports = setup;
+  }
+});
+var require_browser = __commonJS({
+  "node_modules/debug/src/browser.js"(exports, module) {
+    exports.formatArgs = formatArgs;
+    exports.save = save;
+    exports.load = load;
+    exports.useColors = useColors;
+    exports.storage = localstorage();
+    exports.destroy = /* @__PURE__ */ (() => {
+      let warned = false;
+      return () => {
+        if (!warned) {
+          warned = true;
+          console.warn("Instance method `debug.destroy()` is deprecated and no longer does anything. It will be removed in the next major version of `debug`.");
+        }
+      };
+    })();
+    exports.colors = [
+      "#0000CC",
+      "#0000FF",
+      "#0033CC",
+      "#0033FF",
+      "#0066CC",
+      "#0066FF",
+      "#0099CC",
+      "#0099FF",
+      "#00CC00",
+      "#00CC33",
+      "#00CC66",
+      "#00CC99",
+      "#00CCCC",
+      "#00CCFF",
+      "#3300CC",
+      "#3300FF",
+      "#3333CC",
+      "#3333FF",
+      "#3366CC",
+      "#3366FF",
+      "#3399CC",
+      "#3399FF",
+      "#33CC00",
+      "#33CC33",
+      "#33CC66",
+      "#33CC99",
+      "#33CCCC",
+      "#33CCFF",
+      "#6600CC",
+      "#6600FF",
+      "#6633CC",
+      "#6633FF",
+      "#66CC00",
+      "#66CC33",
+      "#9900CC",
+      "#9900FF",
+      "#9933CC",
+      "#9933FF",
+      "#99CC00",
+      "#99CC33",
+      "#CC0000",
+      "#CC0033",
+      "#CC0066",
+      "#CC0099",
+      "#CC00CC",
+      "#CC00FF",
+      "#CC3300",
+      "#CC3333",
+      "#CC3366",
+      "#CC3399",
+      "#CC33CC",
+      "#CC33FF",
+      "#CC6600",
+      "#CC6633",
+      "#CC9900",
+      "#CC9933",
+      "#CCCC00",
+      "#CCCC33",
+      "#FF0000",
+      "#FF0033",
+      "#FF0066",
+      "#FF0099",
+      "#FF00CC",
+      "#FF00FF",
+      "#FF3300",
+      "#FF3333",
+      "#FF3366",
+      "#FF3399",
+      "#FF33CC",
+      "#FF33FF",
+      "#FF6600",
+      "#FF6633",
+      "#FF9900",
+      "#FF9933",
+      "#FFCC00",
+      "#FFCC33"
+    ];
+    function useColors() {
+      if (typeof window !== "undefined" && window.process && (window.process.type === "renderer" || window.process.__nwjs)) {
+        return true;
+      }
+      if (typeof navigator !== "undefined" && navigator.userAgent && navigator.userAgent.toLowerCase().match(/(edge|trident)\/(\d+)/)) {
+        return false;
+      }
+      let m2;
+      return typeof document !== "undefined" && document.documentElement && document.documentElement.style && document.documentElement.style.WebkitAppearance || // Is firebug? http://stackoverflow.com/a/398120/376773
+      typeof window !== "undefined" && window.console && (window.console.firebug || window.console.exception && window.console.table) || // Is firefox >= v31?
+      // https://developer.mozilla.org/en-US/docs/Tools/Web_Console#Styling_messages
+      typeof navigator !== "undefined" && navigator.userAgent && (m2 = navigator.userAgent.toLowerCase().match(/firefox\/(\d+)/)) && parseInt(m2[1], 10) >= 31 || // Double check webkit in userAgent just in case we are in a worker
+      typeof navigator !== "undefined" && navigator.userAgent && navigator.userAgent.toLowerCase().match(/applewebkit\/(\d+)/);
+    }
+    function formatArgs(args) {
+      args[0] = (this.useColors ? "%c" : "") + this.namespace + (this.useColors ? " %c" : " ") + args[0] + (this.useColors ? "%c " : " ") + "+" + module.exports.humanize(this.diff);
+      if (!this.useColors) {
+        return;
+      }
+      const c5 = "color: " + this.color;
+      args.splice(1, 0, c5, "color: inherit");
+      let index = 0;
+      let lastC = 0;
+      args[0].replace(/%[a-zA-Z%]/g, (match) => {
+        if (match === "%%") {
+          return;
+        }
+        index++;
+        if (match === "%c") {
+          lastC = index;
+        }
+      });
+      args.splice(lastC, 0, c5);
+    }
+    exports.log = console.debug || console.log || (() => {
+    });
+    function save(namespaces) {
+      try {
+        if (namespaces) {
+          exports.storage.setItem("debug", namespaces);
+        } else {
+          exports.storage.removeItem("debug");
+        }
+      } catch (error) {
+      }
+    }
+    function load() {
+      let r6;
+      try {
+        r6 = exports.storage.getItem("debug") || exports.storage.getItem("DEBUG");
+      } catch (error) {
+      }
+      if (!r6 && typeof process !== "undefined" && "env" in process) {
+        r6 = process.env.DEBUG;
+      }
+      return r6;
+    }
+    function localstorage() {
+      try {
+        return localStorage;
+      } catch (error) {
+      }
+    }
+    module.exports = require_common()(exports);
+    var { formatters } = module.exports;
+    formatters.j = function(v2) {
+      try {
+        return JSON.stringify(v2);
+      } catch (error) {
+        return "[UnexpectedJSONParseError]: " + error.message;
+      }
+    };
+  }
+});
+var require_transport = __commonJS({
+  "node_modules/engine.io-client/build/cjs/transport.js"(exports) {
+    "use strict";
+    var __importDefault = exports && exports.__importDefault || function(mod) {
+      return mod && mod.__esModule ? mod : { "default": mod };
+    };
+    Object.defineProperty(exports, "__esModule", { value: true });
+    exports.Transport = exports.TransportError = void 0;
+    var engine_io_parser_1 = require_cjs();
+    var component_emitter_1 = require_cjs2();
+    var util_js_1 = require_util();
+    var parseqs_js_1 = require_parseqs();
+    var debug_1 = __importDefault(require_browser());
+    var debug = (0, debug_1.default)("engine.io-client:transport");
+    var TransportError = class extends Error {
+      constructor(reason, description, context) {
+        super(reason);
+        this.description = description;
+        this.context = context;
+        this.type = "TransportError";
+      }
+    };
+    exports.TransportError = TransportError;
+    var Transport = class extends component_emitter_1.Emitter {
+      /**
+       * Transport abstract constructor.
+       *
+       * @param {Object} opts - options
+       * @protected
+       */
+      constructor(opts) {
+        super();
+        this.writable = false;
+        (0, util_js_1.installTimerFunctions)(this, opts);
+        this.opts = opts;
+        this.query = opts.query;
+        this.socket = opts.socket;
+        this.supportsBinary = !opts.forceBase64;
+      }
+      /**
+       * Emits an error.
+       *
+       * @param {String} reason
+       * @param description
+       * @param context - the error context
+       * @return {Transport} for chaining
+       * @protected
+       */
+      onError(reason, description, context) {
+        super.emitReserved("error", new TransportError(reason, description, context));
+        return this;
+      }
+      /**
+       * Opens the transport.
+       */
+      open() {
+        this.readyState = "opening";
+        this.doOpen();
+        return this;
+      }
+      /**
+       * Closes the transport.
+       */
+      close() {
+        if (this.readyState === "opening" || this.readyState === "open") {
+          this.doClose();
+          this.onClose();
+        }
+        return this;
+      }
+      /**
+       * Sends multiple packets.
+       *
+       * @param {Array} packets
+       */
+      send(packets) {
+        if (this.readyState === "open") {
+          this.write(packets);
+        } else {
+          debug("transport is not open, discarding packets");
+        }
+      }
+      /**
+       * Called upon open
+       *
+       * @protected
+       */
+      onOpen() {
+        this.readyState = "open";
+        this.writable = true;
+        super.emitReserved("open");
+      }
+      /**
+       * Called with data.
+       *
+       * @param {String} data
+       * @protected
+       */
+      onData(data) {
+        const packet = (0, engine_io_parser_1.decodePacket)(data, this.socket.binaryType);
+        this.onPacket(packet);
+      }
+      /**
+       * Called with a decoded packet.
+       *
+       * @protected
+       */
+      onPacket(packet) {
+        super.emitReserved("packet", packet);
+      }
+      /**
+       * Called upon close.
+       *
+       * @protected
+       */
+      onClose(details) {
+        this.readyState = "closed";
+        super.emitReserved("close", details);
+      }
+      /**
+       * Pauses the transport, in order not to lose packets during an upgrade.
+       *
+       * @param onPause
+       */
+      pause(onPause) {
+      }
+      createUri(schema, query = {}) {
+        return schema + "://" + this._hostname() + this._port() + this.opts.path + this._query(query);
+      }
+      _hostname() {
+        const hostname = this.opts.hostname;
+        return hostname.indexOf(":") === -1 ? hostname : "[" + hostname + "]";
+      }
+      _port() {
+        if (this.opts.port && (this.opts.secure && Number(this.opts.port) !== 443 || !this.opts.secure && Number(this.opts.port) !== 80)) {
+          return ":" + this.opts.port;
+        } else {
+          return "";
+        }
+      }
+      _query(query) {
+        const encodedQuery = (0, parseqs_js_1.encode)(query);
+        return encodedQuery.length ? "?" + encodedQuery : "";
+      }
+    };
+    exports.Transport = Transport;
+  }
+});
+var require_polling = __commonJS({
+  "node_modules/engine.io-client/build/cjs/transports/polling.js"(exports) {
+    "use strict";
+    var __importDefault = exports && exports.__importDefault || function(mod) {
+      return mod && mod.__esModule ? mod : { "default": mod };
+    };
+    Object.defineProperty(exports, "__esModule", { value: true });
+    exports.Polling = void 0;
+    var transport_js_1 = require_transport();
+    var util_js_1 = require_util();
+    var engine_io_parser_1 = require_cjs();
+    var debug_1 = __importDefault(require_browser());
+    var debug = (0, debug_1.default)("engine.io-client:polling");
+    var Polling = class extends transport_js_1.Transport {
+      constructor() {
+        super(...arguments);
+        this._polling = false;
+      }
+      get name() {
+        return "polling";
+      }
+      /**
+       * Opens the socket (triggers polling). We write a PING message to determine
+       * when the transport is open.
+       *
+       * @protected
+       */
+      doOpen() {
+        this._poll();
+      }
+      /**
+       * Pauses polling.
+       *
+       * @param {Function} onPause - callback upon buffers are flushed and transport is paused
+       * @package
+       */
+      pause(onPause) {
+        this.readyState = "pausing";
+        const pause = () => {
+          debug("paused");
+          this.readyState = "paused";
+          onPause();
+        };
+        if (this._polling || !this.writable) {
+          let total = 0;
+          if (this._polling) {
+            debug("we are currently polling - waiting to pause");
+            total++;
+            this.once("pollComplete", function() {
+              debug("pre-pause polling complete");
+              --total || pause();
+            });
+          }
+          if (!this.writable) {
+            debug("we are currently writing - waiting to pause");
+            total++;
+            this.once("drain", function() {
+              debug("pre-pause writing complete");
+              --total || pause();
+            });
+          }
+        } else {
+          pause();
+        }
+      }
+      /**
+       * Starts polling cycle.
+       *
+       * @private
+       */
+      _poll() {
+        debug("polling");
+        this._polling = true;
+        this.doPoll();
+        this.emitReserved("poll");
+      }
+      /**
+       * Overloads onData to detect payloads.
+       *
+       * @protected
+       */
+      onData(data) {
+        debug("polling got data %s", data);
+        const callback = (packet) => {
+          if ("opening" === this.readyState && packet.type === "open") {
+            this.onOpen();
+          }
+          if ("close" === packet.type) {
+            this.onClose({ description: "transport closed by the server" });
+            return false;
+          }
+          this.onPacket(packet);
+        };
+        (0, engine_io_parser_1.decodePayload)(data, this.socket.binaryType).forEach(callback);
+        if ("closed" !== this.readyState) {
+          this._polling = false;
+          this.emitReserved("pollComplete");
+          if ("open" === this.readyState) {
+            this._poll();
+          } else {
+            debug('ignoring poll - transport state "%s"', this.readyState);
+          }
+        }
+      }
+      /**
+       * For polling, send a close packet.
+       *
+       * @protected
+       */
+      doClose() {
+        const close = () => {
+          debug("writing close packet");
+          this.write([{ type: "close" }]);
+        };
+        if ("open" === this.readyState) {
+          debug("transport open - closing");
+          close();
+        } else {
+          debug("transport not open - deferring close");
+          this.once("open", close);
+        }
+      }
+      /**
+       * Writes a packets payload.
+       *
+       * @param {Array} packets - data packets
+       * @protected
+       */
+      write(packets) {
+        this.writable = false;
+        (0, engine_io_parser_1.encodePayload)(packets, (data) => {
+          this.doWrite(data, () => {
+            this.writable = true;
+            this.emitReserved("drain");
+          });
+        });
+      }
+      /**
+       * Generates uri for connection.
+       *
+       * @private
+       */
+      uri() {
+        const schema = this.opts.secure ? "https" : "http";
+        const query = this.query || {};
+        if (false !== this.opts.timestampRequests) {
+          query[this.opts.timestampParam] = (0, util_js_1.randomString)();
+        }
+        if (!this.supportsBinary && !query.sid) {
+          query.b64 = 1;
+        }
+        return this.createUri(schema, query);
+      }
+    };
+    exports.Polling = Polling;
+  }
+});
+var require_has_cors = __commonJS({
+  "node_modules/engine.io-client/build/cjs/contrib/has-cors.js"(exports) {
+    "use strict";
+    Object.defineProperty(exports, "__esModule", { value: true });
+    exports.hasCORS = void 0;
+    var value = false;
+    try {
+      value = typeof XMLHttpRequest !== "undefined" && "withCredentials" in new XMLHttpRequest();
+    } catch (err) {
+    }
+    exports.hasCORS = value;
+  }
+});
+var require_polling_xhr = __commonJS({
+  "node_modules/engine.io-client/build/cjs/transports/polling-xhr.js"(exports) {
+    "use strict";
+    var __importDefault = exports && exports.__importDefault || function(mod) {
+      return mod && mod.__esModule ? mod : { "default": mod };
+    };
+    Object.defineProperty(exports, "__esModule", { value: true });
+    exports.XHR = exports.Request = exports.BaseXHR = void 0;
+    var polling_js_1 = require_polling();
+    var component_emitter_1 = require_cjs2();
+    var util_js_1 = require_util();
+    var globals_node_js_1 = require_globals();
+    var has_cors_js_1 = require_has_cors();
+    var debug_1 = __importDefault(require_browser());
+    var debug = (0, debug_1.default)("engine.io-client:polling");
+    function empty() {
+    }
+    var BaseXHR = class extends polling_js_1.Polling {
+      /**
+       * XHR Polling constructor.
+       *
+       * @param {Object} opts
+       * @package
+       */
+      constructor(opts) {
+        super(opts);
+        if (typeof location !== "undefined") {
+          const isSSL = "https:" === location.protocol;
+          let port = location.port;
+          if (!port) {
+            port = isSSL ? "443" : "80";
+          }
+          this.xd = typeof location !== "undefined" && opts.hostname !== location.hostname || port !== opts.port;
+        }
+      }
+      /**
+       * Sends data.
+       *
+       * @param {String} data - data to send.
+       * @param {Function} fn - called upon flush.
+       * @private
+       */
+      doWrite(data, fn) {
+        const req = this.request({
+          method: "POST",
+          data
+        });
+        req.on("success", fn);
+        req.on("error", (xhrStatus, context) => {
+          this.onError("xhr post error", xhrStatus, context);
+        });
+      }
+      /**
+       * Starts a poll cycle.
+       *
+       * @private
+       */
+      doPoll() {
+        debug("xhr poll");
+        const req = this.request();
+        req.on("data", this.onData.bind(this));
+        req.on("error", (xhrStatus, context) => {
+          this.onError("xhr poll error", xhrStatus, context);
+        });
+        this.pollXhr = req;
+      }
+    };
+    exports.BaseXHR = BaseXHR;
+    var Request = class _Request extends component_emitter_1.Emitter {
+      /**
+       * Request constructor
+       *
+       * @param {Object} options
+       * @package
+       */
+      constructor(createRequest, uri, opts) {
+        super();
+        this.createRequest = createRequest;
+        (0, util_js_1.installTimerFunctions)(this, opts);
+        this._opts = opts;
+        this._method = opts.method || "GET";
+        this._uri = uri;
+        this._data = void 0 !== opts.data ? opts.data : null;
+        this._create();
+      }
+      /**
+       * Creates the XHR object and sends the request.
+       *
+       * @private
+       */
+      _create() {
+        var _a;
+        const opts = (0, util_js_1.pick)(this._opts, "agent", "pfx", "key", "passphrase", "cert", "ca", "ciphers", "rejectUnauthorized", "autoUnref");
+        opts.xdomain = !!this._opts.xd;
+        const xhr = this._xhr = this.createRequest(opts);
+        try {
+          debug("xhr open %s: %s", this._method, this._uri);
+          xhr.open(this._method, this._uri, true);
+          try {
+            if (this._opts.extraHeaders) {
+              xhr.setDisableHeaderCheck && xhr.setDisableHeaderCheck(true);
+              for (let i6 in this._opts.extraHeaders) {
+                if (this._opts.extraHeaders.hasOwnProperty(i6)) {
+                  xhr.setRequestHeader(i6, this._opts.extraHeaders[i6]);
+                }
+              }
+            }
+          } catch (e6) {
+          }
+          if ("POST" === this._method) {
+            try {
+              xhr.setRequestHeader("Content-type", "text/plain;charset=UTF-8");
+            } catch (e6) {
+            }
+          }
+          try {
+            xhr.setRequestHeader("Accept", "*/*");
+          } catch (e6) {
+          }
+          (_a = this._opts.cookieJar) === null || _a === void 0 ? void 0 : _a.addCookies(xhr);
+          if ("withCredentials" in xhr) {
+            xhr.withCredentials = this._opts.withCredentials;
+          }
+          if (this._opts.requestTimeout) {
+            xhr.timeout = this._opts.requestTimeout;
+          }
+          xhr.onreadystatechange = () => {
+            var _a2;
+            if (xhr.readyState === 3) {
+              (_a2 = this._opts.cookieJar) === null || _a2 === void 0 ? void 0 : _a2.parseCookies(
+                // @ts-ignore
+                xhr.getResponseHeader("set-cookie")
+              );
+            }
+            if (4 !== xhr.readyState)
+              return;
+            if (200 === xhr.status || 1223 === xhr.status) {
+              this._onLoad();
+            } else {
+              this.setTimeoutFn(() => {
+                this._onError(typeof xhr.status === "number" ? xhr.status : 0);
+              }, 0);
+            }
+          };
+          debug("xhr data %s", this._data);
+          xhr.send(this._data);
+        } catch (e6) {
+          this.setTimeoutFn(() => {
+            this._onError(e6);
+          }, 0);
+          return;
+        }
+        if (typeof document !== "undefined") {
+          this._index = _Request.requestsCount++;
+          _Request.requests[this._index] = this;
+        }
+      }
+      /**
+       * Called upon error.
+       *
+       * @private
+       */
+      _onError(err) {
+        this.emitReserved("error", err, this._xhr);
+        this._cleanup(true);
+      }
+      /**
+       * Cleans up house.
+       *
+       * @private
+       */
+      _cleanup(fromError) {
+        if ("undefined" === typeof this._xhr || null === this._xhr) {
+          return;
+        }
+        this._xhr.onreadystatechange = empty;
+        if (fromError) {
+          try {
+            this._xhr.abort();
+          } catch (e6) {
+          }
+        }
+        if (typeof document !== "undefined") {
+          delete _Request.requests[this._index];
+        }
+        this._xhr = null;
+      }
+      /**
+       * Called upon load.
+       *
+       * @private
+       */
+      _onLoad() {
+        const data = this._xhr.responseText;
+        if (data !== null) {
+          this.emitReserved("data", data);
+          this.emitReserved("success");
+          this._cleanup();
+        }
+      }
+      /**
+       * Aborts the request.
+       *
+       * @package
+       */
+      abort() {
+        this._cleanup();
+      }
+    };
+    exports.Request = Request;
+    Request.requestsCount = 0;
+    Request.requests = {};
+    if (typeof document !== "undefined") {
+      if (typeof attachEvent === "function") {
+        attachEvent("onunload", unloadHandler);
+      } else if (typeof addEventListener === "function") {
+        const terminationEvent = "onpagehide" in globals_node_js_1.globalThisShim ? "pagehide" : "unload";
+        addEventListener(terminationEvent, unloadHandler, false);
+      }
+    }
+    function unloadHandler() {
+      for (let i6 in Request.requests) {
+        if (Request.requests.hasOwnProperty(i6)) {
+          Request.requests[i6].abort();
+        }
+      }
+    }
+    var hasXHR2 = function() {
+      const xhr = newRequest({
+        xdomain: false
+      });
+      return xhr && xhr.responseType !== null;
+    }();
+    var XHR = class extends BaseXHR {
+      constructor(opts) {
+        super(opts);
+        const forceBase64 = opts && opts.forceBase64;
+        this.supportsBinary = hasXHR2 && !forceBase64;
+      }
+      request(opts = {}) {
+        Object.assign(opts, { xd: this.xd }, this.opts);
+        return new Request(newRequest, this.uri(), opts);
+      }
+    };
+    exports.XHR = XHR;
+    function newRequest(opts) {
+      const xdomain = opts.xdomain;
+      try {
+        if ("undefined" !== typeof XMLHttpRequest && (!xdomain || has_cors_js_1.hasCORS)) {
+          return new XMLHttpRequest();
+        }
+      } catch (e6) {
+      }
+      if (!xdomain) {
+        try {
+          return new globals_node_js_1.globalThisShim[["Active"].concat("Object").join("X")]("Microsoft.XMLHTTP");
+        } catch (e6) {
+        }
+      }
+    }
+  }
+});
+var require_websocket = __commonJS({
+  "node_modules/engine.io-client/build/cjs/transports/websocket.js"(exports) {
+    "use strict";
+    var __importDefault = exports && exports.__importDefault || function(mod) {
+      return mod && mod.__esModule ? mod : { "default": mod };
+    };
+    Object.defineProperty(exports, "__esModule", { value: true });
+    exports.WS = exports.BaseWS = void 0;
+    var transport_js_1 = require_transport();
+    var util_js_1 = require_util();
+    var engine_io_parser_1 = require_cjs();
+    var globals_node_js_1 = require_globals();
+    var debug_1 = __importDefault(require_browser());
+    var debug = (0, debug_1.default)("engine.io-client:websocket");
+    var isReactNative = typeof navigator !== "undefined" && typeof navigator.product === "string" && navigator.product.toLowerCase() === "reactnative";
+    var BaseWS = class extends transport_js_1.Transport {
+      get name() {
+        return "websocket";
+      }
+      doOpen() {
+        const uri = this.uri();
+        const protocols = this.opts.protocols;
+        const opts = isReactNative ? {} : (0, util_js_1.pick)(this.opts, "agent", "perMessageDeflate", "pfx", "key", "passphrase", "cert", "ca", "ciphers", "rejectUnauthorized", "localAddress", "protocolVersion", "origin", "maxPayload", "family", "checkServerIdentity");
+        if (this.opts.extraHeaders) {
+          opts.headers = this.opts.extraHeaders;
+        }
+        try {
+          this.ws = this.createSocket(uri, protocols, opts);
+        } catch (err) {
+          return this.emitReserved("error", err);
+        }
+        this.ws.binaryType = this.socket.binaryType;
+        this.addEventListeners();
+      }
+      /**
+       * Adds event listeners to the socket
+       *
+       * @private
+       */
+      addEventListeners() {
+        this.ws.onopen = () => {
+          if (this.opts.autoUnref) {
+            this.ws._socket.unref();
+          }
+          this.onOpen();
+        };
+        this.ws.onclose = (closeEvent) => this.onClose({
+          description: "websocket connection closed",
+          context: closeEvent
+        });
+        this.ws.onmessage = (ev) => this.onData(ev.data);
+        this.ws.onerror = (e6) => this.onError("websocket error", e6);
+      }
+      write(packets) {
+        this.writable = false;
+        for (let i6 = 0; i6 < packets.length; i6++) {
+          const packet = packets[i6];
+          const lastPacket = i6 === packets.length - 1;
+          (0, engine_io_parser_1.encodePacket)(packet, this.supportsBinary, (data) => {
+            try {
+              this.doWrite(packet, data);
+            } catch (e6) {
+              debug("websocket closed before onclose event");
+            }
+            if (lastPacket) {
+              (0, globals_node_js_1.nextTick)(() => {
+                this.writable = true;
+                this.emitReserved("drain");
+              }, this.setTimeoutFn);
+            }
+          });
+        }
+      }
+      doClose() {
+        if (typeof this.ws !== "undefined") {
+          this.ws.onerror = () => {
+          };
+          this.ws.close();
+          this.ws = null;
+        }
+      }
+      /**
+       * Generates uri for connection.
+       *
+       * @private
+       */
+      uri() {
+        const schema = this.opts.secure ? "wss" : "ws";
+        const query = this.query || {};
+        if (this.opts.timestampRequests) {
+          query[this.opts.timestampParam] = (0, util_js_1.randomString)();
+        }
+        if (!this.supportsBinary) {
+          query.b64 = 1;
+        }
+        return this.createUri(schema, query);
+      }
+    };
+    exports.BaseWS = BaseWS;
+    var WebSocketCtor = globals_node_js_1.globalThisShim.WebSocket || globals_node_js_1.globalThisShim.MozWebSocket;
+    var WS = class extends BaseWS {
+      createSocket(uri, protocols, opts) {
+        return !isReactNative ? protocols ? new WebSocketCtor(uri, protocols) : new WebSocketCtor(uri) : new WebSocketCtor(uri, protocols, opts);
+      }
+      doWrite(_packet, data) {
+        this.ws.send(data);
+      }
+    };
+    exports.WS = WS;
+  }
+});
+var require_webtransport = __commonJS({
+  "node_modules/engine.io-client/build/cjs/transports/webtransport.js"(exports) {
+    "use strict";
+    var __importDefault = exports && exports.__importDefault || function(mod) {
+      return mod && mod.__esModule ? mod : { "default": mod };
+    };
+    Object.defineProperty(exports, "__esModule", { value: true });
+    exports.WT = void 0;
+    var transport_js_1 = require_transport();
+    var globals_node_js_1 = require_globals();
+    var engine_io_parser_1 = require_cjs();
+    var debug_1 = __importDefault(require_browser());
+    var debug = (0, debug_1.default)("engine.io-client:webtransport");
+    var WT = class extends transport_js_1.Transport {
+      get name() {
+        return "webtransport";
+      }
+      doOpen() {
+        try {
+          this._transport = new WebTransport(this.createUri("https"), this.opts.transportOptions[this.name]);
+        } catch (err) {
+          return this.emitReserved("error", err);
+        }
+        this._transport.closed.then(() => {
+          debug("transport closed gracefully");
+          this.onClose();
+        }).catch((err) => {
+          debug("transport closed due to %s", err);
+          this.onError("webtransport error", err);
+        });
+        this._transport.ready.then(() => {
+          this._transport.createBidirectionalStream().then((stream) => {
+            const decoderStream = (0, engine_io_parser_1.createPacketDecoderStream)(Number.MAX_SAFE_INTEGER, this.socket.binaryType);
+            const reader = stream.readable.pipeThrough(decoderStream).getReader();
+            const encoderStream = (0, engine_io_parser_1.createPacketEncoderStream)();
+            encoderStream.readable.pipeTo(stream.writable);
+            this._writer = encoderStream.writable.getWriter();
+            const read = () => {
+              reader.read().then(({ done, value }) => {
+                if (done) {
+                  debug("session is closed");
+                  return;
+                }
+                debug("received chunk: %o", value);
+                this.onPacket(value);
+                read();
+              }).catch((err) => {
+                debug("an error occurred while reading: %s", err);
+              });
+            };
+            read();
+            const packet = { type: "open" };
+            if (this.query.sid) {
+              packet.data = `{"sid":"${this.query.sid}"}`;
+            }
+            this._writer.write(packet).then(() => this.onOpen());
+          });
+        });
+      }
+      write(packets) {
+        this.writable = false;
+        for (let i6 = 0; i6 < packets.length; i6++) {
+          const packet = packets[i6];
+          const lastPacket = i6 === packets.length - 1;
+          this._writer.write(packet).then(() => {
+            if (lastPacket) {
+              (0, globals_node_js_1.nextTick)(() => {
+                this.writable = true;
+                this.emitReserved("drain");
+              }, this.setTimeoutFn);
+            }
+          });
+        }
+      }
+      doClose() {
+        var _a;
+        (_a = this._transport) === null || _a === void 0 ? void 0 : _a.close();
+      }
+    };
+    exports.WT = WT;
+  }
+});
+var require_transports = __commonJS({
+  "node_modules/engine.io-client/build/cjs/transports/index.js"(exports) {
+    "use strict";
+    Object.defineProperty(exports, "__esModule", { value: true });
+    exports.transports = void 0;
+    var polling_xhr_node_js_1 = require_polling_xhr();
+    var websocket_node_js_1 = require_websocket();
+    var webtransport_js_1 = require_webtransport();
+    exports.transports = {
+      websocket: websocket_node_js_1.WS,
+      webtransport: webtransport_js_1.WT,
+      polling: polling_xhr_node_js_1.XHR
+    };
+  }
+});
+var require_parseuri = __commonJS({
+  "node_modules/engine.io-client/build/cjs/contrib/parseuri.js"(exports) {
+    "use strict";
+    Object.defineProperty(exports, "__esModule", { value: true });
+    exports.parse = parse;
+    var re = /^(?:(?![^:@\/?#]+:[^:@\/]*@)(http|https|ws|wss):\/\/)?((?:(([^:@\/?#]*)(?::([^:@\/?#]*))?)?@)?((?:[a-f0-9]{0,4}:){2,7}[a-f0-9]{0,4}|[^:\/?#]*)(?::(\d*))?)(((\/(?:[^?#](?![^?#\/]*\.[^?#\/.]+(?:[?#]|$)))*\/?)?([^?#\/]*))(?:\?([^#]*))?(?:#(.*))?)/;
+    var parts = [
+      "source",
+      "protocol",
+      "authority",
+      "userInfo",
+      "user",
+      "password",
+      "host",
+      "port",
+      "relative",
+      "path",
+      "directory",
+      "file",
+      "query",
+      "anchor"
+    ];
+    function parse(str) {
+      if (str.length > 8e3) {
+        throw "URI too long";
+      }
+      const src = str, b3 = str.indexOf("["), e6 = str.indexOf("]");
+      if (b3 != -1 && e6 != -1) {
+        str = str.substring(0, b3) + str.substring(b3, e6).replace(/:/g, ";") + str.substring(e6, str.length);
+      }
+      let m2 = re.exec(str || ""), uri = {}, i6 = 14;
+      while (i6--) {
+        uri[parts[i6]] = m2[i6] || "";
+      }
+      if (b3 != -1 && e6 != -1) {
+        uri.source = src;
+        uri.host = uri.host.substring(1, uri.host.length - 1).replace(/;/g, ":");
+        uri.authority = uri.authority.replace("[", "").replace("]", "").replace(/;/g, ":");
+        uri.ipv6uri = true;
+      }
+      uri.pathNames = pathNames(uri, uri["path"]);
+      uri.queryKey = queryKey(uri, uri["query"]);
+      return uri;
+    }
+    function pathNames(obj, path) {
+      const regx = /\/{2,9}/g, names = path.replace(regx, "/").split("/");
+      if (path.slice(0, 1) == "/" || path.length === 0) {
+        names.splice(0, 1);
+      }
+      if (path.slice(-1) == "/") {
+        names.splice(names.length - 1, 1);
+      }
+      return names;
+    }
+    function queryKey(uri, query) {
+      const data = {};
+      query.replace(/(?:^|&)([^&=]*)=?([^&]*)/g, function($0, $1, $2) {
+        if ($1) {
+          data[$1] = $2;
+        }
+      });
+      return data;
+    }
+  }
+});
+var require_socket = __commonJS({
+  "node_modules/engine.io-client/build/cjs/socket.js"(exports) {
+    "use strict";
+    var __importDefault = exports && exports.__importDefault || function(mod) {
+      return mod && mod.__esModule ? mod : { "default": mod };
+    };
+    Object.defineProperty(exports, "__esModule", { value: true });
+    exports.Socket = exports.SocketWithUpgrade = exports.SocketWithoutUpgrade = void 0;
+    var index_js_1 = require_transports();
+    var util_js_1 = require_util();
+    var parseqs_js_1 = require_parseqs();
+    var parseuri_js_1 = require_parseuri();
+    var component_emitter_1 = require_cjs2();
+    var engine_io_parser_1 = require_cjs();
+    var globals_node_js_1 = require_globals();
+    var debug_1 = __importDefault(require_browser());
+    var debug = (0, debug_1.default)("engine.io-client:socket");
+    var withEventListeners = typeof addEventListener === "function" && typeof removeEventListener === "function";
+    var OFFLINE_EVENT_LISTENERS = [];
+    if (withEventListeners) {
+      addEventListener("offline", () => {
+        debug("closing %d connection(s) because the network was lost", OFFLINE_EVENT_LISTENERS.length);
+        OFFLINE_EVENT_LISTENERS.forEach((listener) => listener());
+      }, false);
+    }
+    var SocketWithoutUpgrade = class _SocketWithoutUpgrade extends component_emitter_1.Emitter {
+      /**
+       * Socket constructor.
+       *
+       * @param {String|Object} uri - uri or options
+       * @param {Object} opts - options
+       */
+      constructor(uri, opts) {
+        super();
+        this.binaryType = globals_node_js_1.defaultBinaryType;
+        this.writeBuffer = [];
+        this._prevBufferLen = 0;
+        this._pingInterval = -1;
+        this._pingTimeout = -1;
+        this._maxPayload = -1;
+        this._pingTimeoutTime = Infinity;
+        if (uri && "object" === typeof uri) {
+          opts = uri;
+          uri = null;
+        }
+        if (uri) {
+          const parsedUri = (0, parseuri_js_1.parse)(uri);
+          opts.hostname = parsedUri.host;
+          opts.secure = parsedUri.protocol === "https" || parsedUri.protocol === "wss";
+          opts.port = parsedUri.port;
+          if (parsedUri.query)
+            opts.query = parsedUri.query;
+        } else if (opts.host) {
+          opts.hostname = (0, parseuri_js_1.parse)(opts.host).host;
+        }
+        (0, util_js_1.installTimerFunctions)(this, opts);
+        this.secure = null != opts.secure ? opts.secure : typeof location !== "undefined" && "https:" === location.protocol;
+        if (opts.hostname && !opts.port) {
+          opts.port = this.secure ? "443" : "80";
+        }
+        this.hostname = opts.hostname || (typeof location !== "undefined" ? location.hostname : "localhost");
+        this.port = opts.port || (typeof location !== "undefined" && location.port ? location.port : this.secure ? "443" : "80");
+        this.transports = [];
+        this._transportsByName = {};
+        opts.transports.forEach((t5) => {
+          const transportName = t5.prototype.name;
+          this.transports.push(transportName);
+          this._transportsByName[transportName] = t5;
+        });
+        this.opts = Object.assign({
+          path: "/engine.io",
+          agent: false,
+          withCredentials: false,
+          upgrade: true,
+          timestampParam: "t",
+          rememberUpgrade: false,
+          addTrailingSlash: true,
+          rejectUnauthorized: true,
+          perMessageDeflate: {
+            threshold: 1024
+          },
+          transportOptions: {},
+          closeOnBeforeunload: false
+        }, opts);
+        this.opts.path = this.opts.path.replace(/\/$/, "") + (this.opts.addTrailingSlash ? "/" : "");
+        if (typeof this.opts.query === "string") {
+          this.opts.query = (0, parseqs_js_1.decode)(this.opts.query);
+        }
+        if (withEventListeners) {
+          if (this.opts.closeOnBeforeunload) {
+            this._beforeunloadEventListener = () => {
+              if (this.transport) {
+                this.transport.removeAllListeners();
+                this.transport.close();
+              }
+            };
+            addEventListener("beforeunload", this._beforeunloadEventListener, false);
+          }
+          if (this.hostname !== "localhost") {
+            debug("adding listener for the 'offline' event");
+            this._offlineEventListener = () => {
+              this._onClose("transport close", {
+                description: "network connection lost"
+              });
+            };
+            OFFLINE_EVENT_LISTENERS.push(this._offlineEventListener);
+          }
+        }
+        if (this.opts.withCredentials) {
+          this._cookieJar = (0, globals_node_js_1.createCookieJar)();
+        }
+        this._open();
+      }
+      /**
+       * Creates transport of the given type.
+       *
+       * @param {String} name - transport name
+       * @return {Transport}
+       * @private
+       */
+      createTransport(name) {
+        debug('creating transport "%s"', name);
+        const query = Object.assign({}, this.opts.query);
+        query.EIO = engine_io_parser_1.protocol;
+        query.transport = name;
+        if (this.id)
+          query.sid = this.id;
+        const opts = Object.assign({}, this.opts, {
+          query,
+          socket: this,
+          hostname: this.hostname,
+          secure: this.secure,
+          port: this.port
+        }, this.opts.transportOptions[name]);
+        debug("options: %j", opts);
+        return new this._transportsByName[name](opts);
+      }
+      /**
+       * Initializes transport to use and starts probe.
+       *
+       * @private
+       */
+      _open() {
+        if (this.transports.length === 0) {
+          this.setTimeoutFn(() => {
+            this.emitReserved("error", "No transports available");
+          }, 0);
+          return;
+        }
+        const transportName = this.opts.rememberUpgrade && _SocketWithoutUpgrade.priorWebsocketSuccess && this.transports.indexOf("websocket") !== -1 ? "websocket" : this.transports[0];
+        this.readyState = "opening";
+        const transport = this.createTransport(transportName);
+        transport.open();
+        this.setTransport(transport);
+      }
+      /**
+       * Sets the current transport. Disables the existing one (if any).
+       *
+       * @private
+       */
+      setTransport(transport) {
+        debug("setting transport %s", transport.name);
+        if (this.transport) {
+          debug("clearing existing transport %s", this.transport.name);
+          this.transport.removeAllListeners();
+        }
+        this.transport = transport;
+        transport.on("drain", this._onDrain.bind(this)).on("packet", this._onPacket.bind(this)).on("error", this._onError.bind(this)).on("close", (reason) => this._onClose("transport close", reason));
+      }
+      /**
+       * Called when connection is deemed open.
+       *
+       * @private
+       */
+      onOpen() {
+        debug("socket open");
+        this.readyState = "open";
+        _SocketWithoutUpgrade.priorWebsocketSuccess = "websocket" === this.transport.name;
+        this.emitReserved("open");
+        this.flush();
+      }
+      /**
+       * Handles a packet.
+       *
+       * @private
+       */
+      _onPacket(packet) {
+        if ("opening" === this.readyState || "open" === this.readyState || "closing" === this.readyState) {
+          debug('socket receive: type "%s", data "%s"', packet.type, packet.data);
+          this.emitReserved("packet", packet);
+          this.emitReserved("heartbeat");
+          switch (packet.type) {
+            case "open":
+              this.onHandshake(JSON.parse(packet.data));
+              break;
+            case "ping":
+              this._sendPacket("pong");
+              this.emitReserved("ping");
+              this.emitReserved("pong");
+              this._resetPingTimeout();
+              break;
+            case "error":
+              const err = new Error("server error");
+              err.code = packet.data;
+              this._onError(err);
+              break;
+            case "message":
+              this.emitReserved("data", packet.data);
+              this.emitReserved("message", packet.data);
+              break;
+          }
+        } else {
+          debug('packet received with socket readyState "%s"', this.readyState);
+        }
+      }
+      /**
+       * Called upon handshake completion.
+       *
+       * @param {Object} data - handshake obj
+       * @private
+       */
+      onHandshake(data) {
+        this.emitReserved("handshake", data);
+        this.id = data.sid;
+        this.transport.query.sid = data.sid;
+        this._pingInterval = data.pingInterval;
+        this._pingTimeout = data.pingTimeout;
+        this._maxPayload = data.maxPayload;
+        this.onOpen();
+        if ("closed" === this.readyState)
+          return;
+        this._resetPingTimeout();
+      }
+      /**
+       * Sets and resets ping timeout timer based on server pings.
+       *
+       * @private
+       */
+      _resetPingTimeout() {
+        this.clearTimeoutFn(this._pingTimeoutTimer);
+        const delay = this._pingInterval + this._pingTimeout;
+        this._pingTimeoutTime = Date.now() + delay;
+        this._pingTimeoutTimer = this.setTimeoutFn(() => {
+          this._onClose("ping timeout");
+        }, delay);
+        if (this.opts.autoUnref) {
+          this._pingTimeoutTimer.unref();
+        }
+      }
+      /**
+       * Called on `drain` event
+       *
+       * @private
+       */
+      _onDrain() {
+        this.writeBuffer.splice(0, this._prevBufferLen);
+        this._prevBufferLen = 0;
+        if (0 === this.writeBuffer.length) {
+          this.emitReserved("drain");
+        } else {
+          this.flush();
+        }
+      }
+      /**
+       * Flush write buffers.
+       *
+       * @private
+       */
+      flush() {
+        if ("closed" !== this.readyState && this.transport.writable && !this.upgrading && this.writeBuffer.length) {
+          const packets = this._getWritablePackets();
+          debug("flushing %d packets in socket", packets.length);
+          this.transport.send(packets);
+          this._prevBufferLen = packets.length;
+          this.emitReserved("flush");
+        }
+      }
+      /**
+       * Ensure the encoded size of the writeBuffer is below the maxPayload value sent by the server (only for HTTP
+       * long-polling)
+       *
+       * @private
+       */
+      _getWritablePackets() {
+        const shouldCheckPayloadSize = this._maxPayload && this.transport.name === "polling" && this.writeBuffer.length > 1;
+        if (!shouldCheckPayloadSize) {
+          return this.writeBuffer;
+        }
+        let payloadSize = 1;
+        for (let i6 = 0; i6 < this.writeBuffer.length; i6++) {
+          const data = this.writeBuffer[i6].data;
+          if (data) {
+            payloadSize += (0, util_js_1.byteLength)(data);
+          }
+          if (i6 > 0 && payloadSize > this._maxPayload) {
+            debug("only send %d out of %d packets", i6, this.writeBuffer.length);
+            return this.writeBuffer.slice(0, i6);
+          }
+          payloadSize += 2;
+        }
+        debug("payload size is %d (max: %d)", payloadSize, this._maxPayload);
+        return this.writeBuffer;
+      }
+      /**
+       * Checks whether the heartbeat timer has expired but the socket has not yet been notified.
+       *
+       * Note: this method is private for now because it does not really fit the WebSocket API, but if we put it in the
+       * `write()` method then the message would not be buffered by the Socket.IO client.
+       *
+       * @return {boolean}
+       * @private
+       */
+      /* private */
+      _hasPingExpired() {
+        if (!this._pingTimeoutTime)
+          return true;
+        const hasExpired = Date.now() > this._pingTimeoutTime;
+        if (hasExpired) {
+          debug("throttled timer detected, scheduling connection close");
+          this._pingTimeoutTime = 0;
+          (0, globals_node_js_1.nextTick)(() => {
+            this._onClose("ping timeout");
+          }, this.setTimeoutFn);
+        }
+        return hasExpired;
+      }
+      /**
+       * Sends a message.
+       *
+       * @param {String} msg - message.
+       * @param {Object} options.
+       * @param {Function} fn - callback function.
+       * @return {Socket} for chaining.
+       */
+      write(msg, options, fn) {
+        this._sendPacket("message", msg, options, fn);
+        return this;
+      }
+      /**
+       * Sends a message. Alias of {@link Socket#write}.
+       *
+       * @param {String} msg - message.
+       * @param {Object} options.
+       * @param {Function} fn - callback function.
+       * @return {Socket} for chaining.
+       */
+      send(msg, options, fn) {
+        this._sendPacket("message", msg, options, fn);
+        return this;
+      }
+      /**
+       * Sends a packet.
+       *
+       * @param {String} type - packet type.
+       * @param {String} data.
+       * @param {Object} options.
+       * @param {Function} fn - callback function.
+       * @private
+       */
+      _sendPacket(type, data, options, fn) {
+        if ("function" === typeof data) {
+          fn = data;
+          data = void 0;
+        }
+        if ("function" === typeof options) {
+          fn = options;
+          options = null;
+        }
+        if ("closing" === this.readyState || "closed" === this.readyState) {
+          return;
+        }
+        options = options || {};
+        options.compress = false !== options.compress;
+        const packet = {
+          type,
+          data,
+          options
+        };
+        this.emitReserved("packetCreate", packet);
+        this.writeBuffer.push(packet);
+        if (fn)
+          this.once("flush", fn);
+        this.flush();
+      }
+      /**
+       * Closes the connection.
+       */
+      close() {
+        const close = () => {
+          this._onClose("forced close");
+          debug("socket closing - telling transport to close");
+          this.transport.close();
+        };
+        const cleanupAndClose = () => {
+          this.off("upgrade", cleanupAndClose);
+          this.off("upgradeError", cleanupAndClose);
+          close();
+        };
+        const waitForUpgrade = () => {
+          this.once("upgrade", cleanupAndClose);
+          this.once("upgradeError", cleanupAndClose);
+        };
+        if ("opening" === this.readyState || "open" === this.readyState) {
+          this.readyState = "closing";
+          if (this.writeBuffer.length) {
+            this.once("drain", () => {
+              if (this.upgrading) {
+                waitForUpgrade();
+              } else {
+                close();
+              }
+            });
+          } else if (this.upgrading) {
+            waitForUpgrade();
+          } else {
+            close();
+          }
+        }
+        return this;
+      }
+      /**
+       * Called upon transport error
+       *
+       * @private
+       */
+      _onError(err) {
+        debug("socket error %j", err);
+        _SocketWithoutUpgrade.priorWebsocketSuccess = false;
+        if (this.opts.tryAllTransports && this.transports.length > 1 && this.readyState === "opening") {
+          debug("trying next transport");
+          this.transports.shift();
+          return this._open();
+        }
+        this.emitReserved("error", err);
+        this._onClose("transport error", err);
+      }
+      /**
+       * Called upon transport close.
+       *
+       * @private
+       */
+      _onClose(reason, description) {
+        if ("opening" === this.readyState || "open" === this.readyState || "closing" === this.readyState) {
+          debug('socket close with reason: "%s"', reason);
+          this.clearTimeoutFn(this._pingTimeoutTimer);
+          this.transport.removeAllListeners("close");
+          this.transport.close();
+          this.transport.removeAllListeners();
+          if (withEventListeners) {
+            if (this._beforeunloadEventListener) {
+              removeEventListener("beforeunload", this._beforeunloadEventListener, false);
+            }
+            if (this._offlineEventListener) {
+              const i6 = OFFLINE_EVENT_LISTENERS.indexOf(this._offlineEventListener);
+              if (i6 !== -1) {
+                debug("removing listener for the 'offline' event");
+                OFFLINE_EVENT_LISTENERS.splice(i6, 1);
+              }
+            }
+          }
+          this.readyState = "closed";
+          this.id = null;
+          this.emitReserved("close", reason, description);
+          this.writeBuffer = [];
+          this._prevBufferLen = 0;
+        }
+      }
+    };
+    exports.SocketWithoutUpgrade = SocketWithoutUpgrade;
+    SocketWithoutUpgrade.protocol = engine_io_parser_1.protocol;
+    var SocketWithUpgrade = class extends SocketWithoutUpgrade {
+      constructor() {
+        super(...arguments);
+        this._upgrades = [];
+      }
+      onOpen() {
+        super.onOpen();
+        if ("open" === this.readyState && this.opts.upgrade) {
+          debug("starting upgrade probes");
+          for (let i6 = 0; i6 < this._upgrades.length; i6++) {
+            this._probe(this._upgrades[i6]);
+          }
+        }
+      }
+      /**
+       * Probes a transport.
+       *
+       * @param {String} name - transport name
+       * @private
+       */
+      _probe(name) {
+        debug('probing transport "%s"', name);
+        let transport = this.createTransport(name);
+        let failed = false;
+        SocketWithoutUpgrade.priorWebsocketSuccess = false;
+        const onTransportOpen = () => {
+          if (failed)
+            return;
+          debug('probe transport "%s" opened', name);
+          transport.send([{ type: "ping", data: "probe" }]);
+          transport.once("packet", (msg) => {
+            if (failed)
+              return;
+            if ("pong" === msg.type && "probe" === msg.data) {
+              debug('probe transport "%s" pong', name);
+              this.upgrading = true;
+              this.emitReserved("upgrading", transport);
+              if (!transport)
+                return;
+              SocketWithoutUpgrade.priorWebsocketSuccess = "websocket" === transport.name;
+              debug('pausing current transport "%s"', this.transport.name);
+              this.transport.pause(() => {
+                if (failed)
+                  return;
+                if ("closed" === this.readyState)
+                  return;
+                debug("changing transport and sending upgrade packet");
+                cleanup();
+                this.setTransport(transport);
+                transport.send([{ type: "upgrade" }]);
+                this.emitReserved("upgrade", transport);
+                transport = null;
+                this.upgrading = false;
+                this.flush();
+              });
+            } else {
+              debug('probe transport "%s" failed', name);
+              const err = new Error("probe error");
+              err.transport = transport.name;
+              this.emitReserved("upgradeError", err);
+            }
+          });
+        };
+        function freezeTransport() {
+          if (failed)
+            return;
+          failed = true;
+          cleanup();
+          transport.close();
+          transport = null;
+        }
+        const onerror = (err) => {
+          const error = new Error("probe error: " + err);
+          error.transport = transport.name;
+          freezeTransport();
+          debug('probe transport "%s" failed because of error: %s', name, err);
+          this.emitReserved("upgradeError", error);
+        };
+        function onTransportClose() {
+          onerror("transport closed");
+        }
+        function onclose() {
+          onerror("socket closed");
+        }
+        function onupgrade(to) {
+          if (transport && to.name !== transport.name) {
+            debug('"%s" works - aborting "%s"', to.name, transport.name);
+            freezeTransport();
+          }
+        }
+        const cleanup = () => {
+          transport.removeListener("open", onTransportOpen);
+          transport.removeListener("error", onerror);
+          transport.removeListener("close", onTransportClose);
+          this.off("close", onclose);
+          this.off("upgrading", onupgrade);
+        };
+        transport.once("open", onTransportOpen);
+        transport.once("error", onerror);
+        transport.once("close", onTransportClose);
+        this.once("close", onclose);
+        this.once("upgrading", onupgrade);
+        if (this._upgrades.indexOf("webtransport") !== -1 && name !== "webtransport") {
+          this.setTimeoutFn(() => {
+            if (!failed) {
+              transport.open();
+            }
+          }, 200);
+        } else {
+          transport.open();
+        }
+      }
+      onHandshake(data) {
+        this._upgrades = this._filterUpgrades(data.upgrades);
+        super.onHandshake(data);
+      }
+      /**
+       * Filters upgrades, returning only those matching client transports.
+       *
+       * @param {Array} upgrades - server upgrades
+       * @private
+       */
+      _filterUpgrades(upgrades) {
+        const filteredUpgrades = [];
+        for (let i6 = 0; i6 < upgrades.length; i6++) {
+          if (~this.transports.indexOf(upgrades[i6]))
+            filteredUpgrades.push(upgrades[i6]);
+        }
+        return filteredUpgrades;
+      }
+    };
+    exports.SocketWithUpgrade = SocketWithUpgrade;
+    var Socket = class extends SocketWithUpgrade {
+      constructor(uri, opts = {}) {
+        const isOptionsOnly = typeof uri === "object";
+        const o7 = isOptionsOnly ? { ...uri } : { ...opts };
+        if (!o7.transports || o7.transports && typeof o7.transports[0] === "string") {
+          o7.transports = (o7.transports || ["polling", "websocket", "webtransport"]).map((transportName) => index_js_1.transports[transportName]).filter((t5) => !!t5);
+        }
+        super(isOptionsOnly ? o7 : uri, o7);
+      }
+    };
+    exports.Socket = Socket;
+  }
+});
+var require_polling_fetch = __commonJS({
+  "node_modules/engine.io-client/build/cjs/transports/polling-fetch.js"(exports) {
+    "use strict";
+    Object.defineProperty(exports, "__esModule", { value: true });
+    exports.Fetch = void 0;
+    var polling_js_1 = require_polling();
+    var Fetch = class extends polling_js_1.Polling {
+      doPoll() {
+        this._fetch().then((res) => {
+          if (!res.ok) {
+            return this.onError("fetch read error", res.status, res);
+          }
+          res.text().then((data) => this.onData(data));
+        }).catch((err) => {
+          this.onError("fetch read error", err);
+        });
+      }
+      doWrite(data, callback) {
+        this._fetch(data).then((res) => {
+          if (!res.ok) {
+            return this.onError("fetch write error", res.status, res);
+          }
+          callback();
+        }).catch((err) => {
+          this.onError("fetch write error", err);
+        });
+      }
+      _fetch(data) {
+        var _a;
+        const isPost = data !== void 0;
+        const headers = new Headers(this.opts.extraHeaders);
+        if (isPost) {
+          headers.set("content-type", "text/plain;charset=UTF-8");
+        }
+        (_a = this.socket._cookieJar) === null || _a === void 0 ? void 0 : _a.appendCookies(headers);
+        return fetch(this.uri(), {
+          method: isPost ? "POST" : "GET",
+          body: isPost ? data : null,
+          headers,
+          credentials: this.opts.withCredentials ? "include" : "omit"
+        }).then((res) => {
+          var _a2;
+          (_a2 = this.socket._cookieJar) === null || _a2 === void 0 ? void 0 : _a2.parseCookies(res.headers.getSetCookie());
+          return res;
+        });
+      }
+    };
+    exports.Fetch = Fetch;
+  }
+});
+var require_cjs3 = __commonJS({
+  "node_modules/engine.io-client/build/cjs/index.js"(exports) {
+    "use strict";
+    Object.defineProperty(exports, "__esModule", { value: true });
+    exports.WebTransport = exports.WebSocket = exports.NodeWebSocket = exports.XHR = exports.NodeXHR = exports.Fetch = exports.nextTick = exports.parse = exports.installTimerFunctions = exports.transports = exports.TransportError = exports.Transport = exports.protocol = exports.SocketWithUpgrade = exports.SocketWithoutUpgrade = exports.Socket = void 0;
+    var socket_js_1 = require_socket();
+    Object.defineProperty(exports, "Socket", { enumerable: true, get: function() {
+      return socket_js_1.Socket;
+    } });
+    var socket_js_2 = require_socket();
+    Object.defineProperty(exports, "SocketWithoutUpgrade", { enumerable: true, get: function() {
+      return socket_js_2.SocketWithoutUpgrade;
+    } });
+    Object.defineProperty(exports, "SocketWithUpgrade", { enumerable: true, get: function() {
+      return socket_js_2.SocketWithUpgrade;
+    } });
+    exports.protocol = socket_js_1.Socket.protocol;
+    var transport_js_1 = require_transport();
+    Object.defineProperty(exports, "Transport", { enumerable: true, get: function() {
+      return transport_js_1.Transport;
+    } });
+    Object.defineProperty(exports, "TransportError", { enumerable: true, get: function() {
+      return transport_js_1.TransportError;
+    } });
+    var index_js_1 = require_transports();
+    Object.defineProperty(exports, "transports", { enumerable: true, get: function() {
+      return index_js_1.transports;
+    } });
+    var util_js_1 = require_util();
+    Object.defineProperty(exports, "installTimerFunctions", { enumerable: true, get: function() {
+      return util_js_1.installTimerFunctions;
+    } });
+    var parseuri_js_1 = require_parseuri();
+    Object.defineProperty(exports, "parse", { enumerable: true, get: function() {
+      return parseuri_js_1.parse;
+    } });
+    var globals_node_js_1 = require_globals();
+    Object.defineProperty(exports, "nextTick", { enumerable: true, get: function() {
+      return globals_node_js_1.nextTick;
+    } });
+    var polling_fetch_js_1 = require_polling_fetch();
+    Object.defineProperty(exports, "Fetch", { enumerable: true, get: function() {
+      return polling_fetch_js_1.Fetch;
+    } });
+    var polling_xhr_node_js_1 = require_polling_xhr();
+    Object.defineProperty(exports, "NodeXHR", { enumerable: true, get: function() {
+      return polling_xhr_node_js_1.XHR;
+    } });
+    var polling_xhr_js_1 = require_polling_xhr();
+    Object.defineProperty(exports, "XHR", { enumerable: true, get: function() {
+      return polling_xhr_js_1.XHR;
+    } });
+    var websocket_node_js_1 = require_websocket();
+    Object.defineProperty(exports, "NodeWebSocket", { enumerable: true, get: function() {
+      return websocket_node_js_1.WS;
+    } });
+    var websocket_js_1 = require_websocket();
+    Object.defineProperty(exports, "WebSocket", { enumerable: true, get: function() {
+      return websocket_js_1.WS;
+    } });
+    var webtransport_js_1 = require_webtransport();
+    Object.defineProperty(exports, "WebTransport", { enumerable: true, get: function() {
+      return webtransport_js_1.WT;
+    } });
+  }
+});
+var require_promise_utils = __commonJS({
+  "node_modules/@scrypted/client/dist/common/src/promise-utils.js"(exports) {
+    "use strict";
+    Object.defineProperty(exports, "__esModule", { value: true });
+    exports.TimeoutError = void 0;
+    exports.singletonPromise = singletonPromise;
+    exports.timeoutPromise = timeoutPromise;
+    exports.timeoutFunction = timeoutFunction;
+    exports.createPromiseDebouncer = createPromiseDebouncer;
+    exports.createMapPromiseDebouncer = createMapPromiseDebouncer;
+    function singletonPromise(rp, method, cacheDuration = 0) {
+      if (rp?.promise)
+        return rp;
+      const promise = method();
+      if (!rp) {
+        rp = {
+          promise,
+          cacheDuration
+        };
+      } else {
+        rp.promise = promise;
+      }
+      promise.finally(() => setTimeout(() => rp.promise = void 0, rp.cacheDuration));
+      return rp;
+    }
+    var TimeoutError = class extends Error {
+      promise;
+      constructor(promise) {
+        super("Operation Timed Out");
+        this.promise = promise;
+      }
+    };
+    exports.TimeoutError = TimeoutError;
+    function timeoutPromise(timeout, promise) {
+      return new Promise((resolve, reject) => {
+        const t5 = setTimeout(() => reject(new TimeoutError(promise)), timeout);
+        promise.then((v2) => {
+          clearTimeout(t5);
+          resolve(v2);
+        }).catch((e6) => {
+          clearTimeout(t5);
+          reject(e6);
+        });
+      });
+    }
+    function timeoutFunction(timeout, f4) {
+      return new Promise((resolve, reject) => {
+        let isTimedOut = false;
+        const promise = f4(() => isTimedOut);
+        const t5 = setTimeout(() => {
+          isTimedOut = true;
+          reject(new TimeoutError(promise));
+        }, timeout);
+        promise.then((v2) => {
+          clearTimeout(t5);
+          resolve(v2);
+        }).catch((e6) => {
+          clearTimeout(t5);
+          reject(e6);
+        });
+      });
+    }
+    function createPromiseDebouncer() {
+      let current;
+      return (func) => {
+        if (!current)
+          current = func().finally(() => current = void 0);
+        return current;
+      };
+    }
+    function createMapPromiseDebouncer() {
+      const map = /* @__PURE__ */ new Map();
+      return (key, debounce, func) => {
+        const keyStr = JSON.stringify(key);
+        let value = map.get(keyStr);
+        if (!value) {
+          value = func().finally(() => {
+            if (!debounce) {
+              map.delete(keyStr);
+              return;
+            }
+            setTimeout(() => map.delete(keyStr), debounce);
+          });
+          map.set(keyStr, value);
+        }
+        return value;
+      };
+    }
+  }
+});
+var require_rpc = __commonJS({
+  "node_modules/@scrypted/client/dist/server/src/rpc.js"(exports) {
+    "use strict";
+    Object.defineProperty(exports, "__esModule", { value: true });
+    exports.RpcPeer = exports.RPCResultError = void 0;
+    exports.startPeriodicGarbageCollection = startPeriodicGarbageCollection;
+    exports.getEvalSource = getEvalSource;
+    function startPeriodicGarbageCollection() {
+      if (!globalThis.gc) {
+        console.warn("rpc peer garbage collection not available: global.gc is not exposed.");
+      }
+      let g2;
+      try {
+        g2 = globalThis;
+      } catch (e6) {
+      }
+      let lastCollection = 0;
+      return setInterval(() => {
+        const now = Date.now();
+        const sinceLastCollection = now - lastCollection;
+        const remotesCreated = RpcPeer.remotesCreated;
+        RpcPeer.remotesCreated = 0;
+        const remotesCollected = RpcPeer.remotesCollected;
+        RpcPeer.remotesCollected = 0;
+        if (remotesCreated || remotesCollected || sinceLastCollection > 5 * 60 * 1e3) {
+          lastCollection = now;
+          g2?.gc?.();
+        }
+      }, 1e4);
+    }
+    var RpcProxy = class _RpcProxy {
+      peer;
+      entry;
+      constructorName;
+      proxyProps;
+      proxyOneWayMethods;
+      static iteratorMethods = /* @__PURE__ */ new Set([
+        "next",
+        "throw",
+        "return"
+      ]);
+      constructor(peer, entry2, constructorName, proxyProps, proxyOneWayMethods) {
+        this.peer = peer;
+        this.entry = entry2;
+        this.constructorName = constructorName;
+        this.proxyProps = proxyProps;
+        this.proxyOneWayMethods = proxyOneWayMethods;
+      }
+      toPrimitive() {
+        const peer = this.peer;
+        return `RpcProxy-${peer.selfName}:${peer.peerName}: ${this.constructorName}`;
+      }
+      get(target, p3, receiver) {
+        if (p3 === Symbol.asyncIterator) {
+          if (!this.proxyProps?.[Symbol.asyncIterator.toString()])
+            return;
+          return () => {
+            return new Proxy(() => {
+            }, this);
+          };
+        }
+        if (_RpcProxy.iteratorMethods.has(p3?.toString())) {
+          const asyncIteratorMethod = this.proxyProps?.[Symbol.asyncIterator.toString()]?.[p3];
+          if (asyncIteratorMethod)
+            return new Proxy(() => asyncIteratorMethod, this);
+        }
+        if (p3 === RpcPeer.PROPERTY_PROXY_ID)
+          return this.entry.id;
+        if (p3 === "__proxy_constructor")
+          return this.constructorName;
+        if (p3 === RpcPeer.PROPERTY_PROXY_PEER)
+          return this.peer;
+        if (p3 === RpcPeer.PROPERTY_PROXY_PROPERTIES)
+          return this.proxyProps;
+        if (p3 === RpcPeer.PROPERTY_PROXY_ONEWAY_METHODS)
+          return this.proxyOneWayMethods;
+        if (p3 === RpcPeer.PROPERTY_JSON_DISABLE_SERIALIZATION || p3 === RpcPeer.PROPERTY_JSON_COPY_SERIALIZE_CHILDREN)
+          return;
+        if (p3 === "then")
+          return;
+        if (p3 === "constructor")
+          return;
+        if (this.proxyProps?.[p3] !== void 0)
+          return this.proxyProps?.[p3];
+        const handled = RpcPeer.handleFunctionInvocations(this, target, p3, receiver);
+        if (handled)
+          return handled;
+        return new Proxy(() => p3, this);
+      }
+      set(target, p3, value, receiver) {
+        if (p3 === RpcPeer.finalizerIdSymbol) {
+          this.entry.finalizerId = value;
+        } else {
+          this.proxyProps ||= {};
+          this.proxyProps[p3] = value;
+        }
+        return true;
+      }
+      apply(target, thisArg, argArray) {
+        const method = target() || null;
+        const oneway = this.proxyOneWayMethods?.includes?.(method);
+        if (Object.isFrozen(this.peer.pendingResults)) {
+          if (oneway)
+            return Promise.resolve();
+          return Promise.reject(new RPCResultError(this.peer, "RpcPeer has been killed (apply) " + target()));
+        }
+        const args = [];
+        const serializationContext = {};
+        for (const arg of argArray || []) {
+          args.push(this.peer.serialize(arg, serializationContext));
+        }
+        const rpcApply = {
+          type: "apply",
+          id: void 0,
+          proxyId: this.entry.id,
+          args,
+          method
+        };
+        if (oneway) {
+          rpcApply.oneway = true;
+          if (method === null)
+            delete rpcApply.method;
+          this.peer.send(rpcApply, void 0, serializationContext);
+          return Promise.resolve();
+        }
+        const pendingResult = this.peer.createPendingResult(method, (id, reject) => {
+          rpcApply.id = id;
+          this.peer.send(rpcApply, reject, serializationContext);
+        });
+        const asyncIterator = this.proxyProps?.[Symbol.asyncIterator.toString()];
+        if (!asyncIterator || method !== asyncIterator.next && method !== asyncIterator.return)
+          return pendingResult;
+        return pendingResult.then((value) => {
+          if (method === asyncIterator.return) {
+            return {
+              done: true,
+              value: void 0
+            };
+          }
+          return {
+            value,
+            done: false
+          };
+        }).catch((e6) => {
+          if (e6.name === "StopAsyncIteration") {
+            return {
+              done: true,
+              value: void 0
+            };
+          }
+          throw e6;
+        });
+      }
+    };
+    var RPCResultError = class extends Error {
+      cause;
+      constructor(peer, message, cause, options) {
+        super(`${message}
+${peer.selfName}:${peer.peerName}`);
+        this.cause = cause;
+        if (options?.name) {
+          this.name = options?.name;
+        }
+        if (options?.stack) {
+          this.stack = `${cause?.stack || options.stack}
+${peer.peerName}:${peer.selfName}`;
+        }
+      }
+    };
+    exports.RPCResultError = RPCResultError;
+    try {
+      const fr = FinalizationRegistry;
+    } catch (e6) {
+      window.WeakRef = class WeakRef {
+        target;
+        constructor(target) {
+          this.target = target;
+        }
+        deref() {
+          return this.target;
+        }
+      };
+      window.FinalizationRegistry = class FinalizationRegistry {
+        register() {
+        }
+      };
+    }
+    var RpcPeer = class _RpcPeer {
+      selfName;
+      peerName;
+      send;
+      params = {};
+      pendingResults = {};
+      localProxied = /* @__PURE__ */ new Map();
+      localProxyMap = /* @__PURE__ */ new Map();
+      // @ts-ignore
+      remoteWeakProxies = {};
+      // @ts-ignore
+      finalizers = new FinalizationRegistry((entry2) => this.finalize(entry2));
+      nameDeserializerMap = /* @__PURE__ */ new Map();
+      onProxyTypeSerialization = /* @__PURE__ */ new Map();
+      onProxySerialization;
+      constructorSerializerMap = /* @__PURE__ */ new Map();
+      transportSafeArgumentTypes = _RpcPeer.getDefaultTransportSafeArgumentTypes();
+      killed;
+      killedSafe;
+      killedDeferred;
+      tags = {};
+      yieldedAsyncIterators = /* @__PURE__ */ new Set();
+      static finalizerIdSymbol = Symbol("rpcFinalizerId");
+      static remotesCollected = 0;
+      static remotesCreated = 0;
+      static activeRpcPeer;
+      static isRpcProxy(value) {
+        return !!value?.[_RpcPeer.PROPERTY_PROXY_ID];
+      }
+      static getDefaultTransportSafeArgumentTypes() {
+        const jsonSerializable = /* @__PURE__ */ new Set();
+        jsonSerializable.add(Number.name);
+        jsonSerializable.add(String.name);
+        jsonSerializable.add(Object.name);
+        jsonSerializable.add(Boolean.name);
+        jsonSerializable.add(Array.name);
+        return jsonSerializable;
+      }
+      static handleFunctionInvocations(thiz, target, p3, receiver) {
+        if (p3 === "apply") {
+          return (thisArg, args) => {
+            return thiz.apply(target, thiz, args);
+          };
+        } else if (p3 === "call") {
+          return (thisArg, ...args) => {
+            return thiz.apply(target, thiz, args);
+          };
+        } else if (p3 === "toString" || p3 === Symbol.toPrimitive) {
+          return (thisArg, ...args) => {
+            return thiz.toPrimitive();
+          };
+        }
+      }
+      // static setProxyProperties(value: any, properties: any) {
+      //     value[RpcPeer.PROPERTY_PROXY_PROPERTIES] = properties;
+      // }
+      // static getProxyProperties(value: any) {
+      //     return value?.[RpcPeer.PROPERTY_PROXY_PROPERTIES];
+      // }
+      static getIteratorNext(target) {
+        if (!target[Symbol.asyncIterator])
+          return;
+        const proxyProps = target[this.PROPERTY_PROXY_PROPERTIES]?.[Symbol.asyncIterator.toString()];
+        return proxyProps?.next || "next";
+      }
+      static prepareProxyProperties(value) {
+        let props = value?.[_RpcPeer.PROPERTY_PROXY_PROPERTIES];
+        if (!value[Symbol.asyncIterator])
+          return props;
+        props ||= {};
+        if (!props[Symbol.asyncIterator.toString()]) {
+          props[Symbol.asyncIterator.toString()] = {
+            next: "next",
+            throw: "throw",
+            return: "return"
+          };
+        }
+        return props;
+      }
+      static RANDOM_DIGITS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+      static RPC_RESULT_ERROR_NAME = "RPCResultError";
+      static PROPERTY_PROXY_ID = "__proxy_id";
+      static PROPERTY_PROXY_PEER = "__proxy_peer";
+      static PROPERTY_PROXY_ONEWAY_METHODS = "__proxy_oneway_methods";
+      static PROPERTY_JSON_DISABLE_SERIALIZATION = "__json_disable_serialization";
+      static PROPERTY_PROXY_PROPERTIES = "__proxy_props";
+      static PROPERTY_JSON_COPY_SERIALIZE_CHILDREN = "__json_copy_serialize_children";
+      static PROBED_PROPERTIES = /* @__PURE__ */ new Set([
+        "then",
+        "constructor",
+        "__proxy_id",
+        "__proxy_constructor",
+        _RpcPeer.PROPERTY_PROXY_PEER,
+        _RpcPeer.PROPERTY_PROXY_ONEWAY_METHODS,
+        _RpcPeer.PROPERTY_JSON_DISABLE_SERIALIZATION,
+        _RpcPeer.PROPERTY_PROXY_PROPERTIES,
+        _RpcPeer.PROPERTY_JSON_COPY_SERIALIZE_CHILDREN
+      ]);
+      constructor(selfName, peerName, send) {
+        this.selfName = selfName;
+        this.peerName = peerName;
+        this.send = send;
+        this.killed = new Promise((resolve, reject) => {
+          this.killedDeferred = { resolve, reject, method: void 0 };
+        }).catch((e6) => e6.message || "Unknown Error");
+        this.killedSafe = this.killed.then(() => {
+        }).catch(() => {
+        });
+      }
+      static isTransportSafe(value) {
+        if (!value)
+          return true;
+        return !value[Symbol.asyncIterator] && !value[_RpcPeer.PROPERTY_JSON_DISABLE_SERIALIZATION] && this.getDefaultTransportSafeArgumentTypes().has(value.constructor?.name);
+      }
+      isTransportSafe(value) {
+        if (!value)
+          return true;
+        return !value[Symbol.asyncIterator] && !value[_RpcPeer.PROPERTY_JSON_DISABLE_SERIALIZATION] && this.transportSafeArgumentTypes.has(value.constructor?.name);
+      }
+      static generateId() {
+        return [...new Array(8)].map(() => _RpcPeer.RANDOM_DIGITS.charAt(Math.floor(Math.random() * _RpcPeer.RANDOM_DIGITS.length))).join("");
+      }
+      createPendingResult(method, cb) {
+        if (Object.isFrozen(this.pendingResults))
+          return Promise.reject(new RPCResultError(this, "RpcPeer has been killed (createPendingResult)"));
+        const promise = new Promise((resolve, reject) => {
+          const id = _RpcPeer.generateId();
+          this.pendingResults[id] = { resolve, reject, method };
+          cb(id, (e6) => reject(new RPCResultError(this, e6.message, e6)));
+        });
+        promise.catch(() => {
+        });
+        return promise;
+      }
+      kill(message) {
+        if (Object.isFrozen(this.pendingResults))
+          return;
+        const error = new RPCResultError(this, message || "peer was killed");
+        this.killedDeferred.reject(error);
+        for (const result of Object.values(this.pendingResults)) {
+          result.reject(error);
+        }
+        for (const y3 of this.yieldedAsyncIterators) {
+          y3.throw(error).catch(() => {
+          });
+        }
+        this.yieldedAsyncIterators.clear();
+        this.pendingResults = Object.freeze({});
+        this.params = Object.freeze({});
+        this.remoteWeakProxies = Object.freeze({});
+        this.localProxyMap.clear();
+        this.localProxied.clear();
+      }
+      // need a name/constructor map due to babel name mangling? fix somehow?
+      addSerializer(ctr, name, serializer) {
+        this.nameDeserializerMap.set(name, serializer);
+        this.constructorSerializerMap.set(ctr, name);
+      }
+      finalize(entry2) {
+        _RpcPeer.remotesCollected++;
+        delete this.remoteWeakProxies[entry2.id];
+        const rpcFinalize = {
+          __local_proxy_id: entry2.id,
+          __local_proxy_finalizer_id: entry2.finalizerId,
+          type: "finalize"
+        };
+        this.send(rpcFinalize);
+      }
+      async getParam(param) {
+        return this.createPendingResult("getParam", (id, reject) => {
+          const paramMessage = {
+            id,
+            type: "param",
+            param
+          };
+          this.send(paramMessage, reject);
+        });
+      }
+      createErrorResult(result, e6) {
+        result.result = this.serializeError(e6);
+        result.throw = true;
+        return result;
+      }
+      deserialize(value, deserializationContext) {
+        if (!value)
+          return value;
+        const copySerializeChildren = value[_RpcPeer.PROPERTY_JSON_COPY_SERIALIZE_CHILDREN];
+        if (copySerializeChildren) {
+          if (Array.isArray(copySerializeChildren)) {
+            const array = [];
+            for (const val of copySerializeChildren) {
+              array.push(this.deserialize(val, deserializationContext));
+            }
+            return array;
+          }
+          const ret = {};
+          for (const [key, val] of Object.entries(value)) {
+            ret[key] = this.deserialize(val, deserializationContext);
+          }
+          return ret;
+        }
+        const { __remote_proxy_id, __remote_proxy_finalizer_id, __local_proxy_id, __remote_constructor_name, __serialized_value, __remote_proxy_props, __remote_proxy_oneway_methods } = value;
+        if (__remote_constructor_name === _RpcPeer.RPC_RESULT_ERROR_NAME)
+          return this.deserializeError(__serialized_value);
+        if (__remote_proxy_id) {
+          let proxy = this.remoteWeakProxies[__remote_proxy_id]?.deref();
+          if (!proxy)
+            proxy = this.newProxy(__remote_proxy_id, __remote_constructor_name, __remote_proxy_props, __remote_proxy_oneway_methods);
+          proxy[_RpcPeer.finalizerIdSymbol] = __remote_proxy_finalizer_id;
+          const deserializer2 = this.nameDeserializerMap.get(__remote_constructor_name);
+          if (deserializer2) {
+            return deserializer2.deserialize(proxy, deserializationContext);
+          }
+          return proxy;
+        }
+        if (__local_proxy_id) {
+          const ret = this.localProxyMap.get(__local_proxy_id);
+          if (!ret)
+            throw new RPCResultError(this, `invalid local proxy id ${__local_proxy_id}`);
+          return ret;
+        }
+        const deserializer = this.nameDeserializerMap.get(__remote_constructor_name);
+        if (deserializer) {
+          return deserializer.deserialize(__serialized_value, deserializationContext);
+        }
+        return value;
+      }
+      deserializeError(e6) {
+        const { name, stack, message } = e6;
+        return new RPCResultError(this, message, void 0, { name, stack });
+      }
+      serializeError(e6) {
+        const __serialized_value = {
+          stack: e6.stack || "[no stack]",
+          name: e6.name || "[no name]",
+          message: e6.message || "[no message]"
+        };
+        return {
+          // probably not safe to use constructor.name
+          __remote_constructor_name: _RpcPeer.RPC_RESULT_ERROR_NAME,
+          __remote_proxy_id: void 0,
+          __remote_proxy_finalizer_id: void 0,
+          __remote_proxy_oneway_methods: void 0,
+          __remote_proxy_props: void 0,
+          __serialized_value
+        };
+      }
+      serialize(value, serializationContext) {
+        if (value?.[_RpcPeer.PROPERTY_JSON_COPY_SERIALIZE_CHILDREN] === true) {
+          if (Array.isArray(value)) {
+            const array = [];
+            for (const val of value) {
+              array.push(this.serialize(val, serializationContext));
+            }
+            return {
+              [_RpcPeer.PROPERTY_JSON_COPY_SERIALIZE_CHILDREN]: array
+            };
+          }
+          const ret2 = {};
+          for (const [key, val] of Object.entries(value)) {
+            ret2[key] = this.serialize(val, serializationContext);
+          }
+          return ret2;
+        }
+        if (this.isTransportSafe(value)) {
+          return value;
+        }
+        let __remote_constructor_name = value.__proxy_constructor || value.constructor?.name?.toString();
+        if (value instanceof Error)
+          return this.serializeError(value);
+        const serializerMapName = this.constructorSerializerMap.get(value.constructor);
+        if (serializerMapName) {
+          __remote_constructor_name = serializerMapName;
+          const serializer = this.nameDeserializerMap.get(serializerMapName);
+          if (!serializer)
+            throw new Error("serializer not found for " + serializerMapName);
+          const serialized = serializer.serialize(value, serializationContext);
+          const ret2 = {
+            __remote_proxy_id: void 0,
+            __remote_proxy_finalizer_id: void 0,
+            __remote_constructor_name,
+            __remote_proxy_props: _RpcPeer.prepareProxyProperties(value),
+            __remote_proxy_oneway_methods: value?.[_RpcPeer.PROPERTY_PROXY_ONEWAY_METHODS],
+            __serialized_value: serialized
+          };
+          return ret2;
+        }
+        let proxiedEntry = this.localProxied.get(value);
+        if (proxiedEntry) {
+          const { proxyId: __remote_proxy_id2, properties: __remote_proxy_props2 } = this.onProxySerialization?.(value) || {
+            proxyId: proxiedEntry.id,
+            properties: _RpcPeer.prepareProxyProperties(value)
+          };
+          if (__remote_proxy_id2 !== proxiedEntry.id)
+            throw new Error("onProxySerialization proxy id mismatch");
+          const __remote_proxy_finalizer_id = _RpcPeer.generateId();
+          proxiedEntry.finalizerId = __remote_proxy_finalizer_id;
+          const ret2 = {
+            __remote_proxy_id: __remote_proxy_id2,
+            __remote_proxy_finalizer_id,
+            __remote_constructor_name,
+            __remote_proxy_props: __remote_proxy_props2,
+            __remote_proxy_oneway_methods: value?.[_RpcPeer.PROPERTY_PROXY_ONEWAY_METHODS]
+          };
+          return ret2;
+        }
+        const { __proxy_id, __proxy_peer } = value;
+        if (__proxy_id && __proxy_peer === this) {
+          const ret2 = {
+            __local_proxy_id: __proxy_id
+          };
+          return ret2;
+        }
+        this.onProxyTypeSerialization.get(__remote_constructor_name)?.(value);
+        const { proxyId: __remote_proxy_id, properties: __remote_proxy_props } = this.onProxySerialization?.(value) || {
+          proxyId: _RpcPeer.generateId(),
+          properties: _RpcPeer.prepareProxyProperties(value)
+        };
+        proxiedEntry = {
+          id: __remote_proxy_id,
+          finalizerId: __remote_proxy_id
+        };
+        this.localProxied.set(value, proxiedEntry);
+        this.localProxyMap.set(__remote_proxy_id, value);
+        const ret = {
+          __remote_proxy_id,
+          __remote_proxy_finalizer_id: __remote_proxy_id,
+          __remote_constructor_name,
+          __remote_proxy_props,
+          __remote_proxy_oneway_methods: value?.[_RpcPeer.PROPERTY_PROXY_ONEWAY_METHODS]
+        };
+        return ret;
+      }
+      newProxy(proxyId, proxyConstructorName, proxyProps, proxyOneWayMethods) {
+        _RpcPeer.remotesCreated++;
+        const localProxiedEntry = {
+          id: proxyId,
+          finalizerId: void 0
+        };
+        const rpc = new RpcProxy(this, localProxiedEntry, proxyConstructorName, proxyProps, proxyOneWayMethods);
+        const target = proxyConstructorName === "Function" || proxyConstructorName === "AsyncFunction" ? function() {
+        } : rpc;
+        const proxy = new Proxy(target, rpc);
+        const weakref = new WeakRef(proxy);
+        this.remoteWeakProxies[proxyId] = weakref;
+        this.finalizers.register(rpc, localProxiedEntry);
+        return proxy;
+      }
+      handleMessage(message, deserializationContext) {
+        try {
+          _RpcPeer.activeRpcPeer = this;
+          this.handleMessageInternal(message, deserializationContext);
+        } finally {
+          _RpcPeer.activeRpcPeer = void 0;
+        }
+      }
+      sendResult(result, serializationContext) {
+        this.send(result, (e6) => {
+          this.send(this.createErrorResult(result, e6), void 0, serializationContext);
+        }, serializationContext);
+      }
+      async handleMessageInternal(message, deserializationContext) {
+        if (Object.isFrozen(this.pendingResults))
+          return;
+        try {
+          switch (message.type) {
+            case "param": {
+              const rpcParam = message;
+              const serializationContext = {};
+              let result;
+              try {
+                result = {
+                  type: "result",
+                  id: rpcParam.id,
+                  result: this.serialize(this.params[rpcParam.param], serializationContext)
+                };
+              } catch (e6) {
+                this.createErrorResult(result, e6);
+              }
+              this.sendResult(result, serializationContext);
+              break;
+            }
+            case "apply": {
+              const rpcApply = message;
+              const result = {
+                type: "result",
+                id: rpcApply.id || ""
+              };
+              const serializationContext = {};
+              try {
+                const target = this.localProxyMap.get(rpcApply.proxyId);
+                if (!target)
+                  throw new Error(`proxy id ${rpcApply.proxyId} not found`);
+                const args = [];
+                for (const arg of rpcApply.args || []) {
+                  args.push(this.deserialize(arg, deserializationContext));
+                }
+                let value;
+                if (rpcApply.method) {
+                  const method = target[rpcApply.method];
+                  if (!method)
+                    throw new Error(`target ${target?.constructor?.name} does not have method ${rpcApply.method}`);
+                  const isIteratorNext = _RpcPeer.getIteratorNext(target) === rpcApply.method;
+                  if (isIteratorNext)
+                    this.yieldedAsyncIterators.delete(target);
+                  value = await target[rpcApply.method](...args);
+                  if (isIteratorNext) {
+                    if (value.done) {
+                      const errorType = {
+                        name: "StopAsyncIteration",
+                        message: void 0
+                      };
+                      throw errorType;
+                    } else {
+                      if (Object.isFrozen(this.pendingResults)) {
+                        target.throw(new RPCResultError(this, "RpcPeer has been killed (yield)")).catch(() => {
+                        });
+                      } else {
+                        this.yieldedAsyncIterators.add(target);
+                      }
+                      value = value.value;
+                    }
+                  }
+                } else {
+                  value = await target(...args);
+                }
+                result.result = this.serialize(value, serializationContext);
+              } catch (e6) {
+                this.createErrorResult(result, e6);
+              }
+              if (!rpcApply.oneway)
+                this.sendResult(result, serializationContext);
+              break;
+            }
+            case "result": {
+              const rpcResult = message;
+              const deferred = this.pendingResults[rpcResult.id];
+              delete this.pendingResults[rpcResult.id];
+              if (!deferred)
+                throw new Error(`unknown result ${rpcResult.id}`);
+              const deserialized = this.deserialize(rpcResult.result, deserializationContext);
+              if (rpcResult.throw)
+                deferred.reject(deserialized);
+              else
+                deferred.resolve(deserialized);
+              break;
+            }
+            case "finalize": {
+              const rpcFinalize = message;
+              const local = this.localProxyMap.get(rpcFinalize.__local_proxy_id);
+              if (local) {
+                const localProxiedEntry = this.localProxied.get(local);
+                if (rpcFinalize.__local_proxy_finalizer_id && rpcFinalize.__local_proxy_finalizer_id !== localProxiedEntry?.finalizerId) {
+                  break;
+                }
+                this.localProxyMap.delete(rpcFinalize.__local_proxy_id);
+                this.localProxied.delete(local);
+              }
+              break;
+            }
+            default:
+              throw new Error(`unknown rpc message type ${message.type}`);
+          }
+        } catch (e6) {
+          console.error("unhandled rpc error", this.peerName, e6);
+          return;
+        }
+      }
+    };
+    exports.RpcPeer = RpcPeer;
+    function getEvalSource() {
+      return `
+    (() => {
+        ${RpcProxy}
+
+        ${RpcPeer}
+
+        ${startPeriodicGarbageCollection}
+
+        return {
+            startPeriodicGarbageCollection,
+            RpcPeer,
+            RpcProxy,
+        };
+    })();
+    `;
+    }
+  }
+});
+var require_mediaobject = __commonJS({
+  "node_modules/@scrypted/client/dist/server/src/plugin/mediaobject.js"(exports) {
+    "use strict";
+    Object.defineProperty(exports, "__esModule", { value: true });
+    exports.MediaObject = void 0;
+    var rpc_1 = require_rpc();
+    var MediaObject = class {
+      mimeType;
+      data;
+      __proxy_props;
+      constructor(mimeType, data, options) {
+        this.mimeType = mimeType;
+        this.data = data;
+        this.__proxy_props = {};
+        options ||= {};
+        options.mimeType = mimeType;
+        options.convert ||= null;
+        options.toMimeTypes ||= null;
+        for (const [key, value] of Object.entries(options)) {
+          if (rpc_1.RpcPeer.isTransportSafe(value))
+            this.__proxy_props[key] = value;
+          this[key] = value;
+        }
+      }
+      async getData() {
+        return Promise.resolve(this.data);
+      }
+    };
+    exports.MediaObject = MediaObject;
+  }
+});
+var require_dist = __commonJS({
+  "node_modules/@scrypted/types/dist/index.js"(exports) {
+    "use strict";
+    Object.defineProperty(exports, "__esModule", { value: true });
+    exports.ScryptedMimeTypes = exports.ScryptedInterface = exports.MediaPlayerState = exports.SecuritySystemObstruction = exports.SecuritySystemMode = exports.AirQuality = exports.AirPurifierMode = exports.AirPurifierStatus = exports.ChargeState = exports.LockState = exports.PanTiltZoomMovement = exports.ThermostatMode = exports.TemperatureUnit = exports.FanMode = exports.HumidityMode = exports.ScryptedDeviceType = exports.ScryptedInterfaceDescriptors = exports.ScryptedInterfaceMethod = exports.ScryptedInterfaceProperty = exports.DeviceBase = exports.TYPES_VERSION = void 0;
+    exports.TYPES_VERSION = "0.5.55";
+    var DeviceBase = class {
+    };
+    exports.DeviceBase = DeviceBase;
+    var ScryptedInterfaceProperty;
+    (function(ScryptedInterfaceProperty2) {
+      ScryptedInterfaceProperty2["id"] = "id";
+      ScryptedInterfaceProperty2["info"] = "info";
+      ScryptedInterfaceProperty2["interfaces"] = "interfaces";
+      ScryptedInterfaceProperty2["mixins"] = "mixins";
+      ScryptedInterfaceProperty2["name"] = "name";
+      ScryptedInterfaceProperty2["nativeId"] = "nativeId";
+      ScryptedInterfaceProperty2["pluginId"] = "pluginId";
+      ScryptedInterfaceProperty2["providedInterfaces"] = "providedInterfaces";
+      ScryptedInterfaceProperty2["providedName"] = "providedName";
+      ScryptedInterfaceProperty2["providedRoom"] = "providedRoom";
+      ScryptedInterfaceProperty2["providedType"] = "providedType";
+      ScryptedInterfaceProperty2["providerId"] = "providerId";
+      ScryptedInterfaceProperty2["room"] = "room";
+      ScryptedInterfaceProperty2["type"] = "type";
+      ScryptedInterfaceProperty2["scryptedRuntimeArguments"] = "scryptedRuntimeArguments";
+      ScryptedInterfaceProperty2["on"] = "on";
+      ScryptedInterfaceProperty2["brightness"] = "brightness";
+      ScryptedInterfaceProperty2["colorTemperature"] = "colorTemperature";
+      ScryptedInterfaceProperty2["rgb"] = "rgb";
+      ScryptedInterfaceProperty2["hsv"] = "hsv";
+      ScryptedInterfaceProperty2["buttons"] = "buttons";
+      ScryptedInterfaceProperty2["sensors"] = "sensors";
+      ScryptedInterfaceProperty2["running"] = "running";
+      ScryptedInterfaceProperty2["paused"] = "paused";
+      ScryptedInterfaceProperty2["docked"] = "docked";
+      ScryptedInterfaceProperty2["temperatureSetting"] = "temperatureSetting";
+      ScryptedInterfaceProperty2["temperature"] = "temperature";
+      ScryptedInterfaceProperty2["temperatureUnit"] = "temperatureUnit";
+      ScryptedInterfaceProperty2["humidity"] = "humidity";
+      ScryptedInterfaceProperty2["resolution"] = "resolution";
+      ScryptedInterfaceProperty2["audioVolumes"] = "audioVolumes";
+      ScryptedInterfaceProperty2["recordingActive"] = "recordingActive";
+      ScryptedInterfaceProperty2["ptzCapabilities"] = "ptzCapabilities";
+      ScryptedInterfaceProperty2["lockState"] = "lockState";
+      ScryptedInterfaceProperty2["entryOpen"] = "entryOpen";
+      ScryptedInterfaceProperty2["batteryLevel"] = "batteryLevel";
+      ScryptedInterfaceProperty2["chargeState"] = "chargeState";
+      ScryptedInterfaceProperty2["online"] = "online";
+      ScryptedInterfaceProperty2["fromMimeType"] = "fromMimeType";
+      ScryptedInterfaceProperty2["toMimeType"] = "toMimeType";
+      ScryptedInterfaceProperty2["converters"] = "converters";
+      ScryptedInterfaceProperty2["binaryState"] = "binaryState";
+      ScryptedInterfaceProperty2["tampered"] = "tampered";
+      ScryptedInterfaceProperty2["sleeping"] = "sleeping";
+      ScryptedInterfaceProperty2["powerDetected"] = "powerDetected";
+      ScryptedInterfaceProperty2["audioDetected"] = "audioDetected";
+      ScryptedInterfaceProperty2["motionDetected"] = "motionDetected";
+      ScryptedInterfaceProperty2["ambientLight"] = "ambientLight";
+      ScryptedInterfaceProperty2["occupied"] = "occupied";
+      ScryptedInterfaceProperty2["flooded"] = "flooded";
+      ScryptedInterfaceProperty2["ultraviolet"] = "ultraviolet";
+      ScryptedInterfaceProperty2["luminance"] = "luminance";
+      ScryptedInterfaceProperty2["position"] = "position";
+      ScryptedInterfaceProperty2["securitySystemState"] = "securitySystemState";
+      ScryptedInterfaceProperty2["pm10Density"] = "pm10Density";
+      ScryptedInterfaceProperty2["pm25Density"] = "pm25Density";
+      ScryptedInterfaceProperty2["vocDensity"] = "vocDensity";
+      ScryptedInterfaceProperty2["noxDensity"] = "noxDensity";
+      ScryptedInterfaceProperty2["co2ppm"] = "co2ppm";
+      ScryptedInterfaceProperty2["airQuality"] = "airQuality";
+      ScryptedInterfaceProperty2["airPurifierState"] = "airPurifierState";
+      ScryptedInterfaceProperty2["filterChangeIndication"] = "filterChangeIndication";
+      ScryptedInterfaceProperty2["filterLifeLevel"] = "filterLifeLevel";
+      ScryptedInterfaceProperty2["humiditySetting"] = "humiditySetting";
+      ScryptedInterfaceProperty2["fan"] = "fan";
+      ScryptedInterfaceProperty2["applicationInfo"] = "applicationInfo";
+      ScryptedInterfaceProperty2["chatCompletionCapabilities"] = "chatCompletionCapabilities";
+      ScryptedInterfaceProperty2["systemDevice"] = "systemDevice";
+    })(ScryptedInterfaceProperty || (exports.ScryptedInterfaceProperty = ScryptedInterfaceProperty = {}));
+    var ScryptedInterfaceMethod;
+    (function(ScryptedInterfaceMethod2) {
+      ScryptedInterfaceMethod2["listen"] = "listen";
+      ScryptedInterfaceMethod2["probe"] = "probe";
+      ScryptedInterfaceMethod2["setMixins"] = "setMixins";
+      ScryptedInterfaceMethod2["setName"] = "setName";
+      ScryptedInterfaceMethod2["setRoom"] = "setRoom";
+      ScryptedInterfaceMethod2["setType"] = "setType";
+      ScryptedInterfaceMethod2["getPluginJson"] = "getPluginJson";
+      ScryptedInterfaceMethod2["turnOff"] = "turnOff";
+      ScryptedInterfaceMethod2["turnOn"] = "turnOn";
+      ScryptedInterfaceMethod2["setBrightness"] = "setBrightness";
+      ScryptedInterfaceMethod2["getTemperatureMaxK"] = "getTemperatureMaxK";
+      ScryptedInterfaceMethod2["getTemperatureMinK"] = "getTemperatureMinK";
+      ScryptedInterfaceMethod2["setColorTemperature"] = "setColorTemperature";
+      ScryptedInterfaceMethod2["setRgb"] = "setRgb";
+      ScryptedInterfaceMethod2["setHsv"] = "setHsv";
+      ScryptedInterfaceMethod2["pressButton"] = "pressButton";
+      ScryptedInterfaceMethod2["sendNotification"] = "sendNotification";
+      ScryptedInterfaceMethod2["start"] = "start";
+      ScryptedInterfaceMethod2["stop"] = "stop";
+      ScryptedInterfaceMethod2["pause"] = "pause";
+      ScryptedInterfaceMethod2["resume"] = "resume";
+      ScryptedInterfaceMethod2["dock"] = "dock";
+      ScryptedInterfaceMethod2["setTemperature"] = "setTemperature";
+      ScryptedInterfaceMethod2["setTemperatureUnit"] = "setTemperatureUnit";
+      ScryptedInterfaceMethod2["getPictureOptions"] = "getPictureOptions";
+      ScryptedInterfaceMethod2["takePicture"] = "takePicture";
+      ScryptedInterfaceMethod2["getAudioStream"] = "getAudioStream";
+      ScryptedInterfaceMethod2["setAudioVolumes"] = "setAudioVolumes";
+      ScryptedInterfaceMethod2["startDisplay"] = "startDisplay";
+      ScryptedInterfaceMethod2["stopDisplay"] = "stopDisplay";
+      ScryptedInterfaceMethod2["getVideoStream"] = "getVideoStream";
+      ScryptedInterfaceMethod2["getVideoStreamOptions"] = "getVideoStreamOptions";
+      ScryptedInterfaceMethod2["getPrivacyMasks"] = "getPrivacyMasks";
+      ScryptedInterfaceMethod2["setPrivacyMasks"] = "setPrivacyMasks";
+      ScryptedInterfaceMethod2["getVideoTextOverlays"] = "getVideoTextOverlays";
+      ScryptedInterfaceMethod2["setVideoTextOverlay"] = "setVideoTextOverlay";
+      ScryptedInterfaceMethod2["getRecordingStream"] = "getRecordingStream";
+      ScryptedInterfaceMethod2["getRecordingStreamCurrentTime"] = "getRecordingStreamCurrentTime";
+      ScryptedInterfaceMethod2["getRecordingStreamOptions"] = "getRecordingStreamOptions";
+      ScryptedInterfaceMethod2["getRecordingStreamThumbnail"] = "getRecordingStreamThumbnail";
+      ScryptedInterfaceMethod2["deleteRecordingStream"] = "deleteRecordingStream";
+      ScryptedInterfaceMethod2["setRecordingActive"] = "setRecordingActive";
+      ScryptedInterfaceMethod2["ptzCommand"] = "ptzCommand";
+      ScryptedInterfaceMethod2["getRecordedEvents"] = "getRecordedEvents";
+      ScryptedInterfaceMethod2["getVideoClip"] = "getVideoClip";
+      ScryptedInterfaceMethod2["getVideoClips"] = "getVideoClips";
+      ScryptedInterfaceMethod2["getVideoClipThumbnail"] = "getVideoClipThumbnail";
+      ScryptedInterfaceMethod2["removeVideoClips"] = "removeVideoClips";
+      ScryptedInterfaceMethod2["setVideoStreamOptions"] = "setVideoStreamOptions";
+      ScryptedInterfaceMethod2["startIntercom"] = "startIntercom";
+      ScryptedInterfaceMethod2["stopIntercom"] = "stopIntercom";
+      ScryptedInterfaceMethod2["lock"] = "lock";
+      ScryptedInterfaceMethod2["unlock"] = "unlock";
+      ScryptedInterfaceMethod2["addPassword"] = "addPassword";
+      ScryptedInterfaceMethod2["getPasswords"] = "getPasswords";
+      ScryptedInterfaceMethod2["removePassword"] = "removePassword";
+      ScryptedInterfaceMethod2["activate"] = "activate";
+      ScryptedInterfaceMethod2["deactivate"] = "deactivate";
+      ScryptedInterfaceMethod2["isReversible"] = "isReversible";
+      ScryptedInterfaceMethod2["closeEntry"] = "closeEntry";
+      ScryptedInterfaceMethod2["openEntry"] = "openEntry";
+      ScryptedInterfaceMethod2["getDevice"] = "getDevice";
+      ScryptedInterfaceMethod2["releaseDevice"] = "releaseDevice";
+      ScryptedInterfaceMethod2["adoptDevice"] = "adoptDevice";
+      ScryptedInterfaceMethod2["discoverDevices"] = "discoverDevices";
+      ScryptedInterfaceMethod2["createDevice"] = "createDevice";
+      ScryptedInterfaceMethod2["getCreateDeviceSettings"] = "getCreateDeviceSettings";
+      ScryptedInterfaceMethod2["reboot"] = "reboot";
+      ScryptedInterfaceMethod2["getRefreshFrequency"] = "getRefreshFrequency";
+      ScryptedInterfaceMethod2["refresh"] = "refresh";
+      ScryptedInterfaceMethod2["getMediaStatus"] = "getMediaStatus";
+      ScryptedInterfaceMethod2["load"] = "load";
+      ScryptedInterfaceMethod2["seek"] = "seek";
+      ScryptedInterfaceMethod2["skipNext"] = "skipNext";
+      ScryptedInterfaceMethod2["skipPrevious"] = "skipPrevious";
+      ScryptedInterfaceMethod2["convert"] = "convert";
+      ScryptedInterfaceMethod2["convertMedia"] = "convertMedia";
+      ScryptedInterfaceMethod2["getSettings"] = "getSettings";
+      ScryptedInterfaceMethod2["putSetting"] = "putSetting";
+      ScryptedInterfaceMethod2["armSecuritySystem"] = "armSecuritySystem";
+      ScryptedInterfaceMethod2["disarmSecuritySystem"] = "disarmSecuritySystem";
+      ScryptedInterfaceMethod2["setAirPurifierState"] = "setAirPurifierState";
+      ScryptedInterfaceMethod2["getReadmeMarkdown"] = "getReadmeMarkdown";
+      ScryptedInterfaceMethod2["getOauthUrl"] = "getOauthUrl";
+      ScryptedInterfaceMethod2["onOauthCallback"] = "onOauthCallback";
+      ScryptedInterfaceMethod2["canMixin"] = "canMixin";
+      ScryptedInterfaceMethod2["getMixin"] = "getMixin";
+      ScryptedInterfaceMethod2["releaseMixin"] = "releaseMixin";
+      ScryptedInterfaceMethod2["onRequest"] = "onRequest";
+      ScryptedInterfaceMethod2["onConnection"] = "onConnection";
+      ScryptedInterfaceMethod2["onPush"] = "onPush";
+      ScryptedInterfaceMethod2["run"] = "run";
+      ScryptedInterfaceMethod2["eval"] = "eval";
+      ScryptedInterfaceMethod2["loadScripts"] = "loadScripts";
+      ScryptedInterfaceMethod2["saveScript"] = "saveScript";
+      ScryptedInterfaceMethod2["forkInterface"] = "forkInterface";
+      ScryptedInterfaceMethod2["getDetectionInput"] = "getDetectionInput";
+      ScryptedInterfaceMethod2["getObjectTypes"] = "getObjectTypes";
+      ScryptedInterfaceMethod2["detectObjects"] = "detectObjects";
+      ScryptedInterfaceMethod2["generateObjectDetections"] = "generateObjectDetections";
+      ScryptedInterfaceMethod2["getDetectionModel"] = "getDetectionModel";
+      ScryptedInterfaceMethod2["setHumidity"] = "setHumidity";
+      ScryptedInterfaceMethod2["setFan"] = "setFan";
+      ScryptedInterfaceMethod2["startRTCSignalingSession"] = "startRTCSignalingSession";
+      ScryptedInterfaceMethod2["createRTCSignalingSession"] = "createRTCSignalingSession";
+      ScryptedInterfaceMethod2["getScryptedUserAccessControl"] = "getScryptedUserAccessControl";
+      ScryptedInterfaceMethod2["generateVideoFrames"] = "generateVideoFrames";
+      ScryptedInterfaceMethod2["connectStream"] = "connectStream";
+      ScryptedInterfaceMethod2["getTTYSettings"] = "getTTYSettings";
+      ScryptedInterfaceMethod2["getChatCompletion"] = "getChatCompletion";
+      ScryptedInterfaceMethod2["streamChatCompletion"] = "streamChatCompletion";
+      ScryptedInterfaceMethod2["getTextEmbedding"] = "getTextEmbedding";
+      ScryptedInterfaceMethod2["getImageEmbedding"] = "getImageEmbedding";
+      ScryptedInterfaceMethod2["callLLMTool"] = "callLLMTool";
+      ScryptedInterfaceMethod2["getLLMTools"] = "getLLMTools";
+    })(ScryptedInterfaceMethod || (exports.ScryptedInterfaceMethod = ScryptedInterfaceMethod = {}));
+    exports.ScryptedInterfaceDescriptors = {
+      "ScryptedDevice": {
+        "name": "ScryptedDevice",
+        "methods": [
+          "listen",
+          "probe",
+          "setMixins",
+          "setName",
+          "setRoom",
+          "setType"
+        ],
+        "properties": [
+          "id",
+          "info",
+          "interfaces",
+          "mixins",
+          "name",
+          "nativeId",
+          "pluginId",
+          "providedInterfaces",
+          "providedName",
+          "providedRoom",
+          "providedType",
+          "providerId",
+          "room",
+          "type"
+        ]
+      },
+      "ScryptedPlugin": {
+        "name": "ScryptedPlugin",
+        "methods": [
+          "getPluginJson"
+        ],
+        "properties": []
+      },
+      "ScryptedPluginRuntime": {
+        "name": "ScryptedPluginRuntime",
+        "methods": [],
+        "properties": [
+          "scryptedRuntimeArguments"
+        ]
+      },
+      "OnOff": {
+        "name": "OnOff",
+        "methods": [
+          "turnOff",
+          "turnOn"
+        ],
+        "properties": [
+          "on"
+        ]
+      },
+      "Brightness": {
+        "name": "Brightness",
+        "methods": [
+          "setBrightness"
+        ],
+        "properties": [
+          "brightness"
+        ]
+      },
+      "ColorSettingTemperature": {
+        "name": "ColorSettingTemperature",
+        "methods": [
+          "getTemperatureMaxK",
+          "getTemperatureMinK",
+          "setColorTemperature"
+        ],
+        "properties": [
+          "colorTemperature"
+        ]
+      },
+      "ColorSettingRgb": {
+        "name": "ColorSettingRgb",
+        "methods": [
+          "setRgb"
+        ],
+        "properties": [
+          "rgb"
+        ]
+      },
+      "ColorSettingHsv": {
+        "name": "ColorSettingHsv",
+        "methods": [
+          "setHsv"
+        ],
+        "properties": [
+          "hsv"
+        ]
+      },
+      "Buttons": {
+        "name": "Buttons",
+        "methods": [],
+        "properties": [
+          "buttons"
+        ]
+      },
+      "PressButtons": {
+        "name": "PressButtons",
+        "methods": [
+          "pressButton"
+        ],
+        "properties": []
+      },
+      "Sensors": {
+        "name": "Sensors",
+        "methods": [],
+        "properties": [
+          "sensors"
+        ]
+      },
+      "Notifier": {
+        "name": "Notifier",
+        "methods": [
+          "sendNotification"
+        ],
+        "properties": []
+      },
+      "StartStop": {
+        "name": "StartStop",
+        "methods": [
+          "start",
+          "stop"
+        ],
+        "properties": [
+          "running"
+        ]
+      },
+      "Pause": {
+        "name": "Pause",
+        "methods": [
+          "pause",
+          "resume"
+        ],
+        "properties": [
+          "paused"
+        ]
+      },
+      "Dock": {
+        "name": "Dock",
+        "methods": [
+          "dock"
+        ],
+        "properties": [
+          "docked"
+        ]
+      },
+      "TemperatureSetting": {
+        "name": "TemperatureSetting",
+        "methods": [
+          "setTemperature"
+        ],
+        "properties": [
+          "temperatureSetting"
+        ]
+      },
+      "Thermometer": {
+        "name": "Thermometer",
+        "methods": [
+          "setTemperatureUnit"
+        ],
+        "properties": [
+          "temperature",
+          "temperatureUnit"
+        ]
+      },
+      "HumiditySensor": {
+        "name": "HumiditySensor",
+        "methods": [],
+        "properties": [
+          "humidity"
+        ]
+      },
+      "Camera": {
+        "name": "Camera",
+        "methods": [
+          "getPictureOptions",
+          "takePicture"
+        ],
+        "properties": []
+      },
+      "Resolution": {
+        "name": "Resolution",
+        "methods": [],
+        "properties": [
+          "resolution"
+        ]
+      },
+      "Microphone": {
+        "name": "Microphone",
+        "methods": [
+          "getAudioStream"
+        ],
+        "properties": []
+      },
+      "AudioVolumeControl": {
+        "name": "AudioVolumeControl",
+        "methods": [
+          "setAudioVolumes"
+        ],
+        "properties": [
+          "audioVolumes"
+        ]
+      },
+      "Display": {
+        "name": "Display",
+        "methods": [
+          "startDisplay",
+          "stopDisplay"
+        ],
+        "properties": []
+      },
+      "VideoCamera": {
+        "name": "VideoCamera",
+        "methods": [
+          "getVideoStream",
+          "getVideoStreamOptions"
+        ],
+        "properties": []
+      },
+      "VideoCameraMask": {
+        "name": "VideoCameraMask",
+        "methods": [
+          "getPrivacyMasks",
+          "setPrivacyMasks"
+        ],
+        "properties": []
+      },
+      "VideoTextOverlays": {
+        "name": "VideoTextOverlays",
+        "methods": [
+          "getVideoTextOverlays",
+          "setVideoTextOverlay"
+        ],
+        "properties": []
+      },
+      "VideoRecorder": {
+        "name": "VideoRecorder",
+        "methods": [
+          "getRecordingStream",
+          "getRecordingStreamCurrentTime",
+          "getRecordingStreamOptions",
+          "getRecordingStreamThumbnail"
+        ],
+        "properties": [
+          "recordingActive"
+        ]
+      },
+      "VideoRecorderManagement": {
+        "name": "VideoRecorderManagement",
+        "methods": [
+          "deleteRecordingStream",
+          "setRecordingActive"
+        ],
+        "properties": []
+      },
+      "PanTiltZoom": {
+        "name": "PanTiltZoom",
+        "methods": [
+          "ptzCommand"
+        ],
+        "properties": [
+          "ptzCapabilities"
+        ]
+      },
+      "EventRecorder": {
+        "name": "EventRecorder",
+        "methods": [
+          "getRecordedEvents"
+        ],
+        "properties": []
+      },
+      "VideoClips": {
+        "name": "VideoClips",
+        "methods": [
+          "getVideoClip",
+          "getVideoClips",
+          "getVideoClipThumbnail",
+          "removeVideoClips"
+        ],
+        "properties": []
+      },
+      "VideoCameraConfiguration": {
+        "name": "VideoCameraConfiguration",
+        "methods": [
+          "setVideoStreamOptions"
+        ],
+        "properties": []
+      },
+      "Intercom": {
+        "name": "Intercom",
+        "methods": [
+          "startIntercom",
+          "stopIntercom"
+        ],
+        "properties": []
+      },
+      "Lock": {
+        "name": "Lock",
+        "methods": [
+          "lock",
+          "unlock"
+        ],
+        "properties": [
+          "lockState"
+        ]
+      },
+      "PasswordStore": {
+        "name": "PasswordStore",
+        "methods": [
+          "addPassword",
+          "getPasswords",
+          "removePassword"
+        ],
+        "properties": []
+      },
+      "Scene": {
+        "name": "Scene",
+        "methods": [
+          "activate",
+          "deactivate",
+          "isReversible"
+        ],
+        "properties": []
+      },
+      "Entry": {
+        "name": "Entry",
+        "methods": [
+          "closeEntry",
+          "openEntry"
+        ],
+        "properties": []
+      },
+      "EntrySensor": {
+        "name": "EntrySensor",
+        "methods": [],
+        "properties": [
+          "entryOpen"
+        ]
+      },
+      "DeviceProvider": {
+        "name": "DeviceProvider",
+        "methods": [
+          "getDevice",
+          "releaseDevice"
+        ],
+        "properties": []
+      },
+      "DeviceDiscovery": {
+        "name": "DeviceDiscovery",
+        "methods": [
+          "adoptDevice",
+          "discoverDevices"
+        ],
+        "properties": []
+      },
+      "DeviceCreator": {
+        "name": "DeviceCreator",
+        "methods": [
+          "createDevice",
+          "getCreateDeviceSettings"
+        ],
+        "properties": []
+      },
+      "Battery": {
+        "name": "Battery",
+        "methods": [],
+        "properties": [
+          "batteryLevel"
+        ]
+      },
+      "Charger": {
+        "name": "Charger",
+        "methods": [],
+        "properties": [
+          "chargeState"
+        ]
+      },
+      "Reboot": {
+        "name": "Reboot",
+        "methods": [
+          "reboot"
+        ],
+        "properties": []
+      },
+      "Refresh": {
+        "name": "Refresh",
+        "methods": [
+          "getRefreshFrequency",
+          "refresh"
+        ],
+        "properties": []
+      },
+      "MediaPlayer": {
+        "name": "MediaPlayer",
+        "methods": [
+          "getMediaStatus",
+          "load",
+          "seek",
+          "skipNext",
+          "skipPrevious"
+        ],
+        "properties": []
+      },
+      "Online": {
+        "name": "Online",
+        "methods": [],
+        "properties": [
+          "online"
+        ]
+      },
+      "BufferConverter": {
+        "name": "BufferConverter",
+        "methods": [
+          "convert"
+        ],
+        "properties": [
+          "fromMimeType",
+          "toMimeType"
+        ]
+      },
+      "MediaConverter": {
+        "name": "MediaConverter",
+        "methods": [
+          "convertMedia"
+        ],
+        "properties": [
+          "converters"
+        ]
+      },
+      "Settings": {
+        "name": "Settings",
+        "methods": [
+          "getSettings",
+          "putSetting"
+        ],
+        "properties": []
+      },
+      "BinarySensor": {
+        "name": "BinarySensor",
+        "methods": [],
+        "properties": [
+          "binaryState"
+        ]
+      },
+      "TamperSensor": {
+        "name": "TamperSensor",
+        "methods": [],
+        "properties": [
+          "tampered"
+        ]
+      },
+      "Sleep": {
+        "name": "Sleep",
+        "methods": [],
+        "properties": [
+          "sleeping"
+        ]
+      },
+      "PowerSensor": {
+        "name": "PowerSensor",
+        "methods": [],
+        "properties": [
+          "powerDetected"
+        ]
+      },
+      "AudioSensor": {
+        "name": "AudioSensor",
+        "methods": [],
+        "properties": [
+          "audioDetected"
+        ]
+      },
+      "MotionSensor": {
+        "name": "MotionSensor",
+        "methods": [],
+        "properties": [
+          "motionDetected"
+        ]
+      },
+      "AmbientLightSensor": {
+        "name": "AmbientLightSensor",
+        "methods": [],
+        "properties": [
+          "ambientLight"
+        ]
+      },
+      "OccupancySensor": {
+        "name": "OccupancySensor",
+        "methods": [],
+        "properties": [
+          "occupied"
+        ]
+      },
+      "FloodSensor": {
+        "name": "FloodSensor",
+        "methods": [],
+        "properties": [
+          "flooded"
+        ]
+      },
+      "UltravioletSensor": {
+        "name": "UltravioletSensor",
+        "methods": [],
+        "properties": [
+          "ultraviolet"
+        ]
+      },
+      "LuminanceSensor": {
+        "name": "LuminanceSensor",
+        "methods": [],
+        "properties": [
+          "luminance"
+        ]
+      },
+      "PositionSensor": {
+        "name": "PositionSensor",
+        "methods": [],
+        "properties": [
+          "position"
+        ]
+      },
+      "SecuritySystem": {
+        "name": "SecuritySystem",
+        "methods": [
+          "armSecuritySystem",
+          "disarmSecuritySystem"
+        ],
+        "properties": [
+          "securitySystemState"
+        ]
+      },
+      "PM10Sensor": {
+        "name": "PM10Sensor",
+        "methods": [],
+        "properties": [
+          "pm10Density"
+        ]
+      },
+      "PM25Sensor": {
+        "name": "PM25Sensor",
+        "methods": [],
+        "properties": [
+          "pm25Density"
+        ]
+      },
+      "VOCSensor": {
+        "name": "VOCSensor",
+        "methods": [],
+        "properties": [
+          "vocDensity"
+        ]
+      },
+      "NOXSensor": {
+        "name": "NOXSensor",
+        "methods": [],
+        "properties": [
+          "noxDensity"
+        ]
+      },
+      "CO2Sensor": {
+        "name": "CO2Sensor",
+        "methods": [],
+        "properties": [
+          "co2ppm"
+        ]
+      },
+      "AirQualitySensor": {
+        "name": "AirQualitySensor",
+        "methods": [],
+        "properties": [
+          "airQuality"
+        ]
+      },
+      "AirPurifier": {
+        "name": "AirPurifier",
+        "methods": [
+          "setAirPurifierState"
+        ],
+        "properties": [
+          "airPurifierState"
+        ]
+      },
+      "FilterMaintenance": {
+        "name": "FilterMaintenance",
+        "methods": [],
+        "properties": [
+          "filterChangeIndication",
+          "filterLifeLevel"
+        ]
+      },
+      "Readme": {
+        "name": "Readme",
+        "methods": [
+          "getReadmeMarkdown"
+        ],
+        "properties": []
+      },
+      "OauthClient": {
+        "name": "OauthClient",
+        "methods": [
+          "getOauthUrl",
+          "onOauthCallback"
+        ],
+        "properties": []
+      },
+      "MixinProvider": {
+        "name": "MixinProvider",
+        "methods": [
+          "canMixin",
+          "getMixin",
+          "releaseMixin"
+        ],
+        "properties": []
+      },
+      "HttpRequestHandler": {
+        "name": "HttpRequestHandler",
+        "methods": [
+          "onRequest"
+        ],
+        "properties": []
+      },
+      "EngineIOHandler": {
+        "name": "EngineIOHandler",
+        "methods": [
+          "onConnection"
+        ],
+        "properties": []
+      },
+      "PushHandler": {
+        "name": "PushHandler",
+        "methods": [
+          "onPush"
+        ],
+        "properties": []
+      },
+      "Program": {
+        "name": "Program",
+        "methods": [
+          "run"
+        ],
+        "properties": []
+      },
+      "Scriptable": {
+        "name": "Scriptable",
+        "methods": [
+          "eval",
+          "loadScripts",
+          "saveScript"
+        ],
+        "properties": []
+      },
+      "ClusterForkInterface": {
+        "name": "ClusterForkInterface",
+        "methods": [
+          "forkInterface"
+        ],
+        "properties": []
+      },
+      "ObjectDetector": {
+        "name": "ObjectDetector",
+        "methods": [
+          "getDetectionInput",
+          "getObjectTypes"
+        ],
+        "properties": []
+      },
+      "ObjectDetection": {
+        "name": "ObjectDetection",
+        "methods": [
+          "detectObjects",
+          "generateObjectDetections",
+          "getDetectionModel"
+        ],
+        "properties": []
+      },
+      "ObjectDetectionPreview": {
+        "name": "ObjectDetectionPreview",
+        "methods": [],
+        "properties": []
+      },
+      "ObjectDetectionGenerator": {
+        "name": "ObjectDetectionGenerator",
+        "methods": [],
+        "properties": []
+      },
+      "HumiditySetting": {
+        "name": "HumiditySetting",
+        "methods": [
+          "setHumidity"
+        ],
+        "properties": [
+          "humiditySetting"
+        ]
+      },
+      "Fan": {
+        "name": "Fan",
+        "methods": [
+          "setFan"
+        ],
+        "properties": [
+          "fan"
+        ]
+      },
+      "RTCSignalingChannel": {
+        "name": "RTCSignalingChannel",
+        "methods": [
+          "startRTCSignalingSession"
+        ],
+        "properties": []
+      },
+      "RTCSignalingClient": {
+        "name": "RTCSignalingClient",
+        "methods": [
+          "createRTCSignalingSession"
+        ],
+        "properties": []
+      },
+      "LauncherApplication": {
+        "name": "LauncherApplication",
+        "methods": [],
+        "properties": [
+          "applicationInfo"
+        ]
+      },
+      "ScryptedUser": {
+        "name": "ScryptedUser",
+        "methods": [
+          "getScryptedUserAccessControl"
+        ],
+        "properties": []
+      },
+      "VideoFrameGenerator": {
+        "name": "VideoFrameGenerator",
+        "methods": [
+          "generateVideoFrames"
+        ],
+        "properties": []
+      },
+      "StreamService": {
+        "name": "StreamService",
+        "methods": [
+          "connectStream"
+        ],
+        "properties": []
+      },
+      "TTY": {
+        "name": "TTY",
+        "methods": [],
+        "properties": []
+      },
+      "TTYSettings": {
+        "name": "TTYSettings",
+        "methods": [
+          "getTTYSettings"
+        ],
+        "properties": []
+      },
+      "ChatCompletion": {
+        "name": "ChatCompletion",
+        "methods": [
+          "getChatCompletion",
+          "streamChatCompletion"
+        ],
+        "properties": [
+          "chatCompletionCapabilities"
+        ]
+      },
+      "TextEmbedding": {
+        "name": "TextEmbedding",
+        "methods": [
+          "getTextEmbedding"
+        ],
+        "properties": []
+      },
+      "ImageEmbedding": {
+        "name": "ImageEmbedding",
+        "methods": [
+          "getImageEmbedding"
+        ],
+        "properties": []
+      },
+      "LLMTools": {
+        "name": "LLMTools",
+        "methods": [
+          "callLLMTool",
+          "getLLMTools"
+        ],
+        "properties": []
+      },
+      "ScryptedSystemDevice": {
+        "name": "ScryptedSystemDevice",
+        "methods": [],
+        "properties": [
+          "systemDevice"
+        ]
+      },
+      "ScryptedDeviceCreator": {
+        "name": "ScryptedDeviceCreator",
+        "methods": [],
+        "properties": []
+      },
+      "ScryptedSettings": {
+        "name": "ScryptedSettings",
+        "methods": [],
+        "properties": []
+      }
+    };
+    var ScryptedDeviceType;
+    (function(ScryptedDeviceType2) {
+      ScryptedDeviceType2["Builtin"] = "Builtin";
+      ScryptedDeviceType2["Internal"] = "Internal";
+      ScryptedDeviceType2["Camera"] = "Camera";
+      ScryptedDeviceType2["Fan"] = "Fan";
+      ScryptedDeviceType2["Light"] = "Light";
+      ScryptedDeviceType2["Switch"] = "Switch";
+      ScryptedDeviceType2["Outlet"] = "Outlet";
+      ScryptedDeviceType2["Sensor"] = "Sensor";
+      ScryptedDeviceType2["Scene"] = "Scene";
+      ScryptedDeviceType2["Program"] = "Program";
+      ScryptedDeviceType2["Automation"] = "Automation";
+      ScryptedDeviceType2["Vacuum"] = "Vacuum";
+      ScryptedDeviceType2["Notifier"] = "Notifier";
+      ScryptedDeviceType2["Thermostat"] = "Thermostat";
+      ScryptedDeviceType2["Lock"] = "Lock";
+      ScryptedDeviceType2["PasswordControl"] = "PasswordControl";
+      ScryptedDeviceType2["Display"] = "Display";
+      ScryptedDeviceType2["SmartDisplay"] = "SmartDisplay";
+      ScryptedDeviceType2["Speaker"] = "Speaker";
+      ScryptedDeviceType2["SmartSpeaker"] = "SmartSpeaker";
+      ScryptedDeviceType2["RemoteDesktop"] = "RemoteDesktop";
+      ScryptedDeviceType2["Event"] = "Event";
+      ScryptedDeviceType2["Entry"] = "Entry";
+      ScryptedDeviceType2["Garage"] = "Garage";
+      ScryptedDeviceType2["DeviceProvider"] = "DeviceProvider";
+      ScryptedDeviceType2["DataSource"] = "DataSource";
+      ScryptedDeviceType2["API"] = "API";
+      ScryptedDeviceType2["Buttons"] = "Buttons";
+      ScryptedDeviceType2["Doorbell"] = "Doorbell";
+      ScryptedDeviceType2["Irrigation"] = "Irrigation";
+      ScryptedDeviceType2["Valve"] = "Valve";
+      ScryptedDeviceType2["Person"] = "Person";
+      ScryptedDeviceType2["SecuritySystem"] = "SecuritySystem";
+      ScryptedDeviceType2["WindowCovering"] = "WindowCovering";
+      ScryptedDeviceType2["Siren"] = "Siren";
+      ScryptedDeviceType2["AirPurifier"] = "AirPurifier";
+      ScryptedDeviceType2["Internet"] = "Internet";
+      ScryptedDeviceType2["Network"] = "Network";
+      ScryptedDeviceType2["Bridge"] = "Bridge";
+      ScryptedDeviceType2["LLM"] = "LLM";
+      ScryptedDeviceType2["Unknown"] = "Unknown";
+    })(ScryptedDeviceType || (exports.ScryptedDeviceType = ScryptedDeviceType = {}));
+    var HumidityMode;
+    (function(HumidityMode2) {
+      HumidityMode2["Humidify"] = "Humidify";
+      HumidityMode2["Dehumidify"] = "Dehumidify";
+      HumidityMode2["Auto"] = "Auto";
+      HumidityMode2["Off"] = "Off";
+    })(HumidityMode || (exports.HumidityMode = HumidityMode = {}));
+    var FanMode;
+    (function(FanMode2) {
+      FanMode2["Auto"] = "Auto";
+      FanMode2["Manual"] = "Manual";
+    })(FanMode || (exports.FanMode = FanMode = {}));
+    var TemperatureUnit;
+    (function(TemperatureUnit2) {
+      TemperatureUnit2["C"] = "C";
+      TemperatureUnit2["F"] = "F";
+    })(TemperatureUnit || (exports.TemperatureUnit = TemperatureUnit = {}));
+    var ThermostatMode;
+    (function(ThermostatMode2) {
+      ThermostatMode2["Off"] = "Off";
+      ThermostatMode2["Cool"] = "Cool";
+      ThermostatMode2["Heat"] = "Heat";
+      ThermostatMode2["HeatCool"] = "HeatCool";
+      ThermostatMode2["Auto"] = "Auto";
+      ThermostatMode2["FanOnly"] = "FanOnly";
+      ThermostatMode2["Purifier"] = "Purifier";
+      ThermostatMode2["Eco"] = "Eco";
+      ThermostatMode2["Dry"] = "Dry";
+      ThermostatMode2["On"] = "On";
+    })(ThermostatMode || (exports.ThermostatMode = ThermostatMode = {}));
+    var PanTiltZoomMovement;
+    (function(PanTiltZoomMovement2) {
+      PanTiltZoomMovement2["Absolute"] = "Absolute";
+      PanTiltZoomMovement2["Relative"] = "Relative";
+      PanTiltZoomMovement2["Continuous"] = "Continuous";
+      PanTiltZoomMovement2["Preset"] = "Preset";
+      PanTiltZoomMovement2["Home"] = "Home";
+    })(PanTiltZoomMovement || (exports.PanTiltZoomMovement = PanTiltZoomMovement = {}));
+    var LockState;
+    (function(LockState2) {
+      LockState2["Locked"] = "Locked";
+      LockState2["Unlocked"] = "Unlocked";
+      LockState2["Jammed"] = "Jammed";
+    })(LockState || (exports.LockState = LockState = {}));
+    var ChargeState;
+    (function(ChargeState2) {
+      ChargeState2["Trickle"] = "trickle";
+      ChargeState2["Charging"] = "charging";
+      ChargeState2["NotCharging"] = "not-charging";
+    })(ChargeState || (exports.ChargeState = ChargeState = {}));
+    var AirPurifierStatus;
+    (function(AirPurifierStatus2) {
+      AirPurifierStatus2["Inactive"] = "Inactive";
+      AirPurifierStatus2["Idle"] = "Idle";
+      AirPurifierStatus2["Active"] = "Active";
+      AirPurifierStatus2["ActiveNightMode"] = "ActiveNightMode";
+    })(AirPurifierStatus || (exports.AirPurifierStatus = AirPurifierStatus = {}));
+    var AirPurifierMode;
+    (function(AirPurifierMode2) {
+      AirPurifierMode2["Manual"] = "Manual";
+      AirPurifierMode2["Automatic"] = "Automatic";
+    })(AirPurifierMode || (exports.AirPurifierMode = AirPurifierMode = {}));
+    var AirQuality;
+    (function(AirQuality2) {
+      AirQuality2["Unknown"] = "Unknown";
+      AirQuality2["Excellent"] = "Excellent";
+      AirQuality2["Good"] = "Good";
+      AirQuality2["Fair"] = "Fair";
+      AirQuality2["Inferior"] = "Inferior";
+      AirQuality2["Poor"] = "Poor";
+    })(AirQuality || (exports.AirQuality = AirQuality = {}));
+    var SecuritySystemMode;
+    (function(SecuritySystemMode2) {
+      SecuritySystemMode2["Disarmed"] = "Disarmed";
+      SecuritySystemMode2["HomeArmed"] = "HomeArmed";
+      SecuritySystemMode2["AwayArmed"] = "AwayArmed";
+      SecuritySystemMode2["NightArmed"] = "NightArmed";
+    })(SecuritySystemMode || (exports.SecuritySystemMode = SecuritySystemMode = {}));
+    var SecuritySystemObstruction;
+    (function(SecuritySystemObstruction2) {
+      SecuritySystemObstruction2["Sensor"] = "Sensor";
+      SecuritySystemObstruction2["Occupied"] = "Occupied";
+      SecuritySystemObstruction2["Time"] = "Time";
+      SecuritySystemObstruction2["Error"] = "Error";
+    })(SecuritySystemObstruction || (exports.SecuritySystemObstruction = SecuritySystemObstruction = {}));
+    var MediaPlayerState;
+    (function(MediaPlayerState2) {
+      MediaPlayerState2["Idle"] = "Idle";
+      MediaPlayerState2["Playing"] = "Playing";
+      MediaPlayerState2["Paused"] = "Paused";
+      MediaPlayerState2["Buffering"] = "Buffering";
+    })(MediaPlayerState || (exports.MediaPlayerState = MediaPlayerState = {}));
+    var ScryptedInterface;
+    (function(ScryptedInterface2) {
+      ScryptedInterface2["ScryptedDevice"] = "ScryptedDevice";
+      ScryptedInterface2["ScryptedPlugin"] = "ScryptedPlugin";
+      ScryptedInterface2["ScryptedPluginRuntime"] = "ScryptedPluginRuntime";
+      ScryptedInterface2["OnOff"] = "OnOff";
+      ScryptedInterface2["Brightness"] = "Brightness";
+      ScryptedInterface2["ColorSettingTemperature"] = "ColorSettingTemperature";
+      ScryptedInterface2["ColorSettingRgb"] = "ColorSettingRgb";
+      ScryptedInterface2["ColorSettingHsv"] = "ColorSettingHsv";
+      ScryptedInterface2["Buttons"] = "Buttons";
+      ScryptedInterface2["PressButtons"] = "PressButtons";
+      ScryptedInterface2["Sensors"] = "Sensors";
+      ScryptedInterface2["Notifier"] = "Notifier";
+      ScryptedInterface2["StartStop"] = "StartStop";
+      ScryptedInterface2["Pause"] = "Pause";
+      ScryptedInterface2["Dock"] = "Dock";
+      ScryptedInterface2["TemperatureSetting"] = "TemperatureSetting";
+      ScryptedInterface2["Thermometer"] = "Thermometer";
+      ScryptedInterface2["HumiditySensor"] = "HumiditySensor";
+      ScryptedInterface2["Camera"] = "Camera";
+      ScryptedInterface2["Resolution"] = "Resolution";
+      ScryptedInterface2["Microphone"] = "Microphone";
+      ScryptedInterface2["AudioVolumeControl"] = "AudioVolumeControl";
+      ScryptedInterface2["Display"] = "Display";
+      ScryptedInterface2["VideoCamera"] = "VideoCamera";
+      ScryptedInterface2["VideoCameraMask"] = "VideoCameraMask";
+      ScryptedInterface2["VideoTextOverlays"] = "VideoTextOverlays";
+      ScryptedInterface2["VideoRecorder"] = "VideoRecorder";
+      ScryptedInterface2["VideoRecorderManagement"] = "VideoRecorderManagement";
+      ScryptedInterface2["PanTiltZoom"] = "PanTiltZoom";
+      ScryptedInterface2["EventRecorder"] = "EventRecorder";
+      ScryptedInterface2["VideoClips"] = "VideoClips";
+      ScryptedInterface2["VideoCameraConfiguration"] = "VideoCameraConfiguration";
+      ScryptedInterface2["Intercom"] = "Intercom";
+      ScryptedInterface2["Lock"] = "Lock";
+      ScryptedInterface2["PasswordStore"] = "PasswordStore";
+      ScryptedInterface2["Scene"] = "Scene";
+      ScryptedInterface2["Entry"] = "Entry";
+      ScryptedInterface2["EntrySensor"] = "EntrySensor";
+      ScryptedInterface2["DeviceProvider"] = "DeviceProvider";
+      ScryptedInterface2["DeviceDiscovery"] = "DeviceDiscovery";
+      ScryptedInterface2["DeviceCreator"] = "DeviceCreator";
+      ScryptedInterface2["Battery"] = "Battery";
+      ScryptedInterface2["Charger"] = "Charger";
+      ScryptedInterface2["Reboot"] = "Reboot";
+      ScryptedInterface2["Refresh"] = "Refresh";
+      ScryptedInterface2["MediaPlayer"] = "MediaPlayer";
+      ScryptedInterface2["Online"] = "Online";
+      ScryptedInterface2["BufferConverter"] = "BufferConverter";
+      ScryptedInterface2["MediaConverter"] = "MediaConverter";
+      ScryptedInterface2["Settings"] = "Settings";
+      ScryptedInterface2["BinarySensor"] = "BinarySensor";
+      ScryptedInterface2["TamperSensor"] = "TamperSensor";
+      ScryptedInterface2["Sleep"] = "Sleep";
+      ScryptedInterface2["PowerSensor"] = "PowerSensor";
+      ScryptedInterface2["AudioSensor"] = "AudioSensor";
+      ScryptedInterface2["MotionSensor"] = "MotionSensor";
+      ScryptedInterface2["AmbientLightSensor"] = "AmbientLightSensor";
+      ScryptedInterface2["OccupancySensor"] = "OccupancySensor";
+      ScryptedInterface2["FloodSensor"] = "FloodSensor";
+      ScryptedInterface2["UltravioletSensor"] = "UltravioletSensor";
+      ScryptedInterface2["LuminanceSensor"] = "LuminanceSensor";
+      ScryptedInterface2["PositionSensor"] = "PositionSensor";
+      ScryptedInterface2["SecuritySystem"] = "SecuritySystem";
+      ScryptedInterface2["PM10Sensor"] = "PM10Sensor";
+      ScryptedInterface2["PM25Sensor"] = "PM25Sensor";
+      ScryptedInterface2["VOCSensor"] = "VOCSensor";
+      ScryptedInterface2["NOXSensor"] = "NOXSensor";
+      ScryptedInterface2["CO2Sensor"] = "CO2Sensor";
+      ScryptedInterface2["AirQualitySensor"] = "AirQualitySensor";
+      ScryptedInterface2["AirPurifier"] = "AirPurifier";
+      ScryptedInterface2["FilterMaintenance"] = "FilterMaintenance";
+      ScryptedInterface2["Readme"] = "Readme";
+      ScryptedInterface2["OauthClient"] = "OauthClient";
+      ScryptedInterface2["MixinProvider"] = "MixinProvider";
+      ScryptedInterface2["HttpRequestHandler"] = "HttpRequestHandler";
+      ScryptedInterface2["EngineIOHandler"] = "EngineIOHandler";
+      ScryptedInterface2["PushHandler"] = "PushHandler";
+      ScryptedInterface2["Program"] = "Program";
+      ScryptedInterface2["Scriptable"] = "Scriptable";
+      ScryptedInterface2["ClusterForkInterface"] = "ClusterForkInterface";
+      ScryptedInterface2["ObjectDetector"] = "ObjectDetector";
+      ScryptedInterface2["ObjectDetection"] = "ObjectDetection";
+      ScryptedInterface2["ObjectDetectionPreview"] = "ObjectDetectionPreview";
+      ScryptedInterface2["ObjectDetectionGenerator"] = "ObjectDetectionGenerator";
+      ScryptedInterface2["HumiditySetting"] = "HumiditySetting";
+      ScryptedInterface2["Fan"] = "Fan";
+      ScryptedInterface2["RTCSignalingChannel"] = "RTCSignalingChannel";
+      ScryptedInterface2["RTCSignalingClient"] = "RTCSignalingClient";
+      ScryptedInterface2["LauncherApplication"] = "LauncherApplication";
+      ScryptedInterface2["ScryptedUser"] = "ScryptedUser";
+      ScryptedInterface2["VideoFrameGenerator"] = "VideoFrameGenerator";
+      ScryptedInterface2["StreamService"] = "StreamService";
+      ScryptedInterface2["TTY"] = "TTY";
+      ScryptedInterface2["TTYSettings"] = "TTYSettings";
+      ScryptedInterface2["ChatCompletion"] = "ChatCompletion";
+      ScryptedInterface2["TextEmbedding"] = "TextEmbedding";
+      ScryptedInterface2["ImageEmbedding"] = "ImageEmbedding";
+      ScryptedInterface2["LLMTools"] = "LLMTools";
+      ScryptedInterface2["ScryptedSystemDevice"] = "ScryptedSystemDevice";
+      ScryptedInterface2["ScryptedDeviceCreator"] = "ScryptedDeviceCreator";
+      ScryptedInterface2["ScryptedSettings"] = "ScryptedSettings";
+    })(ScryptedInterface || (exports.ScryptedInterface = ScryptedInterface = {}));
+    var ScryptedMimeTypes;
+    (function(ScryptedMimeTypes2) {
+      ScryptedMimeTypes2["Url"] = "text/x-uri";
+      ScryptedMimeTypes2["InsecureLocalUrl"] = "text/x-insecure-local-uri";
+      ScryptedMimeTypes2["LocalUrl"] = "text/x-local-uri";
+      ScryptedMimeTypes2["ServerId"] = "text/x-server-id";
+      ScryptedMimeTypes2["PushEndpoint"] = "text/x-push-endpoint";
+      ScryptedMimeTypes2["SchemePrefix"] = "x-scrypted/x-scrypted-scheme-";
+      ScryptedMimeTypes2["MediaStreamUrl"] = "text/x-media-url";
+      ScryptedMimeTypes2["MediaObject"] = "x-scrypted/x-scrypted-media-object";
+      ScryptedMimeTypes2["RequestMediaObject"] = "x-scrypted/x-scrypted-request-media-object";
+      ScryptedMimeTypes2["RequestMediaStream"] = "x-scrypted/x-scrypted-request-stream";
+      ScryptedMimeTypes2["MediaStreamFeedback"] = "x-scrypted/x-media-stream-feedback";
+      ScryptedMimeTypes2["FFmpegInput"] = "x-scrypted/x-ffmpeg-input";
+      ScryptedMimeTypes2["FFmpegTranscodeStream"] = "x-scrypted/x-ffmpeg-transcode-stream";
+      ScryptedMimeTypes2["RTCSignalingChannel"] = "x-scrypted/x-scrypted-rtc-signaling-channel";
+      ScryptedMimeTypes2["RTCSignalingSession"] = "x-scrypted/x-scrypted-rtc-signaling-session";
+      ScryptedMimeTypes2["RTCConnectionManagement"] = "x-scrypted/x-scrypted-rtc-connection-management";
+      ScryptedMimeTypes2["Image"] = "x-scrypted/x-scrypted-image";
+    })(ScryptedMimeTypes || (exports.ScryptedMimeTypes = ScryptedMimeTypes = {}));
+  }
+});
+var require_rpc_buffer_serializer = __commonJS({
+  "node_modules/@scrypted/client/dist/server/src/rpc-buffer-serializer.js"(exports) {
+    "use strict";
+    Object.defineProperty(exports, "__esModule", { value: true });
+    exports.SidebandBufferSerializer = exports.BufferSerializer = void 0;
+    var BufferSerializer = class {
+      serialize(value) {
+        console.warn("Using slow buffer serialization. Ensure the peer supports SidebandBufferSerializer.");
+        return value.toString("base64");
+      }
+      deserialize(serialized) {
+        console.warn("Using slow buffer deserialization. Ensure the peer supports SidebandBufferSerializer.");
+        return Buffer.from(serialized, "base64");
+      }
+    };
+    exports.BufferSerializer = BufferSerializer;
+    var SidebandBufferSerializer = class {
+      bufferSerializer = new BufferSerializer();
+      serialize(value, serializationContext) {
+        if (!serializationContext)
+          return this.bufferSerializer.serialize(value);
+        const buffers = serializationContext.buffers = serializationContext.buffers || [];
+        buffers.push(value);
+        return buffers.length - 1;
+      }
+      deserialize(serialized, serializationContext) {
+        if (!serializationContext?.buffers)
+          return this.bufferSerializer.deserialize(serialized);
+        const buffers = serializationContext.buffers;
+        return buffers[serialized];
+      }
+    };
+    exports.SidebandBufferSerializer = SidebandBufferSerializer;
+  }
+});
+var require_descriptor = __commonJS({
+  "node_modules/@scrypted/client/dist/server/src/plugin/descriptor.js"(exports) {
+    "use strict";
+    Object.defineProperty(exports, "__esModule", { value: true });
+    exports.propertyInterfaces = exports.allInterfaceProperties = void 0;
+    exports.getPropertyInterfaces = getPropertyInterfaces;
+    exports.getInterfaceMethods = getInterfaceMethods;
+    exports.getInterfaceProperties = getInterfaceProperties;
+    exports.isValidInterfaceMethod = isValidInterfaceMethod;
+    exports.isValidInterfaceProperty = isValidInterfaceProperty;
+    var types_1 = require_dist();
+    exports.allInterfaceProperties = [].concat(...Object.values(types_1.ScryptedInterfaceDescriptors).map((type) => type.properties));
+    function getPropertyInterfaces(descriptors) {
+      const propertyInterfaces = {};
+      for (const descriptor of Object.values(descriptors)) {
+        for (const property of descriptor.properties) {
+          propertyInterfaces[property] = descriptor.name;
+        }
+      }
+      return propertyInterfaces;
+    }
+    exports.propertyInterfaces = getPropertyInterfaces(types_1.ScryptedInterfaceDescriptors);
+    function getInterfaceMethods(descriptors, interfaces) {
+      return Object.values(descriptors).filter((e6) => interfaces.has(e6.name)).map((type) => type.methods).flat();
+    }
+    function getInterfaceProperties(descriptors, interfaces) {
+      return Object.values(descriptors).filter((e6) => interfaces.has(e6.name)).map((type) => type.properties).flat();
+    }
+    function isValidInterfaceMethod(descriptors, interfaces, method) {
+      const availableMethods = getInterfaceMethods(descriptors, interfaces);
+      return availableMethods.includes(method) || descriptors[types_1.ScryptedInterface.ScryptedDevice].methods.includes(method);
+    }
+    function isValidInterfaceProperty(descriptors, interfaces, property) {
+      const availableProperties = getInterfaceProperties(descriptors, new Set(interfaces));
+      return availableProperties.includes(property);
+    }
+  }
+});
+var require_plugin_state_check = __commonJS({
+  "node_modules/@scrypted/client/dist/server/src/plugin/plugin-state-check.js"(exports) {
+    "use strict";
+    Object.defineProperty(exports, "__esModule", { value: true });
+    exports.checkProperty = checkProperty;
+    var types_1 = require_dist();
+    var rpc_1 = require_rpc();
+    var descriptor_1 = require_descriptor();
+    function checkProperty(key, value) {
+      if (key === types_1.ScryptedInterfaceProperty.id)
+        throw new Error("id is read only");
+      if (key === types_1.ScryptedInterfaceProperty.nativeId)
+        throw new Error("nativeId is read only");
+      if (key === types_1.ScryptedInterfaceProperty.mixins)
+        throw new Error("mixins is read only");
+      if (key === types_1.ScryptedInterfaceProperty.interfaces)
+        throw new Error("interfaces is a read only post-mixin computed property, use providedInterfaces");
+      if (rpc_1.RpcPeer.isRpcProxy(value))
+        throw new Error("value must be a primitive type");
+      const iface = descriptor_1.propertyInterfaces[key.toString()];
+      if (iface === types_1.ScryptedInterface.ScryptedDevice) {
+        if (key !== types_1.ScryptedInterfaceProperty.info)
+          throw new Error(`${key.toString()} can not be set. Use DeviceManager.onDevicesChanges or DeviceManager.onDeviceDiscovered to update the device description.`);
+      }
+    }
+  }
+});
+var require_device = __commonJS({
+  "node_modules/@scrypted/client/dist/server/src/plugin/device.js"(exports) {
+    "use strict";
+    Object.defineProperty(exports, "__esModule", { value: true });
+    exports.StorageImpl = exports.DeviceManagerImpl = exports.DeviceStateProxyHandler = void 0;
+    var rpc_1 = require_rpc();
+    var plugin_state_check_1 = require_plugin_state_check();
+    var DeviceLogger = class {
+      console;
+      nativeId;
+      api;
+      logger;
+      constructor(api, nativeId, console2) {
+        this.console = console2;
+        this.api = api;
+        this.nativeId = nativeId;
+      }
+      async ensureLogger() {
+        if (!this.logger)
+          this.logger = this.api.getLogger(this.nativeId);
+        return await this.logger;
+      }
+      async log(level, message) {
+        (await this.ensureLogger()).log(level, message);
+      }
+      a(msg) {
+        this.log("a", msg);
+      }
+      async clear() {
+        (await this.ensureLogger()).clear();
+      }
+      async clearAlert(msg) {
+        (await this.ensureLogger()).clearAlert(msg);
+      }
+      async clearAlerts() {
+        (await this.ensureLogger()).clearAlerts();
+      }
+      d(msg) {
+        this.log("d", msg);
+      }
+      e(msg) {
+        this.log("e", msg);
+      }
+      i(msg) {
+        this.log("i", msg);
+      }
+      v(msg) {
+        this.log("v", msg);
+      }
+      w(msg) {
+        this.log("w", msg);
+      }
+    };
+    var DeviceStateProxyHandler = class {
+      deviceManager;
+      id;
+      setState;
+      constructor(deviceManager, id, setState) {
+        this.deviceManager = deviceManager;
+        this.id = id;
+        this.setState = setState;
+      }
+      get(target, p3, receiver) {
+        if (p3 === "id")
+          return this.id;
+        if (p3 === rpc_1.RpcPeer.PROPERTY_PROXY_PROPERTIES)
+          return { id: this.id };
+        if (p3 === "setState")
+          return this.setState;
+        return this.deviceManager.systemManager.state[this.id][p3]?.value;
+      }
+      set(target, p3, value, receiver) {
+        (0, plugin_state_check_1.checkProperty)(p3.toString(), value);
+        this.deviceManager.systemManager.state[this.id][p3] = {
+          value
+        };
+        this.setState(p3.toString(), value);
+        return true;
+      }
+    };
+    exports.DeviceStateProxyHandler = DeviceStateProxyHandler;
+    var DeviceManagerImpl = class {
+      systemManager;
+      getDeviceConsole;
+      getMixinConsole;
+      api;
+      nativeIds = /* @__PURE__ */ new Map();
+      deviceStorage = /* @__PURE__ */ new Map();
+      mixinStorage = /* @__PURE__ */ new Map();
+      constructor(systemManager, getDeviceConsole, getMixinConsole) {
+        this.systemManager = systemManager;
+        this.getDeviceConsole = getDeviceConsole;
+        this.getMixinConsole = getMixinConsole;
+      }
+      async requestRestart() {
+        return this.api.requestRestart();
+      }
+      getDeviceLogger(nativeId) {
+        return new DeviceLogger(this.api, nativeId, this.getDeviceConsole?.(nativeId) || console);
+      }
+      getDeviceState(nativeId) {
+        const handler = new DeviceStateProxyHandler(this, this.nativeIds.get(nativeId).id, (property, value) => this.api.setState(nativeId, property, value));
+        return new Proxy(handler, handler);
+      }
+      createDeviceState(id, setState) {
+        const handler = new DeviceStateProxyHandler(this, id, setState);
+        return new Proxy(handler, handler);
+      }
+      getDeviceStorage(nativeId) {
+        let ret = this.deviceStorage.get(nativeId);
+        if (!ret) {
+          ret = new StorageImpl(this, nativeId);
+          this.deviceStorage.set(nativeId, ret);
+        }
+        return ret;
+      }
+      getMixinStorage(id, nativeId) {
+        let ms = this.mixinStorage.get(nativeId);
+        if (!ms) {
+          ms = /* @__PURE__ */ new Map();
+          this.mixinStorage.set(nativeId, ms);
+        }
+        let ret = ms.get(id);
+        if (!ret) {
+          ret = new StorageImpl(this, nativeId, `mixin:${id}:`);
+          ms.set(id, ret);
+        }
+        return ret;
+      }
+      pruneMixinStorage() {
+        for (const nativeId of this.nativeIds.keys()) {
+          const storage = this.nativeIds.get(nativeId).storage;
+          for (const key of Object.keys(storage)) {
+            if (!key.startsWith("mixin:"))
+              continue;
+            const [, id] = key.split(":");
+            if (id && !this.systemManager.state[id])
+              delete storage[key];
+          }
+        }
+      }
+      async onMixinEvent(id, nativeId, eventInterface, eventData) {
+        return this.api.onMixinEvent(id, nativeId, eventInterface, eventData);
+      }
+      getNativeIds() {
+        return Array.from(this.nativeIds.keys());
+      }
+      async onDeviceDiscovered(device) {
+        return this.api.onDeviceDiscovered(device);
+      }
+      async onDeviceRemoved(nativeId) {
+        return this.api.onDeviceRemoved(nativeId);
+      }
+      async onDeviceEvent(nativeId, eventInterface, eventData) {
+        return this.api.onDeviceEvent(nativeId, eventInterface, eventData);
+      }
+      async onDevicesChanged(devices) {
+        return this.api.onDevicesChanged(devices);
+      }
+    };
+    exports.DeviceManagerImpl = DeviceManagerImpl;
+    function toStorageString(value) {
+      if (value === null)
+        return "null";
+      if (value === void 0)
+        return "undefined";
+      return value.toString();
+    }
+    var StorageImpl = class _StorageImpl {
+      deviceManager;
+      nativeId;
+      prefix;
+      api;
+      static allowedMethods = [
+        "length",
+        "clear",
+        "getItem",
+        "setItem",
+        "key",
+        "removeItem"
+      ];
+      static indexedHandler = {
+        get(target, property) {
+          const keyString = property.toString();
+          if (_StorageImpl.allowedMethods.includes(keyString)) {
+            const f4 = target[keyString];
+            if (keyString === "length")
+              return f4;
+            return f4.bind(target);
+          }
+          return target.getItem(toStorageString(property));
+        },
+        set(target, property, value) {
+          target.setItem(toStorageString(property), value);
+          return true;
+        }
+      };
+      constructor(deviceManager, nativeId, prefix) {
+        this.deviceManager = deviceManager;
+        this.nativeId = nativeId;
+        this.prefix = prefix;
+        this.deviceManager = deviceManager;
+        this.api = deviceManager.api;
+        this.nativeId = nativeId;
+        if (!this.prefix)
+          this.prefix = "";
+        return new Proxy(this, _StorageImpl.indexedHandler);
+      }
+      get storage() {
+        return this.deviceManager.nativeIds.get(this.nativeId).storage;
+      }
+      get length() {
+        return Object.keys(this.storage).filter((key) => key.startsWith(this.prefix)).length;
+      }
+      clear() {
+        if (!this.prefix) {
+          this.deviceManager.nativeIds.get(this.nativeId).storage = {};
+        } else {
+          const storage = this.storage;
+          Object.keys(this.storage).filter((key) => key.startsWith(this.prefix)).forEach((key) => delete storage[key]);
+        }
+        this.api.setStorage(this.nativeId, this.storage);
+      }
+      getItem(key) {
+        return this.storage[this.prefix + key];
+      }
+      key(index) {
+        if (!this.prefix) {
+          return Object.keys(this.storage)[index];
+        }
+        return Object.keys(this.storage).filter((key) => key.startsWith(this.prefix))[index].substring(this.prefix.length);
+      }
+      removeItem(key) {
+        delete this.storage[this.prefix + key];
+        this.api.setStorage(this.nativeId, this.storage);
+      }
+      setItem(key, value) {
+        key = toStorageString(key);
+        value = toStorageString(value);
+        if (this.storage[this.prefix + key] === value)
+          return;
+        this.storage[this.prefix + key] = value;
+        this.api.setStorage(this.nativeId, this.storage);
+      }
+    };
+    exports.StorageImpl = StorageImpl;
+  }
+});
+var require_endpoint = __commonJS({
+  "node_modules/@scrypted/client/dist/server/src/plugin/endpoint.js"(exports) {
+    "use strict";
+    Object.defineProperty(exports, "__esModule", { value: true });
+    exports.EndpointManagerImpl = void 0;
+    var types_1 = require_dist();
+    var EndpointManagerImpl = class {
+      deviceManager;
+      api;
+      pluginId;
+      mediaManager;
+      getEndpoint(nativeId) {
+        if (!nativeId)
+          return this.pluginId;
+        const id = this.deviceManager.nativeIds.get(nativeId)?.id;
+        if (!id)
+          throw new Error("invalid nativeId " + nativeId);
+        if (!nativeId)
+          return this.pluginId;
+        return id;
+      }
+      async getUrlSafeIp() {
+        const ip = await this.api.getComponent("SCRYPTED_IP_ADDRESS");
+        return ip?.includes(":") ? `[${ip}]` : ip;
+      }
+      /**
+       * @deprecated
+       */
+      async getAuthenticatedPath(nativeId) {
+        return this.getPath(nativeId);
+      }
+      /**
+       * @deprecated
+       */
+      async getInsecurePublicLocalEndpoint(nativeId) {
+        return this.getLocalEndpoint(nativeId, {
+          insecure: true,
+          public: true
+        });
+      }
+      /**
+       * @deprecated
+       */
+      async getPublicCloudEndpoint(nativeId) {
+        return this.getCloudEndpoint(nativeId, {
+          public: true
+        });
+      }
+      /**
+       * @deprecated
+       */
+      async getPublicLocalEndpoint(nativeId) {
+        return this.getLocalEndpoint(nativeId, {
+          public: true
+        });
+      }
+      /**
+       * @deprecated
+       */
+      async getPublicPushEndpoint(nativeId) {
+        const mo = await this.mediaManager.createMediaObject(Buffer.from(this.getEndpoint(nativeId)), types_1.ScryptedMimeTypes.PushEndpoint);
+        return this.mediaManager.convertMediaObjectToUrl(mo, types_1.ScryptedMimeTypes.PushEndpoint);
+      }
+      async getPath(nativeId, options) {
+        return `/endpoint/${this.getEndpoint(nativeId)}/${options?.public ? "public/" : ""}`;
+      }
+      async getLocalEndpoint(nativeId, options) {
+        const protocol = options?.insecure ? "http" : "https";
+        const port = await this.api.getComponent(options?.insecure ? "SCRYPTED_INSECURE_PORT" : "SCRYPTED_SECURE_PORT");
+        const path = await this.getPath(nativeId, options);
+        const url = `${protocol}://${await this.getUrlSafeIp()}:${port}${path}`;
+        return url;
+      }
+      async getCloudEndpoint(nativeId, options) {
+        const local = await this.getLocalEndpoint(nativeId, options);
+        const mo = await this.mediaManager.createMediaObject(Buffer.from(local), types_1.ScryptedMimeTypes.LocalUrl);
+        return this.mediaManager.convertMediaObjectToUrl(mo, types_1.ScryptedMimeTypes.LocalUrl);
+      }
+      async getCloudPushEndpoint(nativeId) {
+        const mo = await this.mediaManager.createMediaObject(Buffer.from(this.getEndpoint(nativeId)), types_1.ScryptedMimeTypes.PushEndpoint);
+        return this.mediaManager.convertMediaObjectToUrl(mo, types_1.ScryptedMimeTypes.PushEndpoint);
+      }
+      async setLocalAddresses(addresses) {
+        const addressSettings = await this.api.getComponent("addresses");
+        return addressSettings.setLocalAddresses(addresses);
+      }
+      async getLocalAddresses() {
+        const addressSettings = await this.api.getComponent("addresses");
+        return await addressSettings.getLocalAddresses();
+      }
+      async setAccessControlAllowOrigin(options) {
+        const self2 = this;
+        const setAccessControlAllowOrigin = await this.deviceManager.systemManager.getComponent("setAccessControlAllowOrigin");
+        return setAccessControlAllowOrigin(options);
+      }
+    };
+    exports.EndpointManagerImpl = EndpointManagerImpl;
+  }
+});
+var require_plugin_remote_websocket = __commonJS({
+  "node_modules/@scrypted/client/dist/server/src/plugin/plugin-remote-websocket.js"(exports) {
+    "use strict";
+    Object.defineProperty(exports, "__esModule", { value: true });
+    exports.WebSocketSerializer = exports.WebSocketConnection = void 0;
+    exports.createWebSocketClass = createWebSocketClass;
+    var rpc_1 = require_rpc();
+    var WebSocketEventTarget = class {
+      events = {};
+      dispatchEvent(event) {
+        const list = this.events[event.type];
+        if (!list) {
+          return;
+        }
+        for (const l3 of list) {
+          l3(event);
+        }
+      }
+      addEventListener(type, f4) {
+        let list = this.events[type];
+        if (!list) {
+          list = this.events[type] = [];
+        }
+        list.push(f4);
+      }
+      removeEventListener(type, f4) {
+        const list = this.events[type];
+        if (!list) {
+          return;
+        }
+        const index = list.indexOf(f4);
+        if (index > -1) {
+          list.splice(index, 1);
+        }
+      }
+    };
+    function defineEventAttribute(p3, type) {
+      Object.defineProperty(p3, "on" + type, {
+        get: function() {
+          throw new Error(`${type} is write only`);
+        },
+        set: function(f4) {
+          this.events[type] = [f4];
+        }
+      });
+    }
+    function createWebSocketClass(__websocketConnect) {
+      class WebSocket extends WebSocketEventTarget {
+        connection;
+        _url;
+        _protocols;
+        readyState;
+        constructor(connection, protocols) {
+          super();
+          this.connection = connection;
+          this._url = connection.url;
+          this._protocols = protocols;
+          this.readyState = 0;
+          __websocketConnect(connection, {
+            connect: (e6, ws) => {
+              if (e6 != null) {
+                this.dispatchEvent({
+                  type: "error",
+                  message: e6.toString()
+                });
+                return;
+              }
+              this.readyState = 1;
+              this.dispatchEvent({
+                type: "open"
+              });
+            },
+            end: () => {
+              this.readyState = 3;
+              this.dispatchEvent({
+                type: "close",
+                reason: "closed"
+              });
+            },
+            error: (e6) => {
+              this.readyState = 3;
+              this.dispatchEvent({
+                type: "error",
+                message: e6.toString()
+              });
+            },
+            data: (data) => {
+              this.dispatchEvent({
+                type: "message",
+                data,
+                source: this
+              });
+            }
+          });
+        }
+        send(message) {
+          this.connection.send(message);
+        }
+        get url() {
+          return this._url;
+        }
+        get extensions() {
+          return "";
+        }
+        close(reason) {
+          this.connection.close(reason);
+        }
+      }
+      defineEventAttribute(WebSocket.prototype, "close");
+      defineEventAttribute(WebSocket.prototype, "error");
+      defineEventAttribute(WebSocket.prototype, "message");
+      defineEventAttribute(WebSocket.prototype, "open");
+      return WebSocket;
+    }
+    var WebSocketConnection = class {
+      url;
+      websocketMethods;
+      [rpc_1.RpcPeer.PROPERTY_PROXY_PROPERTIES];
+      [rpc_1.RpcPeer.PROPERTY_PROXY_ONEWAY_METHODS] = [
+        "send",
+        "close"
+      ];
+      constructor(url, websocketMethods) {
+        this.url = url;
+        this.websocketMethods = websocketMethods;
+        this[rpc_1.RpcPeer.PROPERTY_PROXY_PROPERTIES] = {
+          url
+        };
+      }
+      send(message) {
+        return this.websocketMethods.send(message);
+      }
+      close(message) {
+        return this.websocketMethods.close(message);
+      }
+    };
+    exports.WebSocketConnection = WebSocketConnection;
+    var WebSocketSerializer = class {
+      WebSocket;
+      serialize(value, serializationContext) {
+        throw new Error("WebSocketSerializer should only be used for deserialization.");
+      }
+      deserialize(serialized, serializationContext) {
+        if (!this.WebSocket)
+          return void 0;
+        return new this.WebSocket(serialized);
+      }
+    };
+    exports.WebSocketSerializer = WebSocketSerializer;
+  }
+});
+var require_event_registry = __commonJS({
+  "node_modules/@scrypted/client/dist/server/src/event-registry.js"(exports) {
+    "use strict";
+    Object.defineProperty(exports, "__esModule", { value: true });
+    exports.EventRegistry = exports.EventListenerRegisterImpl = void 0;
+    exports.getMixinEventName = getMixinEventName;
+    var types_1 = require_dist();
+    var EventListenerRegisterImpl = class {
+      removeListener;
+      constructor(removeListener) {
+        this.removeListener = removeListener;
+      }
+    };
+    exports.EventListenerRegisterImpl = EventListenerRegisterImpl;
+    function getMixinEventName(options) {
+      let { event, mixinId } = options || {};
+      if (!event && typeof options === "string")
+        event = options;
+      if (!event)
+        event = void 0;
+      if (!mixinId)
+        return event;
+      let ret = `${event}-mixin-${mixinId}`;
+      return ret;
+    }
+    var allowedEventInterfaces = /* @__PURE__ */ new Set([types_1.ScryptedInterface.ScryptedDevice, "Logger"]);
+    var EventRegistry = class {
+      systemListeners = /* @__PURE__ */ new Set();
+      listeners = {};
+      listen(callback) {
+        const events = this.systemListeners;
+        events.add(callback);
+        return new EventListenerRegisterImpl(() => {
+          events.delete(callback);
+          callback = void 0;
+        });
+      }
+      listenDevice(id, options, callback) {
+        let event = getMixinEventName(options);
+        const token = `${id}#${event}`;
+        let events = this.listeners[token];
+        if (!events) {
+          events = /* @__PURE__ */ new Set();
+          this.listeners[token] = events;
+        }
+        events.add(callback);
+        return new EventListenerRegisterImpl(() => {
+          events.delete(callback);
+          callback = void 0;
+        });
+      }
+      notify(id, eventTime, eventInterface, property, value, options) {
+        const { changed, mixinId } = options || {};
+        if (property && !changed)
+          return false;
+        const eventDetails = {
+          eventId: void 0,
+          eventInterface,
+          eventTime,
+          property,
+          mixinId
+        };
+        return this.notifyEventDetails(id, eventDetails, value);
+      }
+      notifyEventDetails(id, eventDetails, value, eventInterface) {
+        eventDetails.eventId ||= Math.random().toString(36).substring(2);
+        eventInterface ||= eventDetails.eventInterface;
+        if (eventDetails.property && !eventDetails.mixinId || allowedEventInterfaces.has(eventInterface)) {
+          for (const event of this.systemListeners) {
+            event(id, eventDetails, value);
+          }
+        }
+        const events = this.listeners[`${id}#${eventInterface}`];
+        if (events) {
+          for (const event of events) {
+            event(eventDetails, value);
+          }
+        }
+        const allEvents = this.listeners[`${id}#${void 0}`];
+        if (allEvents) {
+          for (const event of allEvents) {
+            event(eventDetails, value);
+          }
+        }
+        return true;
+      }
+    };
+    exports.EventRegistry = EventRegistry;
+  }
+});
+var require_system = __commonJS({
+  "node_modules/@scrypted/client/dist/server/src/plugin/system.js"(exports) {
+    "use strict";
+    Object.defineProperty(exports, "__esModule", { value: true });
+    exports.SystemManagerImpl = void 0;
+    var types_1 = require_dist();
+    var event_registry_1 = require_event_registry();
+    var rpc_1 = require_rpc();
+    var descriptor_1 = require_descriptor();
+    function newDeviceProxy(id, systemManager) {
+      const handler = new DeviceProxyHandler(id, systemManager);
+      return new Proxy(handler, handler);
+    }
+    var DeviceProxyHandler = class {
+      id;
+      systemManager;
+      customProperties;
+      device;
+      constructor(id, systemManager) {
+        this.id = id;
+        this.systemManager = systemManager;
+      }
+      toPrimitive() {
+        return `ScryptedDevice-${this.id}`;
+      }
+      ownKeys(target) {
+        const interfaces = new Set(this.systemManager.state[this.id].interfaces.value);
+        const methods = (0, descriptor_1.getInterfaceMethods)(this.systemManager.descriptors || types_1.ScryptedInterfaceDescriptors, interfaces);
+        const properties = (0, descriptor_1.getInterfaceProperties)(this.systemManager.descriptors || types_1.ScryptedInterfaceDescriptors, interfaces);
+        return [...methods, ...properties];
+      }
+      getOwnPropertyDescriptor(target, p3) {
+        const interfaces = new Set(this.systemManager.state[this.id].interfaces.value);
+        const methods = (0, descriptor_1.getInterfaceMethods)(this.systemManager.descriptors || types_1.ScryptedInterfaceDescriptors, interfaces);
+        const prop = p3.toString();
+        if (methods.includes(prop)) {
+          return {
+            configurable: true
+          };
+        }
+        const properties = (0, descriptor_1.getInterfaceProperties)(this.systemManager.descriptors || types_1.ScryptedInterfaceDescriptors, interfaces);
+        if (properties.includes(prop)) {
+          return {
+            configurable: true,
+            value: this.systemManager.state[this.id][prop]?.value
+          };
+        }
+      }
+      deleteProperty(target, p3) {
+        const prop = p3.toString();
+        if (Object.keys(types_1.ScryptedInterfaceProperty).includes(prop))
+          return false;
+        this.customProperties ||= /* @__PURE__ */ new Map();
+        this.customProperties.set(p3, void 0);
+        return true;
+      }
+      set(target, p3, newValue, receiver) {
+        const prop = p3.toString();
+        if (Object.keys(types_1.ScryptedInterfaceProperty).includes(prop))
+          return false;
+        this.customProperties ||= /* @__PURE__ */ new Map();
+        this.customProperties.set(p3, newValue);
+        return true;
+      }
+      get(target, p3, receiver) {
+        if (p3 === "id")
+          return this.id;
+        if (this.customProperties?.has(p3))
+          return this.customProperties.get(p3);
+        const handled = rpc_1.RpcPeer.handleFunctionInvocations(this, target, p3, receiver);
+        if (handled)
+          return handled;
+        const interfaces = new Set(this.systemManager.state[this.id].interfaces?.value || []);
+        const prop = p3.toString();
+        const isValidProperty = this.systemManager.propertyInterfaces?.[prop] || descriptor_1.propertyInterfaces[prop];
+        if (isValidProperty)
+          return this.systemManager.state[this.id]?.[p3]?.value;
+        if (!(0, descriptor_1.isValidInterfaceMethod)(this.systemManager.descriptors || types_1.ScryptedInterfaceDescriptors, interfaces, prop))
+          return;
+        if (types_1.ScryptedInterfaceDescriptors[types_1.ScryptedInterface.ScryptedDevice].methods.includes(prop))
+          return this[p3].bind(this);
+        return new Proxy(() => p3, this);
+      }
+      ensureDevice() {
+        if (!this.device)
+          this.device = this.systemManager.api.getDeviceById(this.id);
+        return this.device;
+      }
+      async apply(target, thisArg, argArray) {
+        const method = target();
+        const device = await this.ensureDevice();
+        return device[method](...argArray);
+      }
+      listen(event, callback) {
+        return this.systemManager.listenDevice(this.id, event, callback);
+      }
+      async setName(name) {
+        return this.systemManager.api.setDeviceProperty(this.id, types_1.ScryptedInterfaceProperty.name, name);
+      }
+      async setRoom(room) {
+        return this.systemManager.api.setDeviceProperty(this.id, types_1.ScryptedInterfaceProperty.room, room);
+      }
+      async setType(type) {
+        return this.systemManager.api.setDeviceProperty(this.id, types_1.ScryptedInterfaceProperty.type, type);
+      }
+      async setMixins(mixins) {
+        const plugins = await this.systemManager.getComponent("plugins");
+        await plugins.setMixins(this.id, mixins);
+      }
+      async probe() {
+        return this.apply(() => "probe", void 0, []);
+      }
+    };
+    var EventListenerRegisterImpl = class {
+      promise;
+      constructor(promise) {
+        this.promise = promise;
+      }
+      async removeListener() {
+        try {
+          const register = await this.promise;
+          this.promise = void 0;
+          register?.removeListener();
+        } catch (e6) {
+          console.error("removeListener", e6);
+        }
+      }
+    };
+    function makeOneWayCallback(input) {
+      const f4 = input;
+      const oneways = f4[rpc_1.RpcPeer.PROPERTY_PROXY_ONEWAY_METHODS] || [];
+      if (!oneways.includes(null))
+        oneways.push(null);
+      f4[rpc_1.RpcPeer.PROPERTY_PROXY_ONEWAY_METHODS] = oneways;
+      return input;
+    }
+    var SystemManagerImpl = class {
+      api;
+      state;
+      deviceProxies = {};
+      log;
+      events = new event_registry_1.EventRegistry();
+      typesVersion;
+      descriptors;
+      propertyInterfaces;
+      getDeviceState(id) {
+        return this.state[id];
+      }
+      getSystemState() {
+        return this.state;
+      }
+      getDeviceById(idOrPluginId, nativeId) {
+        let id;
+        if (this.state[idOrPluginId]) {
+          if (nativeId != null)
+            return;
+          id = idOrPluginId;
+        } else {
+          for (const check of Object.keys(this.state)) {
+            const state2 = this.state[check];
+            if (!state2)
+              continue;
+            if (state2[types_1.ScryptedInterfaceProperty.pluginId]?.value === idOrPluginId) {
+              if (state2[types_1.ScryptedInterfaceProperty.nativeId]?.value == nativeId) {
+                id = check;
+                break;
+              }
+            }
+          }
+        }
+        if (!id)
+          return;
+        let proxy = this.deviceProxies[id];
+        if (!proxy)
+          proxy = this.deviceProxies[id] = newDeviceProxy(id, this);
+        return proxy;
+      }
+      getDeviceByName(name) {
+        for (const id of Object.keys(this.state)) {
+          const s5 = this.state[id];
+          if (s5.interfaces?.value?.includes(types_1.ScryptedInterface.ScryptedPlugin) && s5.pluginId?.value === name)
+            return this.getDeviceById(id);
+          if (s5.name.value === name)
+            return this.getDeviceById(id);
+        }
+      }
+      listen(callback) {
+        return this.events.listen(makeOneWayCallback((id, eventDetails, eventData) => callback(this.getDeviceById(id), eventDetails, eventData)));
+      }
+      listenDevice(id, options, callback) {
+        let { watch } = options || {};
+        if (watch)
+          return this.events.listenDevice(id, options, (eventDetails, eventData) => callback(this.getDeviceById(id), eventDetails, eventData));
+        return new EventListenerRegisterImpl(this.api.listenDevice(id, options, makeOneWayCallback((eventDetails, eventData) => callback(this.getDeviceById(id), eventDetails, eventData))));
+      }
+      async removeDevice(id) {
+        return this.api.removeDevice(id);
+      }
+      getComponent(id) {
+        return this.api.getComponent(id);
+      }
+      setScryptedInterfaceDescriptors(typesVersion, descriptors) {
+        this.typesVersion = typesVersion;
+        this.descriptors = descriptors;
+        this.propertyInterfaces = (0, descriptor_1.getPropertyInterfaces)(descriptors);
+        return this.api.setScryptedInterfaceDescriptors(typesVersion, descriptors);
+      }
+    };
+    exports.SystemManagerImpl = SystemManagerImpl;
+  }
+});
+var require_cluster = __commonJS({
+  "node_modules/@scrypted/client/dist/server/src/plugin/cluster.js"(exports) {
+    "use strict";
+    Object.defineProperty(exports, "__esModule", { value: true });
+    exports.ClusterManagerImpl = void 0;
+    var ClusterManagerImpl = class {
+      clusterMode;
+      api;
+      clusterWorkerId;
+      clusterServicePromise;
+      constructor(clusterMode, api, clusterWorkerId) {
+        this.clusterMode = clusterMode;
+        this.api = api;
+        this.clusterWorkerId = clusterWorkerId;
+      }
+      getClusterWorkerId() {
+        return this.clusterWorkerId;
+      }
+      getClusterAddress() {
+        return process.env.SCRYPTED_CLUSTER_ADDRESS;
+      }
+      getClusterMode() {
+        return this.clusterMode;
+      }
+      async getClusterWorkers() {
+        const clusterFork = await this.getClusterService();
+        return clusterFork.getClusterWorkers();
+      }
+      getClusterService() {
+        this.clusterServicePromise ||= this.api.getComponent("cluster-fork");
+        return this.clusterServicePromise;
+      }
+    };
+    exports.ClusterManagerImpl = ClusterManagerImpl;
+  }
+});
+var require_plugin_remote = __commonJS({
+  "node_modules/@scrypted/client/dist/server/src/plugin/plugin-remote.js"(exports) {
+    "use strict";
+    Object.defineProperty(exports, "__esModule", { value: true });
+    exports.setupPluginRemote = setupPluginRemote;
+    exports.attachPluginRemote = attachPluginRemote;
+    var types_1 = require_dist();
+    var rpc_1 = require_rpc();
+    var rpc_buffer_serializer_1 = require_rpc_buffer_serializer();
+    var device_1 = require_device();
+    var endpoint_1 = require_endpoint();
+    var plugin_remote_websocket_1 = require_plugin_remote_websocket();
+    var system_1 = require_system();
+    var cluster_1 = require_cluster();
+    async function setupPluginRemote(peer, api, pluginId, hostInfo, getSystemState) {
+      try {
+        if (!peer.constructorSerializerMap.get(Buffer))
+          peer.addSerializer(Buffer, "Buffer", new rpc_buffer_serializer_1.BufferSerializer());
+        const getRemote = await peer.getParam("getRemote");
+        const remote = await getRemote(api, pluginId, hostInfo);
+        const accessControls = peer.tags.acl;
+        const getAccessControlDeviceState = (id, state2) => {
+          state2 = state2 || getSystemState()[id];
+          if (accessControls && state2) {
+            state2 = Object.assign({}, state2);
+            for (const property of Object.keys(state2)) {
+              if (accessControls.shouldRejectProperty(id, property))
+                delete state2[property];
+            }
+            let interfaces = state2.interfaces?.value;
+            if (interfaces) {
+              interfaces = interfaces.filter((scryptedInterface) => !accessControls.shouldRejectInterface(id, scryptedInterface));
+              state2.interfaces = {
+                value: interfaces
+              };
+            }
+          }
+          return state2;
+        };
+        const getAccessControlSystemState = () => {
+          let state2 = getSystemState();
+          if (accessControls) {
+            state2 = Object.assign({}, state2);
+            for (const id of Object.keys(state2)) {
+              if (accessControls.shouldRejectDevice(id)) {
+                delete state2[id];
+                continue;
+              }
+              state2[id] = getAccessControlDeviceState(id, state2[id]);
+            }
+          }
+          return state2;
+        };
+        await remote.setSystemState(getAccessControlSystemState());
+        api.listen((id, eventDetails, eventData) => {
+          if (accessControls?.shouldRejectEvent(eventDetails.property === types_1.ScryptedInterfaceProperty.id ? eventData : id, eventDetails))
+            return;
+          if (eventDetails.eventInterface === types_1.ScryptedInterface.ScryptedDevice) {
+            if (eventDetails.property === types_1.ScryptedInterfaceProperty.id) {
+              remote.updateDeviceState(eventData, void 0);
+            } else {
+              remote.updateDeviceState(id, getAccessControlDeviceState(id));
+            }
+            return;
+          }
+          if (eventDetails.property && !eventDetails.mixinId) {
+            remote.notify(id, eventDetails, getSystemState()[id]?.[eventDetails.property]).catch(() => {
+            });
+          } else {
+            remote.notify(id, eventDetails, eventData).catch(() => {
+            });
+          }
+        });
+        return remote;
+      } catch (e6) {
+        throw new rpc_1.RPCResultError(peer, "error while retrieving PluginRemote", e6);
+      }
+    }
+    function attachPluginRemote(peer, options) {
+      const { createMediaManager, getServicePort, getDeviceConsole, getMixinConsole } = options || {};
+      if (!peer.constructorSerializerMap.get(Buffer))
+        peer.addSerializer(Buffer, "Buffer", new rpc_buffer_serializer_1.BufferSerializer());
+      const ioSockets = {};
+      const websocketSerializer = new plugin_remote_websocket_1.WebSocketSerializer();
+      peer.addSerializer(plugin_remote_websocket_1.WebSocketConnection, "WebSocketConnection", websocketSerializer);
+      let done;
+      const retPromise = new Promise((resolve) => done = resolve);
+      peer.params.getRemote = async (api, pluginId, hostInfo) => {
+        websocketSerializer.WebSocket = (0, plugin_remote_websocket_1.createWebSocketClass)((connection, callbacks) => {
+          const { url } = connection;
+          if (url.startsWith("io://") || url.startsWith("ws://")) {
+            const id = url.substring("xx://".length);
+            ioSockets[id] = callbacks;
+            callbacks.connect(void 0, {
+              close: (message) => connection.close(message),
+              send: (message) => connection.send(message)
+            });
+          } else {
+            throw new Error("unsupported websocket");
+          }
+        });
+        api = await options?.onGetRemote?.(api, pluginId) || api;
+        const systemManager = new system_1.SystemManagerImpl();
+        const deviceManager = new device_1.DeviceManagerImpl(systemManager, getDeviceConsole, getMixinConsole);
+        const endpointManager = new endpoint_1.EndpointManagerImpl();
+        const clusterManager = new cluster_1.ClusterManagerImpl(void 0, api, void 0);
+        const hostMediaManager = await api.getMediaManager();
+        if (!hostMediaManager) {
+          peer.params["createMediaManager"] = async () => createMediaManager(systemManager, deviceManager);
+        }
+        const mediaManager = hostMediaManager || await createMediaManager(systemManager, deviceManager);
+        peer.params["mediaManager"] = mediaManager;
+        systemManager.api = api;
+        deviceManager.api = api;
+        const log = deviceManager.getDeviceLogger(void 0);
+        systemManager.log = log;
+        const ret = {
+          systemManager,
+          deviceManager,
+          endpointManager,
+          mediaManager,
+          clusterManager,
+          log,
+          pluginHostAPI: api,
+          pluginRemoteAPI: void 0,
+          serverVersion: hostInfo?.serverVersion,
+          connect: void 0,
+          fork: void 0,
+          connectRPCObject: void 0
+        };
+        delete peer.params.getRemote;
+        endpointManager.api = api;
+        endpointManager.deviceManager = deviceManager;
+        endpointManager.mediaManager = mediaManager;
+        endpointManager.pluginId = pluginId;
+        const localStorage2 = new device_1.StorageImpl(deviceManager, void 0);
+        const remote = {
+          [rpc_1.RpcPeer.PROPERTY_JSON_DISABLE_SERIALIZATION]: true,
+          [rpc_1.RpcPeer.PROPERTY_PROXY_ONEWAY_METHODS]: [
+            "notify",
+            "updateDeviceState",
+            "setSystemState",
+            "ioEvent",
+            "setNativeId"
+          ],
+          getServicePort,
+          async createDeviceState(id, setState) {
+            return deviceManager.createDeviceState(id, setState);
+          },
+          async ioEvent(id, event, message) {
+            const io = ioSockets[id];
+            if (!io)
+              return;
+            switch (event) {
+              case "message":
+                io.data(message);
+                break;
+              case "close":
+                io.end();
+                delete ioSockets[id];
+                break;
+            }
+          },
+          async setNativeId(nativeId, id, storage) {
+            if (nativeId === null)
+              nativeId = void 0;
+            if (id) {
+              deviceManager.nativeIds.set(nativeId?.toString(), {
+                id,
+                storage
+              });
+            } else {
+              deviceManager.nativeIds.delete(nativeId);
+            }
+          },
+          async updateDeviceState(id, state2) {
+            if (!state2) {
+              delete systemManager.state[id];
+              systemManager.events.notify(void 0, void 0, types_1.ScryptedInterface.ScryptedDevice, types_1.ScryptedInterfaceProperty.id, id, { changed: true });
+            } else {
+              systemManager.state[id] = state2;
+              systemManager.events.notify(id, void 0, types_1.ScryptedInterface.ScryptedDevice, void 0, state2, { changed: true });
+            }
+          },
+          async notify(id, eventTimeOrDetails, eventInterfaceOrData, property, value, changed) {
+            if (typeof eventTimeOrDetails === "number") {
+              const eventTime = eventTimeOrDetails;
+              const eventInterface = eventInterfaceOrData;
+              if (property) {
+                const state2 = systemManager.state?.[id];
+                if (!state2) {
+                  log.w(`state not found for ${id}`);
+                  return;
+                }
+                state2[property] = value;
+                systemManager.events.notify(id, eventTime, eventInterface, property, value.value, { changed });
+              } else {
+                systemManager.events.notify(id, eventTime, eventInterface, property, value, { changed });
+              }
+            } else {
+              const eventDetails = eventTimeOrDetails;
+              const eventData = eventInterfaceOrData;
+              if (eventDetails.property && !eventDetails.mixinId) {
+                const state2 = systemManager.state?.[id];
+                if (!state2) {
+                  log.w(`state not found for ${id}`);
+                  return;
+                }
+                state2[eventDetails.property] = eventData;
+                systemManager.events.notifyEventDetails(id, eventDetails, eventData.value);
+              } else {
+                systemManager.events.notifyEventDetails(id, eventDetails, eventData);
+              }
+            }
+          },
+          async setSystemState(state2) {
+            systemManager.state = state2;
+            deviceManager.pruneMixinStorage();
+            done(ret);
+          },
+          async loadZip(packageJson, zipAPI, zipOptions) {
+            const params = {
+              __filename: void 0,
+              deviceManager,
+              systemManager,
+              mediaManager,
+              endpointManager,
+              localStorage: localStorage2,
+              pluginHostAPI: api,
+              // TODO:
+              // 10/10/2022: remove this shim from all plugins and server.
+              WebSocket: function(url) {
+                if (typeof url === "string")
+                  throw new Error("unsupported websocket");
+                return url;
+              },
+              pluginRuntimeAPI: ret
+            };
+            params.pluginRuntimeAPI = ret;
+            try {
+              return await options.onLoadZip(ret, params, packageJson, zipAPI, zipOptions);
+            } catch (e6) {
+              console.error("plugin start/fork failed", e6);
+              throw e6;
+            }
+          }
+        };
+        ret.pluginRemoteAPI = remote;
+        return remote;
+      };
+      return retPromise;
+    }
+  }
+});
+var require_rpc_serializer = __commonJS({
+  "node_modules/@scrypted/client/dist/server/src/rpc-serializer.js"(exports) {
+    "use strict";
+    Object.defineProperty(exports, "__esModule", { value: true });
+    exports.createDuplexRpcPeer = createDuplexRpcPeer;
+    exports.createRpcSerializer = createRpcSerializer;
+    exports.createRpcDuplexSerializer = createRpcDuplexSerializer;
+    exports.createDataChannelSerializer = createDataChannelSerializer;
+    var rpc_buffer_serializer_1 = require_rpc_buffer_serializer();
+    var rpc_1 = require_rpc();
+    function createDuplexRpcPeer(selfName, peerName, readable, writable) {
+      const serializer = createRpcDuplexSerializer(writable);
+      const rpcPeer = new rpc_1.RpcPeer(selfName, peerName, (message, reject, serializationContext) => {
+        try {
+          serializer.sendMessage(message, reject, serializationContext);
+        } catch (e6) {
+          reject?.(e6);
+          readable.destroy();
+        }
+      });
+      serializer.setupRpcPeer(rpcPeer);
+      readable.on("data", (data) => serializer.onData(data));
+      readable.on("close", serializer.onDisconnected);
+      readable.on("error", serializer.onDisconnected);
+      return rpcPeer;
+    }
+    function createRpcSerializer(options) {
+      let rpcPeer;
+      const { sendMessageBuffer, sendMessageFinish } = options;
+      let connected = true;
+      const onDisconnected = () => {
+        connected = false;
+        rpcPeer.kill("connection closed.");
+      };
+      const sendMessage = (message, reject, serializationContext) => {
+        if (!connected) {
+          reject?.(new Error("peer disconnected"));
+          return;
+        }
+        const buffers = serializationContext?.buffers;
+        if (buffers) {
+          for (const buffer of buffers) {
+            sendMessageBuffer(buffer);
+          }
+        }
+        sendMessageFinish(message);
+      };
+      let pendingSerializationContext = void 0;
+      const setupRpcPeer = (peer) => {
+        rpcPeer = peer;
+        rpcPeer.addSerializer(Buffer, "Buffer", new rpc_buffer_serializer_1.SidebandBufferSerializer());
+        rpcPeer.constructorSerializerMap.set(Uint8Array, "Buffer");
+      };
+      const onMessageBuffer = (buffer) => {
+        pendingSerializationContext = pendingSerializationContext || {};
+        pendingSerializationContext.buffers ||= [];
+        const buffers = pendingSerializationContext.buffers;
+        buffers.push(buffer);
+      };
+      const onMessageFinish = (message) => {
+        const messageSerializationContext = pendingSerializationContext;
+        pendingSerializationContext = void 0;
+        rpcPeer.handleMessage(message, messageSerializationContext);
+      };
+      const kill = (message) => {
+        rpcPeer.kill(message);
+      };
+      return {
+        kill,
+        sendMessage,
+        setupRpcPeer,
+        onMessageBuffer,
+        onMessageFinish,
+        onDisconnected
+      };
+    }
+    function createRpcDuplexSerializer(writable) {
+      const socketSend = (type2, data) => {
+        const header2 = Buffer.alloc(5);
+        header2.writeUInt32BE(data.length + 1, 0);
+        header2.writeUInt8(type2, 4);
+        writable.write(Buffer.concat([header2, data]));
+      };
+      const createSocketSend = (type2) => {
+        return (data) => {
+          return socketSend(type2, data);
+        };
+      };
+      const sendMessageBuffer = createSocketSend(1);
+      const sendMessageFinish = createSocketSend(0);
+      const serializer = createRpcSerializer({
+        sendMessageBuffer,
+        sendMessageFinish: (message) => sendMessageFinish(Buffer.from(JSON.stringify(message)))
+      });
+      let header;
+      let pending;
+      let offset;
+      let type;
+      const onData = (data) => {
+        while (data.length) {
+          if (!pending) {
+            if (!header)
+              header = data;
+            else
+              header = Buffer.concat([header, data]);
+            if (header.length < 5)
+              return;
+            data = header.slice(5);
+            const length = header.readUInt32BE(0) - 1;
+            type = header.readUInt8(4);
+            if (data.length >= length && type === 0) {
+              pending = data.length === length ? data : data.slice(0, length);
+              offset = length;
+              data = data.slice(length);
+            } else {
+              pending = Buffer.alloc(length);
+              offset = 0;
+            }
+            header = void 0;
+          }
+          const need = pending.length - offset;
+          if (need) {
+            const sub = data.slice(0, need);
+            data = data.slice(need);
+            pending.set(sub, offset);
+            offset += sub.length;
+          }
+          if (offset !== pending.length)
+            return;
+          const payload = pending;
+          pending = void 0;
+          if (type === 0) {
+            try {
+              const message = JSON.parse(payload.toString());
+              serializer.onMessageFinish(message);
+            } catch (e6) {
+              serializer.kill("message parse failure " + e6.message);
+            }
+          } else {
+            serializer.onMessageBuffer(payload);
+          }
+        }
+      };
+      return {
+        onData,
+        setupRpcPeer: serializer.setupRpcPeer,
+        sendMessage: serializer.sendMessage,
+        onDisconnected: serializer.onDisconnected
+      };
+    }
+    function createDataChannelSerializer(dc) {
+      let pending;
+      const MAX_PACKET_SIZE = 16384;
+      function flushPending() {
+        if (!pending || pending.length === 0)
+          return;
+        const chunks = pending;
+        pending = void 0;
+        for (const data of chunks) {
+          let offset = 0;
+          while (offset < data.length) {
+            const remaining = data.length - offset;
+            const chunkSize = Math.min(remaining, MAX_PACKET_SIZE);
+            const chunkData = data.subarray(offset, offset + chunkSize);
+            dc.send(chunkData);
+            offset += chunkSize;
+          }
+        }
+      }
+      function queuePending(data) {
+        const hadPending = !!pending;
+        if (!pending)
+          pending = [];
+        pending.push(data);
+        if (!hadPending) {
+          setTimeout(() => flushPending(), 0);
+        }
+      }
+      const chunkingDataChannel = {
+        write: (data) => {
+          queuePending(data);
+        }
+      };
+      const duplexSerializer = createRpcDuplexSerializer(chunkingDataChannel);
+      return duplexSerializer;
+    }
+  }
+});
+var require_package = __commonJS({
+  "node_modules/@scrypted/client/dist/packages/client/package.json"(exports, module) {
+    module.exports = {
+      name: "@scrypted/client",
+      version: "1.3.26",
+      description: "",
+      main: "dist/packages/client/src/index.js",
+      scripts: {
+        prebuild: "rimraf dist",
+        build: "tsc --outDir dist",
+        prepublishOnly: "npm run build",
+        test: 'echo "Error: no test specified" && exit 1'
+      },
+      author: "",
+      license: "ISC",
+      devDependencies: {
+        "@types/ip": "^1.1.3",
+        "@types/node": "^24.0.10",
+        "@types/ws": "^8.18.1",
+        "ts-node": "^10.9.2",
+        typescript: "^5.8.3"
+      },
+      peerDependencies: {
+        "@scrypted/types": "^0.5.44"
+      },
+      dependencies: {
+        "engine.io-client": "^6.6.3",
+        "follow-redirects": "^1.15.9",
+        rimraf: "^6.0.1"
+      }
+    };
+  }
+});
+var require_ip = __commonJS({
+  "node_modules/@scrypted/client/dist/packages/client/src/ip.js"(exports) {
+    "use strict";
+    Object.defineProperty(exports, "__esModule", { value: true });
+    exports.isIPV4Address = isIPV4Address;
+    exports.isIPV6Address = isIPV6Address;
+    exports.isIPAddress = isIPAddress;
+    var ipv4Regex = /^(\d{1,3}\.){3,3}\d{1,3}$/;
+    var ipv6Regex = /^(::)?(((\d{1,3}\.){3}(\d{1,3}){1})?([0-9a-f]){0,4}:{0,2}){1,8}(::)?$/i;
+    function isIPV4Address(ip) {
+      return ipv4Regex.test(ip);
+    }
+    function isIPV6Address(ip) {
+      return ipv6Regex.test(ip);
+    }
+    function isIPAddress(ip) {
+      return isIPV4Address(ip) || isIPV6Address(ip);
+    }
+  }
+});
+var require_fetch = __commonJS({
+  "node_modules/@scrypted/client/dist/server/src/fetch/index.js"(exports) {
+    "use strict";
+    Object.defineProperty(exports, "__esModule", { value: true });
+    exports.fetchStatusCodeOk = fetchStatusCodeOk;
+    exports.checkStatus = checkStatus;
+    exports.getFetchMethod = getFetchMethod;
+    exports.getHttpFetchAccept = getHttpFetchAccept;
+    exports.hasHeader = hasHeader;
+    exports.removeHeader = removeHeader;
+    exports.setHeader = setHeader;
+    exports.setDefaultHttpFetchAccept = setDefaultHttpFetchAccept;
+    exports.createHeadersArray = createHeadersArray;
+    exports.createStringOrBufferBody = createStringOrBufferBody;
+    exports.domFetchParseIncomingMessage = domFetchParseIncomingMessage;
+    exports.domFetch = domFetch;
+    function fetchStatusCodeOk(statusCode) {
+      return statusCode >= 200 && statusCode <= 299;
+    }
+    function checkStatus(statusCode) {
+      if (!fetchStatusCodeOk(statusCode))
+        throw new Error(`http response statusCode ${statusCode}`);
+      return true;
+    }
+    function getFetchMethod(options) {
+      const method = options.method || (options.body ? "POST" : "GET");
+      return method;
+    }
+    function getHttpFetchAccept(responseType) {
+      switch (responseType) {
+        case "json":
+          return "application/json";
+        case "text":
+          return "text/plain";
+      }
+      return;
+    }
+    function hasHeader(headers, key) {
+      key = key.toLowerCase();
+      return headers.find(([k2]) => k2.toLowerCase() === key);
+    }
+    function removeHeader(headers, key) {
+      key = key.toLowerCase();
+      const filteredHeaders = headers.filter(([headerKey, _2]) => headerKey.toLowerCase() !== key);
+      headers.length = 0;
+      filteredHeaders.forEach((header) => headers.push(header));
+    }
+    function setHeader(headers, key, value) {
+      removeHeader(headers, key);
+      headers.push([key, value]);
+    }
+    function setDefaultHttpFetchAccept(headers, responseType) {
+      if (hasHeader(headers, "Accept"))
+        return;
+      const accept = getHttpFetchAccept(responseType);
+      if (accept)
+        setHeader(headers, "Accept", accept);
+    }
+    function createHeadersArray(headers) {
+      const headersArray = [];
+      if (!headers)
+        return headersArray;
+      if (headers instanceof Headers) {
+        for (const [k2, v2] of headers.entries()) {
+          headersArray.push([k2, v2]);
+        }
+        return headersArray;
+      }
+      if (headers instanceof Array) {
+        for (const [k2, v2] of headers) {
+          headersArray.push([k2, v2]);
+        }
+        return headersArray;
+      }
+      for (const k2 of Object.keys(headers)) {
+        const v2 = headers[k2];
+        headersArray.push([k2, v2]);
+      }
+      return headersArray;
+    }
+    function createStringOrBufferBody(headers, body) {
+      let contentType;
+      if (typeof body === "object") {
+        body = JSON.stringify(body);
+        contentType = "application/json";
+      } else if (typeof body === "string") {
+        contentType = "text/plain";
+      }
+      if (contentType && !hasHeader(headers, "Content-Type"))
+        setHeader(headers, "Content-Type", contentType);
+      if (!hasHeader(headers, "Content-Length")) {
+        body = Buffer.from(body);
+        setHeader(headers, "Content-Length", body.length.toString());
+      }
+      return body;
+    }
+    async function domFetchParseIncomingMessage(response, responseType) {
+      switch (responseType) {
+        case "json":
+          return response.json();
+        case "text":
+          return response.text();
+        case "readable":
+          return response;
+      }
+      return new Uint8Array(await response.arrayBuffer());
+    }
+    async function domFetch(options) {
+      const headers = createHeadersArray(options.headers);
+      setDefaultHttpFetchAccept(headers, options.responseType);
+      let { body } = options;
+      if (body && !(body instanceof ReadableStream)) {
+        body = createStringOrBufferBody(headers, body);
+      }
+      let controller;
+      let timeout;
+      if (options.timeout) {
+        controller = new AbortController();
+        timeout = setTimeout(() => controller.abort(), options.timeout);
+        options.signal?.addEventListener("abort", () => controller.abort(options.signal?.reason));
+      }
+      try {
+        const { url } = options;
+        const response = await fetch(url, {
+          method: getFetchMethod(options),
+          credentials: options.withCredentials ? "include" : void 0,
+          headers,
+          signal: controller?.signal || options.signal,
+          body
+        });
+        if (options?.checkStatusCode === void 0 || options?.checkStatusCode) {
+          try {
+            const checker = typeof options?.checkStatusCode === "function" ? options.checkStatusCode : checkStatus;
+            if (!checker(response.status))
+              throw new Error(`http response statusCode ${response.status}`);
+          } catch (e6) {
+            response.arrayBuffer().catch(() => {
+            });
+            throw e6;
+          }
+        }
+        return {
+          statusCode: response.status,
+          headers: response.headers,
+          body: await domFetchParseIncomingMessage(response, options.responseType)
+        };
+      } finally {
+        clearTimeout(timeout);
+      }
+    }
+  }
+});
+var node_stub_exports = {};
+__export(node_stub_exports, {
+  default: () => node_stub_default
+});
+var node_stub_default;
+var init_node_stub = __esm({
+  "src/lib/node-stub.js"() {
+    "use strict";
+    node_stub_default = {};
+  }
+});
+var require_http_fetch = __commonJS({
+  "node_modules/@scrypted/client/dist/server/src/fetch/http-fetch.js"(exports) {
+    "use strict";
+    Object.defineProperty(exports, "__esModule", { value: true });
+    exports.getHttpFetchParser = getHttpFetchParser;
+    exports.httpFetchParseIncomingMessage = httpFetchParseIncomingMessage;
+    exports.httpFetch = httpFetch;
+    var _1 = require_fetch();
+    async function readMessageBuffer(response) {
+      const buffers = [];
+      response.on("data", (buffer) => buffers.push(buffer));
+      const { once } = (init_node_stub(), __toCommonJS(node_stub_exports));
+      await once(response, "end");
+      return Buffer.concat(buffers);
+    }
+    var TextParser = {
+      async parse(message) {
+        return (await readMessageBuffer(message)).toString();
+      }
+    };
+    var JSONParser = {
+      async parse(message) {
+        return JSON.parse((await readMessageBuffer(message)).toString());
+      }
+    };
+    var BufferParser = {
+      async parse(message) {
+        return readMessageBuffer(message);
+      }
+    };
+    var StreamParser = {
+      async parse(message) {
+        return message;
+      }
+    };
+    function getHttpFetchParser(responseType) {
+      switch (responseType) {
+        case "json":
+          return JSONParser;
+        case "text":
+          return TextParser;
+        case "readable":
+          return StreamParser;
+      }
+      return BufferParser;
+    }
+    function httpFetchParseIncomingMessage(readable, responseType) {
+      return getHttpFetchParser(responseType).parse(readable);
+    }
+    async function httpFetch(options) {
+      const headers = (0, _1.createHeadersArray)(options.headers);
+      (0, _1.setDefaultHttpFetchAccept)(headers, options.responseType);
+      const { once } = (init_node_stub(), __toCommonJS(node_stub_exports));
+      const { PassThrough, Readable } = (init_node_stub(), __toCommonJS(node_stub_exports));
+      const { http, https } = (init_node_stub(), __toCommonJS(node_stub_exports));
+      const { url } = options;
+      const isSecure = url.toString().startsWith("https:");
+      const proto = isSecure ? https : http;
+      let { body } = options;
+      if (body && !(body instanceof Readable)) {
+        const newBody = new PassThrough();
+        newBody.write(Buffer.from((0, _1.createStringOrBufferBody)(headers, body)));
+        newBody.end();
+        body = newBody;
+      }
+      let controller;
+      let timeout;
+      if (options.timeout) {
+        controller = new AbortController();
+        timeout = setTimeout(() => controller.abort(), options.timeout);
+        options.signal?.addEventListener("abort", () => controller.abort(options.signal?.reason));
+      }
+      const signal = controller?.signal || options.signal;
+      signal?.addEventListener("abort", () => request.destroy(new Error(options.signal?.reason || "abort")));
+      const nodeHeaders = {};
+      for (const [k2, v2] of headers) {
+        if (nodeHeaders[k2]) {
+          nodeHeaders[k2].push(v2);
+        } else {
+          nodeHeaders[k2] = [v2];
+        }
+      }
+      const request = proto.request(url, {
+        method: (0, _1.getFetchMethod)(options),
+        rejectUnauthorized: options.rejectUnauthorized,
+        family: options.family,
+        headers: nodeHeaders,
+        signal,
+        timeout: options.timeout
+      });
+      if (body)
+        body.pipe(request);
+      else
+        request.end();
+      try {
+        const [response] = await once(request, "response");
+        if (options?.checkStatusCode === void 0 || options?.checkStatusCode) {
+          try {
+            const checker = typeof options?.checkStatusCode === "function" ? options.checkStatusCode : _1.checkStatus;
+            if (!response.statusCode || !checker(response.statusCode))
+              throw new Error(`http response statusCode ${response.statusCode}`);
+          } catch (e6) {
+            readMessageBuffer(response).catch(() => {
+            });
+            throw e6;
+          }
+        }
+        const incomingHeaders = new Headers();
+        for (const [k2, v2] of Object.entries(response.headers)) {
+          for (const vv of typeof v2 === "string" ? [v2] : v2) {
+            incomingHeaders.append(k2, vv);
+          }
+        }
+        return {
+          statusCode: response.statusCode,
+          headers: incomingHeaders,
+          body: await httpFetchParseIncomingMessage(response, options.responseType)
+        };
+      } finally {
+        clearTimeout(timeout);
+      }
+    }
+  }
+});
+var require_src = __commonJS({
+  "node_modules/@scrypted/client/dist/packages/client/src/index.js"(exports) {
+    "use strict";
+    var __createBinding = exports && exports.__createBinding || (Object.create ? function(o7, m2, k2, k22) {
+      if (k22 === void 0) k22 = k2;
+      var desc = Object.getOwnPropertyDescriptor(m2, k2);
+      if (!desc || ("get" in desc ? !m2.__esModule : desc.writable || desc.configurable)) {
+        desc = { enumerable: true, get: function() {
+          return m2[k2];
+        } };
+      }
+      Object.defineProperty(o7, k22, desc);
+    } : function(o7, m2, k2, k22) {
+      if (k22 === void 0) k22 = k2;
+      o7[k22] = m2[k2];
+    });
+    var __setModuleDefault = exports && exports.__setModuleDefault || (Object.create ? function(o7, v2) {
+      Object.defineProperty(o7, "default", { enumerable: true, value: v2 });
+    } : function(o7, v2) {
+      o7["default"] = v2;
+    });
+    var __importStar = exports && exports.__importStar || /* @__PURE__ */ function() {
+      var ownKeys = function(o7) {
+        ownKeys = Object.getOwnPropertyNames || function(o8) {
+          var ar = [];
+          for (var k2 in o8) if (Object.prototype.hasOwnProperty.call(o8, k2)) ar[ar.length] = k2;
+          return ar;
+        };
+        return ownKeys(o7);
+      };
+      return function(mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) {
+          for (var k2 = ownKeys(mod), i6 = 0; i6 < k2.length; i6++) if (k2[i6] !== "default") __createBinding(result, mod, k2[i6]);
+        }
+        __setModuleDefault(result, mod);
+        return result;
+      };
+    }();
+    var __importDefault = exports && exports.__importDefault || function(mod) {
+      return mod && mod.__esModule ? mod : { "default": mod };
+    };
+    Object.defineProperty(exports, "__esModule", { value: true });
+    exports.ScryptedClientLoginError = exports.rpc_serializer = exports.rpc = void 0;
+    exports.logoutScryptedClient = logoutScryptedClient;
+    exports.getCurrentBaseUrl = getCurrentBaseUrl;
+    exports.loginScryptedClient = loginScryptedClient;
+    exports.checkScryptedClientLogin = checkScryptedClientLogin;
+    exports.redirectScryptedLogin = redirectScryptedLogin;
+    exports.combineBaseUrl = combineBaseUrl;
+    exports.redirectScryptedLogout = redirectScryptedLogout;
+    exports.connectScryptedClient = connectScryptedClient2;
+    var eio = __importStar(require_cjs3());
+    var promise_utils_1 = require_promise_utils();
+    var mediaobject_1 = require_mediaobject();
+    var plugin_remote_1 = require_plugin_remote();
+    var rpc_1 = require_rpc();
+    var rpc_serializer_1 = require_rpc_serializer();
+    var package_json_1 = __importDefault(require_package());
+    var ip_1 = require_ip();
+    var fetch_1 = require_fetch();
+    var http_fetch_1 = require_http_fetch();
+    exports.rpc = __importStar(require_rpc());
+    exports.rpc_serializer = __importStar(require_rpc_serializer());
+    var fetcher;
+    try {
+      if (true)
+        throw new Error();
+      init_node_stub();
+      init_node_stub();
+      fetcher = http_fetch_1.httpFetch;
+    } catch (e6) {
+      fetcher = fetch_1.domFetch;
+    }
+    var sourcePeerId = rpc_1.RpcPeer.generateId();
+    function once(socket, event) {
+      return new Promise((resolve, reject) => {
+        const err = (e7) => {
+          cleanup();
+          reject(e7);
+        };
+        const e6 = (...args) => {
+          cleanup();
+          resolve(args);
+        };
+        const cleanup = () => {
+          socket.removeListener("error", err);
+          socket.removeListener(event, e6);
+        };
+        socket.once("error", err);
+        socket.once(event, e6);
+      });
+    }
+    function isInstalledApp() {
+      return globalThis.navigator?.userAgent.includes("InstalledApp");
+    }
+    function isRunningStandalone() {
+      return globalThis.matchMedia?.("(display-mode: standalone)").matches || isInstalledApp();
+    }
+    async function logoutScryptedClient(baseUrl) {
+      const url = combineBaseUrl(baseUrl, "logout");
+      const response = await fetcher({
+        url,
+        withCredentials: true,
+        responseType: "json",
+        rejectUnauthorized: false
+      });
+      return response.body;
+    }
+    function getCurrentBaseUrl() {
+      const url = new URL(window.location.href);
+      url.search = "";
+      url.hash = "";
+      let endpointPath = window.location.pathname;
+      const parts = endpointPath.split("/");
+      const index = parts.findIndex((p3) => p3 === "endpoint");
+      if (index === -1) {
+        return void 0;
+      }
+      const keep = parts.slice(0, index);
+      keep.push("");
+      url.pathname = keep.join("/");
+      return url.toString();
+    }
+    async function loginScryptedClient(options) {
+      let { baseUrl, username, password, change_password, maxAge } = options;
+      if (!maxAge && isRunningStandalone())
+        maxAge = 365 * 24 * 60 * 60 * 1e3;
+      const url = combineBaseUrl(baseUrl, "login");
+      const response = await fetcher({
+        url,
+        body: {
+          username,
+          password,
+          change_password,
+          maxAge
+        },
+        rejectUnauthorized: false,
+        withCredentials: true,
+        responseType: "json"
+      });
+      if (response.statusCode !== 200)
+        throw new Error("status " + response.statusCode);
+      const { body } = response;
+      return {
+        error: body.error,
+        authorization: body.authorization,
+        queryToken: body.queryToken,
+        token: body.token,
+        addresses: body.addresses,
+        externalAddresses: body.externalAddresses,
+        hostname: body.hostname,
+        // the cloud plugin will include this header.
+        // should maybe move this into the cloud server itself.
+        scryptedCloud: response.headers.get("x-scrypted-cloud") === "true",
+        directAddress: response.headers.get("x-scrypted-direct-address"),
+        cloudAddress: response.headers.get("x-scrypted-cloud-address"),
+        serverId: response.headers.get("x-scrypted-server-id")
+      };
+    }
+    async function checkScryptedClientLogin(options) {
+      let { baseUrl } = options || {};
+      let url = combineBaseUrl(baseUrl, "login");
+      const headers = new Headers();
+      if (options?.previousLoginResult?.queryToken) {
+        const token = options?.previousLoginResult.username + ":" + options.previousLoginResult.token;
+        const hash = Buffer.from(token).toString("base64");
+        headers.set("Authorization", `Basic ${hash}`);
+      }
+      const response = await fetcher({
+        url,
+        withCredentials: true,
+        headers,
+        rejectUnauthorized: false,
+        responseType: "json"
+      });
+      const { body } = response;
+      return {
+        baseUrl,
+        hostname: body.hostname,
+        redirect: body.redirect,
+        username: body.username,
+        expiration: body.expiration,
+        hasLogin: !!body.hasLogin,
+        error: body.error,
+        authorization: body.authorization,
+        queryToken: body.queryToken,
+        token: body.token,
+        addresses: body.addresses,
+        externalAddresses: body.externalAddresses,
+        // the cloud plugin will include this header.
+        // should maybe move this into the cloud server itself.
+        scryptedCloud: response.headers.get("x-scrypted-cloud") === "true",
+        directAddress: response.headers.get("x-scrypted-direct-address"),
+        cloudAddress: response.headers.get("x-scrypted-cloud-address"),
+        serverId: response.headers.get("x-scrypted-server-id")
+      };
+    }
+    var ScryptedClientLoginError = class extends Error {
+      result;
+      constructor(result) {
+        super(result.error);
+        this.result = result;
+      }
+    };
+    exports.ScryptedClientLoginError = ScryptedClientLoginError;
+    function redirectScryptedLogin(options) {
+      let { baseUrl, redirect } = options || {};
+      redirect = redirect || `/endpoint/@scrypted/core/public/`;
+      if (baseUrl) {
+        const url = new URL(redirect, baseUrl);
+        url.searchParams.set("redirect_uri", window.location.href);
+        redirect = url.toString();
+      } else {
+        redirect = `${redirect}?redirect_uri=${encodeURIComponent(window.location.href)}`;
+      }
+      const redirect_uri = redirect;
+      console.log("redirect_uri", redirect_uri);
+      globalThis.location.href = redirect_uri;
+    }
+    function combineBaseUrl(baseUrl, rootPath) {
+      return baseUrl ? new URL(rootPath, baseUrl).toString() : "/" + rootPath;
+    }
+    async function redirectScryptedLogout(baseUrl) {
+      globalThis.location.href = combineBaseUrl(baseUrl, "logout");
+    }
+    async function connectScryptedClient2(options) {
+      const start = Date.now();
+      let { baseUrl, pluginId, clientName, username, password } = options;
+      let authorization;
+      let queryToken;
+      let localAddresses;
+      let externalAddresses;
+      let scryptedCloud;
+      let directAddress;
+      let cloudAddress;
+      let hostname;
+      let token;
+      let serverId;
+      console.log("@scrypted/client", package_json_1.default.version);
+      const extraHeaders = {};
+      const isChrome = globalThis.navigator?.userAgent.includes("Chrome");
+      const isNotChromeOrIsInstalledApp = !isChrome || isInstalledApp();
+      let tryAlternateAddresses = false;
+      if (username && password) {
+        const loginResult = await loginScryptedClient(options);
+        if (loginResult.authorization)
+          extraHeaders["Authorization"] = loginResult.authorization;
+        localAddresses = loginResult.addresses;
+        externalAddresses = loginResult.externalAddresses;
+        scryptedCloud = loginResult.scryptedCloud;
+        directAddress = loginResult.directAddress;
+        cloudAddress = loginResult.cloudAddress;
+        authorization = loginResult.authorization;
+        queryToken = loginResult.queryToken;
+        token = loginResult.token;
+        hostname = loginResult.hostname;
+        serverId = loginResult.serverId;
+        console.log("login result", Date.now() - start, loginResult);
+      } else {
+        let validateLoginResult = function(loginCheck2) {
+          if (loginCheck2.error || loginCheck2.redirect)
+            throw new ScryptedClientLoginError(loginCheck2);
+          if (!loginCheck2.authorization || !loginCheck2.username || !loginCheck2.queryToken) {
+            console.error(loginCheck2);
+            throw new Error("malformed login result");
+          }
+          return loginCheck2;
+        };
+        const urlsToCheck = /* @__PURE__ */ new Set();
+        if (options?.previousLoginResult?.token) {
+          for (const u3 of [
+            ...options?.previousLoginResult?.localAddresses || [],
+            options?.previousLoginResult?.directAddress
+          ]) {
+            if (u3 && (isNotChromeOrIsInstalledApp || options.direct))
+              urlsToCheck.add(u3);
+          }
+          for (const u3 of [
+            ...options?.previousLoginResult?.externalAddresses || [],
+            options?.previousLoginResult?.cloudAddress
+          ]) {
+            if (u3)
+              urlsToCheck.add(u3);
+          }
+        }
+        const loginCheckPromises = [...urlsToCheck].map((baseUrl2) => {
+          return checkScryptedClientLogin({
+            baseUrl: baseUrl2,
+            previousLoginResult: options?.previousLoginResult
+          }).then(validateLoginResult);
+        });
+        const baseUrlCheck = checkScryptedClientLogin({
+          baseUrl,
+          previousLoginResult: options?.previousLoginResult
+        }).then(validateLoginResult);
+        loginCheckPromises.push(baseUrlCheck);
+        let loginCheck;
+        try {
+          loginCheck = await Promise.any(loginCheckPromises);
+          tryAlternateAddresses ||= loginCheck.baseUrl !== baseUrl;
+        } catch (e6) {
+          loginCheck = await baseUrlCheck;
+        }
+        if (tryAlternateAddresses)
+          console.log("Found direct login. Allowing alternate addresses.");
+        if (loginCheck.error || loginCheck.redirect)
+          throw new ScryptedClientLoginError(loginCheck);
+        localAddresses = loginCheck.addresses;
+        externalAddresses = loginCheck.externalAddresses;
+        scryptedCloud = loginCheck.scryptedCloud;
+        directAddress = loginCheck.directAddress;
+        cloudAddress = loginCheck.cloudAddress;
+        username = loginCheck.username;
+        authorization = loginCheck.authorization;
+        queryToken = loginCheck.queryToken;
+        token = loginCheck.token;
+        hostname = loginCheck.hostname;
+        serverId = loginCheck.serverId;
+        console.log("login checked", Date.now() - start, loginCheck);
+      }
+      let socket;
+      const eioPath = `endpoint/${pluginId}/engine.io/api`;
+      const eioEndpoint = baseUrl ? new URL(eioPath, baseUrl).pathname : "/" + eioPath;
+      const cacheBust = Math.random().toString(36).substring(3, 10);
+      const eioOptions = {
+        path: eioEndpoint,
+        query: {
+          cacheBust
+        },
+        withCredentials: true,
+        extraHeaders,
+        rejectUnauthorized: false,
+        transports: options?.transports
+      };
+      const explicitBaseUrl = baseUrl || `${globalThis.location.protocol}//${globalThis.location.host}`;
+      const addresses = [];
+      const localAddressDefault = isNotChromeOrIsInstalledApp;
+      tryAlternateAddresses ||= scryptedCloud;
+      if ((tryAlternateAddresses && options.local === void 0 && localAddressDefault || options.local) && localAddresses) {
+        addresses.push(...localAddresses);
+      }
+      const directAddressDefault = directAddress && (isNotChromeOrIsInstalledApp || !(0, ip_1.isIPAddress)(directAddress));
+      if ((tryAlternateAddresses && options.direct === void 0 && directAddressDefault || options.direct) && directAddress) {
+        addresses.push(directAddress);
+      }
+      if (tryAlternateAddresses && options.direct === void 0 || options.direct) {
+        if (cloudAddress)
+          addresses.push(cloudAddress);
+        for (const externalAddress of externalAddresses || []) {
+          addresses.push(externalAddress);
+        }
+      }
+      const tryAddresses = !!addresses.length;
+      console.log({
+        tryLocalAddressess: tryAddresses
+      });
+      const localEioOptions = {
+        ...eioOptions,
+        extraHeaders: {
+          ...eioOptions.extraHeaders
+        }
+      };
+      localEioOptions.extraHeaders["Authorization"] ||= authorization;
+      let sockets = [];
+      const promises = [];
+      if (tryAddresses) {
+        for (const address2 of new Set(addresses)) {
+          console.log("trying", address2);
+          const check = new eio.Socket(address2, localEioOptions);
+          sockets.push(check);
+          promises.push((async () => {
+            await once(check, "open");
+            return {
+              connectionType: "http-direct",
+              ready: check,
+              address: address2
+            };
+          })());
+        }
+      }
+      const p2pPromises = [...promises];
+      promises.push((async () => {
+        const waitDuration = tryAddresses ? 1e3 : 0;
+        console.log("waiting", waitDuration);
+        if (waitDuration) {
+          try {
+            const any2 = Promise.any(p2pPromises);
+            await (0, promise_utils_1.timeoutPromise)(waitDuration, any2);
+            console.log("found direct connection, aborting scrypted cloud connection");
+            return;
+          } catch (e6) {
+          }
+        }
+        const check = new eio.Socket(explicitBaseUrl, eioOptions);
+        sockets.push(check);
+        await once(check, "open");
+        return {
+          ready: check,
+          address: explicitBaseUrl,
+          connectionType: scryptedCloud ? "http-cloud" : "http"
+        };
+      })());
+      const any = Promise.any(promises);
+      let { ready, connectionType, address, rpcPeer } = await any;
+      console.log("connected", connectionType, address);
+      socket = ready;
+      sockets = sockets.filter((s5) => s5 !== ready);
+      sockets.forEach((s5) => {
+        try {
+          s5.close();
+        } catch (e6) {
+        }
+      });
+      try {
+        if (!rpcPeer) {
+          const serializer = (0, rpc_serializer_1.createRpcSerializer)({
+            sendMessageBuffer: (buffer) => socket.send(buffer),
+            sendMessageFinish: (message) => socket.send(JSON.stringify(message))
+          });
+          rpcPeer = new rpc_1.RpcPeer(clientName || "engine.io-client", "api", (message, reject, serializationContext) => {
+            try {
+              serializer.sendMessage(message, reject, serializationContext);
+            } catch (e6) {
+              reject?.(e6);
+            }
+          });
+          socket.on("message", (data) => {
+            if (data.constructor === Buffer || data.constructor === ArrayBuffer) {
+              serializer.onMessageBuffer(Buffer.from(data));
+            } else {
+              serializer.onMessageFinish(JSON.parse(data));
+            }
+          });
+          serializer.setupRpcPeer(rpcPeer);
+        }
+        const scrypted = await (0, plugin_remote_1.attachPluginRemote)(rpcPeer, void 0);
+        const { serverVersion, systemManager, deviceManager, endpointManager, mediaManager, clusterManager } = scrypted;
+        console.log("api attached", Date.now() - start);
+        mediaManager.createMediaObject = async (data, mimeType, options2) => {
+          return new mediaobject_1.MediaObject(mimeType, data, options2);
+        };
+        const [admin] = await Promise.all([
+          (async () => {
+            try {
+              const info = await systemManager.getComponent("info");
+              return !!info;
+            } catch (e6) {
+            }
+            return false;
+          })()
+        ]);
+        console.log("api initialized", Date.now() - start);
+        const userDevice = Object.keys(systemManager.getSystemState()).map((id) => systemManager.getDeviceById(id)).find((device) => device.pluginId === "@scrypted/core" && device.nativeId === `user:${username}`);
+        const clusterPeers = /* @__PURE__ */ new Map();
+        const finalizationRegistry = new FinalizationRegistry((clusterPeer) => {
+          clusterPeer.kill("object finalized");
+        });
+        const ensureClusterPeer = (clusterObject, connectRPCObjectOptions) => {
+          if (!connectRPCObjectOptions?.dedicatedTransport) {
+            let clusterPeerPromise2 = clusterPeers.get(clusterObject.port);
+            if (clusterPeerPromise2)
+              return clusterPeerPromise2;
+          }
+          const clusterPeerPromise = (async () => {
+            const eioPath2 = "engine.io/connectRPCObject";
+            const eioEndpoint2 = new URL(eioPath2, address).pathname;
+            const clusterPeerOptions = {
+              path: eioEndpoint2,
+              query: {
+                cacheBust,
+                clusterObject: JSON.stringify(clusterObject),
+                ...queryToken
+              },
+              withCredentials: true,
+              extraHeaders,
+              rejectUnauthorized: false,
+              transports: options?.transports
+            };
+            const clusterPeerSocket = new eio.Socket(address, clusterPeerOptions);
+            let peerReady = false;
+            let receiveTimeout;
+            let sendTimeout;
+            let clusterPeer;
+            const clearTimers = () => {
+              if (receiveTimeout) {
+                clearTimeout(receiveTimeout);
+                receiveTimeout = void 0;
+              }
+              if (sendTimeout) {
+                clearTimeout(sendTimeout);
+                sendTimeout = void 0;
+              }
+            };
+            const resetReceiveTimeout = connectRPCObjectOptions?.dedicatedTransport?.receiveTimeout ? () => {
+              if (receiveTimeout) {
+                clearTimeout(receiveTimeout);
+              }
+              receiveTimeout = setTimeout(() => {
+                if (clusterPeer) {
+                  clusterPeer.kill("receive timeout");
+                }
+              }, connectRPCObjectOptions.dedicatedTransport.receiveTimeout);
+            } : void 0;
+            const resetSendTimeout = connectRPCObjectOptions?.dedicatedTransport?.sendTimeout ? () => {
+              if (sendTimeout) {
+                clearTimeout(sendTimeout);
+              }
+              sendTimeout = setTimeout(() => {
+                if (clusterPeer) {
+                  clusterPeer.kill("send timeout");
+                }
+              }, connectRPCObjectOptions.dedicatedTransport.sendTimeout);
+            } : void 0;
+            clusterPeerSocket.on("close", () => {
+              clusterPeer?.kill("socket closed");
+              if (!connectRPCObjectOptions?.dedicatedTransport) {
+                clusterPeers.delete(clusterObject.port);
+              }
+              if (!peerReady) {
+                throw new Error("peer disconnected before setup completed");
+              }
+            });
+            try {
+              await once(clusterPeerSocket, "open");
+              const serializer = (0, rpc_serializer_1.createRpcDuplexSerializer)({
+                write: (data) => {
+                  resetSendTimeout?.();
+                  clusterPeerSocket.send(data);
+                }
+              });
+              clusterPeerSocket.on("message", (data) => {
+                resetReceiveTimeout?.();
+                serializer.onData(Buffer.from(data));
+              });
+              clusterPeer = new rpc_1.RpcPeer(clientName || "engine.io-client", "cluster-proxy", (message, reject, serializationContext) => {
+                try {
+                  resetSendTimeout?.();
+                  serializer.sendMessage(message, reject, serializationContext);
+                } catch (e6) {
+                  reject?.(e6);
+                }
+              });
+              clusterPeer.killedSafe.finally(() => {
+                clearTimers();
+                clusterPeerSocket.close();
+              });
+              serializer.setupRpcPeer(clusterPeer);
+              clusterPeer.tags.localPort = sourcePeerId;
+              peerReady = true;
+              resetReceiveTimeout?.();
+              resetSendTimeout?.();
+              return clusterPeer;
+            } catch (e6) {
+              clearTimers();
+              console.error("failure ipc connect", e6);
+              clusterPeerSocket.close();
+              throw e6;
+            }
+          })();
+          if (!connectRPCObjectOptions?.dedicatedTransport) {
+            clusterPeers.set(clusterObject.port, clusterPeerPromise);
+          }
+          return clusterPeerPromise;
+        };
+        const resolveObject = async (proxyId, sourcePeerPort) => {
+          const sourcePeer = await clusterPeers.get(sourcePeerPort);
+          if (sourcePeer?.remoteWeakProxies) {
+            return Object.values(sourcePeer.remoteWeakProxies).find((v2) => v2.deref()?.__cluster?.proxyId == proxyId)?.deref();
+          }
+          return null;
+        };
+        const connectRPCObject = async (value, options2) => {
+          const clusterObject = value?.__cluster;
+          if (!clusterObject) {
+            return value;
+          }
+          const { port, proxyId } = clusterObject;
+          const resolved = await resolveObject(proxyId, port);
+          if (resolved) {
+            return resolved;
+          }
+          try {
+            const clusterPeerPromise = ensureClusterPeer(clusterObject, options2);
+            const clusterPeer = await clusterPeerPromise;
+            const connectRPCObject2 = await clusterPeer.getParam("connectRPCObject");
+            try {
+              const newValue = await connectRPCObject2(clusterObject);
+              if (!newValue)
+                throw new Error("ipc object not found?");
+              if (options2?.dedicatedTransport) {
+                finalizationRegistry.register(newValue, clusterPeer);
+              }
+              return newValue;
+            } catch (e6) {
+              if (options2?.dedicatedTransport) {
+                clusterPeer.kill("connectRPCObject failed");
+              }
+              throw e6;
+            }
+          } catch (e6) {
+            console.error("failure ipc", e6);
+            return value;
+          }
+        };
+        const ret = {
+          userId: userDevice?.id,
+          serverVersion,
+          username,
+          pluginRemoteAPI: void 0,
+          address,
+          connectionType,
+          admin,
+          systemManager,
+          clusterManager,
+          deviceManager,
+          endpointManager,
+          mediaManager,
+          disconnect() {
+            rpcPeer.kill("disconnect requested");
+          },
+          pluginHostAPI: void 0,
+          rpcPeer,
+          loginResult: {
+            username,
+            token,
+            directAddress,
+            localAddresses,
+            externalAddresses,
+            scryptedCloud,
+            queryToken,
+            authorization,
+            cloudAddress,
+            hostname,
+            serverId
+          },
+          connectRPCObject,
+          fork: void 0,
+          connect: void 0
+        };
+        socket.on("close", () => {
+          rpcPeer.kill("socket closed");
+        });
+        rpcPeer.killed.finally(() => {
+          socket.close();
+          ret.onClose?.();
+        });
+        return ret;
+      } catch (e6) {
+        socket.close();
+        throw e6;
+      }
+    }
+  }
+});
 var t = globalThis;
 var e = t.ShadowRoot && (void 0 === t.ShadyCSS || t.ShadyCSS.nativeShadow) && "adoptedStyleSheets" in Document.prototype && "replace" in CSSStyleSheet.prototype;
 var s = Symbol();
@@ -767,42 +7822,14 @@ var FOOT_RX = 46;
 var FOOT_RY = 10;
 var FLOOR_Y = 78;
 var BASIN_HALF_W = 86;
-var MAX_MOUND_HEIGHT = 46;
 var BODY_PATH = `M ${CX + RIM_RX} ${RIM_CY} C ${CX + RIM_RX} ${RIM_CY + 50}, ${CX + 70} ${FOOT_CY - 13}, ${CX + FOOT_RX} ${FOOT_CY} A ${FOOT_RX} ${FOOT_RY} 0 0 1 ${CX - FOOT_RX} ${FOOT_CY} C ${CX - 70} ${FOOT_CY - 13}, ${CX - RIM_RX} ${RIM_CY + 50}, ${CX - RIM_RX} ${RIM_CY} A ${RIM_RX} ${RIM_RY} 0 0 0 ${CX + RIM_RX} ${RIM_CY} Z`;
 var SCATTER = [-0.6, -0.32, -0.06, 0.2, 0.46, 0.66, -0.46, 0.08, 0.34, -0.2];
-function moundPath(left, right, height) {
-  const cx = (left + right) / 2;
-  return `M ${left} ${FLOOR_Y} Q ${cx} ${FLOOR_Y - 2 * height} ${right} ${FLOOR_Y} Z`;
-}
-function moundTopY(t5, left, right, height) {
-  const peakControlY = FLOOR_Y - 2 * height;
-  return (1 - t5) * (1 - t5) * FLOOR_Y + 2 * (1 - t5) * t5 * peakControlY + t5 * t5 * FLOOR_Y;
-}
 function cloverPiece(x2, y3, r6, rotationDeg) {
   const lobes = [0, 120, 240].map((angle) => {
     const rad = (angle + rotationDeg) * Math.PI / 180;
     return w`<circle cx=${(x2 + Math.cos(rad) * r6 * 0.55).toFixed(1)} cy=${(y3 + Math.sin(rad) * r6 * 0.55).toFixed(1)} r=${(r6 * 0.62).toFixed(1)} />`;
   });
   return w`<g>${lobes}</g>`;
-}
-function mound(left, right, fraction, seed) {
-  if (fraction <= 0.02) return A;
-  const height = MAX_MOUND_HEIGHT * fraction;
-  const pieceCount = Math.round(6 + 4 * fraction);
-  const pieces = [];
-  for (let i6 = 0; i6 < pieceCount; i6++) {
-    const t5 = (i6 + 0.5) / pieceCount;
-    const x2 = left + (right - left) * t5;
-    const topY = moundTopY(t5, left, right, height);
-    const jitter = SCATTER[(i6 + seed) % SCATTER.length] * 6;
-    const r6 = 5.5 + (i6 + seed) % 3 * 1.4;
-    const edgeBreak = i6 === 0 || i6 === pieceCount - 1 ? i6 === 0 ? -3 : 3 : 0;
-    pieces.push(cloverPiece(x2 + edgeBreak, topY + jitter - 2, r6, i6 * 47 + seed * 13));
-  }
-  return w`
-    <path d=${moundPath(left, right, height)} class="fill" />
-    <g class="texture">${pieces}</g>
-  `;
 }
 var KibbleBowl = class extends i4 {
   constructor() {
@@ -841,10 +7868,17 @@ var KibbleBowl = class extends i4 {
     return b2`
       <div class="wrap">
         <svg class="art" viewBox="0 0 ${VIEW_W} ${VIEW_H}" aria-hidden="true" preserveAspectRatio="xMidYMin meet">
+          <defs>
+            <clipPath id="bowl-clip"><path d=${BODY_PATH} /></clipPath>
+          </defs>
           <ellipse cx=${CX} cy=${FOOT_CY + 14} rx="66" ry="9" class="shadow" />
           <path class="body" d=${BODY_PATH} />
-          ${display.split ? this._renderSplitBasin(display.hopper1, display.hopper2) : this._renderSingleBasin(display.combined ?? 0)}
+          <g clip-path="url(#bowl-clip)">
+            ${display.split ? this._renderSplitFill(display.hopper1, display.hopper2) : this._renderFill(display.combined ?? 0, 0, VIEW_W)}
+          </g>
+          <path class="outline" d=${BODY_PATH} />
           <ellipse cx=${CX} cy=${RIM_CY} rx=${RIM_RX} ry=${RIM_RY} class="rim" />
+          ${display.split ? w`<line class="divider" x1=${CX} y1=${RIM_CY + RIM_RY} x2=${CX} y2=${FOOT_CY} />` : A}
           ${this._dropping ? this._renderFallingKibble() : A}
         </svg>
         <div class="numbers">
@@ -856,33 +7890,21 @@ var KibbleBowl = class extends i4 {
       </div>
     `;
   }
-  _renderSingleBasin(fraction0to100) {
-    const fraction = fraction0to100 / 100;
+  /** The bowl silhouette is the gauge: an amber level rises from the foot toward the rim in
+   * proportion to the fill, clipped to the body so the bowl "fills up" rather than carrying a
+   * separate pile drawn on top of it. `x`/`w` bound the fill horizontally for the split view. */
+  _renderFill(fraction0to100, x2, w2) {
+    const fraction = Math.max(0, Math.min(1, fraction0to100 / 100));
+    const top = FOOT_CY - (FOOT_CY - (RIM_CY + RIM_RY)) * fraction;
     return w`
-      <g>
-        <ellipse cx=${CX} cy="62" rx="100" ry="32" class="basin-far" />
-        <ellipse cx=${CX} cy="68" rx="90" ry="25" class="basin-near" />
-        ${mound(CX - BASIN_HALF_W * (0.32 + 0.68 * Math.sqrt(fraction)), CX + BASIN_HALF_W * (0.32 + 0.68 * Math.sqrt(fraction)), fraction, 0)}
-      </g>
+      <rect class="fill" x=${x2} y=${top} width=${w2} height=${FOOT_CY - top + 20} />
+      ${fraction > 0 ? w`<rect class="fill-surface" x=${x2} y=${top - 1.5} width=${w2} height="3" />` : A}
     `;
   }
-  _renderSplitBasin(hopper1, hopper2) {
-    const leftCenter = CX - 44;
-    const rightCenter = CX + 44;
-    const halfW = 40;
-    const f1 = hopper1 / 100;
-    const f22 = hopper2 / 100;
+  _renderSplitFill(hopper1, hopper2) {
     return w`
-      <g>
-        <ellipse cx=${CX} cy="62" rx="100" ry="32" class="basin-far" />
-        <ellipse cx=${CX} cy="68" rx="90" ry="25" class="basin-near" />
-        ${mound(leftCenter - halfW * (0.35 + 0.65 * Math.sqrt(f1)), leftCenter + halfW * (0.35 + 0.65 * Math.sqrt(f1)), f1, 1)}
-        ${mound(rightCenter - halfW * (0.35 + 0.65 * Math.sqrt(f22)), rightCenter + halfW * (0.35 + 0.65 * Math.sqrt(f22)), f22, 4)}
-        <g class="divider">
-          <line x1=${CX - 3} y1="46" x2=${CX - 3} y2="90" />
-          <line x1=${CX + 3} y1="46" x2=${CX + 3} y2="90" />
-        </g>
-      </g>
+      ${this._renderFill(hopper1, 0, CX)}
+      ${this._renderFill(hopper2, CX, VIEW_W - CX)}
     `;
   }
   _renderFallingKibble() {
@@ -918,6 +7940,9 @@ var KibbleBowl = class extends i4 {
     }
     .body {
       fill: var(--secondary-background-color, rgba(127, 127, 127, 0.1));
+    }
+    .outline {
+      fill: none;
       stroke: var(--primary-text-color);
       stroke-width: 2.6;
       stroke-linejoin: round;
@@ -927,20 +7952,17 @@ var KibbleBowl = class extends i4 {
       stroke: var(--primary-text-color);
       stroke-width: 1.6;
     }
-    .basin-far {
-      fill: var(--divider-color);
-    }
-    .basin-near {
-      fill: var(--secondary-background-color, rgba(127, 127, 127, 0.16));
-    }
-    .divider line {
+    .divider {
       stroke: var(--primary-text-color);
-      stroke-width: 1.4;
+      stroke-width: 1.6;
+      stroke-dasharray: 4 4;
     }
     .fill {
       fill: var(--kibble-amber);
+      opacity: 0.9;
+      transition: y 400ms ease, height 400ms ease;
     }
-    .texture circle {
+    .fill-surface {
       fill: var(--kibble-amber-dark);
     }
     .drops circle {
@@ -1469,7 +8491,6 @@ var KibbleScheduleSummary = class extends i4 {
       hass: { attribute: false },
       entries: { attribute: false },
       scheduleCardStateEntity: { type: String },
-      scheduleHash: { type: String },
       deviceName: { type: String }
     };
   }
@@ -1481,14 +8502,6 @@ var KibbleScheduleSummary = class extends i4 {
   render() {
     const now = /* @__PURE__ */ new Date();
     const summary = scheduleSummary(this.entries, now);
-    if (this.scheduleHash) {
-      return b2`
-        <button type="button" class="row" @click=${this._toggle} aria-label="Open schedule">
-          <span>${summary}</span>
-          <span class="chevron">${mdiIcon("openInNew")}</span>
-        </button>
-      `;
-    }
     return b2`
       <button type="button" class="row" @click=${this._toggle} aria-expanded=${this._expanded}>
         <span>${summary}</span>
@@ -1526,10 +8539,6 @@ var KibbleScheduleSummary = class extends i4 {
     return state2 !== void 0 && state2.state !== "unavailable";
   }
   _toggle() {
-    if (this.scheduleHash) {
-      window.location.hash = this.scheduleHash;
-      return;
-    }
     this._expanded = !this._expanded;
     this.requestUpdate();
   }
@@ -2231,17 +9240,396 @@ var KibbleAvatar = class extends i4 {
   }
 };
 customElements.define("kibble-avatar", KibbleAvatar);
+var import_client = __toESM(require_src(), 1);
+function findScryptedToken(hass) {
+  for (const entry2 of Object.values(hass.entities ?? {})) {
+    if (entry2.platform === "scrypted" && entry2.entity_id.startsWith("sensor.scrypted_token")) {
+      const state2 = hass.states[entry2.entity_id]?.state;
+      if (state2 && state2 !== "unavailable" && state2 !== "unknown") return state2;
+    }
+  }
+  return void 0;
+}
+var BrowserSignalingSession = class {
+  constructor() {
+    this.options = {
+      proxy: true,
+      userAgent: navigator.userAgent,
+      capabilities: {
+        audio: RTCRtpReceiver.getCapabilities?.("audio") ?? { codecs: [], headerExtensions: [] },
+        video: RTCRtpReceiver.getCapabilities?.("video") ?? { codecs: [], headerExtensions: [] }
+      },
+      screen: { devicePixelRatio: window.devicePixelRatio, width: screen.width, height: screen.height }
+    };
+    this.__proxy_props = { options: this.options };
+  }
+  async getOptions() {
+    return this.options;
+  }
+  createPeerConnection(setup) {
+    if (this.pc) return this.pc;
+    const pc = new RTCPeerConnection(setup.configuration);
+    this.pc = pc;
+    pc.addEventListener("iceconnectionstatechange", () => {
+      if (["disconnected", "failed", "closed"].includes(pc.iceConnectionState)) this.onClosed?.();
+    });
+    const remote = new MediaStream();
+    pc.addEventListener("track", (ev) => {
+      remote.addTrack(ev.track);
+      this.onTrack?.(remote);
+    });
+    if (setup.datachannel) pc.createDataChannel(setup.datachannel.label, setup.datachannel.dict);
+    if (setup.audio) {
+      const audio = pc.addTransceiver("audio", setup.audio);
+      if (setup.audio.direction === "sendrecv" || setup.audio.direction === "sendonly") this.microphone = audio.sender;
+    }
+    if (setup.video) pc.addTransceiver("video", setup.video);
+    return pc;
+  }
+  async createLocalDescription(type, setup, sendIceCandidate) {
+    const pc = this.createPeerConnection(setup);
+    const gathered = new Promise((resolve) => {
+      pc.onicecandidate = (ev) => {
+        if (ev.candidate) void sendIceCandidate?.(JSON.parse(JSON.stringify(ev.candidate)));
+        else resolve();
+      };
+      pc.onicegatheringstatechange = () => {
+        if (pc.iceGatheringState === "complete") resolve();
+      };
+    });
+    const local = type === "offer" ? await pc.createOffer({ offerToReceiveAudio: !!setup.audio, offerToReceiveVideo: !!setup.video }) : await pc.createAnswer();
+    const set = pc.setLocalDescription(local);
+    if (sendIceCandidate) return { type: local.type, sdp: local.sdp };
+    await set;
+    await gathered;
+    const final = pc.localDescription ?? local;
+    return { type: final.type, sdp: final.sdp };
+  }
+  async setRemoteDescription(description, setup) {
+    await this.createPeerConnection(setup).setRemoteDescription(description);
+  }
+  async addIceCandidate(candidate) {
+    await this.pc?.addIceCandidate(candidate);
+  }
+  async endSession() {
+  }
+  /** Attaches the microphone on first enable (a `sendrecv` transceiver was already negotiated,
+   * so `replaceTrack` needs no renegotiation), then just flips `enabled`. */
+  async setMicrophone(enabled) {
+    if (!this.microphone) throw new Error("this stream has no return-audio channel");
+    if (enabled && !this.micTrack) {
+      const mic = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      this.micTrack = mic.getAudioTracks()[0];
+      await this.microphone.replaceTrack(this.micTrack);
+    }
+    if (this.micTrack) this.micTrack.enabled = enabled;
+  }
+  close() {
+    this.micTrack?.stop();
+    this.pc?.getSenders().forEach((s5) => s5.track?.stop());
+    this.pc?.close();
+    this.pc = void 0;
+  }
+};
+var ScryptedLive = class {
+  constructor(onChange) {
+    this.state = "idle";
+    this.hasIntercom = false;
+    this.onChange = onChange;
+  }
+  async open(target, video) {
+    this.close();
+    this.setState("connecting");
+    try {
+      const baseUrl = `${location.origin}/api/scrypted/${target.token}/`;
+      const client = await (0, import_client.connectScryptedClient)({ baseUrl, pluginId: "@scrypted/core", clientName: "kibble-card" });
+      this.client = client;
+      const device = client.systemManager.getDeviceById(target.deviceId);
+      if (!device) throw new Error(`Scrypted has no device ${target.deviceId}`);
+      const interfaces = device.interfaces ?? [];
+      if (!interfaces.includes("RTCSignalingChannel")) throw new Error(`${device.name} has no WebRTC channel in Scrypted`);
+      this.hasIntercom = interfaces.includes("Intercom");
+      const session = new BrowserSignalingSession();
+      this.session = session;
+      session.onTrack = (stream) => {
+        if (video.srcObject !== stream) {
+          video.srcObject = stream;
+          void video.play().catch(() => void 0);
+        }
+        this.setState("live");
+      };
+      session.onClosed = () => {
+        if (this.session === session) this.fail("stream disconnected");
+      };
+      const channel = device;
+      this.control = await channel.startRTCSignalingSession(session);
+    } catch (e6) {
+      this.fail(e6 instanceof Error ? e6.message : String(e6));
+      throw e6;
+    }
+  }
+  /** Push-to-talk. The mic track is attached on first use, then only `enabled` flips; Scrypted's
+   * session control is told to start/stop feeding the camera's `Intercom` so the feeder's
+   * speaker session lasts exactly as long as the button is held. */
+  async talk(enabled) {
+    if (!this.session) throw new Error("not connected");
+    await this.session.setMicrophone(enabled);
+    await this.control?.setPlayback({ audio: enabled, video: true });
+  }
+  close() {
+    void this.control?.setPlayback({ audio: false, video: true }).catch(() => void 0);
+    this.control = void 0;
+    this.session?.close();
+    this.session = void 0;
+    this.client?.disconnect?.();
+    this.client = void 0;
+    if (this.state !== "idle") this.setState("idle");
+  }
+  fail(message) {
+    this.error = message;
+    this.session?.close();
+    this.session = void 0;
+    this.setState("error");
+  }
+  setState(state2) {
+    this.state = state2;
+    if (state2 !== "error") this.error = void 0;
+    this.onChange();
+  }
+};
+var KibbleLiveHero = class extends i4 {
+  constructor() {
+    super();
+    this._live = new ScryptedLive(() => {
+      this._tick = (this._tick ?? 0) + 1;
+    });
+    this._start = async () => {
+      const token = findScryptedToken(this.hass);
+      if (!token || !this.scryptedId) return;
+      this._playing = true;
+      await this.updateComplete;
+      const video = this.renderRoot.querySelector("#video");
+      if (!video) return;
+      try {
+        await this._live.open({ deviceId: this.scryptedId, token }, video);
+      } catch {
+        this._playing = false;
+      }
+    };
+    this._stop = () => {
+      this._live.close();
+      this._playing = false;
+      this._talking = false;
+    };
+    this._toggleMute = () => {
+      this._muted = !this._muted;
+      this._applyMute();
+    };
+    this._applyMute = () => {
+      const video = this.renderRoot.querySelector("#video");
+      if (!video) return;
+      video.muted = this._muted;
+      void video.play().catch(() => void 0);
+    };
+    this._talkStart = async (event) => {
+      event.preventDefault();
+      if (this._talking) return;
+      this._talking = true;
+      try {
+        await this._live.talk(true);
+      } catch {
+        this._talking = false;
+      }
+    };
+    this._talkStop = async () => {
+      if (!this._talking) return;
+      this._talking = false;
+      try {
+        await this._live.talk(false);
+      } catch {
+      }
+    };
+    this._talkKeyDown = (event) => {
+      if (event.key === " " || event.key === "Enter") void this._talkStart(event);
+    };
+    this._playing = false;
+    this._talking = false;
+    this._muted = true;
+    this._tick = 0;
+  }
+  static {
+    this.properties = {
+      hass: { attribute: false },
+      cameraEntity: { attribute: false },
+      scryptedId: { attribute: false },
+      _playing: { state: true },
+      _talking: { state: true },
+      _muted: { state: true },
+      _tick: { state: true }
+    };
+  }
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    this._stop();
+  }
+  render() {
+    const token = this.hass ? findScryptedToken(this.hass) : void 0;
+    const canPlay = Boolean(token && this.scryptedId);
+    return b2`
+      <div class="frame">
+        ${this._playing ? this._renderVideo() : this._renderStill()}
+        <div class="controls">
+          ${canPlay ? b2`<button
+                class="chip"
+                aria-pressed=${this._playing}
+                @click=${this._playing ? this._stop : this._start}
+                title=${this._playing ? "Stop live view" : "Start live view"}
+              >
+                ${this._playing ? mdiIcon("close") : mdiIcon("volumeHigh")}
+                <span>${this._playing ? "Stop" : "Live"}</span>
+              </button>` : A}
+          ${this._playing ? b2`<button
+                class="chip"
+                aria-pressed=${!this._muted}
+                @click=${this._toggleMute}
+                title=${this._muted ? "Unmute the feeder" : "Mute the feeder"}
+              >
+                ${mdiIcon(this._muted ? "speaker" : "volumeHigh")}
+                <span>${this._muted ? "Sound off" : "Sound on"}</span>
+              </button>` : A}
+          ${this._playing && this._live.hasIntercom ? b2`<button
+                class="chip talk"
+                data-talking=${this._talking}
+                @pointerdown=${this._talkStart}
+                @pointerup=${this._talkStop}
+                @pointercancel=${this._talkStop}
+                @pointerleave=${this._talkStop}
+                @keydown=${this._talkKeyDown}
+                @keyup=${this._talkStop}
+                title="Hold to talk to the feeder"
+              >
+                ${mdiIcon("microphone")}
+                <span>${this._talking ? "Talking\u2026" : "Hold to talk"}</span>
+              </button>` : A}
+        </div>
+        ${this._live.state === "connecting" ? b2`<div class="note">Connecting…</div>` : A}
+        ${this._live.state === "error" ? b2`<div class="note error">${this._live.error}</div>` : A}
+      </div>
+    `;
+  }
+  _renderVideo() {
+    return b2`<video id="video" autoplay playsinline ?muted=${this._muted} @loadedmetadata=${this._applyMute}></video>`;
+  }
+  _renderStill() {
+    if (!this.cameraEntity) return b2`<div class="placeholder">No camera on this device</div>`;
+    if (customElements.get("hui-image")) {
+      return b2`<hui-image .hass=${this.hass} .cameraImage=${this.cameraEntity} cameraView="auto"></hui-image>`;
+    }
+    const src = this.hass.states[this.cameraEntity]?.attributes.entity_picture;
+    return typeof src === "string" ? b2`<img src=${src} alt="The feeder's camera" />` : b2`<div class="placeholder">Camera unavailable</div>`;
+  }
+  static {
+    this.styles = i`
+    :host {
+      display: block;
+      height: 100%;
+    }
+    .frame {
+      position: absolute;
+      inset: 0;
+      background: #101010;
+    }
+    video,
+    img,
+    hui-image {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .placeholder {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      color: #bbb;
+      font-size: 14px;
+    }
+    .controls {
+      position: absolute;
+      left: 8px;
+      right: 8px;
+      bottom: 8px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      justify-content: flex-end;
+      pointer-events: none;
+    }
+    .chip {
+      pointer-events: auto;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-height: 34px;
+      padding: 0 12px;
+      border: none;
+      border-radius: 999px;
+      background: rgba(0, 0, 0, 0.55);
+      color: #fff;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      backdrop-filter: blur(2px);
+    }
+    .chip svg {
+      font-size: 16px;
+    }
+    .chip:hover {
+      background: rgba(0, 0, 0, 0.7);
+    }
+    .chip.talk {
+      touch-action: none;
+      user-select: none;
+    }
+    .chip.talk[data-talking="true"] {
+      background: var(--kibble-amber, #f2a33c);
+      color: var(--kibble-ink-on-amber, #241a07);
+    }
+    .note {
+      position: absolute;
+      left: 8px;
+      bottom: 50px;
+      padding: 3px 9px;
+      border-radius: 999px;
+      background: rgba(0, 0, 0, 0.55);
+      color: #fff;
+      font-size: 12px;
+      max-width: calc(100% - 16px);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .note.error {
+      color: var(--error-color, #ff8a80);
+    }
+  `;
+  }
+};
+customElements.define("kibble-live-hero", KibbleLiveHero);
 var SCHEMA = [
   { name: "device_id", required: true, selector: { device: { filter: { integration: "kibble" } } } },
   { name: "name", selector: { text: {} } },
+  { name: "scrypted_id", selector: { text: {} } },
   { name: "settings_hash", selector: { text: {} } },
   { name: "schedule_hash", selector: { text: {} } }
 ];
 var FIELD_LABELS = {
   device_id: "Kibble device",
   name: "Name (optional)",
+  scrypted_id: "Scrypted camera id (live view + talk)",
   settings_hash: "Settings pop-up hash (optional)",
-  schedule_hash: "Schedule pop-up hash (optional)"
+  schedule_hash: "Schedule handled by dashboard (optional hash)"
 };
 var KibbleCardEditor = class extends i4 {
   constructor() {
@@ -4060,7 +11448,13 @@ var KibbleCard = class extends i4 {
         <div class="container">
           <div class="root">
             <div class="hero">
-              <div class="hero-media">${this._renderCamera(e6.camera)}</div>
+              <div class="hero-media">
+                <kibble-live-hero
+                  .hass=${this.hass}
+                  .cameraEntity=${e6.camera}
+                  .scryptedId=${this._config.scrypted_id}
+                ></kibble-live-hero>
+              </div>
               <div class="hero-status">
                 <span class="live-dot" ?hidden=${!overlay.live}></span>
                 ${overlay.catName ? b2`<kibble-avatar
@@ -4096,32 +11490,17 @@ var KibbleCard = class extends i4 {
                 @activate=${feeding ? this._onCancelActivate : this._onFeedActivate}
               ></kibble-hold-button>
             </div>
-            <kibble-schedule-summary
-              class="schedule-row"
-              .hass=${this.hass}
-              .entries=${scheduleEntries}
-              .scheduleCardStateEntity=${e6.scheduleCardState}
-              .scheduleHash=${this._config.schedule_hash}
-            ></kibble-schedule-summary>
+            ${this._config.schedule_hash ? A : b2`<kibble-schedule-summary
+                  class="schedule-row"
+                  .hass=${this.hass}
+                  .entries=${scheduleEntries}
+                  .scheduleCardStateEntity=${e6.scheduleCardState}
+                ></kibble-schedule-summary>`}
           </div>
         </div>
       </ha-card>
       <kibble-settings-dialog .hass=${this.hass} .entities=${e6} ?open=${this._settingsOpen} @close-requested=${this._closeSettings}></kibble-settings-dialog>
     `;
-  }
-  _renderCamera(cameraId) {
-    if (!cameraId) {
-      return b2`<div class="hero-placeholder">No camera on this device</div>`;
-    }
-    if (customElements.get("hui-image")) {
-      return b2`<hui-image .hass=${this.hass} .cameraImage=${cameraId} cameraView="live"></hui-image>`;
-    }
-    const state2 = this.hass.states[cameraId];
-    const src = state2?.attributes.entity_picture;
-    if (!state2 || state2.state === "unavailable" || !src) {
-      return b2`<div class="hero-placeholder">Camera unavailable</div>`;
-    }
-    return b2`<img src=${src} alt="Live view of the feeder" />`;
   }
   _numberState(entityId) {
     if (!entityId) return null;

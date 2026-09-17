@@ -170,13 +170,14 @@ export class KibbleCard extends LitElement {
                 @activate=${feeding ? this._onCancelActivate : this._onFeedActivate}
               ></kibble-hold-button>
             </div>
-            <kibble-schedule-summary
-              class="schedule-row"
-              .hass=${this.hass}
-              .entries=${scheduleEntries}
-              .scheduleCardStateEntity=${e.scheduleCardState}
-              .scheduleHash=${this._config.schedule_hash}
-            ></kibble-schedule-summary>
+            ${this._config.schedule_hash
+              ? nothing
+              : html`<kibble-schedule-summary
+                  class="schedule-row"
+                  .hass=${this.hass}
+                  .entries=${scheduleEntries}
+                  .scheduleCardStateEntity=${e.scheduleCardState}
+                ></kibble-schedule-summary>`}
           </div>
         </div>
       </ha-card>

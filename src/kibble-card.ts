@@ -47,8 +47,8 @@ function portionStyles(selected: boolean, disabled: boolean): string {
   return `
   .bubble-button-card-container { height: var(--kibble-touch-target, 48px) !important; ${selected ? "background: var(--kibble-amber, #f2a33c) !important;" : ""} ${disabled ? "opacity: 0.5;" : ""} }
   .bubble-button-card { padding: 0 !important; }
-  .bubble-name-container { margin: 0 !important; justify-content: center; width: 100%; }
-  .bubble-name { font-size: 17px; font-weight: 600; ${selected ? "color: var(--kibble-ink-on-amber, #241a07) !important;" : ""} }
+  .bubble-name-container { margin: 0 !important; width: 100%; justify-content: center; }
+  .bubble-name { width: 100%; justify-content: center; text-align: center; font-size: 17px; font-weight: 600; ${selected ? "color: var(--kibble-ink-on-amber, #241a07) !important;" : ""} }
 `;
 }
 const FEEDING_ROW_STYLES = `

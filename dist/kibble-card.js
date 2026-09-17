@@ -2340,8 +2340,8 @@ ${t.peerName}:${t.selfName}`)}};Me.RPCResultError=pe;try{let i=FinalizationRegis
 `;function _u(i,t){return`
   .bubble-button-card-container { height: var(--kibble-touch-target, 48px) !important; ${i?"background: var(--kibble-amber, #f2a33c) !important;":""} ${t?"opacity: 0.5;":""} }
   .bubble-button-card { padding: 0 !important; }
-  .bubble-name-container { margin: 0 !important; justify-content: center; width: 100%; }
-  .bubble-name { font-size: 17px; font-weight: 600; ${i?"color: var(--kibble-ink-on-amber, #241a07) !important;":""} }
+  .bubble-name-container { margin: 0 !important; width: 100%; justify-content: center; }
+  .bubble-name { width: 100%; justify-content: center; text-align: center; font-size: 17px; font-weight: 600; ${i?"color: var(--kibble-ink-on-amber, #241a07) !important;":""} }
 `}var vu=`
   .bubble-button-card-container { background: var(--error-color, #d9534f) !important; height: 56px !important; }
   .bubble-name { font-size: 17px; font-weight: 600; }

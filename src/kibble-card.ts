@@ -547,7 +547,7 @@ export class KibbleCard extends LitElement {
     .bowl-block {
       grid-area: bowl;
       padding: 8px 14px 0;
-      --kibble-bowl-max-width: 250px;
+      --kibble-bowl-max-width: 300px;
     }
     .feed-controls {
       grid-area: feed;
@@ -596,7 +596,7 @@ export class KibbleCard extends LitElement {
     }
     :host(.compact) .bowl-block {
       padding-top: 2px;
-      --kibble-bowl-max-width: 200px;
+      --kibble-bowl-max-width: 260px;
     }
 
     /* >=640px: two columns, camera left, silo/feed/schedule stacked right. The camera is 60%
@@ -643,7 +643,7 @@ export class KibbleCard extends LitElement {
         align-items: center;
         justify-content: center;
         padding: 4px 16px 0;
-        --kibble-bowl-max-width: 250px;
+        --kibble-bowl-max-width: 300px;
       }
       .bowl-block > * {
         height: 100%;

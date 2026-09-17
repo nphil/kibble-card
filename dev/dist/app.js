@@ -7814,19 +7814,20 @@ function combineBowlFill(hopper1, hopper2) {
   }
   return { split: true, hopper1, hopper2, combined: null };
 }
-var VIEW_W = 200;
-var VIEW_H = 224;
-var CX = 100;
-var BODY_X = 36;
-var BODY_Y = 14;
-var BODY_W = 128;
-var BODY_H = 200;
-var BODY_R = 18;
-var WIN_TOP = 44;
-var WIN_BOTTOM = 184;
-var WIN_W = 24;
-var WIN_R = 10;
-var WIN_GAP = 36;
+var VIEW_W = 240;
+var VIEW_H = 150;
+var CX = 120;
+var RIM_Y = 40;
+var RIM_X = 14;
+var RIM_W = VIEW_W - RIM_X * 2;
+var RIM_H = 16;
+var FOOT_Y = 128;
+var FOOT_X = 46;
+var FOOT_W = VIEW_W - FOOT_X * 2;
+var CAV_TOP = RIM_Y + 6;
+var CAV_BOTTOM = 112;
+var CAV_INSET = 22;
+var DIVIDER_W = 8;
 var TEXTURE_STEP = 9;
 var SCATTER = [-0.5, -0.2, 0.1, 0.4, -0.35, 0.25, 0];
 function cloverPiece(x2, y3, r6, rotationDeg) {
@@ -7836,12 +7837,43 @@ function cloverPiece(x2, y3, r6, rotationDeg) {
   });
   return w`<g>${lobes}</g>`;
 }
+function dishPath() {
+  const r6 = 10;
+  const left = RIM_X;
+  const right = RIM_X + RIM_W;
+  const fl = FOOT_X;
+  const fr = FOOT_X + FOOT_W;
+  return [
+    `M ${left + r6} ${RIM_Y}`,
+    `H ${right - r6}`,
+    `q ${r6} 0 ${r6} ${r6}`,
+    `L ${fr + 4} ${FOOT_Y - r6}`,
+    `q ${-2} ${r6} ${-r6 - 2} ${r6}`,
+    `H ${fl + r6 - 2}`,
+    `q ${-r6} 0 ${-r6 - 2} ${-r6}`,
+    `L ${left} ${RIM_Y + r6}`,
+    `q 0 ${-r6} ${r6} ${-r6}`,
+    "Z"
+  ].join(" ");
+}
+function cavityPath(x0, x1) {
+  const r6 = 12;
+  const taper = 8;
+  return [
+    `M ${x0} ${CAV_TOP}`,
+    `H ${x1}`,
+    `L ${x1 - taper} ${CAV_BOTTOM - r6}`,
+    `q 0 ${r6} ${-r6} ${r6}`,
+    `H ${x0 + taper + r6}`,
+    `q ${-r6} 0 ${-r6} ${-r6}`,
+    "Z"
+  ].join(" ");
+}
 var KibbleBowl = class extends i4 {
   constructor() {
     super();
     this._wasFeeding = false;
     this._dropping = false;
-    this._dropTimer = void 0;
     this.hopper1 = null;
     this.hopper2 = null;
     this.feeding = false;
@@ -7858,23 +7890,27 @@ var KibbleBowl = class extends i4 {
     clearTimeout(this._dropTimer);
   }
   willUpdate(changed) {
-    if (changed.has("feeding") && this.feeding && !this._wasFeeding && !prefersReducedMotion()) {
-      this._dropping = true;
-      clearTimeout(this._dropTimer);
-      this._dropTimer = setTimeout(() => {
-        this._dropping = false;
-        this.requestUpdate();
-      }, KIBBLE_FALL_DURATION_MS);
+    if (changed.has("feeding")) {
+      if (this.feeding && !this._wasFeeding && !prefersReducedMotion()) {
+        this._dropping = true;
+        clearTimeout(this._dropTimer);
+        this._dropTimer = setTimeout(() => {
+          this._dropping = false;
+          this.requestUpdate();
+        }, KIBBLE_FALL_DURATION_MS);
+      }
+      this._wasFeeding = this.feeding;
     }
-    this._wasFeeding = this.feeding;
   }
   render() {
     const display = combineBowlFill(this.hopper1, this.hopper2);
-    const label = display.split ? `Hopper 1 ${Math.round(display.hopper1)}%, hopper 2 ${Math.round(display.hopper2)}%` : display.combined == null ? "Hopper level unknown" : `Hopper ${Math.round(display.combined)}% full`;
-    const windows = display.split ? [
-      { x: CX - WIN_GAP / 2 - WIN_W, w: WIN_W, mark: "01", fraction: display.hopper1 / 100 },
-      { x: CX + WIN_GAP / 2, w: WIN_W, mark: "02", fraction: display.hopper2 / 100 }
-    ] : [{ x: CX - WIN_W, w: WIN_W * 2, mark: null, fraction: (display.combined ?? 0) / 100 }];
+    const label = display.split ? `Bowl side 1 ${Math.round(display.hopper1)}%, side 2 ${Math.round(display.hopper2)}%` : display.combined == null ? "Bowl level unknown" : `Bowl ${Math.round(display.combined)}% full`;
+    const inner0 = RIM_X + CAV_INSET;
+    const inner1 = RIM_X + RIM_W - CAV_INSET;
+    const cavities = display.split ? [
+      { x0: inner0, x1: CX - DIVIDER_W / 2, mark: "01", fraction: display.hopper1 / 100 },
+      { x0: CX + DIVIDER_W / 2, x1: inner1, mark: "02", fraction: display.hopper2 / 100 }
+    ] : [{ x0: inner0, x1: inner1, mark: null, fraction: display.combined == null ? null : display.combined / 100 }];
     return b2`
       <svg class="art" viewBox="0 0 ${VIEW_W} ${VIEW_H}" role="img" aria-label=${label} preserveAspectRatio="xMidYMid meet">
         <title>${label}</title>
@@ -7889,65 +7925,79 @@ var KibbleBowl = class extends i4 {
             <stop offset="0" stop-color="var(--silo-light)" />
             <stop offset="1" stop-color="var(--silo-shade)" />
           </linearGradient>
-          <linearGradient id="silo-glass" x1="0" x2="1">
+          <linearGradient id="silo-glass" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0" stop-color="var(--silo-glass-edge)" />
-            <stop offset="0.5" stop-color="var(--silo-glass)" />
-            <stop offset="1" stop-color="var(--silo-glass-edge)" />
+            <stop offset="1" stop-color="var(--silo-glass)" />
           </linearGradient>
           <linearGradient id="silo-food" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0" stop-color="var(--kibble-amber)" />
             <stop offset="1" stop-color="var(--kibble-amber-dark)" />
           </linearGradient>
           <filter id="silo-inner" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="2.4" /></filter>
-          ${windows.map((w2, i6) => w`<clipPath id=${`silo-win-${i6}`}><rect x=${w2.x} y=${WIN_TOP} width=${w2.w} height=${WIN_BOTTOM - WIN_TOP} rx=${WIN_R} /></clipPath>`)}
+          ${cavities.map((c5, i6) => w`<clipPath id=${`silo-win-${i6}`}><path d=${cavityPath(c5.x0, c5.x1)} /></clipPath>`)}
         </defs>
-        <rect class="body" x=${BODY_X} y=${BODY_Y} width=${BODY_W} height=${BODY_H} rx=${BODY_R} />
-        <rect class="cap" x=${BODY_X} y=${BODY_Y} width=${BODY_W} height="26" rx="13" />
-        <rect class="cap-highlight" x=${BODY_X + 6} y=${BODY_Y + 6} width=${BODY_W - 12} height="9" rx="4.5" />
-        <rect class="body-edge" x=${BODY_X} y=${BODY_Y} width=${BODY_W} height=${BODY_H} rx=${BODY_R} />
-        ${windows.map((w2, i6) => this._renderWindow(w2, i6))}
+        <path class="body" d=${dishPath()} />
+        <rect class="cap" x=${RIM_X} y=${RIM_Y} width=${RIM_W} height=${RIM_H} rx="8" />
+        <rect class="cap-highlight" x=${RIM_X + 8} y=${RIM_Y + 4} width=${RIM_W - 16} height="4" rx="2" />
+        <path class="body-edge" d=${dishPath()} />
+        ${cavities.map((c5, i6) => this._renderCavity(c5, i6))}
         ${this._dropping ? this._renderFallingKibble() : A}
       </svg>
     `;
   }
-  /** One sight window: recessed dark glass with an inner shadow, the level clipped to it with a
-   * kibble texture and a surface highlight (nothing at zero — an empty hopper is an empty window,
-   * not a sliver), a vertical reflection, and the printed mark above. */
-  _renderWindow(w2, i6) {
-    const fraction = Math.max(0, Math.min(1, w2.fraction));
-    const top = WIN_BOTTOM - (WIN_BOTTOM - WIN_TOP) * fraction;
+  /** One cavity: recessed dark interior with an inner shadow, the level clipped to it with a
+   * kibble texture and a surface highlight (nothing at zero — an empty bowl is an empty cavity,
+   * not a sliver), and the printed mark on the rim above. A `null` fraction means the feeder has
+   * no reading (kibble docs/34): the cavity shows a "?" rather than reading as empty, which is
+   * the difference between "I don't know" and "your cat has no food". */
+  _renderCavity(c5, i6) {
     const clip = `url(#silo-win-${i6})`;
+    const w2 = c5.x1 - c5.x0;
+    const markX = c5.x0 + w2 / 2;
+    if (c5.fraction == null) {
+      return w`
+        <g>
+          <path class="glass" d=${cavityPath(c5.x0, c5.x1)} />
+          <text class="unknown" x=${markX} y=${(CAV_TOP + CAV_BOTTOM) / 2 + 2} text-anchor="middle" dominant-baseline="central">?</text>
+          ${c5.mark ? w`<text class="mark" x=${markX} y=${RIM_Y + 11} text-anchor="middle">${c5.mark}</text>` : A}
+        </g>
+      `;
+    }
+    const fraction = Math.max(0, Math.min(1, c5.fraction));
+    const top = CAV_BOTTOM - (CAV_BOTTOM - CAV_TOP) * fraction;
     const dots = [];
     if (fraction > 0) {
       let row = 0;
-      for (let y3 = top + 6; y3 < WIN_BOTTOM; y3 += TEXTURE_STEP, row += 1) {
-        const x2 = w2.x + w2.w / 2 + (row % 2 === 0 ? -w2.w * 0.22 : w2.w * 0.22);
-        dots.push(w`<circle cx=${x2.toFixed(1)} cy=${y3.toFixed(1)} r="2.6" />`);
+      for (let y3 = top + 6; y3 < CAV_BOTTOM; y3 += TEXTURE_STEP, row += 1) {
+        const cols = Math.max(1, Math.floor(w2 / 14));
+        for (let k2 = 0; k2 < cols; k2 += 1) {
+          const x2 = c5.x0 + 7 + k2 * 14 + (row % 2 === 0 ? 0 : 7);
+          if (x2 < c5.x1 - 6) dots.push(w`<circle cx=${x2.toFixed(1)} cy=${y3.toFixed(1)} r="2.6" />`);
+        }
       }
     }
     return w`
       <g>
-        <rect class="glass" x=${w2.x} y=${WIN_TOP} width=${w2.w} height=${WIN_BOTTOM - WIN_TOP} rx=${WIN_R} />
+        <path class="glass" d=${cavityPath(c5.x0, c5.x1)} />
         <g clip-path=${clip}>
-          <rect class="glass-inner" x=${w2.x - 2} y=${WIN_TOP - 8} width=${w2.w + 4} height=${WIN_BOTTOM - WIN_TOP + 4} rx=${WIN_R} filter="url(#silo-inner)" />
+          <rect class="glass-inner" x=${c5.x0 - 2} y=${CAV_TOP - 8} width=${w2 + 4} height=${CAV_BOTTOM - CAV_TOP + 4} filter="url(#silo-inner)" />
           ${fraction > 0 ? w`
-                <rect class="fill" x=${w2.x} y=${top} width=${w2.w} height=${WIN_BOTTOM - top + 2} />
+                <rect class="fill" x=${c5.x0} y=${top} width=${w2} height=${CAV_BOTTOM - top + 2} />
                 <g class="texture">${dots}</g>
-                <rect class="fill-surface" x=${w2.x} y=${top} width=${w2.w} height="2" />
+                <rect class="fill-surface" x=${c5.x0} y=${top} width=${w2} height="2" />
               ` : A}
-          <rect class="reflection" x=${w2.x + 2.5} y=${WIN_TOP + 3} width="4.5" height=${WIN_BOTTOM - WIN_TOP - 6} rx="2.25" />
         </g>
-        ${w2.mark ? w`<text class="mark" x=${w2.x + w2.w / 2} y=${WIN_TOP - 9} text-anchor="middle">${w2.mark}</text>` : A}
+        ${c5.mark ? w`<text class="mark" x=${markX} y=${RIM_Y + 11} text-anchor="middle">${c5.mark}</text>` : A}
       </g>
     `;
   }
   _renderFallingKibble() {
     const pieces = SCATTER.map((t5, i6) => {
-      const x2 = CX + t5 * 20;
+      const x2 = CX + t5 * 40;
       const delayMs = i6 * 70;
       const durationMs = 380;
-      const style = `--fall-delay:${delayMs}ms;--fall-duration:${durationMs}ms;--fall-rotate:${(t5 * 180).toFixed(0)}deg;--fall-to:20px;`;
-      return w`<g class="drop" style=${style}>${cloverPiece(x2, BODY_Y + BODY_H + 4, 6, t5 * 60)}</g>`;
+      const style = `--fall-delay:${delayMs}ms;--fall-duration:${durationMs}ms;--fall-rotate:${(t5 * 180).toFixed(0)}deg;--fall-to:34px;`;
+      return w`<g class="drop" style=${style}>${cloverPiece(x2, 6, 6, t5 * 60)}</g>`;
     });
     return w`<g class="drops">${pieces}</g>`;
   }
@@ -7957,15 +8007,15 @@ var KibbleBowl = class extends i4 {
       display: block;
       height: 100%;
       /* The plastic: the card background lifted toward the text colour in four steps, so the
-       * lit face, the mid tone, the turned edges and the cap all come from the theme. */
+       * lit face, the mid tone, the turned edges and the rim all come from the theme. */
       --silo-base: var(--card-background-color, var(--ha-card-background, #fff));
       --silo-ink: var(--primary-text-color, #222);
       --silo-light: color-mix(in srgb, var(--silo-base) 78%, var(--silo-ink));
       --silo-mid: color-mix(in srgb, var(--silo-base) 84%, var(--silo-ink));
       --silo-shade: color-mix(in srgb, var(--silo-base) 68%, var(--silo-ink));
       --silo-dark: color-mix(in srgb, var(--silo-base) 58%, var(--silo-ink));
-      /* The sight window shows the hopper's interior: always darker than the plastic, in both
-       * themes, so the level reads as something inside the body. */
+      /* The cavity is the bowl's interior: always darker than the plastic, in both themes, so
+       * the level reads as something inside the dish. */
       --silo-glass: color-mix(in srgb, var(--silo-base) 40%, #000);
       --silo-glass-edge: color-mix(in srgb, var(--silo-base) 52%, #000);
     }
@@ -8004,10 +8054,6 @@ var KibbleBowl = class extends i4 {
       fill: #000;
       opacity: 0.35;
     }
-    .reflection {
-      fill: #fff;
-      opacity: 0.14;
-    }
     .fill {
       fill: url(#silo-food);
       transition: y 500ms cubic-bezier(0.2, 0.8, 0.2, 1), height 500ms cubic-bezier(0.2, 0.8, 0.2, 1);
@@ -8019,6 +8065,14 @@ var KibbleBowl = class extends i4 {
     .fill-surface {
       fill: #fff;
       opacity: 0.5;
+    }
+    .unknown {
+      /* Same ink as the printed rim marks, just larger: legible against the dark cavity in
+       * either theme, still clearly a label rather than a level. */
+      fill: var(--secondary-text-color, var(--primary-text-color));
+      font-size: 36px;
+      font-weight: 700;
+      opacity: 0.6;
     }
     .mark {
       fill: var(--secondary-text-color, var(--primary-text-color));
@@ -9490,7 +9544,7 @@ var KibbleLiveHero = class extends i4 {
       this._lastProgress = performance.now();
     };
     this._checkStall = () => {
-      if (!this._playing || this._reconnecting) return;
+      if (!this._playing || this._reconnecting || document.hidden) return;
       if (performance.now() - this._lastProgress > STALL_MS) this._beginReconnect();
     };
     this._onVisibilityChange = () => {
@@ -9507,7 +9561,7 @@ var KibbleLiveHero = class extends i4 {
         this.requestUpdate();
         return;
       }
-      if (this._playing && performance.now() - this._lastProgress > STALL_MS) this._beginReconnect();
+      if (this._playing) this._lastProgress = performance.now();
     };
     this._pauseForHidden = () => {
       this._hiddenTimer = void 0;
@@ -9972,11 +10026,7 @@ var KibbleCardEditor = class extends i4 {
 };
 customElements.define("kibble-card-editor", KibbleCardEditor);
 function detectionHeadline(item) {
-  if (item.kind === "identified") {
-    if (item.paired_class === "eat") return `${item.cat} ate`;
-    if (item.paired_class === "face") return `${item.cat} was here`;
-    return `${item.cat} was at the bowl`;
-  }
+  if (item.kind === "identified") return item.paired_class === "eat" ? `${item.cat} ate` : `${item.cat} was here`;
   if (item.kind === "eat") return "A cat ate";
   return "A cat came by";
 }
@@ -11625,7 +11675,7 @@ var KibbleCatsCard = class extends i4 {
               <span>${crops.length === 1 ? "1 to review" : `${crops.length} to review`}</span>
             </div>
             ${this._pendingQuery.state.error ? this._renderPendingError() : A}
-            ${crops.length === 0 && !this._pendingQuery.state.error ? b2`<p class="empty">Nothing to review. New crops arrive when a cat is identified at the bowl.</p>` : b2`<div class="crop-grid" @keydown=${this._onGridKeydown}>${crops.map((crop) => this._renderCrop(crop, catNames))}</div>`}
+            ${crops.length === 0 && !this._pendingQuery.state.error ? b2`<p class="empty">Nothing to review. New crops arrive when the feeder identifies a cat in view.</p>` : b2`<div class="crop-grid" @keydown=${this._onGridKeydown}>${crops.map((crop) => this._renderCrop(crop, catNames))}</div>`}
           </section>
           ${cats.map((cat) => this._renderGallery(cat))}
         </div>
@@ -12887,7 +12937,7 @@ var KibbleCard = class extends i4 {
     .bowl-block {
       grid-area: bowl;
       padding: 8px 14px 0;
-      --kibble-bowl-max-width: 250px;
+      --kibble-bowl-max-width: 300px;
     }
     .feed-controls {
       grid-area: feed;
@@ -12936,7 +12986,7 @@ var KibbleCard = class extends i4 {
     }
     :host(.compact) .bowl-block {
       padding-top: 2px;
-      --kibble-bowl-max-width: 200px;
+      --kibble-bowl-max-width: 260px;
     }
 
     /* >=640px: two columns, camera left, silo/feed/schedule stacked right. The camera is 60%
@@ -12983,7 +13033,7 @@ var KibbleCard = class extends i4 {
         align-items: center;
         justify-content: center;
         padding: 4px 16px 0;
-        --kibble-bowl-max-width: 250px;
+        --kibble-bowl-max-width: 300px;
       }
       .bowl-block > * {
         height: 100%;

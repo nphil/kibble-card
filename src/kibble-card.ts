@@ -5,7 +5,6 @@
  */
 
 import { LitElement, css, html, nothing, unsafeCSS } from "lit";
-import type { PropertyValues } from "lit";
 import type { HomeAssistant, KibbleCardConfig, KibbleCatSummary } from "./types";
 import { resolveKibbleEntities, type KibbleEntities } from "./lib/resolve-entities";
 import { resolveEntryId } from "./lib/entry-id";
@@ -73,6 +72,13 @@ export class KibbleCard extends LitElement {
 
   private _entities: KibbleEntities = EMPTY_ENTITIES;
   private _entryId: string | undefined;
+  // What `_entities`/`_entryId` were last resolved from -- `hass` is a new object reference on
+  // every state change anywhere in the house, but the entity/device registries themselves (and
+  // the configured device) rarely change, so re-running `resolveKibbleEntities` on every tick
+  // would be pure waste; this makes the recompute track its real inputs instead of `hass` itself.
+  private _resolvedEntities: HomeAssistant["entities"] | undefined;
+  private _resolvedDevices: HomeAssistant["devices"] | undefined;
+  private _resolvedDeviceId: string | undefined;
   private _resizeObserver: ResizeObserver | undefined;
   // The status overlay's avatar needs the named cat's color/photo from the roster; a private
   // field (not a reactive property) since `WsQuery` drives its own `requestUpdate` on change.
@@ -124,10 +130,18 @@ export class KibbleCard extends LitElement {
     this._resizeObserver?.disconnect();
   }
 
-  protected willUpdate(changed: PropertyValues): void {
-    if ((changed.has("hass") || changed.has("_config")) && this._config?.device_id && this.hass) {
-      this._entities = resolveKibbleEntities(this.hass.entities ?? {}, this._config.device_id);
-      this._entryId = resolveEntryId(this.hass.devices ?? {}, this._config.device_id);
+  protected willUpdate(): void {
+    const deviceId = this._config?.device_id;
+    if (
+      this.hass &&
+      deviceId &&
+      (this.hass.entities !== this._resolvedEntities || this.hass.devices !== this._resolvedDevices || deviceId !== this._resolvedDeviceId)
+    ) {
+      this._resolvedEntities = this.hass.entities;
+      this._resolvedDevices = this.hass.devices;
+      this._resolvedDeviceId = deviceId;
+      this._entities = resolveKibbleEntities(this.hass.entities ?? {}, deviceId);
+      this._entryId = resolveEntryId(this.hass.devices ?? {}, deviceId);
     }
     // Only worth asking for the cat roster once there is a name to look up (`lastSeenPet`) and
     // somewhere to ask (`entryId`, `callWS`) -- most of the time this simply never fires.

@@ -6,7 +6,6 @@
  */
 
 import { LitElement, css, html, nothing } from "lit";
-import type { PropertyValues } from "lit";
 import type {
   HomeAssistant,
   KibbleTimelineCardConfig,
@@ -44,6 +43,11 @@ export class KibbleTimelineCard extends LitElement {
 
   private _entities: KibbleEntities = EMPTY_ENTITIES;
   private _entryId: string | undefined;
+  // See `kibble-card.ts`'s identical fields: avoids recomputing entity-role resolution on
+  // every `hass` tick (which is most of them, system-wide) when the registries didn't move.
+  private _resolvedEntities: HomeAssistant["entities"] | undefined;
+  private _resolvedDevices: HomeAssistant["devices"] | undefined;
+  private _resolvedDeviceId: string | undefined;
   private _timelineQuery = new WsQuery<{ items: TimelineItem[] }>(() => this.requestUpdate());
   private _imageCache = new ImageUrlCache();
   private _lightboxTrigger: HTMLElement | null = null;
@@ -81,10 +85,18 @@ export class KibbleTimelineCard extends LitElement {
     this._imageCache.dispose();
   }
 
-  protected willUpdate(changed: PropertyValues): void {
-    if ((changed.has("hass") || changed.has("_config")) && this._config?.device_id && this.hass) {
-      this._entities = resolveKibbleEntities(this.hass.entities ?? {}, this._config.device_id);
-      this._entryId = resolveEntryId(this.hass.devices ?? {}, this._config.device_id);
+  protected willUpdate(): void {
+    const deviceId = this._config?.device_id;
+    if (
+      this.hass &&
+      deviceId &&
+      (this.hass.entities !== this._resolvedEntities || this.hass.devices !== this._resolvedDevices || deviceId !== this._resolvedDeviceId)
+    ) {
+      this._resolvedEntities = this.hass.entities;
+      this._resolvedDevices = this.hass.devices;
+      this._resolvedDeviceId = deviceId;
+      this._entities = resolveKibbleEntities(this.hass.entities ?? {}, deviceId);
+      this._entryId = resolveEntryId(this.hass.devices ?? {}, deviceId);
     }
     const callWS = this.hass?.callWS;
     if (this.hass && this._entryId && callWS) {

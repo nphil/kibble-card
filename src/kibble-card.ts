@@ -149,6 +149,7 @@ export class KibbleCard extends LitElement {
               <button class="gear-button" aria-label="Settings" @click=${this._openSettings}>${mdiIcon("cog")}</button>
               ${this._config.name ? html`<div class="name-chip">${this._config.name}</div>` : nothing}
             </div>
+            <div class="side">
             <kibble-bowl class="bowl-block" .hopper1=${hopper1} .hopper2=${hopper2} .feeding=${feeding}></kibble-bowl>
             <div class="feed-controls">
               <kibble-segmented-picker
@@ -178,6 +179,7 @@ export class KibbleCard extends LitElement {
                   .entries=${scheduleEntries}
                   .scheduleCardStateEntity=${e.scheduleCardState}
                 ></kibble-schedule-summary>`}
+            </div>
           </div>
         </div>
       </ha-card>
@@ -328,6 +330,9 @@ export class KibbleCard extends LitElement {
     }
     /* The feeder's streams are 16:10 (1152x720 sub, 1728x1080 main): the hero keeps that ratio
      * so the fisheye frame is never cropped or stretched to fit a layout guess. */
+    .side {
+      display: contents;
+    }
     .hero {
       grid-area: hero;
       position: relative;
@@ -470,19 +475,30 @@ export class KibbleCard extends LitElement {
       --kibble-bowl-max-width: 200px;
     }
 
-    /* >=640px: two columns, camera left full height, bowl/feed/schedule stacked on the right. */
+    /* >=640px: two columns, camera left, silo/feed/schedule stacked right. The camera is 60%
+     * of the card at 16:10, so the row is exactly 0.6 * 10/16 = 37.5% of the card width tall;
+     * the right column is boxed to that same height so it can never outgrow the video. */
     @container (min-width: 640px) {
       .root {
         grid-template-columns: 60% 1fr;
-        grid-template-rows: auto auto auto;
-        grid-template-areas: "hero bowl" "hero feed" "hero schedule";
+        grid-template-rows: auto;
+        grid-template-areas: "hero side";
         gap: 4px;
         padding-bottom: 0;
+        height: auto;
+        overflow: visible;
       }
       .hero {
         grid-area: hero;
         align-self: start;
         border-radius: var(--ha-card-border-radius, 12px) 0 0 var(--ha-card-border-radius, 12px);
+      }
+      .side {
+        grid-area: side;
+        display: grid;
+        grid-template-rows: minmax(0, 1fr) auto auto;
+        height: calc(100cqw * 0.6 * 10 / 16);
+        min-height: 0;
       }
       .bowl-block,
       .feed-controls {
@@ -496,18 +512,27 @@ export class KibbleCard extends LitElement {
         border-radius: 0;
       }
       .bowl-block {
-        grid-area: bowl;
+        grid-area: unset;
+        align-self: stretch;
+        min-height: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
         padding: 4px 16px 0;
         --kibble-bowl-max-width: 250px;
       }
+      .bowl-block > * {
+        height: 100%;
+        max-height: 100%;
+      }
       .feed-controls {
-        grid-area: feed;
+        grid-area: unset;
         padding: 6px 16px 0;
         --kibble-touch-target: 48px;
         --kibble-segment-size: 16px;
       }
       .schedule-row {
-        grid-area: schedule;
+        grid-area: unset;
         padding: 2px 16px 10px;
         align-self: start;
       }

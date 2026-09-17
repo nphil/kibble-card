@@ -7812,7 +7812,7 @@ function combineBowlFill(hopper1, hopper2) {
   return { split: true, hopper1, hopper2, combined: null };
 }
 var VIEW_W = 200;
-var VIEW_H = 240;
+var VIEW_H = 224;
 var CX = 100;
 var BODY_X = 36;
 var BODY_Y = 14;
@@ -7895,17 +7895,14 @@ var KibbleBowl = class extends i4 {
             <stop offset="0" stop-color="var(--kibble-amber)" />
             <stop offset="1" stop-color="var(--kibble-amber-dark)" />
           </linearGradient>
-          <filter id="silo-shadow" x="-40%" y="-40%" width="180%" height="220%"><feGaussianBlur stdDeviation="8" /></filter>
           <filter id="silo-inner" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="2.4" /></filter>
           ${windows.map((w2, i6) => w`<clipPath id=${`silo-win-${i6}`}><rect x=${w2.x} y=${WIN_TOP} width=${w2.w} height=${WIN_BOTTOM - WIN_TOP} rx=${WIN_R} /></clipPath>`)}
         </defs>
-        <ellipse class="shadow" cx=${CX} cy=${BODY_Y + BODY_H + 8} rx="66" ry="8" filter="url(#silo-shadow)" />
         <rect class="body" x=${BODY_X} y=${BODY_Y} width=${BODY_W} height=${BODY_H} rx=${BODY_R} />
         <rect class="cap" x=${BODY_X} y=${BODY_Y} width=${BODY_W} height="26" rx="13" />
         <rect class="cap-highlight" x=${BODY_X + 6} y=${BODY_Y + 6} width=${BODY_W - 12} height="9" rx="4.5" />
         <rect class="body-edge" x=${BODY_X} y=${BODY_Y} width=${BODY_W} height=${BODY_H} rx=${BODY_R} />
         ${windows.map((w2, i6) => this._renderWindow(w2, i6))}
-        <rect class="chute" x=${CX - 14} y=${BODY_Y + BODY_H} width="28" height="8" rx="3" />
         ${this._dropping ? this._renderFallingKibble() : A}
       </svg>
     `;
@@ -7947,7 +7944,7 @@ var KibbleBowl = class extends i4 {
       const delayMs = i6 * 70;
       const durationMs = 380;
       const style = `--fall-delay:${delayMs}ms;--fall-duration:${durationMs}ms;--fall-rotate:${(t5 * 180).toFixed(0)}deg;--fall-to:20px;`;
-      return w`<g class="drop" style=${style}>${cloverPiece(x2, BODY_Y + BODY_H + 12, 6, t5 * 60)}</g>`;
+      return w`<g class="drop" style=${style}>${cloverPiece(x2, BODY_Y + BODY_H + 4, 6, t5 * 60)}</g>`;
     });
     return w`<g class="drops">${pieces}</g>`;
   }
@@ -7955,6 +7952,7 @@ var KibbleBowl = class extends i4 {
     this.styles = i`
     :host {
       display: block;
+      height: 100%;
       /* The plastic: the card background lifted toward the text colour in four steps, so the
        * lit face, the mid tone, the turned edges and the cap all come from the theme. */
       --silo-base: var(--card-background-color, var(--ha-card-background, #fff));
@@ -7970,15 +7968,13 @@ var KibbleBowl = class extends i4 {
     }
     .art {
       display: block;
-      width: 100%;
+      width: auto;
       max-width: var(--kibble-bowl-max-width, 190px);
-      height: auto;
+      height: 100%;
+      max-height: 100%;
+      aspect-ratio: ${VIEW_W} / ${VIEW_H};
       margin: 0 auto;
       overflow: visible;
-    }
-    .shadow {
-      fill: var(--primary-text-color);
-      opacity: 0.32;
     }
     .body {
       fill: url(#silo-body);
@@ -7997,9 +7993,6 @@ var KibbleBowl = class extends i4 {
     .cap-highlight {
       fill: var(--silo-ink);
       opacity: 0.16;
-    }
-    .chute {
-      fill: var(--silo-shade);
     }
     .glass {
       fill: url(#silo-glass);
@@ -10508,7 +10501,7 @@ window.customCards = window.customCards || [];
 window.customCards.push({
   type: "kibble-timeline-card",
   name: "Kibble Timeline",
-  description: "Today's feeds and visits as one rail, newest first, with day separators and photos.",
+  description: "Today's feeds and who's been by, one rail, newest first, with day separators and photos.",
   preview: true
 });
 function chooseSuggestion(crop, confidence) {
@@ -12180,7 +12173,7 @@ window.customCards = window.customCards || [];
 window.customCards.push({
   type: "kibble-cats-card",
   name: "Kibble Cats",
-  description: "Enrolled cats plus a one-tap training inbox for the feeder's own face crops.",
+  description: "Enrolled cats -- delete or add training photos -- plus a one-tap inbox for the feeder's own face crops.",
   preview: true
 });
 var EMPTY_ENTITIES3 = { deviceId: "", catPresence: [] };
@@ -12302,6 +12295,7 @@ var KibbleCard = class extends i4 {
               <button class="gear-button" aria-label="Settings" @click=${this._openSettings}>${mdiIcon("cog")}</button>
               ${this._config.name ? b2`<div class="name-chip">${this._config.name}</div>` : A}
             </div>
+            <div class="side">
             <kibble-bowl class="bowl-block" .hopper1=${hopper1} .hopper2=${hopper2} .feeding=${feeding}></kibble-bowl>
             <div class="feed-controls">
               <kibble-segmented-picker
@@ -12329,6 +12323,7 @@ var KibbleCard = class extends i4 {
                   .entries=${scheduleEntries}
                   .scheduleCardStateEntity=${e6.scheduleCardState}
                 ></kibble-schedule-summary>`}
+            </div>
           </div>
         </div>
       </ha-card>
@@ -12438,6 +12433,9 @@ var KibbleCard = class extends i4 {
     }
     /* The feeder's streams are 16:10 (1152x720 sub, 1728x1080 main): the hero keeps that ratio
      * so the fisheye frame is never cropped or stretched to fit a layout guess. */
+    .side {
+      display: contents;
+    }
     .hero {
       grid-area: hero;
       position: relative;
@@ -12536,7 +12534,7 @@ var KibbleCard = class extends i4 {
     .bowl-block {
       grid-area: bowl;
       padding: 8px 14px 0;
-      --kibble-bowl-max-width: 170px;
+      --kibble-bowl-max-width: 250px;
     }
     .feed-controls {
       grid-area: feed;
@@ -12577,22 +12575,33 @@ var KibbleCard = class extends i4 {
     }
     :host(.compact) .bowl-block {
       padding-top: 2px;
-      --kibble-bowl-max-width: 160px;
+      --kibble-bowl-max-width: 200px;
     }
 
-    /* >=640px: two columns, camera left full height, bowl/feed/schedule stacked on the right. */
+    /* >=640px: two columns, camera left, silo/feed/schedule stacked right. The camera is 60%
+     * of the card at 16:10, so the row is exactly 0.6 * 10/16 = 37.5% of the card width tall;
+     * the right column is boxed to that same height so it can never outgrow the video. */
     @container (min-width: 640px) {
       .root {
         grid-template-columns: 60% 1fr;
-        grid-template-rows: auto auto auto;
-        grid-template-areas: "hero bowl" "hero feed" "hero schedule";
+        grid-template-rows: auto;
+        grid-template-areas: "hero side";
         gap: 4px;
         padding-bottom: 0;
+        height: auto;
+        overflow: visible;
       }
       .hero {
         grid-area: hero;
         align-self: start;
         border-radius: var(--ha-card-border-radius, 12px) 0 0 var(--ha-card-border-radius, 12px);
+      }
+      .side {
+        grid-area: side;
+        display: grid;
+        grid-template-rows: minmax(0, 1fr) auto auto;
+        height: calc(100cqw * 0.6 * 10 / 16);
+        min-height: 0;
       }
       .bowl-block,
       .feed-controls {
@@ -12606,18 +12615,27 @@ var KibbleCard = class extends i4 {
         border-radius: 0;
       }
       .bowl-block {
-        grid-area: bowl;
+        grid-area: unset;
+        align-self: stretch;
+        min-height: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
         padding: 4px 16px 0;
-        --kibble-bowl-max-width: 170px;
+        --kibble-bowl-max-width: 250px;
+      }
+      .bowl-block > * {
+        height: 100%;
+        max-height: 100%;
       }
       .feed-controls {
-        grid-area: feed;
+        grid-area: unset;
         padding: 6px 16px 0;
         --kibble-touch-target: 48px;
         --kibble-segment-size: 16px;
       }
       .schedule-row {
-        grid-area: schedule;
+        grid-area: unset;
         padding: 2px 16px 10px;
         align-self: start;
       }

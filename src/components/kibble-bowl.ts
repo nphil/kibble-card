@@ -188,6 +188,7 @@ export class KibbleBowl extends LitElement {
   static styles = css`
     :host {
       display: block;
+      height: 100%;
       /* The plastic: the card background lifted toward the text colour in four steps, so the
        * lit face, the mid tone, the turned edges and the cap all come from the theme. */
       --silo-base: var(--card-background-color, var(--ha-card-background, #fff));
@@ -203,9 +204,11 @@ export class KibbleBowl extends LitElement {
     }
     .art {
       display: block;
-      width: 100%;
+      width: auto;
       max-width: var(--kibble-bowl-max-width, 190px);
-      height: auto;
+      height: 100%;
+      max-height: 100%;
+      aspect-ratio: ${VIEW_W} / ${VIEW_H};
       margin: 0 auto;
       overflow: visible;
     }

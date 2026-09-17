@@ -107,7 +107,10 @@ export interface TimelineIdentifiedItem {
    * with a real eat detection (food actually left the bowl), `"visit"` when it only paired
    * with a visit, `null` when nothing paired nearby at all. Picks "ate" vs "was at the bowl" in
    * `lib/timeline.ts#detectionHeadline`; never infer the verb from `image` instead. */
-  paired_class: "eat" | "visit" | null;
+  paired_class: "eat" | "visit" | "face" | null;
+  /** Which HTTP image view kind resolves `image`: `track` (a vendor track, paired server-side
+   * by ts) or `event` (a labelled face crop's own filename). */
+  image_kind: "track" | "event";
   /** Bare token for the HTTP image view's `track` kind (`kibbleImageUrl(entryId, "track",
    * image)`) -- a track carries no filename of its own, so the view resolves the actual paired
    * eat/visit JPEG by ts server-side. `null` when no candidate was found nearby (a fresh

@@ -165,7 +165,7 @@ export class KibbleTimelineCard extends LitElement {
       <div class="row">
         <span class="time">${time}</span>
         <span class="row-text">${detectionHeadline(item)}</span>
-        ${item.image && this._entryId ? this._renderThumb(kibbleImageUrl(this._entryId, "track", item.image), `${item.cat}, ${time}`) : nothing}
+        ${item.image && this._entryId ? this._renderThumb(kibbleImageUrl(this._entryId, item.image_kind, item.image), `${item.cat}, ${time}`) : nothing}
       </div>
     `;
   }

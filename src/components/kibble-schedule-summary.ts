@@ -10,7 +10,7 @@
 import { LitElement, css, html, nothing } from "lit";
 import { createRef, ref } from "lit/directives/ref.js";
 import type { ScheduleEntry } from "../lib/schedule";
-import { scheduleSummary } from "../lib/schedule";
+import { formatClock, scheduleSummary } from "../lib/schedule";
 import { mdiIcon } from "../lib/mdi-icons";
 import type { HomeAssistant } from "../types";
 
@@ -69,7 +69,7 @@ export class KibbleScheduleSummary extends LitElement {
         ${sorted.map(
           (entry) => html`
             <li class=${entry.enabled ? "" : "disabled"}>
-              <span class="time">${entry.time}</span>
+              <span class="time">${formatClock(entry.time)}</span>
               <span class="amounts">${entry.amount_l}g + ${entry.amount_r}g</span>
               <span class="state">${entry.enabled ? "On" : "Paused"}</span>
             </li>

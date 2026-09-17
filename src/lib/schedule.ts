@@ -48,13 +48,21 @@ export function nextScheduled(entries: ScheduleEntry[], now: Date): NextSchedule
   return best;
 }
 
+/** "HH:MM" rendered the way the user's browser writes clock times ("5:25 PM" in en-US, "17:25"
+ * in en-GB) -- the same convention the timeline's timestamps already follow. */
+export function formatClock(time: string, locale?: string): string {
+  const minutes = parseTimeToMinutes(time);
+  const date = new Date(2000, 0, 1, Math.floor(minutes / 60), minutes % 60);
+  return date.toLocaleTimeString(locale, { hour: "numeric", minute: "2-digit" });
+}
+
 const COUNT_WORDS = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"];
 
 /** The one-line summary shown on the card face: "Next feed 18:00, three a day", "All feeds
  * paused" when entries exist but none are enabled, or "No schedule set" when there are none at
  * all. The count is enabled entries only -- a paused entry doesn't actually feed anyone, so it
  * shouldn't count toward "how many times a day this happens". */
-export function scheduleSummary(entries: ScheduleEntry[], now: Date): string {
+export function scheduleSummary(entries: ScheduleEntry[], now: Date, locale?: string): string {
   if (entries.length === 0) {
     return "No schedule set";
   }
@@ -64,5 +72,5 @@ export function scheduleSummary(entries: ScheduleEntry[], now: Date): string {
   }
   const enabledCount = entries.filter((entry) => entry.enabled).length;
   const countWord = COUNT_WORDS[enabledCount] ?? String(enabledCount);
-  return `Next feed ${next.entry.time}, ${countWord} a day`;
+  return `Next feed ${formatClock(next.entry.time, locale)}, ${countWord} a day`;
 }

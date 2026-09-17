@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { nextScheduled, parseTimeToMinutes, scheduleSummary, type ScheduleEntry } from "../src/lib/schedule";
+import { formatClock, nextScheduled, parseTimeToMinutes, scheduleSummary, type ScheduleEntry } from "../src/lib/schedule";
 
 function entryAt(time: string, enabled = true, id = time): ScheduleEntry {
   return { id, time, amount_l: 5, amount_r: 5, enabled };
@@ -63,21 +63,21 @@ describe("scheduleSummary", () => {
     const now = new Date(2026, 0, 1, 8, 0);
     const entries = [entryAt("18:00"), entryAt("07:00", false), entryAt("12:30")];
 
-    expect(scheduleSummary(entries, now)).toBe("Next feed 12:30, two a day");
+    expect(scheduleSummary(entries, now, "en-US")).toBe("Next feed 12:30 PM, two a day");
   });
 
   test("counts only enabled entries, not paused ones", () => {
     const now = new Date(2026, 0, 1, 8, 0);
     const entries = [entryAt("09:00"), entryAt("10:00", false), entryAt("11:00", false)];
 
-    expect(scheduleSummary(entries, now)).toBe("Next feed 09:00, one a day");
+    expect(scheduleSummary(entries, now, "en-US")).toBe("Next feed 9:00 AM, one a day");
   });
 
   test("falls back to a numeral once the count exceeds the spelled-out words", () => {
     const now = new Date(2026, 0, 1, 0, 0);
     const entries = Array.from({ length: 11 }, (_, i) => entryAt(`${String(i).padStart(2, "0")}:00`, true, `e${i}`));
 
-    expect(scheduleSummary(entries, now)).toBe("Next feed 00:00, 11 a day");
+    expect(scheduleSummary(entries, now, "en-US")).toBe("Next feed 12:00 AM, 11 a day");
   });
 
   test("reports all feeds paused when entries exist but none are enabled", () => {
@@ -89,5 +89,13 @@ describe("scheduleSummary", () => {
 
   test("reports no schedule set when the list is empty", () => {
     expect(scheduleSummary([], new Date())).toBe("No schedule set");
+  });
+});
+
+describe("formatClock", () => {
+  test("writes the clock the way the locale does", () => {
+    expect(formatClock("17:25", "en-US")).toBe("5:25 PM");
+    expect(formatClock("00:05", "en-US")).toBe("12:05 AM");
+    expect(formatClock("17:25", "en-GB")).toBe("17:25");
   });
 });

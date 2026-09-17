@@ -30,6 +30,9 @@ export class KibbleLiveHero extends LitElement {
     _tick: { state: true },
   };
 
+  private _starting = false;
+  private _retry?: ReturnType<typeof setTimeout>;
+
   declare hass: HomeAssistant;
   declare cameraEntity: string | undefined;
   /** Scrypted device id of the feeder camera, from the card config. */
@@ -56,53 +59,43 @@ export class KibbleLiveHero extends LitElement {
     this._stop();
   }
 
+  /** The stream starts on its own as soon as the card knows where to get it; the still stays
+   * underneath until the first frame paints, so the hand-over is seamless. */
+  updated(): void {
+    if (this._playing || this._starting) return;
+    if (!this.hass || !this.scryptedId || !findScryptedToken(this.hass)) return;
+    void this._start();
+  }
+
   render() {
-    const token = this.hass ? findScryptedToken(this.hass) : undefined;
-    const canPlay = Boolean(token && this.scryptedId);
     return html`
       <div class="frame">
-        ${this._playing ? this._renderVideo() : this._renderStill()}
+        ${this._renderStill()}
+        ${this._playing ? this._renderVideo() : nothing}
         <div class="controls">
-          ${canPlay
-            ? html`<button
-                class="chip"
-                aria-pressed=${this._playing}
-                @click=${this._playing ? this._stop : this._start}
-                title=${this._playing ? "Stop live view" : "Start live view"}
-              >
-                ${this._playing ? mdiIcon("close") : mdiIcon("volumeHigh")}
-                <span>${this._playing ? "Stop" : "Live"}</span>
-              </button>`
-            : nothing}
           ${this._playing
             ? html`<button
                 class="chip"
                 aria-pressed=${!this._muted}
-                @click=${this._toggleMute}
+                aria-label=${this._muted ? "Unmute the feeder" : "Mute the feeder"}
                 title=${this._muted ? "Unmute the feeder" : "Mute the feeder"}
+                @click=${this._toggleMute}
               >
-                ${mdiIcon(this._muted ? "speaker" : "volumeHigh")}
-                <span>${this._muted ? "Sound off" : "Sound on"}</span>
+                ${mdiIcon(this._muted ? "volumeOff" : "volumeHigh")}
               </button>`
             : nothing}
           ${this._playing && this._live.hasIntercom
             ? html`<button
                 class="chip talk"
-                data-talking=${this._talking}
-                @pointerdown=${this._talkStart}
-                @pointerup=${this._talkStop}
-                @pointercancel=${this._talkStop}
-                @pointerleave=${this._talkStop}
-                @keydown=${this._talkKeyDown}
-                @keyup=${this._talkStop}
-                title="Hold to talk to the feeder"
+                aria-pressed=${this._talking}
+                aria-label=${this._talking ? "Stop talking to the feeder" : "Talk to the feeder"}
+                title=${this._talking ? "Stop talking to the feeder" : "Talk to the feeder"}
+                @click=${this._toggleTalk}
               >
-                ${mdiIcon("microphone")}
-                <span>${this._talking ? "Talking…" : "Hold to talk"}</span>
+                ${mdiIcon(this._talking ? "microphone" : "microphoneOff")}
               </button>`
             : nothing}
         </div>
-        ${this._live.state === "connecting" ? html`<div class="note">Connecting…</div>` : nothing}
         ${this._live.state === "error" ? html`<div class="note error">${this._live.error}</div>` : nothing}
       </div>
     `;
@@ -126,21 +119,33 @@ export class KibbleLiveHero extends LitElement {
   private _start = async (): Promise<void> => {
     const token = findScryptedToken(this.hass);
     if (!token || !this.scryptedId) return;
+    this._starting = true;
     this._playing = true;
     await this.updateComplete;
     const video = this.renderRoot.querySelector<HTMLVideoElement>("#video");
-    if (!video) return;
+    if (!video) {
+      this._starting = false;
+      return;
+    }
     try {
       await this._live.open({ deviceId: this.scryptedId, token }, video);
     } catch {
       this._playing = false;
+      this._retry = setTimeout(() => {
+        this._starting = false;
+        this.requestUpdate();
+      }, 15000);
+      return;
     }
+    this._starting = false;
   };
 
   private _stop = (): void => {
+    clearTimeout(this._retry);
     this._live.close();
     this._playing = false;
     this._talking = false;
+    this._starting = false;
   };
 
   private _toggleMute = (): void => {
@@ -157,29 +162,15 @@ export class KibbleLiveHero extends LitElement {
     void video.play().catch(() => undefined);
   };
 
-  private _talkStart = async (event: Event): Promise<void> => {
-    event.preventDefault();
-    if (this._talking) return;
-    this._talking = true;
+  private _toggleTalk = async (): Promise<void> => {
+    const next = !this._talking;
+    this._talking = next;
     try {
-      await this._live.talk(true);
+      await this._live.talk(next);
     } catch {
-      this._talking = false;
+      // Opening failed, or the stop found the session already gone: reflect the real state.
+      if (next) this._talking = false;
     }
-  };
-
-  private _talkStop = async (): Promise<void> => {
-    if (!this._talking) return;
-    this._talking = false;
-    try {
-      await this._live.talk(false);
-    } catch {
-      // A failed stop is only ever "the session already ended"; nothing left to undo.
-    }
-  };
-
-  private _talkKeyDown = (event: KeyboardEvent): void => {
-    if (event.key === " " || event.key === "Enter") void this._talkStart(event);
   };
 
   static styles = css`
@@ -199,6 +190,10 @@ export class KibbleLiveHero extends LitElement {
       width: 100%;
       height: 100%;
       object-fit: cover;
+    }
+    video {
+      position: absolute;
+      inset: 0;
     }
     .placeholder {
       display: flex;
@@ -223,36 +218,35 @@ export class KibbleLiveHero extends LitElement {
       pointer-events: auto;
       display: inline-flex;
       align-items: center;
-      gap: 6px;
-      min-height: 34px;
-      padding: 0 12px;
+      justify-content: center;
+      width: 38px;
+      height: 38px;
+      padding: 0;
       border: none;
-      border-radius: 999px;
+      border-radius: 50%;
       background: rgba(0, 0, 0, 0.55);
       color: #fff;
-      font-size: 13px;
-      font-weight: 600;
       cursor: pointer;
       backdrop-filter: blur(2px);
+      transition: background 120ms ease, color 120ms ease;
     }
     .chip svg {
-      font-size: 16px;
+      font-size: 20px;
     }
     .chip:hover {
       background: rgba(0, 0, 0, 0.7);
     }
     .chip.talk {
-      touch-action: none;
       user-select: none;
     }
-    .chip.talk[data-talking="true"] {
+    .chip.talk[aria-pressed="true"] {
       background: var(--kibble-amber, #f2a33c);
       color: var(--kibble-ink-on-amber, #241a07);
     }
     .note {
       position: absolute;
       left: 8px;
-      bottom: 50px;
+      bottom: 54px;
       padding: 3px 9px;
       border-radius: 999px;
       background: rgba(0, 0, 0, 0.55);

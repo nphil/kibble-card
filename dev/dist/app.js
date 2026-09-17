@@ -7776,6 +7776,8 @@ var MDI = {
   weatherNight: "M17.75,4.09L15.22,6.03L16.13,9.09L13.5,7.28L10.87,9.09L11.78,6.03L9.25,4.09L12.44,4L13.5,1L14.56,4L17.75,4.09M21.25,11L19.61,12.25L20.2,14.23L18.5,13.06L16.8,14.23L17.39,12.25L15.75,11L17.81,10.95L18.5,9L19.19,10.95L21.25,11M18.97,15.95C19.8,15.87 20.69,17.05 20.16,17.8C19.84,18.25 19.5,18.67 19.08,19.07C15.17,23 8.84,23 4.94,19.07C1.03,15.17 1.03,8.83 4.94,4.93C5.34,4.53 5.76,4.17 6.21,3.85C6.96,3.32 8.14,4.21 8.06,5.04C7.79,7.9 8.75,10.87 10.95,13.06C13.14,15.26 16.1,16.22 18.97,15.95M17.33,17.97C14.5,17.81 11.7,16.64 9.53,14.5C7.36,12.31 6.2,9.5 6.04,6.68C3.23,9.82 3.34,14.64 6.35,17.66C9.37,20.67 14.19,20.78 17.33,17.97Z",
   ledOn: "M11,0V4H13V0H11M18.3,2.29L15.24,5.29L16.64,6.71L19.7,3.71L18.3,2.29M5.71,2.29L4.29,3.71L7.29,6.71L8.71,5.29L5.71,2.29M12,6A4,4 0 0,0 8,10V16H6V18H9V23H11V18H13V23H15V18H18V16H16V10A4,4 0 0,0 12,6M2,9V11H6V9H2M18,9V11H22V9H18Z",
   microphone: "M12,2A3,3 0 0,1 15,5V11A3,3 0 0,1 12,14A3,3 0 0,1 9,11V5A3,3 0 0,1 12,2M19,11C19,14.53 16.39,17.44 13,17.93V21H11V17.93C7.61,17.44 5,14.53 5,11H7A5,5 0 0,0 12,16A5,5 0 0,0 17,11H19Z",
+  microphoneOff: "M19,11C19,12.19 18.66,13.3 18.1,14.28L16.87,13.05C17.14,12.43 17.3,11.74 17.3,11H19M15,11.16L9,5.18V5A3,3 0 0,1 12,2A3,3 0 0,1 15,5V11L15,11.16M4.27,3L21,19.73L19.73,21L15.54,16.81C14.77,17.27 13.91,17.58 13,17.72V21H11V17.72C7.72,17.23 5,14.41 5,11H6.7C6.7,14 9.24,16.1 12,16.1C12.81,16.1 13.6,15.91 14.31,15.58L12.65,13.92L12,14A3,3 0 0,1 9,11V10.28L3,4.27L4.27,3Z",
+  volumeOff: "M12,4L9.91,6.09L12,8.18M4.27,3L3,4.27L7.73,9H3V15H7L12,20V13.27L16.25,17.53C15.58,18.04 14.83,18.46 14,18.7V20.77C15.38,20.45 16.63,19.82 17.68,18.96L19.73,21L21,19.73L12,10.73M19,12C19,12.94 18.8,13.82 18.46,14.64L19.97,16.15C20.62,14.91 21,13.5 21,12C21,7.72 18,4.14 14,3.23V5.29C16.89,6.15 19,8.83 19,12M16.5,12C16.5,10.23 15.5,8.71 14,7.97V10.18L16.45,12.63C16.5,12.43 16.5,12.21 16.5,12Z",
   volumeHigh: "M14,3.23V5.29C16.89,6.15 19,8.83 19,12C19,15.17 16.89,17.84 14,18.7V20.77C18,19.86 21,16.28 21,12C21,7.72 18,4.14 14,3.23M16.5,12C16.5,10.23 15.5,8.71 14,7.97V16C15.5,15.29 16.5,13.76 16.5,12M3,9V15H7L12,20V4L7,9H3Z",
   openInNew: "M14,3V5H17.59L7.76,14.83L9.17,16.24L19,6.41V10H21V3M19,19H5V5H12V3H5C3.89,3 3,3.9 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V12H19V19Z",
   speaker: "M12,12A3,3 0 0,0 9,15A3,3 0 0,0 12,18A3,3 0 0,0 15,15A3,3 0 0,0 12,12M12,20A5,5 0 0,1 7,15A5,5 0 0,1 12,10A5,5 0 0,1 17,15A5,5 0 0,1 12,20M12,4A2,2 0 0,1 14,6A2,2 0 0,1 12,8C10.89,8 10,7.1 10,6C10,4.89 10.89,4 12,4M17,2H7C5.89,2 5,2.89 5,4V20A2,2 0 0,0 7,22H17A2,2 0 0,0 19,20V4C19,2.89 18.1,2 17,2Z"
@@ -9440,26 +9442,39 @@ var ScryptedLive = class {
 var KibbleLiveHero = class extends i4 {
   constructor() {
     super();
+    this._starting = false;
     this._live = new ScryptedLive(() => {
       this._tick = (this._tick ?? 0) + 1;
     });
     this._start = async () => {
       const token = findScryptedToken(this.hass);
       if (!token || !this.scryptedId) return;
+      this._starting = true;
       this._playing = true;
       await this.updateComplete;
       const video = this.renderRoot.querySelector("#video");
-      if (!video) return;
+      if (!video) {
+        this._starting = false;
+        return;
+      }
       try {
         await this._live.open({ deviceId: this.scryptedId, token }, video);
       } catch {
         this._playing = false;
+        this._retry = setTimeout(() => {
+          this._starting = false;
+          this.requestUpdate();
+        }, 15e3);
+        return;
       }
+      this._starting = false;
     };
     this._stop = () => {
+      clearTimeout(this._retry);
       this._live.close();
       this._playing = false;
       this._talking = false;
+      this._starting = false;
     };
     this._toggleMute = () => {
       this._muted = !this._muted;
@@ -9471,26 +9486,14 @@ var KibbleLiveHero = class extends i4 {
       video.muted = this._muted;
       void video.play().catch(() => void 0);
     };
-    this._talkStart = async (event) => {
-      event.preventDefault();
-      if (this._talking) return;
-      this._talking = true;
+    this._toggleTalk = async () => {
+      const next = !this._talking;
+      this._talking = next;
       try {
-        await this._live.talk(true);
+        await this._live.talk(next);
       } catch {
-        this._talking = false;
+        if (next) this._talking = false;
       }
-    };
-    this._talkStop = async () => {
-      if (!this._talking) return;
-      this._talking = false;
-      try {
-        await this._live.talk(false);
-      } catch {
-      }
-    };
-    this._talkKeyDown = (event) => {
-      if (event.key === " " || event.key === "Enter") void this._talkStart(event);
     };
     this._playing = false;
     this._talking = false;
@@ -9512,47 +9515,38 @@ var KibbleLiveHero = class extends i4 {
     super.disconnectedCallback();
     this._stop();
   }
+  /** The stream starts on its own as soon as the card knows where to get it; the still stays
+   * underneath until the first frame paints, so the hand-over is seamless. */
+  updated() {
+    if (this._playing || this._starting) return;
+    if (!this.hass || !this.scryptedId || !findScryptedToken(this.hass)) return;
+    void this._start();
+  }
   render() {
-    const token = this.hass ? findScryptedToken(this.hass) : void 0;
-    const canPlay = Boolean(token && this.scryptedId);
     return b2`
       <div class="frame">
-        ${this._playing ? this._renderVideo() : this._renderStill()}
+        ${this._renderStill()}
+        ${this._playing ? this._renderVideo() : A}
         <div class="controls">
-          ${canPlay ? b2`<button
-                class="chip"
-                aria-pressed=${this._playing}
-                @click=${this._playing ? this._stop : this._start}
-                title=${this._playing ? "Stop live view" : "Start live view"}
-              >
-                ${this._playing ? mdiIcon("close") : mdiIcon("volumeHigh")}
-                <span>${this._playing ? "Stop" : "Live"}</span>
-              </button>` : A}
           ${this._playing ? b2`<button
                 class="chip"
                 aria-pressed=${!this._muted}
-                @click=${this._toggleMute}
+                aria-label=${this._muted ? "Unmute the feeder" : "Mute the feeder"}
                 title=${this._muted ? "Unmute the feeder" : "Mute the feeder"}
+                @click=${this._toggleMute}
               >
-                ${mdiIcon(this._muted ? "speaker" : "volumeHigh")}
-                <span>${this._muted ? "Sound off" : "Sound on"}</span>
+                ${mdiIcon(this._muted ? "volumeOff" : "volumeHigh")}
               </button>` : A}
           ${this._playing && this._live.hasIntercom ? b2`<button
                 class="chip talk"
-                data-talking=${this._talking}
-                @pointerdown=${this._talkStart}
-                @pointerup=${this._talkStop}
-                @pointercancel=${this._talkStop}
-                @pointerleave=${this._talkStop}
-                @keydown=${this._talkKeyDown}
-                @keyup=${this._talkStop}
-                title="Hold to talk to the feeder"
+                aria-pressed=${this._talking}
+                aria-label=${this._talking ? "Stop talking to the feeder" : "Talk to the feeder"}
+                title=${this._talking ? "Stop talking to the feeder" : "Talk to the feeder"}
+                @click=${this._toggleTalk}
               >
-                ${mdiIcon("microphone")}
-                <span>${this._talking ? "Talking\u2026" : "Hold to talk"}</span>
+                ${mdiIcon(this._talking ? "microphone" : "microphoneOff")}
               </button>` : A}
         </div>
-        ${this._live.state === "connecting" ? b2`<div class="note">Connecting…</div>` : A}
         ${this._live.state === "error" ? b2`<div class="note error">${this._live.error}</div>` : A}
       </div>
     `;
@@ -9587,6 +9581,10 @@ var KibbleLiveHero = class extends i4 {
       height: 100%;
       object-fit: cover;
     }
+    video {
+      position: absolute;
+      inset: 0;
+    }
     .placeholder {
       display: flex;
       align-items: center;
@@ -9610,36 +9608,35 @@ var KibbleLiveHero = class extends i4 {
       pointer-events: auto;
       display: inline-flex;
       align-items: center;
-      gap: 6px;
-      min-height: 34px;
-      padding: 0 12px;
+      justify-content: center;
+      width: 38px;
+      height: 38px;
+      padding: 0;
       border: none;
-      border-radius: 999px;
+      border-radius: 50%;
       background: rgba(0, 0, 0, 0.55);
       color: #fff;
-      font-size: 13px;
-      font-weight: 600;
       cursor: pointer;
       backdrop-filter: blur(2px);
+      transition: background 120ms ease, color 120ms ease;
     }
     .chip svg {
-      font-size: 16px;
+      font-size: 20px;
     }
     .chip:hover {
       background: rgba(0, 0, 0, 0.7);
     }
     .chip.talk {
-      touch-action: none;
       user-select: none;
     }
-    .chip.talk[data-talking="true"] {
+    .chip.talk[aria-pressed="true"] {
       background: var(--kibble-amber, #f2a33c);
       color: var(--kibble-ink-on-amber, #241a07);
     }
     .note {
       position: absolute;
       left: 8px;
-      bottom: 50px;
+      bottom: 54px;
       padding: 3px 9px;
       border-radius: 999px;
       background: rgba(0, 0, 0, 0.55);

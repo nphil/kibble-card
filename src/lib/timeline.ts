@@ -14,7 +14,11 @@ import type { TimelineFeedItem, TimelineIdentifiedItem, TimelineEatItem, Timelin
  * (normally hidden) "visit" reads as "A cat came by" -- the same honest, ungoessed copy this
  * card has always used for a detection with no name attached. */
 export function detectionHeadline(item: TimelineIdentifiedItem | TimelineEatItem | TimelineVisitItem): string {
-  if (item.kind === "identified") return `${item.cat} ${item.paired_class === "eat" ? "ate" : "was at the bowl"}`;
+  if (item.kind === "identified") {
+    if (item.paired_class === "eat") return `${item.cat} ate`;
+    if (item.paired_class === "face") return `${item.cat} was here`;
+    return `${item.cat} was at the bowl`;
+  }
   if (item.kind === "eat") return "A cat ate";
   return "A cat came by";
 }

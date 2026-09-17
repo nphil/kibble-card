@@ -23,22 +23,41 @@ import "./components/kibble-schedule-summary";
 import "./components/kibble-settings-dialog";
 import "./components/kibble-avatar";
 import "./components/kibble-live-hero";
+import "./components/kibble-bubble-row";
+import { bubbleCardAvailable } from "./components/kibble-bubble-row";
 import "./editor";
 import "./kibble-timeline-card";
 import "./kibble-cats-card";
 
 const EMPTY_ENTITIES: KibbleEntities = { deviceId: "", catPresence: [] };
 
+const PORTION_OPTIONS = [1, 2, 3, 4, 5] as const;
+
+/** Bubble's `styles` hook: the feed row is the card's one accent-filled control, so it wears
+ * the amber the native hold button always did (theme-overridable through the same variables). */
+const FEED_ROW_STYLES = `
+  .bubble-button-card-container { background: var(--kibble-amber, #f2a33c) !important; }
+  .bubble-name, .bubble-icon { color: var(--kibble-ink-on-amber, #241a07) !important; }
+  .bubble-icon-container { background: color-mix(in srgb, var(--kibble-ink-on-amber, #241a07) 12%, transparent) !important; }
+`;
+const FEEDING_ROW_STYLES = `
+  .bubble-button-card-container { background: var(--error-color, #d9534f) !important; }
+  .bubble-name, .bubble-icon { color: #fff !important; }
+`;
+
 export class KibbleCard extends LitElement {
   static properties = {
     hass: { attribute: false },
     _config: { state: true },
     _settingsOpen: { state: true },
+    _bubble: { state: true },
   };
 
   declare hass: HomeAssistant;
   declare _config: KibbleCardConfig | undefined;
   declare _settingsOpen: boolean;
+  /** Bubble Card is installed: the feed controls render as real Bubble rows. */
+  declare _bubble: boolean;
 
   private _entities: KibbleEntities = EMPTY_ENTITIES;
   private _entryId: string | undefined;
@@ -50,6 +69,10 @@ export class KibbleCard extends LitElement {
   constructor() {
     super();
     this._settingsOpen = false;
+    this._bubble = false;
+    void bubbleCardAvailable().then((ok) => {
+      this._bubble = ok;
+    });
   }
 
   setConfig(config: KibbleCardConfig): void {
@@ -151,25 +174,28 @@ export class KibbleCard extends LitElement {
             </div>
             <div class="side">
             <kibble-bowl class="bowl-block" .hopper1=${hopper1} .hopper2=${hopper2} .feeding=${feeding}></kibble-bowl>
-            <div class="feed-controls">
-              <kibble-segmented-picker
-                class="picker-full"
-                .value=${feedAmount}
-                ?disabled=${status === "unreachable" || feeding}
-                @portion-selected=${this._onPortionSelected}
-              ></kibble-segmented-picker>
-              <kibble-stepper
-                class="picker-compact"
-                .value=${feedAmount}
-                ?disabled=${status === "unreachable" || feeding}
-                @value-selected=${this._onPortionSelected}
-              ></kibble-stepper>
-              <kibble-hold-button
-                .label=${feeding ? "Cancel" : "Hold to feed"}
-                .variant=${feeding ? "cancel" : "feed"}
-                ?disabled=${status === "unreachable"}
-                @activate=${feeding ? this._onCancelActivate : this._onFeedActivate}
-              ></kibble-hold-button>
+            <div class="feed-controls" @hass-action=${this._onBubbleAction}>
+              ${this._bubble
+                ? html`<kibble-bubble-row .hass=${this.hass} .config=${this._portionRowConfig(feedAmount, status === "unreachable" || feeding)}></kibble-bubble-row>
+                    <kibble-bubble-row .hass=${this.hass} .config=${this._feedRowConfig(feeding, status === "unreachable")}></kibble-bubble-row>`
+                : html`<kibble-segmented-picker
+                      class="picker-full"
+                      .value=${feedAmount}
+                      ?disabled=${status === "unreachable" || feeding}
+                      @portion-selected=${this._onPortionSelected}
+                    ></kibble-segmented-picker>
+                    <kibble-stepper
+                      class="picker-compact"
+                      .value=${feedAmount}
+                      ?disabled=${status === "unreachable" || feeding}
+                      @value-selected=${this._onPortionSelected}
+                    ></kibble-stepper>
+                    <kibble-hold-button
+                      .label=${feeding ? "Cancel" : "Hold to feed"}
+                      .variant=${feeding ? "cancel" : "feed"}
+                      ?disabled=${status === "unreachable"}
+                      @activate=${feeding ? this._onCancelActivate : this._onFeedActivate}
+                    ></kibble-hold-button>`}
             </div>
             ${this._config.schedule_hash
               ? nothing
@@ -249,6 +275,60 @@ export class KibbleCard extends LitElement {
     return Array.isArray(entries) ? (entries as ScheduleEntry[]) : [];
   }
 
+  // The two Bubble rows. Bubble handles the gestures (tap / hold) and reports them as HA's
+  // standard `hass-action` event carrying the action config, so each action here is a
+  // `fire-dom-event` tagged with a `kibble` verb the handler below dispatches on.
+  private _portionRowConfig(selected: number | null, disabled: boolean): Record<string, unknown> {
+    const none = { action: "none" };
+    return {
+      card_type: "button",
+      button_type: "name",
+      icon: "mdi:counter",
+      show_name: false,
+      show_state: false,
+      tap_action: none,
+      double_tap_action: none,
+      hold_action: none,
+      sub_button: PORTION_OPTIONS.map((portion) => ({
+        name: String(portion),
+        show_name: true,
+        show_icon: false,
+        show_background: portion === selected,
+        tap_action: disabled ? none : { action: "fire-dom-event", kibble: "portion", portion },
+        double_tap_action: none,
+        hold_action: none,
+      })),
+    };
+  }
+
+  private _feedRowConfig(feeding: boolean, disabled: boolean): Record<string, unknown> {
+    const none = { action: "none" };
+    return {
+      card_type: "button",
+      button_type: "name",
+      name: disabled ? "Feeder unreachable" : feeding ? "Feeding… tap to cancel" : "Hold to feed",
+      icon: feeding ? "mdi:stop-circle-outline" : "mdi:bowl-mix",
+      styles: feeding ? FEEDING_ROW_STYLES : FEED_ROW_STYLES,
+      tap_action: feeding && !disabled ? { action: "fire-dom-event", kibble: "cancel" } : none,
+      double_tap_action: none,
+      hold_action: !feeding && !disabled ? { action: "fire-dom-event", kibble: "feed" } : none,
+    };
+  }
+
+  private _onBubbleAction = (event: Event): void => {
+    const detail = (event as CustomEvent<{ action: string; config: Record<string, unknown> }>).detail;
+    const action = detail?.config?.[`${detail.action}_action`] as { action?: string; kibble?: string; portion?: number } | undefined;
+    if (action?.action !== "fire-dom-event" || !action.kibble) return;
+    event.stopPropagation();
+    if (action.kibble === "portion" && typeof action.portion === "number" && this._entities.feedAmount) {
+      this.hass.callService("number", "set_value", { value: action.portion }, { entity_id: this._entities.feedAmount });
+    } else if (action.kibble === "feed") {
+      this._onFeedActivate();
+    } else if (action.kibble === "cancel") {
+      this._onCancelActivate();
+    }
+  };
+
   private _onPortionSelected(event: CustomEvent<{ value: number }>): void {
     if (!this._entities.feedAmount) return;
     this.hass.callService("number", "set_value", { value: event.detail.value }, { entity_id: this._entities.feedAmount });
@@ -269,10 +349,13 @@ export class KibbleCard extends LitElement {
   // open the in-card dialog, exactly as before. Set (a dashboard that defines a `#settings`
   // Bubble Card pop-up): navigate there instead, so the whole dashboard shares one settings
   // surface rather than this card keeping a second, inconsistent one alive underneath it.
+  // Assigning `location.hash` is not enough: HA's router rewrites a bare hash to `#/…` and
+  // Bubble Card only listens for the frontend's own `location-changed` event.
   private _openSettings = (): void => {
     const hash = this._config?.settings_hash;
     if (hash) {
-      window.location.hash = hash;
+      history.pushState(null, "", hash);
+      window.dispatchEvent(new CustomEvent("location-changed", { detail: { replace: false } }));
       return;
     }
     this._settingsOpen = true;
@@ -527,7 +610,7 @@ export class KibbleCard extends LitElement {
       }
       .feed-controls {
         grid-area: unset;
-        padding: 6px 16px 0;
+        padding: 6px 16px 12px;
         --kibble-touch-target: 48px;
         --kibble-segment-size: 16px;
       }

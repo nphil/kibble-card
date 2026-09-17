@@ -3,7 +3,7 @@ import { detectionHeadline, feedSummary, filterVisits, groupByDay } from "../src
 import type { TimelineEatItem, TimelineFeedItem, TimelineIdentifiedItem, TimelineItem, TimelineVisitItem } from "../src/types";
 
 function identified(overrides: Partial<TimelineIdentifiedItem> & { ts: number }): TimelineIdentifiedItem {
-  return { kind: "identified", cat: "Pancake", paired_class: "eat", image: null, ...overrides };
+  return { kind: "identified", cat: "Pancake", paired_class: "eat", image: null, image_kind: "track", ...overrides };
 }
 
 function eat(overrides: Partial<TimelineEatItem> & { ts: number }): TimelineEatItem {
@@ -29,6 +29,7 @@ describe("detectionHeadline", () => {
 
   test("names the cat but says \"was at the bowl\" when nothing paired at all", () => {
     expect(detectionHeadline(identified({ ts: 0, cat: "Kitty", paired_class: null }))).toBe("Kitty was at the bowl");
+    expect(detectionHeadline(identified({ ts: 0, cat: "Pancake", paired_class: "face", image_kind: "event" }))).toBe("Pancake was here");
   });
 
   test("never guesses a name for an eat with nobody identified nearby", () => {

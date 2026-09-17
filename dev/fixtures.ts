@@ -313,10 +313,10 @@ export const SAMPLES_BY_CAT: Record<string, CatSample[]> = {
  * ever shown when `show_visits` is on), and feeds spanning manual/scheduled and known/unknown
  * amounts. */
 export const TIMELINE_ITEMS: TimelineItem[] = [
-  { kind: "identified", ts: localTime(18, 4), cat: "Pancake", paired_class: "eat", image: `${localTime(18, 4)}-event.jpg` },
-  { kind: "identified", ts: localTime(17, 22), cat: "Pancake", paired_class: "visit", image: `${localTime(17, 22)}-event.jpg` },
+  { kind: "identified", ts: localTime(18, 4), cat: "Pancake", paired_class: "eat", image: `${localTime(18, 4)}-event.jpg`, image_kind: "track" },
+  { kind: "identified", ts: localTime(17, 22), cat: "Pancake", paired_class: "face", image: `${localTime(17, 22)}-event.jpg`, image_kind: "event" },
   { kind: "visit", ts: localTime(15, 50), image: `${localTime(15, 50)}-event.jpg` },
-  { kind: "identified", ts: localTime(12, 10), cat: "Kitty", paired_class: "eat", image: `${localTime(12, 10)}-event.jpg` },
+  { kind: "identified", ts: localTime(12, 10), cat: "Kitty", paired_class: "eat", image: `${localTime(12, 10)}-event.jpg`, image_kind: "track" },
   {
     kind: "feed",
     ts: localTime(12, 0),
@@ -326,7 +326,7 @@ export const TIMELINE_ITEMS: TimelineItem[] = [
     before: `${localTime(12, 0)}-before.jpg`,
     after: `${localTime(12, 0)}-after.jpg`,
   },
-  { kind: "identified", ts: localTime(9, 45), cat: "Kitty", paired_class: null, image: null },
+  { kind: "identified", ts: localTime(9, 45), cat: "Kitty", paired_class: null, image: null, image_kind: "track" },
   { kind: "eat", ts: localTime(8, 5), image: `${localTime(8, 5)}-event.jpg` },
   {
     kind: "feed",
@@ -337,8 +337,8 @@ export const TIMELINE_ITEMS: TimelineItem[] = [
     before: `${localTime(7, 30)}-before.jpg`,
     after: `${localTime(7, 30)}-after.jpg`,
   },
-  { kind: "identified", ts: localTime(7, 28), cat: "Kitty", paired_class: "eat", image: `${localTime(7, 28)}-event.jpg` },
-  { kind: "identified", ts: localTime(19, 10, 1), cat: "Pancake", paired_class: "eat", image: `${localTime(19, 10, 1)}-event.jpg` },
+  { kind: "identified", ts: localTime(7, 28), cat: "Kitty", paired_class: "eat", image: `${localTime(7, 28)}-event.jpg`, image_kind: "track" },
+  { kind: "identified", ts: localTime(19, 10, 1), cat: "Pancake", paired_class: "eat", image: `${localTime(19, 10, 1)}-event.jpg`, image_kind: "track" },
   {
     kind: "feed",
     ts: localTime(18, 0, 1),

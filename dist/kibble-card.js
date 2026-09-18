@@ -8863,6 +8863,350 @@ var KibbleScheduleSummary = class extends i4 {
 };
 customElements.define("kibble-schedule-summary", KibbleScheduleSummary);
 
+// src/lib/before-after.ts
+var WIPE_MIN = 0;
+var WIPE_MAX = 100;
+var WIPE_DEFAULT = 50;
+var WIPE_STEP = 5;
+function clampWipePosition(value) {
+  if (Number.isNaN(value)) return WIPE_DEFAULT;
+  return Math.min(WIPE_MAX, Math.max(WIPE_MIN, value));
+}
+function wipePositionForKey(current, key) {
+  switch (key) {
+    case "ArrowLeft":
+    case "ArrowDown":
+      return clampWipePosition(current - WIPE_STEP);
+    case "ArrowRight":
+    case "ArrowUp":
+      return clampWipePosition(current + WIPE_STEP);
+    case "Home":
+      return WIPE_MIN;
+    case "End":
+      return WIPE_MAX;
+    default:
+      return null;
+  }
+}
+function wipePositionForPointer(clientX, rect) {
+  if (rect.width <= 0) return WIPE_DEFAULT;
+  return clampWipePosition((clientX - rect.left) / rect.width * 100);
+}
+function resolveCompareSides(beforeSrc, afterSrc) {
+  const before = beforeSrc || null;
+  const after = afterSrc || null;
+  return { before, after, hasPair: before !== null && after !== null };
+}
+
+// src/components/kibble-before-after.ts
+var KibbleBeforeAfter = class extends i4 {
+  constructor() {
+    super();
+    this._frameRef = e5();
+    this._beginDrag = (event) => {
+      event.preventDefault();
+      event.currentTarget.setPointerCapture(event.pointerId);
+      this._updateFromPointer(event.clientX);
+    };
+    this._onDrag = (event) => {
+      if (event.buttons === 0) return;
+      event.preventDefault();
+      this._updateFromPointer(event.clientX);
+    };
+    this._endDrag = (event) => {
+      const target = event.currentTarget;
+      if (target.hasPointerCapture(event.pointerId)) target.releasePointerCapture(event.pointerId);
+    };
+    this._onHandleKeydown = (event) => {
+      const next = wipePositionForKey(this._wipePosition, event.key);
+      if (next === null) return;
+      event.preventDefault();
+      this._wipePosition = next;
+    };
+    this.beforeSrc = null;
+    this.afterSrc = null;
+    this.beforeLabel = "Before";
+    this.afterLabel = "After";
+    this.caption = null;
+    this.aspect = 16 / 9;
+    this._mode = "split";
+    this._wipePosition = WIPE_DEFAULT;
+  }
+  static {
+    this.properties = {
+      beforeSrc: { type: String },
+      afterSrc: { type: String },
+      beforeLabel: { type: String },
+      afterLabel: { type: String },
+      caption: { type: String },
+      aspect: { type: Number },
+      _mode: { state: true },
+      _wipePosition: { state: true }
+    };
+  }
+  render() {
+    const sides = resolveCompareSides(this.beforeSrc, this.afterSrc);
+    if (!sides.before && !sides.after) return A;
+    if (!sides.hasPair) {
+      const src = sides.before ?? sides.after;
+      const label = sides.before ? this.beforeLabel : this.afterLabel;
+      return b2`
+        <figure class="tile">
+          <div class="frame" style="aspect-ratio: ${this.aspect};">
+            <img src=${src} alt=${label} loading="lazy" />
+            <span class="tag tag-solo">${label}</span>
+          </div>
+          ${this.caption ? b2`<figcaption>${this.caption}</figcaption>` : A}
+        </figure>
+      `;
+    }
+    return b2`
+      <figure class="tile">
+        <div class="frame" style="aspect-ratio: ${this.aspect};">
+          ${this._mode === "split" ? this._renderSplit(sides.before, sides.after) : this._renderWipe(sides.before, sides.after)}
+          <div class="mode-toggle" role="group" aria-label="Compare view">
+            <button
+              type="button"
+              class="mode-btn ${this._mode === "split" ? "selected" : ""}"
+              aria-pressed=${this._mode === "split"}
+              @click=${() => this._setMode("split")}
+            >
+              Split
+            </button>
+            <button
+              type="button"
+              class="mode-btn ${this._mode === "wipe" ? "selected" : ""}"
+              aria-pressed=${this._mode === "wipe"}
+              @click=${() => this._setMode("wipe")}
+            >
+              Wipe
+            </button>
+          </div>
+        </div>
+        ${this.caption ? b2`<figcaption>${this.caption}</figcaption>` : A}
+      </figure>
+    `;
+  }
+  _renderSplit(before, after) {
+    return b2`
+      <div class="split">
+        <div class="half">
+          <img src=${before} alt=${this.beforeLabel} loading="lazy" />
+          <span class="tag">${this.beforeLabel}</span>
+        </div>
+        <div class="divider"></div>
+        <div class="half">
+          <img src=${after} alt=${this.afterLabel} loading="lazy" />
+          <span class="tag">${this.afterLabel}</span>
+        </div>
+      </div>
+    `;
+  }
+  _renderWipe(before, after) {
+    const pos = this._wipePosition;
+    return b2`
+      <div
+        class="wipe"
+        ${n5(this._frameRef)}
+        @pointerdown=${this._beginDrag}
+        @pointermove=${this._onDrag}
+        @pointerup=${this._endDrag}
+        @pointercancel=${this._endDrag}
+      >
+        <img class="layer" src=${after} alt=${this.afterLabel} loading="lazy" />
+        <div class="layer clip" style="clip-path: inset(0 ${100 - pos}% 0 0);">
+          <img src=${before} alt=${this.beforeLabel} loading="lazy" />
+        </div>
+        <span class="tag tag-before">${this.beforeLabel}</span>
+        <span class="tag tag-after">${this.afterLabel}</span>
+        <div
+          class="handle"
+          role="slider"
+          tabindex="0"
+          aria-label="Reveal before vs after"
+          aria-valuemin="0"
+          aria-valuemax="100"
+          aria-valuenow=${Math.round(pos)}
+          aria-valuetext=${`${Math.round(pos)}% ${this.beforeLabel.toLowerCase()}`}
+          style="left: ${pos}%;"
+          @keydown=${this._onHandleKeydown}
+        >
+          <span class="grip"></span>
+        </div>
+      </div>
+    `;
+  }
+  _setMode(mode) {
+    this._mode = mode;
+  }
+  _updateFromPointer(clientX) {
+    const rect = this._frameRef.value?.getBoundingClientRect();
+    if (!rect) return;
+    this._wipePosition = wipePositionForPointer(clientX, rect);
+  }
+  static {
+    this.styles = i`
+    :host {
+      display: block;
+    }
+    .tile {
+      margin: 0;
+    }
+    .frame {
+      position: relative;
+      width: 100%;
+      border-radius: 8px;
+      overflow: hidden;
+      background: color-mix(in srgb, var(--primary-text-color) 8%, transparent);
+      touch-action: none;
+    }
+    .frame > img {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    figcaption {
+      margin-top: 6px;
+      font-size: 12px;
+      color: var(--secondary-text-color);
+    }
+    .tag {
+      position: absolute;
+      top: 8px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: rgba(0, 0, 0, 0.55);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 600;
+      pointer-events: none;
+    }
+    .tag-solo {
+      left: 8px;
+    }
+    /* Split */
+    .split {
+      display: flex;
+      width: 100%;
+      height: 100%;
+    }
+    .half {
+      position: relative;
+      flex: 1 1 0;
+      min-width: 0;
+      overflow: hidden;
+    }
+    .half img {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .half .tag {
+      left: 8px;
+    }
+    .half:last-child .tag {
+      left: auto;
+      right: 8px;
+    }
+    .divider {
+      flex: 0 0 auto;
+      width: 2px;
+      background: rgba(255, 255, 255, 0.85);
+      box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.15);
+    }
+    /* Wipe */
+    .wipe {
+      position: absolute;
+      inset: 0;
+      cursor: ew-resize;
+    }
+    .wipe .layer {
+      position: absolute;
+      inset: 0;
+    }
+    .wipe .layer img,
+    .wipe img.layer {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .wipe .clip {
+      overflow: hidden;
+    }
+    .tag-before {
+      left: 8px;
+    }
+    .tag-after {
+      right: 8px;
+    }
+    .handle {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      transform: translateX(-50%);
+      background: rgba(255, 255, 255, 0.85);
+      box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.15);
+      cursor: ew-resize;
+    }
+    .handle:focus-visible {
+      outline: none;
+    }
+    .handle:focus-visible .grip {
+      outline: 2px solid var(--primary-color, #03a9f4);
+      outline-offset: 2px;
+    }
+    .grip {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: #fff;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+    }
+    /* Mode toggle */
+    .mode-toggle {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      display: flex;
+      gap: 2px;
+      padding: 2px;
+      border-radius: 999px;
+      background: rgba(0, 0, 0, 0.45);
+      backdrop-filter: blur(2px);
+    }
+    .mode-btn {
+      border: none;
+      background: none;
+      color: #fff;
+      font: inherit;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 999px;
+      cursor: pointer;
+      min-height: 28px;
+    }
+    .mode-btn.selected {
+      background: var(--kibble-amber, #f4a452);
+      color: var(--kibble-ink-on-amber, #3a2c28);
+    }
+    .mode-btn:focus-visible {
+      outline: 2px solid #fff;
+      outline-offset: -2px;
+    }
+  `;
+  }
+};
+customElements.define("kibble-before-after", KibbleBeforeAfter);
+
 // src/components/kibble-settings-dialog.ts
 var CLOUD_CONFIRM_WINDOW_MS = 3e3;
 function numberAttrs(hass, entityId) {
@@ -9050,14 +9394,17 @@ var KibbleSettingsDialog = class extends i4 {
   _renderDishPhotos() {
     const before = this.entities.dishBefore ? this.hass.states[this.entities.dishBefore] : void 0;
     const after = this.entities.dishAfter ? this.hass.states[this.entities.dishAfter] : void 0;
-    if ((!before || before.state === "unavailable") && (!after || after.state === "unavailable")) return A;
+    const beforeAvailable = before && before.state !== "unavailable";
+    const afterAvailable = after && after.state !== "unavailable";
+    if (!beforeAvailable && !afterAvailable) return A;
     return b2`
       <section>
         <h3>Last feed</h3>
-        <div class="dish-photos">
-          ${before && before.state !== "unavailable" ? b2`<img src=${String(before.attributes.entity_picture ?? "")} alt="Before" />` : A}
-          ${after && after.state !== "unavailable" ? b2`<img src=${String(after.attributes.entity_picture ?? "")} alt="After" />` : A}
-        </div>
+        <kibble-before-after
+          .beforeSrc=${beforeAvailable ? String(before.attributes.entity_picture ?? "") : null}
+          .afterSrc=${afterAvailable ? String(after.attributes.entity_picture ?? "") : null}
+          aspect="1.333"
+        ></kibble-before-after>
       </section>
     `;
   }
@@ -9337,16 +9684,6 @@ var KibbleSettingsDialog = class extends i4 {
     .cloud-toggle.confirming {
       border-color: var(--kibble-amber-dark);
       color: var(--kibble-amber-dark);
-    }
-    .dish-photos {
-      display: flex;
-      gap: 10px;
-    }
-    .dish-photos img {
-      width: 50%;
-      border-radius: 8px;
-      object-fit: cover;
-      aspect-ratio: 4 / 3;
     }
     .device-link {
       margin-top: 14px;
@@ -10360,6 +10697,17 @@ var KibbleCardEditor = class extends i4 {
 customElements.define("kibble-card-editor", KibbleCardEditor);
 
 // src/lib/timeline.ts
+function comparePairFor(item) {
+  const before = item.image_before ?? null;
+  const after = item.image_after ?? null;
+  if (!before && !after) return null;
+  return { before, after };
+}
+function resolveThumbnail(image, imageKind, pair) {
+  if (image) return { name: image, kind: imageKind };
+  const name = pair?.after ?? pair?.before ?? null;
+  return name ? { name, kind: "event" } : null;
+}
 function detectionHeadline(item) {
   if (item.kind === "identified") return item.paired_class === "eat" ? `${item.cat} ate` : `${item.cat} was here`;
   if (item.kind === "eat") return "A cat ate";
@@ -10417,12 +10765,20 @@ var KibbleLightbox = class extends i4 {
     this.open = false;
     this.imageUrl = null;
     this.alt = "";
+    this.beforeUrl = null;
+    this.afterUrl = null;
+    this.beforeLabel = "Before";
+    this.afterLabel = "After";
   }
   static {
     this.properties = {
       open: { type: Boolean, reflect: true },
       imageUrl: { type: String },
-      alt: { type: String }
+      alt: { type: String },
+      beforeUrl: { type: String },
+      afterUrl: { type: String },
+      beforeLabel: { type: String },
+      afterLabel: { type: String }
     };
   }
   connectedCallback() {
@@ -10440,10 +10796,19 @@ var KibbleLightbox = class extends i4 {
   }
   render() {
     if (!this.open) return A;
+    const isCompare = Boolean(this.beforeUrl || this.afterUrl);
     return b2`
       <div class="backdrop" @click=${this._close} role="dialog" aria-modal="true" aria-label=${this.alt || "Photo"}>
-        <div class="frame" @click=${(event) => event.stopPropagation()}>
-          ${this.imageUrl ? b2`<img src=${this.imageUrl} alt=${this.alt} />` : A}
+        <div class="frame ${isCompare ? "compare" : ""}" @click=${(event) => event.stopPropagation()}>
+          ${isCompare ? b2`
+                <kibble-before-after
+                  .beforeSrc=${this.beforeUrl}
+                  .afterSrc=${this.afterUrl}
+                  .beforeLabel=${this.beforeLabel}
+                  .afterLabel=${this.afterLabel}
+                  .caption=${this.alt}
+                ></kibble-before-after>
+              ` : this.imageUrl ? b2`<img src=${this.imageUrl} alt=${this.alt} />` : A}
           <button type="button" class="close" aria-label="Close" ${n5(this._closeButtonRef)} @click=${this._close}>
             ${mdiIcon("close")}
           </button>
@@ -10471,6 +10836,9 @@ var KibbleLightbox = class extends i4 {
       position: relative;
       max-width: min(90vw, 720px);
       max-height: 90vh;
+    }
+    .frame.compare {
+      width: min(90vw, 720px);
     }
     img {
       display: block;
@@ -10695,12 +11063,14 @@ var KibbleTimelineCard = class extends i4 {
     };
     this._closeLightbox = () => {
       this._lightboxUrl = null;
+      this._comparePair = null;
       this._lightboxTrigger?.focus();
       this._lightboxTrigger = null;
     };
     this._visibleCount = DEFAULT_LIMIT;
     this._lightboxUrl = null;
     this._lightboxAlt = "";
+    this._comparePair = null;
   }
   static {
     this.properties = {
@@ -10708,7 +11078,8 @@ var KibbleTimelineCard = class extends i4 {
       _config: { state: true },
       _visibleCount: { state: true },
       _lightboxUrl: { state: true },
-      _lightboxAlt: { state: true }
+      _lightboxAlt: { state: true },
+      _comparePair: { state: true }
     };
   }
   setConfig(config) {
@@ -10760,6 +11131,9 @@ var KibbleTimelineCard = class extends i4 {
     const days = groupByDay(visible, /* @__PURE__ */ new Date());
     const hasMore = items.length > visible.length;
     const showEmpty = !timelineState.error && !timelineState.loading && timelineState.data !== null && days.length === 0;
+    const compare = this._comparePair;
+    const compareBeforeUrl = compare?.before ? this._imageCache.get(this.hass, kibbleImageUrl(compare.entryId, "event", compare.before), () => this.requestUpdate()) : null;
+    const compareAfterUrl = compare?.after ? this._imageCache.get(this.hass, kibbleImageUrl(compare.entryId, "event", compare.after), () => this.requestUpdate()) : null;
     return b2`
       <ha-card>
         <div class="container">
@@ -10773,8 +11147,10 @@ var KibbleTimelineCard = class extends i4 {
         </div>
       </ha-card>
       <kibble-lightbox
-        ?open=${this._lightboxUrl !== null}
+        ?open=${this._lightboxUrl !== null || compare !== null}
         .imageUrl=${this._lightboxUrl}
+        .beforeUrl=${compareBeforeUrl}
+        .afterUrl=${compareAfterUrl}
         .alt=${this._lightboxAlt}
         @close-requested=${this._closeLightbox}
       ></kibble-lightbox>
@@ -10810,11 +11186,14 @@ var KibbleTimelineCard = class extends i4 {
    * training sample. */
   _renderIdentified(item) {
     const time = this._timeLabel(item.ts);
+    const pair = comparePairFor(item);
+    const thumb = resolveThumbnail(item.image, item.image_kind, pair);
+    const alt = `${item.cat}, ${time}`;
     return b2`
       <div class="row">
         <span class="time">${time}</span>
         <span class="row-text">${detectionHeadline(item)}</span>
-        ${item.image && this._entryId ? this._renderThumb(kibbleImageUrl(this._entryId, item.image_kind, item.image), `${item.cat}, ${time}`) : A}
+        ${thumb && this._entryId ? this._renderThumb(kibbleImageUrl(this._entryId, thumb.kind, thumb.name), alt, pair ? (event) => this._openComparePair(event, pair, alt) : void 0) : A}
       </div>
     `;
   }
@@ -10822,11 +11201,14 @@ var KibbleTimelineCard = class extends i4 {
    * never a guessed name. */
   _renderEat(item) {
     const time = this._timeLabel(item.ts);
+    const pair = comparePairFor(item);
+    const thumb = resolveThumbnail(item.image, "event", pair);
+    const alt = `A cat, ${time}`;
     return b2`
       <div class="row">
         <span class="time">${time}</span>
         <span class="row-text">${detectionHeadline(item)}</span>
-        ${item.image && this._entryId ? this._renderThumb(kibbleImageUrl(this._entryId, "event", item.image), `A cat, ${time}`) : A}
+        ${thumb && this._entryId ? this._renderThumb(kibbleImageUrl(this._entryId, thumb.kind, thumb.name), alt, pair ? (event) => this._openComparePair(event, pair, alt) : void 0) : A}
       </div>
     `;
   }
@@ -10859,10 +11241,11 @@ var KibbleTimelineCard = class extends i4 {
       </div>
     `;
   }
-  _renderThumb(path, alt) {
+  _renderThumb(path, alt, onOpen) {
     const url = this._imageCache.get(this.hass, path, () => this.requestUpdate());
+    const label = onOpen ? `Compare before and after: ${alt}` : `View photo: ${alt}`;
     return b2`
-      <button type="button" class="thumb" ?disabled=${!url} aria-label=${`View photo: ${alt}`} @click=${(event) => this._openLightbox(event, url, alt)}>
+      <button type="button" class="thumb" ?disabled=${!url} aria-label=${label} @click=${(event) => onOpen ? onOpen(event) : this._openLightbox(event, url, alt)}>
         ${url ? b2`<img src=${url} alt="" loading="lazy" />` : A}
       </button>
     `;
@@ -10882,6 +11265,14 @@ var KibbleTimelineCard = class extends i4 {
     if (!url) return;
     this._lightboxTrigger = event.currentTarget;
     this._lightboxUrl = url;
+    this._lightboxAlt = alt;
+  }
+  /** Opens the same overlay `_openLightbox` uses, but with a before/after compare pair instead
+   * of a single image -- see `kibble-lightbox`'s `beforeUrl`/`afterUrl`. */
+  _openComparePair(event, pair, alt) {
+    if (!this._entryId) return;
+    this._lightboxTrigger = event.currentTarget;
+    this._comparePair = { entryId: this._entryId, before: pair.before, after: pair.after };
     this._lightboxAlt = alt;
   }
   static {

@@ -10,6 +10,7 @@ import type { KibbleEntities } from "../lib/resolve-entities";
 import { mdiIcon, type MdiIconName } from "../lib/mdi-icons";
 import type { HomeAssistant } from "../types";
 import "./kibble-hold-button";
+import "./kibble-before-after";
 
 const CLOUD_CONFIRM_WINDOW_MS = 3000;
 
@@ -229,18 +230,17 @@ export class KibbleSettingsDialog extends LitElement {
   private _renderDishPhotos() {
     const before = this.entities.dishBefore ? this.hass.states[this.entities.dishBefore] : undefined;
     const after = this.entities.dishAfter ? this.hass.states[this.entities.dishAfter] : undefined;
-    if ((!before || before.state === "unavailable") && (!after || after.state === "unavailable")) return nothing;
+    const beforeAvailable = before && before.state !== "unavailable";
+    const afterAvailable = after && after.state !== "unavailable";
+    if (!beforeAvailable && !afterAvailable) return nothing;
     return html`
       <section>
         <h3>Last feed</h3>
-        <div class="dish-photos">
-          ${before && before.state !== "unavailable"
-            ? html`<img src=${String(before.attributes.entity_picture ?? "")} alt="Before" />`
-            : nothing}
-          ${after && after.state !== "unavailable"
-            ? html`<img src=${String(after.attributes.entity_picture ?? "")} alt="After" />`
-            : nothing}
-        </div>
+        <kibble-before-after
+          .beforeSrc=${beforeAvailable ? String(before!.attributes.entity_picture ?? "") : null}
+          .afterSrc=${afterAvailable ? String(after!.attributes.entity_picture ?? "") : null}
+          aspect="1.333"
+        ></kibble-before-after>
       </section>
     `;
   }
@@ -531,16 +531,6 @@ export class KibbleSettingsDialog extends LitElement {
     .cloud-toggle.confirming {
       border-color: var(--kibble-amber-dark);
       color: var(--kibble-amber-dark);
-    }
-    .dish-photos {
-      display: flex;
-      gap: 10px;
-    }
-    .dish-photos img {
-      width: 50%;
-      border-radius: 8px;
-      object-fit: cover;
-      aspect-ratio: 4 / 3;
     }
     .device-link {
       margin-top: 14px;

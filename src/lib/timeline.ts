@@ -8,6 +8,40 @@
 
 import type { TimelineFeedItem, TimelineIdentifiedItem, TimelineEatItem, TimelineItem, TimelineVisitItem } from "../types";
 
+export interface ComparePairRefs {
+  before: string | null;
+  after: string | null;
+}
+
+/** Whether a row carries the new before/after eat-compare pair the device may attach
+ * alongside (or instead of) its plain `image` -- see `KibbleTimelineCard`'s doc comment and
+ * `types.ts`'s `image_before`/`image_after` fields. `null` when neither side is present, so a
+ * row from an agent that predates the pair (or an identification/eat with nothing paired)
+ * renders exactly as it always has. */
+export function comparePairFor(item: Pick<TimelineIdentifiedItem, "image_before" | "image_after"> | Pick<TimelineEatItem, "image_before" | "image_after">): ComparePairRefs | null {
+  const before = item.image_before ?? null;
+  const after = item.image_after ?? null;
+  if (!before && !after) return null;
+  return { before, after };
+}
+
+export interface RowThumbnail {
+  name: string;
+  kind: string;
+}
+
+/** The single filename+kind to show as a row's *collapsed* thumbnail: the plain `image` (with
+ * its own `imageKind`) when present, so a row the device hasn't upgraded yet -- or that has
+ * nothing paired at all -- looks exactly as it always has. Only once `image` is `null` does a
+ * compare pair's `after` (post-eat, the more telling half) or `before` stand in, always read
+ * back via the `event` image kind the pair itself uses. `null` when there is nothing to show at
+ * all. */
+export function resolveThumbnail(image: string | null, imageKind: string, pair: ComparePairRefs | null): RowThumbnail | null {
+  if (image) return { name: image, kind: imageKind };
+  const name = pair?.after ?? pair?.before ?? null;
+  return name ? { name, kind: "event" } : null;
+}
+
 /** The row headline for every non-feed kind. Never a raw class string: an "identified" row
  * always names the cat the integration resolved (falling back to its own literal "Unknown cat"
  * upstream, never here), an "eat" with nobody identified nearby reads as "A cat ate", and a

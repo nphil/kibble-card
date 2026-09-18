@@ -68,6 +68,7 @@ async function main(): Promise<void> {
   const heightParam = params.get("height");
   const height = heightParam ? Number(heightParam) : null;
   const name = params.get("name") ?? undefined;
+  const settingsOpen = params.get("settings_open") === "true";
 
   document.documentElement.classList.toggle("dark", theme === "dark");
 
@@ -87,6 +88,12 @@ async function main(): Promise<void> {
   container.appendChild(element);
 
   await element.updateComplete;
+  // Hero-only: opens the settings dialog (dish before/after, per-hopper feed, etc.) on load, so
+  // a screenshot session can land straight on it instead of scripting a click on the gear.
+  if (card === "hero" && settingsOpen) {
+    element.shadowRoot?.querySelector<HTMLButtonElement>(".gear-button")?.click();
+    await element.updateComplete;
+  }
   await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
   window.__kibbleReady = true;
 }

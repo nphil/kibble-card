@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 480" width="640" height="480">
+  <!-- Dev-harness stand-in for a dish-after photo: same framing as dish-before.svg, most of the
+       food gone; the pairing this whole feature exists to make obvious at a glance. -->
+  <defs>
+    <linearGradient id="floor-after" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2c2f32"/>
+      <stop offset="1" stop-color="#191b1d"/>
+    </linearGradient>
+  </defs>
+  <rect width="640" height="480" fill="#24282c"/>
+  <rect y="300" width="640" height="180" fill="url(#floor-after)"/>
+  <ellipse cx="320" cy="300" rx="220" ry="70" fill="#000" opacity="0.3"/>
+  <ellipse cx="320" cy="280" rx="200" ry="80" fill="#e9e1d5"/>
+  <ellipse cx="320" cy="270" rx="160" ry="58" fill="#d8cdbc"/>
+  <circle cx="300" cy="266" r="6" fill="#DE8A3A"/>
+  <circle cx="345" cy="272" r="5" fill="#DE8A3A"/>
+</svg>

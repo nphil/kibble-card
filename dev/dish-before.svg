@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 480" width="640" height="480">
+  <!-- Dev-harness stand-in for a dish-before photo: the bowl, freshly topped up, just before a
+       dispense or a cat eats from it. Same framing as dish-after.svg on purpose, so the two
+       read as one paired shot; only the food level should differ. -->
+  <defs>
+    <linearGradient id="floor-before" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2c2f32"/>
+      <stop offset="1" stop-color="#191b1d"/>
+    </linearGradient>
+  </defs>
+  <rect width="640" height="480" fill="#24282c"/>
+  <rect y="300" width="640" height="180" fill="url(#floor-before)"/>
+  <ellipse cx="320" cy="300" rx="220" ry="70" fill="#000" opacity="0.3"/>
+  <ellipse cx="320" cy="280" rx="200" ry="80" fill="#e9e1d5"/>
+  <ellipse cx="320" cy="270" rx="160" ry="58" fill="#d8cdbc"/>
+  <ellipse cx="320" cy="250" rx="130" ry="34" fill="#F4A452"/>
+  <circle cx="260" cy="244" r="10" fill="#DE8A3A"/>
+  <circle cx="300" cy="236" r="9" fill="#DE8A3A"/>
+  <circle cx="340" cy="240" r="10" fill="#DE8A3A"/>
+  <circle cx="380" cy="248" r="9" fill="#DE8A3A"/>
+  <circle cx="290" cy="256" r="7" fill="#DE8A3A"/>
+  <circle cx="355" cy="258" r="7" fill="#DE8A3A"/>
+</svg>

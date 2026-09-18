@@ -19,7 +19,7 @@ import { resolveKibbleEntities, type KibbleEntities } from "./lib/resolve-entiti
 import { resolveEntryId } from "./lib/entry-id";
 import { WsQuery, watchKey } from "./lib/ws-query";
 import { ImageUrlCache, kibbleImageUrl } from "./lib/image-cache";
-import { detectionHeadline, feedSummary, filterVisits, groupByDay, type TimelineDay } from "./lib/timeline";
+import { comparePairFor, detectionHeadline, feedSummary, filterVisits, groupByDay, resolveThumbnail, type ComparePairRefs, type TimelineDay } from "./lib/timeline";
 import "./components/kibble-lightbox";
 import "./timeline-editor";
 
@@ -33,6 +33,7 @@ export class KibbleTimelineCard extends LitElement {
     _visibleCount: { state: true },
     _lightboxUrl: { state: true },
     _lightboxAlt: { state: true },
+    _comparePair: { state: true },
   };
 
   declare hass: HomeAssistant;
@@ -40,6 +41,10 @@ export class KibbleTimelineCard extends LitElement {
   declare _visibleCount: number;
   declare _lightboxUrl: string | null;
   declare _lightboxAlt: string;
+  /** Set instead of `_lightboxUrl` when a row's compare pair (not a plain single image) was
+   * tapped -- see `_openComparePair`/`_renderThumb`. `entryId` travels with it since a row's
+   * `_entryId` could in principle change between the tap and the next render. */
+  declare _comparePair: { entryId: string; before: string | null; after: string | null } | null;
 
   private _entities: KibbleEntities = EMPTY_ENTITIES;
   private _entryId: string | undefined;
@@ -57,6 +62,7 @@ export class KibbleTimelineCard extends LitElement {
     this._visibleCount = DEFAULT_LIMIT;
     this._lightboxUrl = null;
     this._lightboxAlt = "";
+    this._comparePair = null;
   }
 
   setConfig(config: KibbleTimelineCardConfig): void {
@@ -118,6 +124,10 @@ export class KibbleTimelineCard extends LitElement {
     const hasMore = items.length > visible.length;
     const showEmpty = !timelineState.error && !timelineState.loading && timelineState.data !== null && days.length === 0;
 
+    const compare = this._comparePair;
+    const compareBeforeUrl = compare?.before ? this._imageCache.get(this.hass, kibbleImageUrl(compare.entryId, "event", compare.before), () => this.requestUpdate()) : null;
+    const compareAfterUrl = compare?.after ? this._imageCache.get(this.hass, kibbleImageUrl(compare.entryId, "event", compare.after), () => this.requestUpdate()) : null;
+
     return html`
       <ha-card>
         <div class="container">
@@ -131,8 +141,10 @@ export class KibbleTimelineCard extends LitElement {
         </div>
       </ha-card>
       <kibble-lightbox
-        ?open=${this._lightboxUrl !== null}
+        ?open=${this._lightboxUrl !== null || compare !== null}
         .imageUrl=${this._lightboxUrl}
+        .beforeUrl=${compareBeforeUrl}
+        .afterUrl=${compareAfterUrl}
         .alt=${this._lightboxAlt}
         @close-requested=${this._closeLightbox}
       ></kibble-lightbox>
@@ -173,11 +185,16 @@ export class KibbleTimelineCard extends LitElement {
    * training sample. */
   private _renderIdentified(item: TimelineIdentifiedItem) {
     const time = this._timeLabel(item.ts);
+    const pair = comparePairFor(item);
+    const thumb = resolveThumbnail(item.image, item.image_kind, pair);
+    const alt = `${item.cat}, ${time}`;
     return html`
       <div class="row">
         <span class="time">${time}</span>
         <span class="row-text">${detectionHeadline(item)}</span>
-        ${item.image && this._entryId ? this._renderThumb(kibbleImageUrl(this._entryId, item.image_kind, item.image), `${item.cat}, ${time}`) : nothing}
+        ${thumb && this._entryId
+          ? this._renderThumb(kibbleImageUrl(this._entryId, thumb.kind, thumb.name), alt, pair ? (event) => this._openComparePair(event, pair, alt) : undefined)
+          : nothing}
       </div>
     `;
   }
@@ -186,11 +203,16 @@ export class KibbleTimelineCard extends LitElement {
    * never a guessed name. */
   private _renderEat(item: TimelineEatItem) {
     const time = this._timeLabel(item.ts);
+    const pair = comparePairFor(item);
+    const thumb = resolveThumbnail(item.image, "event", pair);
+    const alt = `A cat, ${time}`;
     return html`
       <div class="row">
         <span class="time">${time}</span>
         <span class="row-text">${detectionHeadline(item)}</span>
-        ${item.image && this._entryId ? this._renderThumb(kibbleImageUrl(this._entryId, "event", item.image), `A cat, ${time}`) : nothing}
+        ${thumb && this._entryId
+          ? this._renderThumb(kibbleImageUrl(this._entryId, thumb.kind, thumb.name), alt, pair ? (event) => this._openComparePair(event, pair, alt) : undefined)
+          : nothing}
       </div>
     `;
   }
@@ -230,10 +252,11 @@ export class KibbleTimelineCard extends LitElement {
     `;
   }
 
-  private _renderThumb(path: string, alt: string) {
+  private _renderThumb(path: string, alt: string, onOpen?: (event: Event) => void) {
     const url = this._imageCache.get(this.hass, path, () => this.requestUpdate());
+    const label = onOpen ? `Compare before and after: ${alt}` : `View photo: ${alt}`;
     return html`
-      <button type="button" class="thumb" ?disabled=${!url} aria-label=${`View photo: ${alt}`} @click=${(event: Event) => this._openLightbox(event, url, alt)}>
+      <button type="button" class="thumb" ?disabled=${!url} aria-label=${label} @click=${(event: Event) => (onOpen ? onOpen(event) : this._openLightbox(event, url, alt))}>
         ${url ? html`<img src=${url} alt="" loading="lazy" />` : nothing}
       </button>
     `;
@@ -273,8 +296,18 @@ export class KibbleTimelineCard extends LitElement {
     this._lightboxAlt = alt;
   }
 
+  /** Opens the same overlay `_openLightbox` uses, but with a before/after compare pair instead
+   * of a single image -- see `kibble-lightbox`'s `beforeUrl`/`afterUrl`. */
+  private _openComparePair(event: Event, pair: ComparePairRefs, alt: string): void {
+    if (!this._entryId) return;
+    this._lightboxTrigger = event.currentTarget as HTMLElement;
+    this._comparePair = { entryId: this._entryId, before: pair.before, after: pair.after };
+    this._lightboxAlt = alt;
+  }
+
   private _closeLightbox = (): void => {
     this._lightboxUrl = null;
+    this._comparePair = null;
     this._lightboxTrigger?.focus();
     this._lightboxTrigger = null;
   };

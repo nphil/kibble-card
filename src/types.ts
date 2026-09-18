@@ -116,6 +116,14 @@ export interface TimelineIdentifiedItem {
    * eat/visit JPEG by ts server-side. `null` when no candidate was found nearby (a fresh
    * identification can self-correct once its eat/visit is polled). */
   image: string | null;
+  /** A cat-eating-at-the-bowl before/after pair, bare filenames under the HTTP image view's
+   * `event` kind (same as `image`), or absent/`null` on an agent that predates this pair.
+   * Optional at both levels -- an agent may send neither, one, or both -- so a consumer always
+   * checks for their presence rather than assuming they travel together. See
+   * `lib/timeline.ts#comparePairFor`/`resolveThumbnail` for how a row picks between this pair
+   * and the plain `image` above. */
+  image_before?: string | null;
+  image_after?: string | null;
 }
 
 export interface TimelineVisitItem {
@@ -134,6 +142,10 @@ export interface TimelineEatItem {
    * appears unpaired like this when no `track` identification landed nearby -- a named
    * identification absorbs its eat's image into `TimelineIdentifiedItem` instead. */
   image: string | null;
+  /** See `TimelineIdentifiedItem.image_before`/`image_after` -- the same optional eat
+   * before/after pair, absent on an agent that predates it. */
+  image_before?: string | null;
+  image_after?: string | null;
 }
 
 export interface TimelineFeedItem {

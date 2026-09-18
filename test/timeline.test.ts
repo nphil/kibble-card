@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { detectionHeadline, feedSummary, filterVisits, groupByDay } from "../src/lib/timeline";
+import { comparePairFor, detectionHeadline, feedSummary, filterVisits, groupByDay, resolveThumbnail } from "../src/lib/timeline";
 import type { TimelineEatItem, TimelineFeedItem, TimelineIdentifiedItem, TimelineItem, TimelineVisitItem } from "../src/types";
 
 function identified(overrides: Partial<TimelineIdentifiedItem> & { ts: number }): TimelineIdentifiedItem {
@@ -113,5 +113,47 @@ describe("groupByDay", () => {
 
   test("returns an empty list for an empty timeline", () => {
     expect(groupByDay([], now)).toEqual([]);
+  });
+});
+
+describe("comparePairFor", () => {
+  test("null when a row carries neither field -- an agent that predates the pair, or nothing paired", () => {
+    expect(comparePairFor(eat({ ts: 0 }))).toBeNull();
+    expect(comparePairFor(identified({ ts: 0 }))).toBeNull();
+  });
+
+  test("null even when the fields are explicitly present but both null", () => {
+    expect(comparePairFor(eat({ ts: 0, image_before: null, image_after: null }))).toBeNull();
+  });
+
+  test("a pair once either side is set, even if the other stays null", () => {
+    expect(comparePairFor(eat({ ts: 0, image_before: "b.jpg", image_after: null }))).toEqual({ before: "b.jpg", after: null });
+    expect(comparePairFor(eat({ ts: 0, image_before: null, image_after: "a.jpg" }))).toEqual({ before: null, after: "a.jpg" });
+    expect(comparePairFor(identified({ ts: 0, image_before: "b.jpg", image_after: "a.jpg" }))).toEqual({ before: "b.jpg", after: "a.jpg" });
+  });
+});
+
+describe("resolveThumbnail", () => {
+  test("a row with only `image` set is unchanged: its own kind, no compare pair involved", () => {
+    expect(resolveThumbnail("1789580000-event.jpg", "track", null)).toEqual({ name: "1789580000-event.jpg", kind: "track" });
+    expect(resolveThumbnail("1789580000-event.jpg", "track", comparePairFor(identified({ ts: 0 })))).toEqual({
+      name: "1789580000-event.jpg",
+      kind: "track",
+    });
+  });
+
+  test("prefers the plain `image` over the compare pair even when both are present", () => {
+    const pair = comparePairFor(identified({ ts: 0, image_before: "b.jpg", image_after: "a.jpg" }));
+    expect(resolveThumbnail("1789580000-event.jpg", "event", pair)).toEqual({ name: "1789580000-event.jpg", kind: "event" });
+  });
+
+  test("falls back to the pair's after (then before), always as event kind, once `image` is null", () => {
+    expect(resolveThumbnail(null, "track", { before: "b.jpg", after: "a.jpg" })).toEqual({ name: "a.jpg", kind: "event" });
+    expect(resolveThumbnail(null, "track", { before: "b.jpg", after: null })).toEqual({ name: "b.jpg", kind: "event" });
+  });
+
+  test("null when there is nothing at all to show", () => {
+    expect(resolveThumbnail(null, "event", null)).toBeNull();
+    expect(resolveThumbnail(null, "event", { before: null, after: null })).toBeNull();
   });
 });

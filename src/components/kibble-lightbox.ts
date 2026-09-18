@@ -9,17 +9,30 @@
 import { LitElement, css, html, nothing, type PropertyValues } from "lit";
 import { createRef, ref } from "lit/directives/ref.js";
 import { mdiIcon } from "../lib/mdi-icons";
+import "./kibble-before-after";
 
 export class KibbleLightbox extends LitElement {
   static properties = {
     open: { type: Boolean, reflect: true },
     imageUrl: { type: String },
     alt: { type: String },
+    beforeUrl: { type: String },
+    afterUrl: { type: String },
+    beforeLabel: { type: String },
+    afterLabel: { type: String },
   };
 
   declare open: boolean;
   declare imageUrl: string | null;
   declare alt: string;
+  /** When either is set, the frame renders a `kibble-before-after` compare tile instead of a
+   * plain `<img>` -- the same controlled-overlay chrome (backdrop, Escape, focus return) with a
+   * different centrepiece, so a timeline row's eat-compare pair reuses this dialog rather than
+   * inventing a second one. */
+  declare beforeUrl: string | null;
+  declare afterUrl: string | null;
+  declare beforeLabel: string;
+  declare afterLabel: string;
 
   private _closeButtonRef = createRef<HTMLButtonElement>();
 
@@ -35,6 +48,10 @@ export class KibbleLightbox extends LitElement {
     this.open = false;
     this.imageUrl = null;
     this.alt = "";
+    this.beforeUrl = null;
+    this.afterUrl = null;
+    this.beforeLabel = "Before";
+    this.afterLabel = "After";
   }
 
   connectedCallback(): void {
@@ -55,10 +72,23 @@ export class KibbleLightbox extends LitElement {
 
   render() {
     if (!this.open) return nothing;
+    const isCompare = Boolean(this.beforeUrl || this.afterUrl);
     return html`
       <div class="backdrop" @click=${this._close} role="dialog" aria-modal="true" aria-label=${this.alt || "Photo"}>
-        <div class="frame" @click=${(event: Event) => event.stopPropagation()}>
-          ${this.imageUrl ? html`<img src=${this.imageUrl} alt=${this.alt} />` : nothing}
+        <div class="frame ${isCompare ? "compare" : ""}" @click=${(event: Event) => event.stopPropagation()}>
+          ${isCompare
+            ? html`
+                <kibble-before-after
+                  .beforeSrc=${this.beforeUrl}
+                  .afterSrc=${this.afterUrl}
+                  .beforeLabel=${this.beforeLabel}
+                  .afterLabel=${this.afterLabel}
+                  .caption=${this.alt}
+                ></kibble-before-after>
+              `
+            : this.imageUrl
+              ? html`<img src=${this.imageUrl} alt=${this.alt} />`
+              : nothing}
           <button type="button" class="close" aria-label="Close" ${ref(this._closeButtonRef)} @click=${this._close}>
             ${mdiIcon("close")}
           </button>
@@ -90,6 +120,9 @@ export class KibbleLightbox extends LitElement {
       position: relative;
       max-width: min(90vw, 720px);
       max-height: 90vh;
+    }
+    .frame.compare {
+      width: min(90vw, 720px);
     }
     img {
       display: block;

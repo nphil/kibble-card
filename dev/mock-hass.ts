@@ -176,8 +176,13 @@ export function createMockHass(scenario: ScenarioName, onChange?: () => void): H
     fetchWithAuth: async (input) => {
       const path = typeof input === "string" ? input : "";
       if (path.startsWith("/api/kibble/")) {
-        // No real image backend in the harness -- every crop/sample/thumbnail reuses this one
-        // cat-like placeholder, distinct from the camera feed's own dark vignette stand-in.
+        // No real image backend in the harness. Every crop/sample/thumbnail reuses one of three
+        // placeholders: a filename containing "before"/"after" (feed cycles and the eat-compare
+        // pair both name their images this way) gets the matching dish placeholder, so a
+        // `kibble-before-after` tile actually shows two different photos instead of the same
+        // one twice; everything else falls back to the cat-like face-crop placeholder.
+        if (/before/i.test(path)) return fetch("./dish-before.svg");
+        if (/after/i.test(path)) return fetch("./dish-after.svg");
         return fetch("./face-crop.svg");
       }
       return new Response(null, { status: 404 });

@@ -156,8 +156,8 @@ function buildIdle(): Fixture {
     [ENTITY_IDS.lastDetectionImage]: state(ENTITY_IDS.lastDetectionImage, minutesAgo(14), {
       entity_picture: "./camera-frame.svg",
     }),
-    [ENTITY_IDS.dishBefore]: state(ENTITY_IDS.dishBefore, minutesAgo(390), { entity_picture: "./camera-frame.svg" }),
-    [ENTITY_IDS.dishAfter]: state(ENTITY_IDS.dishAfter, minutesAgo(390), { entity_picture: "./camera-frame.svg" }),
+    [ENTITY_IDS.dishBefore]: state(ENTITY_IDS.dishBefore, minutesAgo(390), { entity_picture: "./dish-before.svg" }),
+    [ENTITY_IDS.dishAfter]: state(ENTITY_IDS.dishAfter, minutesAgo(390), { entity_picture: "./dish-after.svg" }),
     [ENTITY_IDS.pendingFace]: state(ENTITY_IDS.pendingFace, minutesAgo(6), { status: "pending" }),
   };
   return { device: DEVICE, entities: registryFor(false), states };
@@ -190,8 +190,8 @@ function buildDispensing(): Fixture {
     [ENTITY_IDS.lastDetectionImage]: state(ENTITY_IDS.lastDetectionImage, minutesAgo(1), {
       entity_picture: "./camera-frame.svg",
     }),
-    [ENTITY_IDS.dishBefore]: state(ENTITY_IDS.dishBefore, minutesAgo(1), { entity_picture: "./camera-frame.svg" }),
-    [ENTITY_IDS.dishAfter]: state(ENTITY_IDS.dishAfter, minutesAgo(1), { entity_picture: "./camera-frame.svg" }),
+    [ENTITY_IDS.dishBefore]: state(ENTITY_IDS.dishBefore, minutesAgo(1), { entity_picture: "./dish-before.svg" }),
+    [ENTITY_IDS.dishAfter]: state(ENTITY_IDS.dishAfter, minutesAgo(1), { entity_picture: "./dish-after.svg" }),
     [ENTITY_IDS.pendingFace]: state(ENTITY_IDS.pendingFace, minutesAgo(1), { status: "pending" }),
     [ENTITY_IDS.wifiNetwork]: state(ENTITY_IDS.wifiNetwork, "Good (-52 dBm)"),
   };
@@ -311,8 +311,21 @@ export const SAMPLES_BY_CAT: Record<string, CatSample[]> = {
  * merely "at the bowl" (paired with a visit's photo, and once with no photo at all -- a fresh
  * identification whose eat/visit hasn't been polled yet), an unnamed "eat", bare visits (only
  * ever shown when `show_visits` is on), and feeds spanning manual/scheduled and known/unknown
- * amounts. */
+ * amounts, and one "identified" row carrying the new eat-compare `image_before`/`image_after`
+ * pair (`image` itself left `null`, exercising the fallback-to-pair thumbnail path) so the
+ * harness shows both a `kibble-before-after` tile embedded in settings ("Last feed") and one
+ * behind a timeline row's tap. */
 export const TIMELINE_ITEMS: TimelineItem[] = [
+  {
+    kind: "identified",
+    ts: localTime(19, 20),
+    cat: "Kitty",
+    paired_class: "eat",
+    image: null,
+    image_kind: "event",
+    image_before: `${localTime(19, 20)}-eat-before.jpg`,
+    image_after: `${localTime(19, 20)}-eat-after.jpg`,
+  },
   { kind: "identified", ts: localTime(18, 4), cat: "Pancake", paired_class: "eat", image: `${localTime(18, 4)}-event.jpg`, image_kind: "track" },
   { kind: "identified", ts: localTime(17, 22), cat: "Pancake", paired_class: "face", image: `${localTime(17, 22)}-event.jpg`, image_kind: "event" },
   { kind: "visit", ts: localTime(15, 50), image: `${localTime(15, 50)}-event.jpg` },

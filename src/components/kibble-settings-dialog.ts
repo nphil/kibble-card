@@ -1,5 +1,5 @@
 /** Everything secondary lives here, behind the header gear: per-hopper feed (the wear-leveling /
- * jam-workaround case), the device toggles, volume, cloud (with a tap-twice confirm since it
+ * jam-workaround case), the device toggles, cloud (with a tap-twice confirm since it
  * opens/closes an external pathway), Wi-Fi/desiccant detail, before/after dish photos when the
  * integration ships them, the speaker, and the link out to the device page. A controlled overlay:
  * the parent owns `open`, this dialog only ever asks to close.
@@ -76,7 +76,6 @@ export class KibbleSettingsDialog extends LitElement {
           ${e.feedButtonHopper1 || e.feedButtonHopper2 ? this._renderHopperSection() : nothing}
           ${e.feedAmount ? this._renderMoreAmountSection() : nothing}
           ${this._renderToggles()}
-          ${e.volume ? this._renderVolume() : nothing}
           ${e.cloudSwitch ? this._renderCloud() : nothing}
           ${e.stackSelect ? this._renderStack() : nothing}
           ${e.wifiNetwork ? this._renderWifi() : nothing}
@@ -181,24 +180,6 @@ export class KibbleSettingsDialog extends LitElement {
         <span class="toggle-label">${label}</span>
         <span class="toggle-pill ${on ? "on" : ""}"><span class="toggle-knob"></span></span>
       </button>
-    `;
-  }
-
-  private _renderVolume() {
-    const attrs = numberAttrs(this.hass, this.entities.volume);
-    if (!attrs) return nothing;
-    return html`
-      <section>
-        <h3>Volume</h3>
-        <input
-          type="range"
-          min=${attrs.min}
-          max=${attrs.max}
-          step=${attrs.step}
-          .value=${String(attrs.value)}
-          @change=${(ev: Event) => this._setNumber(this.entities.volume!, Number((ev.target as HTMLInputElement).value))}
-        />
-      </section>
     `;
   }
 

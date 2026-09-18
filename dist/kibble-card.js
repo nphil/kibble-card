@@ -7716,7 +7716,6 @@ var RULES = {
   nightVisionSwitch: { domain: "switch", translationKeys: ["night", "night_vision"], idSuffixes: ["_night", "_night_vision"] },
   statusLedSwitch: { domain: "switch", translationKeys: ["light", "status_led"], idSuffixes: ["_light", "_status_led"] },
   microphoneSwitch: { domain: "switch", translationKeys: ["microphone"], idSuffixes: ["_microphone"] },
-  volume: { domain: "number", translationKeys: ["volume"], idSuffixes: ["_volume"] },
   lastSeenPet: { domain: "sensor", translationKeys: ["last_seen_pet"], idSuffixes: ["_last_seen_pet"] },
   dishBefore: { domain: "image", translationKeys: ["dish_before"], idSuffixes: ["_dish_before"] },
   dishAfter: { domain: "image", translationKeys: ["dish_after"], idSuffixes: ["_dish_after"] },
@@ -9257,7 +9256,6 @@ var KibbleSettingsDialog = class extends i4 {
           ${e6.feedButtonHopper1 || e6.feedButtonHopper2 ? this._renderHopperSection() : A}
           ${e6.feedAmount ? this._renderMoreAmountSection() : A}
           ${this._renderToggles()}
-          ${e6.volume ? this._renderVolume() : A}
           ${e6.cloudSwitch ? this._renderCloud() : A}
           ${e6.stackSelect ? this._renderStack() : A}
           ${e6.wifiNetwork ? this._renderWifi() : A}
@@ -9349,23 +9347,6 @@ var KibbleSettingsDialog = class extends i4 {
         <span class="toggle-label">${label}</span>
         <span class="toggle-pill ${on ? "on" : ""}"><span class="toggle-knob"></span></span>
       </button>
-    `;
-  }
-  _renderVolume() {
-    const attrs = numberAttrs(this.hass, this.entities.volume);
-    if (!attrs) return A;
-    return b2`
-      <section>
-        <h3>Volume</h3>
-        <input
-          type="range"
-          min=${attrs.min}
-          max=${attrs.max}
-          step=${attrs.step}
-          .value=${String(attrs.value)}
-          @change=${(ev) => this._setNumber(this.entities.volume, Number(ev.target.value))}
-        />
-      </section>
     `;
   }
   _renderCloud() {

@@ -73,7 +73,7 @@ const ENTITY_IDS = {
   nightVisionSwitch: "switch.plant_room_cat_feeder_night_vision",
   statusLedSwitch: "switch.plant_room_cat_feeder_status_led",
   microphoneSwitch: "switch.plant_room_cat_feeder_microphone",
-  volume: "number.plant_room_cat_feeder_volume",
+  speaker: "media_player.plant_room_cat_feeder_speaker",
   lastSeenPet: "sensor.plant_room_cat_feeder_last_seen_pet",
   wifiNetwork: "sensor.plant_room_cat_feeder_wifi_network",
   lastDetection: "sensor.plant_room_cat_feeder_last_detection",
@@ -104,7 +104,7 @@ function registryFor(includeWifi: boolean): Record<string, EntityRegistryEntry> 
     [ENTITY_IDS.nightVisionSwitch]: entry(ENTITY_IDS.nightVisionSwitch, "night"),
     [ENTITY_IDS.statusLedSwitch]: entry(ENTITY_IDS.statusLedSwitch, "light"),
     [ENTITY_IDS.microphoneSwitch]: entry(ENTITY_IDS.microphoneSwitch, "microphone"),
-    [ENTITY_IDS.volume]: entry(ENTITY_IDS.volume, "volume"),
+    [ENTITY_IDS.speaker]: entry(ENTITY_IDS.speaker, "speaker"),
     [ENTITY_IDS.lastSeenPet]: entry(ENTITY_IDS.lastSeenPet, "last_seen_pet"),
     [ENTITY_IDS.lastDetection]: entry(ENTITY_IDS.lastDetection, "last_detection"),
     [ENTITY_IDS.detectionsToday]: entry(ENTITY_IDS.detectionsToday, "detections_today"),
@@ -144,7 +144,7 @@ function buildIdle(): Fixture {
     [ENTITY_IDS.nightVisionSwitch]: state(ENTITY_IDS.nightVisionSwitch, "off"),
     [ENTITY_IDS.statusLedSwitch]: state(ENTITY_IDS.statusLedSwitch, "on"),
     [ENTITY_IDS.microphoneSwitch]: state(ENTITY_IDS.microphoneSwitch, "on"),
-    [ENTITY_IDS.volume]: state(ENTITY_IDS.volume, "6", { min: 0, max: 9, step: 1 }),
+    [ENTITY_IDS.speaker]: state(ENTITY_IDS.speaker, "idle", { volume_level: 0.6 }),
     [ENTITY_IDS.lastSeenPet]: state(ENTITY_IDS.lastSeenPet, "Kitty", { score: 0.94 }, minutesAgo(126)),
     // An unidentified visit: Kibble saw a cat but did not match it to Kitty or Pancake, so the
     // row shows the class ("Seen") and never a guessed name.
@@ -179,7 +179,7 @@ function buildDispensing(): Fixture {
     [ENTITY_IDS.nightVisionSwitch]: state(ENTITY_IDS.nightVisionSwitch, "off"),
     [ENTITY_IDS.statusLedSwitch]: state(ENTITY_IDS.statusLedSwitch, "on"),
     [ENTITY_IDS.microphoneSwitch]: state(ENTITY_IDS.microphoneSwitch, "on"),
-    [ENTITY_IDS.volume]: state(ENTITY_IDS.volume, "6", { min: 0, max: 9, step: 1 }),
+    [ENTITY_IDS.speaker]: state(ENTITY_IDS.speaker, "idle", { volume_level: 0.4 }),
     [ENTITY_IDS.lastSeenPet]: state(ENTITY_IDS.lastSeenPet, "Pancake", { score: 0.88 }, minutesAgo(1)),
     // Mid-dispense: the cat that tripped the detection is still at the bowl.
     [ENTITY_IDS.lastDetection]: state(ENTITY_IDS.lastDetection, minutesAgo(1), {
@@ -215,7 +215,7 @@ function buildUnreachable(): Fixture {
     [ENTITY_IDS.nightVisionSwitch]: state(ENTITY_IDS.nightVisionSwitch, "unavailable", {}),
     [ENTITY_IDS.statusLedSwitch]: state(ENTITY_IDS.statusLedSwitch, "unavailable", {}),
     [ENTITY_IDS.microphoneSwitch]: state(ENTITY_IDS.microphoneSwitch, "unavailable", {}),
-    [ENTITY_IDS.volume]: state(ENTITY_IDS.volume, "unavailable", {}),
+    [ENTITY_IDS.speaker]: state(ENTITY_IDS.speaker, "unavailable", {}),
     [ENTITY_IDS.lastSeenPet]: state(ENTITY_IDS.lastSeenPet, "unavailable", {}),
     [ENTITY_IDS.lastDetection]: state(ENTITY_IDS.lastDetection, "unavailable", {}),
     [ENTITY_IDS.detectionsToday]: state(ENTITY_IDS.detectionsToday, "unavailable", {}),

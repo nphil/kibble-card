@@ -38,7 +38,6 @@ export interface KibbleEntities {
   nightVisionSwitch?: string;
   statusLedSwitch?: string;
   microphoneSwitch?: string;
-  volume?: string;
   lastSeenPet?: string;
   catPresence: CatPresence[];
   dishBefore?: string;
@@ -86,7 +85,6 @@ const RULES: Record<RuleRole, RoleRule> = {
   nightVisionSwitch: { domain: "switch", translationKeys: ["night", "night_vision"], idSuffixes: ["_night", "_night_vision"] },
   statusLedSwitch: { domain: "switch", translationKeys: ["light", "status_led"], idSuffixes: ["_light", "_status_led"] },
   microphoneSwitch: { domain: "switch", translationKeys: ["microphone"], idSuffixes: ["_microphone"] },
-  volume: { domain: "number", translationKeys: ["volume"], idSuffixes: ["_volume"] },
   lastSeenPet: { domain: "sensor", translationKeys: ["last_seen_pet"], idSuffixes: ["_last_seen_pet"] },
   dishBefore: { domain: "image", translationKeys: ["dish_before"], idSuffixes: ["_dish_before"] },
   dishAfter: { domain: "image", translationKeys: ["dish_after"], idSuffixes: ["_dish_after"] },

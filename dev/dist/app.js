@@ -7619,7 +7619,6 @@ var RULES = {
   nightVisionSwitch: { domain: "switch", translationKeys: ["night", "night_vision"], idSuffixes: ["_night", "_night_vision"] },
   statusLedSwitch: { domain: "switch", translationKeys: ["light", "status_led"], idSuffixes: ["_light", "_status_led"] },
   microphoneSwitch: { domain: "switch", translationKeys: ["microphone"], idSuffixes: ["_microphone"] },
-  volume: { domain: "number", translationKeys: ["volume"], idSuffixes: ["_volume"] },
   lastSeenPet: { domain: "sensor", translationKeys: ["last_seen_pet"], idSuffixes: ["_last_seen_pet"] },
   dishBefore: { domain: "image", translationKeys: ["dish_before"], idSuffixes: ["_dish_before"] },
   dishAfter: { domain: "image", translationKeys: ["dish_after"], idSuffixes: ["_dish_after"] },
@@ -9120,7 +9119,6 @@ var KibbleSettingsDialog = class extends i4 {
           ${e6.feedButtonHopper1 || e6.feedButtonHopper2 ? this._renderHopperSection() : A}
           ${e6.feedAmount ? this._renderMoreAmountSection() : A}
           ${this._renderToggles()}
-          ${e6.volume ? this._renderVolume() : A}
           ${e6.cloudSwitch ? this._renderCloud() : A}
           ${e6.stackSelect ? this._renderStack() : A}
           ${e6.wifiNetwork ? this._renderWifi() : A}
@@ -9212,23 +9210,6 @@ var KibbleSettingsDialog = class extends i4 {
         <span class="toggle-label">${label}</span>
         <span class="toggle-pill ${on ? "on" : ""}"><span class="toggle-knob"></span></span>
       </button>
-    `;
-  }
-  _renderVolume() {
-    const attrs = numberAttrs(this.hass, this.entities.volume);
-    if (!attrs) return A;
-    return b2`
-      <section>
-        <h3>Volume</h3>
-        <input
-          type="range"
-          min=${attrs.min}
-          max=${attrs.max}
-          step=${attrs.step}
-          .value=${String(attrs.value)}
-          @change=${(ev) => this._setNumber(this.entities.volume, Number(ev.target.value))}
-        />
-      </section>
     `;
   }
   _renderCloud() {
@@ -13669,7 +13650,6 @@ var RULES2 = {
   nightVisionSwitch: { domain: "switch", translationKeys: ["night", "night_vision"], idSuffixes: ["_night", "_night_vision"] },
   statusLedSwitch: { domain: "switch", translationKeys: ["light", "status_led"], idSuffixes: ["_light", "_status_led"] },
   microphoneSwitch: { domain: "switch", translationKeys: ["microphone"], idSuffixes: ["_microphone"] },
-  volume: { domain: "number", translationKeys: ["volume"], idSuffixes: ["_volume"] },
   lastSeenPet: { domain: "sensor", translationKeys: ["last_seen_pet"], idSuffixes: ["_last_seen_pet"] },
   dishBefore: { domain: "image", translationKeys: ["dish_before"], idSuffixes: ["_dish_before"] },
   dishAfter: { domain: "image", translationKeys: ["dish_after"], idSuffixes: ["_dish_after"] },
@@ -13783,7 +13763,7 @@ var ENTITY_IDS = {
   nightVisionSwitch: "switch.plant_room_cat_feeder_night_vision",
   statusLedSwitch: "switch.plant_room_cat_feeder_status_led",
   microphoneSwitch: "switch.plant_room_cat_feeder_microphone",
-  volume: "number.plant_room_cat_feeder_volume",
+  speaker: "media_player.plant_room_cat_feeder_speaker",
   lastSeenPet: "sensor.plant_room_cat_feeder_last_seen_pet",
   wifiNetwork: "sensor.plant_room_cat_feeder_wifi_network",
   lastDetection: "sensor.plant_room_cat_feeder_last_detection",
@@ -13813,7 +13793,7 @@ function registryFor(includeWifi) {
     [ENTITY_IDS.nightVisionSwitch]: entry(ENTITY_IDS.nightVisionSwitch, "night"),
     [ENTITY_IDS.statusLedSwitch]: entry(ENTITY_IDS.statusLedSwitch, "light"),
     [ENTITY_IDS.microphoneSwitch]: entry(ENTITY_IDS.microphoneSwitch, "microphone"),
-    [ENTITY_IDS.volume]: entry(ENTITY_IDS.volume, "volume"),
+    [ENTITY_IDS.speaker]: entry(ENTITY_IDS.speaker, "speaker"),
     [ENTITY_IDS.lastSeenPet]: entry(ENTITY_IDS.lastSeenPet, "last_seen_pet"),
     [ENTITY_IDS.lastDetection]: entry(ENTITY_IDS.lastDetection, "last_detection"),
     [ENTITY_IDS.detectionsToday]: entry(ENTITY_IDS.detectionsToday, "detections_today"),
@@ -13851,7 +13831,7 @@ function buildIdle() {
     [ENTITY_IDS.nightVisionSwitch]: state(ENTITY_IDS.nightVisionSwitch, "off"),
     [ENTITY_IDS.statusLedSwitch]: state(ENTITY_IDS.statusLedSwitch, "on"),
     [ENTITY_IDS.microphoneSwitch]: state(ENTITY_IDS.microphoneSwitch, "on"),
-    [ENTITY_IDS.volume]: state(ENTITY_IDS.volume, "6", { min: 0, max: 9, step: 1 }),
+    [ENTITY_IDS.speaker]: state(ENTITY_IDS.speaker, "idle", { volume_level: 0.6 }),
     [ENTITY_IDS.lastSeenPet]: state(ENTITY_IDS.lastSeenPet, "Kitty", { score: 0.94 }, minutesAgo(126)),
     // An unidentified visit: Kibble saw a cat but did not match it to Kitty or Pancake, so the
     // row shows the class ("Seen") and never a guessed name.
@@ -13885,7 +13865,7 @@ function buildDispensing() {
     [ENTITY_IDS.nightVisionSwitch]: state(ENTITY_IDS.nightVisionSwitch, "off"),
     [ENTITY_IDS.statusLedSwitch]: state(ENTITY_IDS.statusLedSwitch, "on"),
     [ENTITY_IDS.microphoneSwitch]: state(ENTITY_IDS.microphoneSwitch, "on"),
-    [ENTITY_IDS.volume]: state(ENTITY_IDS.volume, "6", { min: 0, max: 9, step: 1 }),
+    [ENTITY_IDS.speaker]: state(ENTITY_IDS.speaker, "idle", { volume_level: 0.4 }),
     [ENTITY_IDS.lastSeenPet]: state(ENTITY_IDS.lastSeenPet, "Pancake", { score: 0.88 }, minutesAgo(1)),
     // Mid-dispense: the cat that tripped the detection is still at the bowl.
     [ENTITY_IDS.lastDetection]: state(ENTITY_IDS.lastDetection, minutesAgo(1), {
@@ -13920,7 +13900,7 @@ function buildUnreachable() {
     [ENTITY_IDS.nightVisionSwitch]: state(ENTITY_IDS.nightVisionSwitch, "unavailable", {}),
     [ENTITY_IDS.statusLedSwitch]: state(ENTITY_IDS.statusLedSwitch, "unavailable", {}),
     [ENTITY_IDS.microphoneSwitch]: state(ENTITY_IDS.microphoneSwitch, "unavailable", {}),
-    [ENTITY_IDS.volume]: state(ENTITY_IDS.volume, "unavailable", {}),
+    [ENTITY_IDS.speaker]: state(ENTITY_IDS.speaker, "unavailable", {}),
     [ENTITY_IDS.lastSeenPet]: state(ENTITY_IDS.lastSeenPet, "unavailable", {}),
     [ENTITY_IDS.lastDetection]: state(ENTITY_IDS.lastDetection, "unavailable", {}),
     [ENTITY_IDS.detectionsToday]: state(ENTITY_IDS.detectionsToday, "unavailable", {}),

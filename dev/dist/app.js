@@ -7599,8 +7599,10 @@ o4?.({ LitElement: i4 });
 (s3.litElementVersions ??= []).push("4.2.2");
 var RULES = {
   feeding: { domain: "binary_sensor", translationKeys: ["feeding"], idSuffixes: ["_feeding"] },
-  bowlFill1: { domain: "sensor", translationKeys: ["bowl_fill_1"], idSuffixes: ["_bowl_fill_1", "_bowl_fill_hopper_1"] },
-  bowlFill2: { domain: "sensor", translationKeys: ["bowl_fill_2"], idSuffixes: ["_bowl_fill_2", "_bowl_fill_hopper_2"] },
+  eating: { domain: "binary_sensor", translationKeys: ["eating"], idSuffixes: ["_eating"] },
+  bowlFill: { domain: "sensor", translationKeys: ["bowl_fill", "bowl_fill_1"], idSuffixes: ["_bowl_fill", "_bowl_fill_1", "_bowl_fill_hopper_1"] },
+  hopperLevel1: { domain: "sensor", translationKeys: ["hopper_1_level"], idSuffixes: ["_hopper_1_level"] },
+  hopperLevel2: { domain: "sensor", translationKeys: ["hopper_2_level"], idSuffixes: ["_hopper_2_level"] },
   desiccantDays: { domain: "sensor", translationKeys: ["desiccant_days", "desiccant_left"], idSuffixes: ["_desiccant_days", "_desiccant_left"] },
   schedule: { domain: "sensor", translationKeys: ["schedule"], idSuffixes: ["_schedule"] },
   scheduleCardState: { domain: "sensor", translationKeys: ["schedule_card_state"], idSuffixes: ["_schedule_card_state"] },
@@ -7612,6 +7614,7 @@ var RULES = {
   feedAmountHopper1: { domain: "number", translationKeys: ["feed_amount_hopper_1"], idSuffixes: ["_feed_amount_hopper_1"] },
   feedAmountHopper2: { domain: "number", translationKeys: ["feed_amount_hopper_2"], idSuffixes: ["_feed_amount_hopper_2"] },
   cloudSwitch: { domain: "switch", translationKeys: ["cloud", "petkit_cloud"], idSuffixes: ["_cloud", "_petkit_cloud"] },
+  stackSelect: { domain: "select", translationKeys: ["stack"], idSuffixes: ["_stack"] },
   cloudConnection: { domain: "sensor", translationKeys: ["cloud_connection"], idSuffixes: ["_cloud_connection"] },
   nightVisionSwitch: { domain: "switch", translationKeys: ["night", "night_vision"], idSuffixes: ["_night", "_night_vision"] },
   statusLedSwitch: { domain: "switch", translationKeys: ["light", "status_led"], idSuffixes: ["_light", "_status_led"] },
@@ -7773,6 +7776,8 @@ var MDI = {
   wifi: "M12,21L15.6,16.2C14.6,15.45 13.35,15 12,15C10.65,15 9.4,15.45 8.4,16.2L12,21M12,3C7.95,3 4.21,4.34 1.2,6.6L3,9C5.5,7.12 8.62,6 12,6C15.38,6 18.5,7.12 21,9L22.8,6.6C19.79,4.34 16.05,3 12,3M12,9C9.3,9 6.81,9.89 4.8,11.4L6.6,13.8C8.1,12.67 9.97,12 12,12C14.03,12 15.9,12.67 17.4,13.8L19.2,11.4C17.19,9.89 14.7,9 12,9Z",
   chevronDown: "M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z",
   close: "M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z",
+  fullscreen: "M5,5H10V7H7V10H5V5M14,5H19V10H17V7H14V5M17,14H19V19H14V17H17V14M10,17V19H5V14H7V17H10Z",
+  fullscreenExit: "M14,14H19V16H16V19H14V14M5,14H10V19H8V16H5V14M8,5H10V10H5V8H8V5M19,8V10H14V5H16V8H19Z",
   weatherNight: "M17.75,4.09L15.22,6.03L16.13,9.09L13.5,7.28L10.87,9.09L11.78,6.03L9.25,4.09L12.44,4L13.5,1L14.56,4L17.75,4.09M21.25,11L19.61,12.25L20.2,14.23L18.5,13.06L16.8,14.23L17.39,12.25L15.75,11L17.81,10.95L18.5,9L19.19,10.95L21.25,11M18.97,15.95C19.8,15.87 20.69,17.05 20.16,17.8C19.84,18.25 19.5,18.67 19.08,19.07C15.17,23 8.84,23 4.94,19.07C1.03,15.17 1.03,8.83 4.94,4.93C5.34,4.53 5.76,4.17 6.21,3.85C6.96,3.32 8.14,4.21 8.06,5.04C7.79,7.9 8.75,10.87 10.95,13.06C13.14,15.26 16.1,16.22 18.97,15.95M17.33,17.97C14.5,17.81 11.7,16.64 9.53,14.5C7.36,12.31 6.2,9.5 6.04,6.68C3.23,9.82 3.34,14.64 6.35,17.66C9.37,20.67 14.19,20.78 17.33,17.97Z",
   ledOn: "M11,0V4H13V0H11M18.3,2.29L15.24,5.29L16.64,6.71L19.7,3.71L18.3,2.29M5.71,2.29L4.29,3.71L7.29,6.71L8.71,5.29L5.71,2.29M12,6A4,4 0 0,0 8,10V16H6V18H9V23H11V18H13V23H15V18H18V16H16V10A4,4 0 0,0 12,6M2,9V11H6V9H2M18,9V11H22V9H18Z",
   microphone: "M12,2A3,3 0 0,1 15,5V11A3,3 0 0,1 12,14A3,3 0 0,1 9,11V5A3,3 0 0,1 12,2M19,11C19,14.53 16.39,17.44 13,17.93V21H11V17.93C7.61,17.44 5,14.53 5,11H7A5,5 0 0,0 12,16A5,5 0 0,0 17,11H19Z",
@@ -7801,33 +7806,35 @@ function catColorAt(colorIndex) {
 function prefersReducedMotion() {
   return typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true;
 }
-var EQUAL_FILL_THRESHOLD = 5;
-function combineBowlFill(hopper1, hopper2) {
-  if (hopper1 === null && hopper2 === null) {
-    return { split: false, hopper1: null, hopper2: null, combined: null };
+function parseHopperLevel(state2) {
+  return state2 === "empty" || state2 === "low" || state2 === "ok" ? state2 : null;
+}
+var WORD = { empty: "empty", low: "running low" };
+function hopperStatus(side1, side2) {
+  if (side1 === null && side2 === null) return null;
+  const problems = [
+    [1, side1],
+    [2, side2]
+  ].filter((entry2) => entry2[1] !== null && entry2[1] !== "ok");
+  if (problems.length === 0) return { text: "Hopper stocked", tone: "ok" };
+  const tone = problems.some(([, level]) => level === "empty") ? "empty" : "low";
+  if (problems.length === 2 && problems[0][1] === problems[1][1]) {
+    return { text: `Hopper ${WORD[problems[0][1]]}`, tone };
   }
-  if (hopper1 === null || hopper2 === null) {
-    return { split: false, hopper1, hopper2, combined: hopper1 ?? hopper2 };
-  }
-  if (Math.abs(hopper1 - hopper2) < EQUAL_FILL_THRESHOLD) {
-    return { split: false, hopper1, hopper2, combined: Math.round((hopper1 + hopper2) / 2) };
-  }
-  return { split: true, hopper1, hopper2, combined: null };
+  return { text: problems.map(([side, level]) => `Hopper ${side} ${WORD[level]}`).join(" \xB7 "), tone };
 }
 var VIEW_W = 240;
-var VIEW_H = 150;
+var VIEW_H = 176;
 var CX = 120;
-var RIM_Y = 40;
-var RIM_X = 14;
+var RIM_Y = 34;
+var RIM_X = 10;
 var RIM_W = VIEW_W - RIM_X * 2;
-var RIM_H = 16;
-var FOOT_Y = 128;
-var FOOT_X = 46;
-var FOOT_W = VIEW_W - FOOT_X * 2;
-var CAV_TOP = RIM_Y + 6;
-var CAV_BOTTOM = 112;
-var CAV_INSET = 22;
-var DIVIDER_W = 8;
+var RIM_H = 18;
+var FOOT_Y = 158;
+var FOOT_HALF = 44;
+var CAV_TOP = RIM_Y + 8;
+var CAV_BOTTOM = 124;
+var CAV_INSET = 32;
 var TEXTURE_STEP = 9;
 var SCATTER = [-0.5, -0.2, 0.1, 0.4, -0.35, 0.25, 0];
 function cloverPiece(x2, y3, r6, rotationDeg) {
@@ -7838,34 +7845,31 @@ function cloverPiece(x2, y3, r6, rotationDeg) {
   return w`<g>${lobes}</g>`;
 }
 function dishPath() {
-  const r6 = 10;
   const left = RIM_X;
   const right = RIM_X + RIM_W;
-  const fl = FOOT_X;
-  const fr = FOOT_X + FOOT_W;
+  const r6 = 9;
   return [
     `M ${left + r6} ${RIM_Y}`,
     `H ${right - r6}`,
     `q ${r6} 0 ${r6} ${r6}`,
-    `L ${fr + 4} ${FOOT_Y - r6}`,
-    `q ${-2} ${r6} ${-r6 - 2} ${r6}`,
-    `H ${fl + r6 - 2}`,
-    `q ${-r6} 0 ${-r6 - 2} ${-r6}`,
-    `L ${left} ${RIM_Y + r6}`,
+    // right wall: bows outward slightly, then sweeps in to the foot
+    `C ${right} ${RIM_Y + 70}, ${CX + FOOT_HALF + 30} ${FOOT_Y - 10}, ${CX + FOOT_HALF} ${FOOT_Y}`,
+    `H ${CX - FOOT_HALF}`,
+    `C ${CX - FOOT_HALF - 30} ${FOOT_Y - 10}, ${left} ${RIM_Y + 70}, ${left} ${RIM_Y + r6}`,
     `q 0 ${-r6} ${r6} ${-r6}`,
     "Z"
   ].join(" ");
 }
 function cavityPath(x0, x1) {
-  const r6 = 12;
-  const taper = 8;
+  const r6 = 14;
+  const depth = CAV_BOTTOM - CAV_TOP;
+  const inset = Math.min(18, (x1 - x0) * 0.16);
   return [
     `M ${x0} ${CAV_TOP}`,
     `H ${x1}`,
-    `L ${x1 - taper} ${CAV_BOTTOM - r6}`,
-    `q 0 ${r6} ${-r6} ${r6}`,
-    `H ${x0 + taper + r6}`,
-    `q ${-r6} 0 ${-r6} ${-r6}`,
+    `C ${x1} ${CAV_TOP + depth * 0.55}, ${x1 - inset + r6} ${CAV_BOTTOM}, ${x1 - inset - r6} ${CAV_BOTTOM}`,
+    `H ${x0 + inset + r6}`,
+    `C ${x0 + inset - r6} ${CAV_BOTTOM}, ${x0} ${CAV_TOP + depth * 0.55}, ${x0} ${CAV_TOP}`,
     "Z"
   ].join(" ");
 }
@@ -7874,14 +7878,16 @@ var KibbleBowl = class extends i4 {
     super();
     this._wasFeeding = false;
     this._dropping = false;
-    this.hopper1 = null;
-    this.hopper2 = null;
+    this.fill = null;
+    this.hopperLevel1 = null;
+    this.hopperLevel2 = null;
     this.feeding = false;
   }
   static {
     this.properties = {
-      hopper1: { type: Number },
-      hopper2: { type: Number },
+      fill: { type: Number },
+      hopperLevel1: { type: String },
+      hopperLevel2: { type: String },
       feeding: { type: Boolean }
     };
   }
@@ -7903,14 +7909,11 @@ var KibbleBowl = class extends i4 {
     }
   }
   render() {
-    const display = combineBowlFill(this.hopper1, this.hopper2);
-    const label = display.split ? `Bowl side 1 ${Math.round(display.hopper1)}%, side 2 ${Math.round(display.hopper2)}%` : display.combined == null ? "Bowl level unknown" : `Bowl ${Math.round(display.combined)}% full`;
-    const inner0 = RIM_X + CAV_INSET;
-    const inner1 = RIM_X + RIM_W - CAV_INSET;
-    const cavities = display.split ? [
-      { x0: inner0, x1: CX - DIVIDER_W / 2, mark: "01", fraction: display.hopper1 / 100 },
-      { x0: CX + DIVIDER_W / 2, x1: inner1, mark: "02", fraction: display.hopper2 / 100 }
-    ] : [{ x0: inner0, x1: inner1, mark: null, fraction: display.combined == null ? null : display.combined / 100 }];
+    const label = this.fill == null ? "Bowl level unknown" : `Bowl ${Math.round(this.fill)}% full`;
+    const x0 = RIM_X + CAV_INSET;
+    const x1 = RIM_X + RIM_W - CAV_INSET;
+    const fraction = this.fill == null ? null : this.fill / 100;
+    const hopper = hopperStatus(this.hopperLevel1, this.hopperLevel2);
     return b2`
       <svg class="art" viewBox="0 0 ${VIEW_W} ${VIEW_H}" role="img" aria-label=${label} preserveAspectRatio="xMidYMid meet">
         <title>${label}</title>
@@ -7934,36 +7937,35 @@ var KibbleBowl = class extends i4 {
             <stop offset="1" stop-color="var(--kibble-amber-dark)" />
           </linearGradient>
           <filter id="silo-inner" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="2.4" /></filter>
-          ${cavities.map((c5, i6) => w`<clipPath id=${`silo-win-${i6}`}><path d=${cavityPath(c5.x0, c5.x1)} /></clipPath>`)}
+          <clipPath id="silo-win"><path d=${cavityPath(x0, x1)} /></clipPath>
         </defs>
         <path class="body" d=${dishPath()} />
-        <rect class="cap" x=${RIM_X} y=${RIM_Y} width=${RIM_W} height=${RIM_H} rx="8" />
-        <rect class="cap-highlight" x=${RIM_X + 8} y=${RIM_Y + 4} width=${RIM_W - 16} height="4" rx="2" />
+        <rect class="cap" x=${RIM_X - 4} y=${RIM_Y - 4} width=${RIM_W + 8} height=${RIM_H} rx="9" />
+        <rect class="cap-highlight" x=${RIM_X + 6} y=${RIM_Y} width=${RIM_W - 12} height="4" rx="2" />
         <path class="body-edge" d=${dishPath()} />
-        ${cavities.map((c5, i6) => this._renderCavity(c5, i6))}
+        ${this._renderCavity(x0, x1, fraction)}
         ${this._dropping ? this._renderFallingKibble() : A}
       </svg>
+      ${hopper ? b2`<div class="hopper" data-tone=${hopper.tone} role="status">${hopper.text}</div>` : A}
     `;
   }
-  /** One cavity: recessed dark interior with an inner shadow, the level clipped to it with a
+  /** The cavity: recessed dark interior with an inner shadow, the level clipped to it with a
    * kibble texture and a surface highlight (nothing at zero — an empty bowl is an empty cavity,
-   * not a sliver), and the printed mark on the rim above. A `null` fraction means the feeder has
-   * no reading (kibble docs/34): the cavity shows a "?" rather than reading as empty, which is
-   * the difference between "I don't know" and "your cat has no food". */
-  _renderCavity(c5, i6) {
-    const clip = `url(#silo-win-${i6})`;
-    const w2 = c5.x1 - c5.x0;
-    const markX = c5.x0 + w2 / 2;
-    if (c5.fraction == null) {
+   * not a sliver). A `null` fraction means the feeder has no reading (kibble docs/34): the
+   * cavity shows a "?" rather than reading as empty, which is the difference between "I don't
+   * know" and "your cat has no food". */
+  _renderCavity(x0, x1, rawFraction) {
+    const w2 = x1 - x0;
+    const midX = x0 + w2 / 2;
+    if (rawFraction == null) {
       return w`
         <g>
-          <path class="glass" d=${cavityPath(c5.x0, c5.x1)} />
-          <text class="unknown" x=${markX} y=${(CAV_TOP + CAV_BOTTOM) / 2 + 2} text-anchor="middle" dominant-baseline="central">?</text>
-          ${c5.mark ? w`<text class="mark" x=${markX} y=${RIM_Y + 11} text-anchor="middle">${c5.mark}</text>` : A}
+          <path class="glass" d=${cavityPath(x0, x1)} />
+          <text class="unknown" x=${midX} y=${(CAV_TOP + CAV_BOTTOM) / 2 + 2} text-anchor="middle" dominant-baseline="central">?</text>
         </g>
       `;
     }
-    const fraction = Math.max(0, Math.min(1, c5.fraction));
+    const fraction = Math.max(0, Math.min(1, rawFraction));
     const top = CAV_BOTTOM - (CAV_BOTTOM - CAV_TOP) * fraction;
     const dots = [];
     if (fraction > 0) {
@@ -7971,23 +7973,22 @@ var KibbleBowl = class extends i4 {
       for (let y3 = top + 6; y3 < CAV_BOTTOM; y3 += TEXTURE_STEP, row += 1) {
         const cols = Math.max(1, Math.floor(w2 / 14));
         for (let k2 = 0; k2 < cols; k2 += 1) {
-          const x2 = c5.x0 + 7 + k2 * 14 + (row % 2 === 0 ? 0 : 7);
-          if (x2 < c5.x1 - 6) dots.push(w`<circle cx=${x2.toFixed(1)} cy=${y3.toFixed(1)} r="2.6" />`);
+          const x2 = x0 + 7 + k2 * 14 + (row % 2 === 0 ? 0 : 7);
+          if (x2 < x1 - 6) dots.push(w`<circle cx=${x2.toFixed(1)} cy=${y3.toFixed(1)} r="2.6" />`);
         }
       }
     }
     return w`
       <g>
-        <path class="glass" d=${cavityPath(c5.x0, c5.x1)} />
-        <g clip-path=${clip}>
-          <rect class="glass-inner" x=${c5.x0 - 2} y=${CAV_TOP - 8} width=${w2 + 4} height=${CAV_BOTTOM - CAV_TOP + 4} filter="url(#silo-inner)" />
+        <path class="glass" d=${cavityPath(x0, x1)} />
+        <g clip-path="url(#silo-win)">
+          <rect class="glass-inner" x=${x0 - 2} y=${CAV_TOP - 8} width=${w2 + 4} height=${CAV_BOTTOM - CAV_TOP + 4} filter="url(#silo-inner)" />
           ${fraction > 0 ? w`
-                <rect class="fill" x=${c5.x0} y=${top} width=${w2} height=${CAV_BOTTOM - top + 2} />
+                <rect class="fill" x=${x0} y=${top} width=${w2} height=${CAV_BOTTOM - top + 2} />
                 <g class="texture">${dots}</g>
-                <rect class="fill-surface" x=${c5.x0} y=${top} width=${w2} height="2" />
+                <rect class="fill-surface" x=${x0} y=${top} width=${w2} height="2" />
               ` : A}
         </g>
-        ${c5.mark ? w`<text class="mark" x=${markX} y=${RIM_Y + 11} text-anchor="middle">${c5.mark}</text>` : A}
       </g>
     `;
   }
@@ -7997,15 +7998,18 @@ var KibbleBowl = class extends i4 {
       const delayMs = i6 * 70;
       const durationMs = 380;
       const style = `--fall-delay:${delayMs}ms;--fall-duration:${durationMs}ms;--fall-rotate:${(t5 * 180).toFixed(0)}deg;--fall-to:34px;`;
-      return w`<g class="drop" style=${style}>${cloverPiece(x2, 6, 6, t5 * 60)}</g>`;
+      return w`<g class="drop" style=${style}>${cloverPiece(x2, 4, 6, t5 * 60)}</g>`;
     });
     return w`<g class="drops">${pieces}</g>`;
   }
   static {
     this.styles = i`
     :host {
-      display: block;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
       height: 100%;
+      min-height: 0;
       /* The plastic: the card background lifted toward the text colour in four steps, so the
        * lit face, the mid tone, the turned edges and the rim all come from the theme. */
       --silo-base: var(--card-background-color, var(--ha-card-background, #fff));
@@ -8023,11 +8027,31 @@ var KibbleBowl = class extends i4 {
       display: block;
       width: auto;
       max-width: var(--kibble-bowl-max-width, 190px);
-      height: 100%;
+      flex: 1 1 auto;
+      min-height: 0;
       max-height: 100%;
       aspect-ratio: ${VIEW_W} / ${VIEW_H};
       margin: 0 auto;
       overflow: visible;
+    }
+    /* The hopper line: secondary text when stocked, the card's amber when a side is running
+     * low, the theme's error colour when one is empty. */
+    .hopper {
+      flex: none;
+      margin-top: 4px;
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: 0.01em;
+      line-height: 1.2;
+      color: var(--secondary-text-color);
+      white-space: nowrap;
+    }
+    .hopper[data-tone="low"] {
+      color: var(--kibble-amber-dark);
+    }
+    .hopper[data-tone="empty"] {
+      color: var(--error-color, #db4437);
+      font-weight: 600;
     }
     .body {
       fill: url(#silo-body);
@@ -8073,14 +8097,6 @@ var KibbleBowl = class extends i4 {
       font-size: 36px;
       font-weight: 700;
       opacity: 0.6;
-    }
-    .mark {
-      fill: var(--secondary-text-color, var(--primary-text-color));
-      opacity: 0.7;
-      font-size: 9.5px;
-      font-weight: 600;
-      letter-spacing: 0.14em;
-      font-family: inherit;
     }
     .drops circle {
       fill: var(--kibble-amber-dark);
@@ -8734,6 +8750,8 @@ var KibbleSettingsDialog = class extends i4 {
     super();
     this._cloudConfirmArmed = false;
     this._cloudConfirmTimer = void 0;
+    this._stackConfirmArmed = false;
+    this._stackConfirmTimer = void 0;
     this.open = false;
   }
   static {
@@ -8746,6 +8764,7 @@ var KibbleSettingsDialog = class extends i4 {
   disconnectedCallback() {
     super.disconnectedCallback();
     clearTimeout(this._cloudConfirmTimer);
+    clearTimeout(this._stackConfirmTimer);
   }
   render() {
     if (!this.open) return A;
@@ -8763,6 +8782,7 @@ var KibbleSettingsDialog = class extends i4 {
           ${this._renderToggles()}
           ${e6.volume ? this._renderVolume() : A}
           ${e6.cloudSwitch ? this._renderCloud() : A}
+          ${e6.stackSelect ? this._renderStack() : A}
           ${e6.wifiNetwork ? this._renderWifi() : A}
           ${e6.dishBefore || e6.dishAfter ? this._renderDishPhotos() : A}
           ${e6.speaker ? this._renderSpeaker() : A}
@@ -8935,6 +8955,42 @@ var KibbleSettingsDialog = class extends i4 {
   }
   _setNumber(entityId, value) {
     this.hass.callService("number", "set_value", { value }, { entity_id: entityId });
+  }
+  /** Which userland the feeder boots. Switching reboots it (~40 s offline), so it takes the
+   *  same tap-twice confirm as the cloud toggle. The entity is unavailable on agents that
+   *  predate it, in which case the section is simply absent. */
+  _renderStack() {
+    const state2 = this.hass.states[this.entities.stackSelect];
+    if (!state2 || state2.state === "unavailable") return A;
+    const running = state2.state;
+    const other = running === "librefeed" ? "vendor" : "librefeed";
+    const label = (v2) => v2 === "librefeed" ? "LibreFeed" : "Petkit stack";
+    return b2`
+      <section>
+        <h3>Stack</h3>
+        <p class="hint">Running ${label(running)}. Switching reboots the feeder; it is back in about a minute.</p>
+        <button type="button" class="cloud-toggle ${this._stackConfirmArmed ? "confirming" : ""}" @click=${this._onStackClick}>
+          ${this._stackConfirmArmed ? `Tap again to boot ${label(other)}` : `Switch to ${label(other)}`}
+        </button>
+      </section>
+    `;
+  }
+  _onStackClick() {
+    const state2 = this.hass.states[this.entities.stackSelect];
+    const other = state2?.state === "librefeed" ? "vendor" : "librefeed";
+    if (this._stackConfirmArmed) {
+      clearTimeout(this._stackConfirmTimer);
+      this._stackConfirmArmed = false;
+      void this.hass.callService("select", "select_option", { entity_id: this.entities.stackSelect, option: other });
+      this.requestUpdate();
+      return;
+    }
+    this._stackConfirmArmed = true;
+    this.requestUpdate();
+    this._stackConfirmTimer = setTimeout(() => {
+      this._stackConfirmArmed = false;
+      this.requestUpdate();
+    }, CLOUD_CONFIRM_WINDOW_MS);
   }
   _onCloudToggleClick() {
     if (this._cloudConfirmArmed) {
@@ -9587,6 +9643,52 @@ var KibbleLiveHero = class extends i4 {
       this._hiddenPaused = false;
       this._backoffMs = RECONNECT_BASE_MS;
     };
+    this._onFrameClick = (e6) => {
+      if (e6.target.closest?.(".chip")) {
+        e6.stopPropagation();
+        return;
+      }
+      if (!this._expanded) this._expand();
+    };
+    this._collapse = (e6) => {
+      e6?.stopPropagation();
+      document.removeEventListener("keydown", this._onKeyDown);
+      if (this._fullscreen) {
+        void (document.exitFullscreen?.() ?? Promise.resolve()).catch(() => void 0);
+      }
+      this._expanded = false;
+    };
+    this._onKeyDown = (e6) => {
+      if (e6.key === "Escape") this._collapse();
+    };
+    this._toggleFullscreen = async (e6) => {
+      e6.stopPropagation();
+      if (this._fullscreen) {
+        await (document.exitFullscreen?.() ?? Promise.resolve()).catch(() => void 0);
+        return;
+      }
+      const frame = this.renderRoot.querySelector("#frame");
+      const video = this.renderRoot.querySelector("#video");
+      try {
+        if (frame?.requestFullscreen) await frame.requestFullscreen();
+        else if (video?.webkitEnterFullscreen) video.webkitEnterFullscreen();
+      } catch {
+      }
+    };
+    this._onFullscreenChange = () => {
+      const root = this.renderRoot;
+      const doc = document;
+      const inner = root.fullscreenElement ?? root.webkitFullscreenElement ?? null;
+      const outer = document.fullscreenElement ?? doc.webkitFullscreenElement ?? null;
+      let onHostChain = false;
+      for (let n6 = this; n6 && outer; n6 = n6.host ?? n6.parentNode) {
+        if (n6 === outer) {
+          onHostChain = true;
+          break;
+        }
+      }
+      this._fullscreen = inner !== null || onHostChain;
+    };
     this._toggleMute = () => {
       this._muted = !this._muted;
       this._applyMute();
@@ -9610,6 +9712,8 @@ var KibbleLiveHero = class extends i4 {
     this._talking = false;
     this._muted = true;
     this._reconnecting = false;
+    this._expanded = false;
+    this._fullscreen = false;
     this._tick = 0;
   }
   static {
@@ -9621,17 +9725,24 @@ var KibbleLiveHero = class extends i4 {
       _talking: { state: true },
       _muted: { state: true },
       _reconnecting: { state: true },
+      _expanded: { state: true },
+      _fullscreen: { state: true },
       _tick: { state: true }
     };
   }
   connectedCallback() {
     super.connectedCallback();
     document.addEventListener("visibilitychange", this._onVisibilityChange);
+    document.addEventListener("fullscreenchange", this._onFullscreenChange);
+    document.addEventListener("webkitfullscreenchange", this._onFullscreenChange);
     this._stallCheckInterval = setInterval(this._checkStall, STALL_CHECK_INTERVAL_MS);
   }
   disconnectedCallback() {
     super.disconnectedCallback();
     document.removeEventListener("visibilitychange", this._onVisibilityChange);
+    document.removeEventListener("fullscreenchange", this._onFullscreenChange);
+    document.removeEventListener("webkitfullscreenchange", this._onFullscreenChange);
+    document.removeEventListener("keydown", this._onKeyDown);
     clearInterval(this._stallCheckInterval);
     this._stallCheckInterval = void 0;
     this._stop();
@@ -9651,9 +9762,16 @@ var KibbleLiveHero = class extends i4 {
   }
   render() {
     return b2`
-      <div class="frame">
+      ${this._expanded ? b2`<div class="backdrop" @click=${this._collapse}></div>` : A}
+      <div class="frame ${this._expanded ? "expanded" : ""}" id="frame" @click=${this._onFrameClick}>
         ${this._renderStill()}
         ${this._playing ? this._renderVideo() : A}
+        ${this._expanded ? b2`<div class="topbar">
+              <button class="chip" aria-label=${this._fullscreen ? "Leave fullscreen" : "Fullscreen"} title=${this._fullscreen ? "Leave fullscreen" : "Fullscreen"} @click=${this._toggleFullscreen}>
+                ${mdiIcon(this._fullscreen ? "fullscreenExit" : "fullscreen")}
+              </button>
+              <button class="chip" aria-label="Close" title="Close" @click=${this._collapse}>${mdiIcon("close")}</button>
+            </div>` : A}
         ${this._reconnecting ? b2`<div class="reconnect" role="status" aria-label="Reconnecting to the feeder's camera">${mdiIcon("refresh")}</div>` : A}
         <div class="controls">
           ${this._playing ? b2`<button
@@ -9713,6 +9831,10 @@ var KibbleLiveHero = class extends i4 {
     }, this._backoffMs);
     this._backoffMs = nextReconnectDelay(this._backoffMs);
   }
+  _expand() {
+    this._expanded = true;
+    document.addEventListener("keydown", this._onKeyDown);
+  }
   static {
     this.styles = i`
     :host {
@@ -9723,6 +9845,36 @@ var KibbleLiveHero = class extends i4 {
       position: absolute;
       inset: 0;
       background: #101010;
+      cursor: zoom-in;
+    }
+    .frame.expanded {
+      position: fixed;
+      inset: 0;
+      z-index: 1001; /* above HA's app header (z-index 4) and dialogs' scrim */
+      cursor: default;
+      background: #000;
+    }
+    .frame.expanded video,
+    .frame.expanded img,
+    .frame.expanded hui-image {
+      object-fit: contain;
+    }
+    .backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 1000;
+      background: rgba(0, 0, 0, 0.85);
+    }
+    .topbar {
+      position: absolute;
+      top: max(8px, env(safe-area-inset-top));
+      right: max(8px, env(safe-area-inset-right));
+      display: flex;
+      gap: 6px;
+      pointer-events: none;
+    }
+    .topbar .chip {
+      pointer-events: auto;
     }
     video,
     img,
@@ -9754,6 +9906,10 @@ var KibbleLiveHero = class extends i4 {
       gap: 6px;
       justify-content: flex-end;
       pointer-events: none;
+    }
+    .frame.expanded .controls {
+      bottom: max(12px, env(safe-area-inset-bottom));
+      right: max(12px, env(safe-area-inset-right));
     }
     .chip {
       pointer-events: auto;
@@ -11479,6 +11635,7 @@ var KibbleCatsCard = class extends i4 {
     this._catsQuery = new WsQuery(() => this.requestUpdate());
     this._pendingQuery = new WsQuery(() => this.requestUpdate());
     this._sampleQueries = /* @__PURE__ */ new Map();
+    this._timelineQuery = new WsQuery(() => this.requestUpdate());
     this._imageCache = new ImageUrlCache();
     this._lastPendingData = null;
     this._pickerTrigger = null;
@@ -11634,6 +11791,7 @@ var KibbleCatsCard = class extends i4 {
       const key = watchKey(this.hass, [this._entities.pendingFace, this._entities.lastSeenPet]);
       this._catsQuery.sync(key, () => callWS({ type: "kibble/cats", entry_id: entryId }).then((r6) => r6));
       this._pendingQuery.sync(key, () => callWS({ type: "kibble/faces/pending", entry_id: entryId }).then((r6) => r6));
+      this._timelineQuery.sync(key, () => callWS({ type: "kibble/timeline", entry_id: entryId, include_visits: false }).then((r6) => r6));
       for (const cat of this._catsQuery.state.data?.cats ?? []) {
         if (this._sampleQueries.has(cat.name)) continue;
         const query = new WsQuery(() => this.requestUpdate());
@@ -11704,7 +11862,11 @@ var KibbleCatsCard = class extends i4 {
     `;
   }
   _renderCatHeader(cat, present) {
-    const seen = cat.last_seen != null ? `seen ${relativeTimeSentence(new Date(cat.last_seen * 1e3), /* @__PURE__ */ new Date())}` : "not seen yet";
+    const newest = Math.max(
+      cat.last_seen ?? 0,
+      ...(this._timelineQuery.state.data?.items ?? []).filter((item) => item.kind === "identified" && item.cat === cat.name).map((item) => item.ts)
+    );
+    const seen = newest > 0 ? `seen ${relativeTimeSentence(new Date(newest * 1e3), /* @__PURE__ */ new Date())}` : "not seen yet";
     return b2`
       <div class="cat">
         <kibble-avatar
@@ -11985,10 +12147,11 @@ var KibbleCatsCard = class extends i4 {
    * tile lands here and finds the same evidence), then the reference photos someone uploaded. */
   _renderGallery(cat) {
     const query = this._sampleQueries.get(cat.name);
-    const samples = query?.state.data?.samples ?? [];
-    if (samples.length === 0 && cat.samples === 0) return A;
-    const sightings = samples.filter((sample) => !sample.name.startsWith("upload-")).sort((a3, b3) => b3.ts - a3.ts);
-    const references = samples.filter((sample) => sample.name.startsWith("upload-")).sort((a3, b3) => b3.ts - a3.ts);
+    const samples = (query?.state.data?.samples ?? []).slice().sort((a3, b3) => b3.ts - a3.ts);
+    const sightings = (this._timelineQuery.state.data?.items ?? []).filter(
+      (item) => item.kind === "identified" && item.cat === cat.name
+    );
+    if (samples.length === 0 && cat.samples === 0 && sightings.length === 0) return A;
     const now = /* @__PURE__ */ new Date();
     return b2`
       <section class="gallery" id=${catSectionId(cat.name)}>
@@ -11997,12 +12160,25 @@ var KibbleCatsCard = class extends i4 {
           <span class="gallery-name">${cat.name}</span>
           <span class="gallery-sub">${sightings.length === 0 ? "No sightings yet" : sightings.length === 1 ? "1 sighting" : `${sightings.length} sightings`}</span>
         </div>
-        ${sightings.length > 0 ? b2`<div class="gallery-grid">
-              ${sightings.map((sample) => this._renderSample(cat.name, sample, relativeTimeSentence(new Date(sample.ts * 1e3), now)))}
-            </div>` : A}
-        ${references.length > 0 ? b2`<div class="gallery-sub">${references.length === 1 ? "1 reference photo" : `${references.length} reference photos`}</div>
-              <div class="gallery-grid">${references.map((sample) => this._renderSample(cat.name, sample, null))}</div>` : A}
+        ${sightings.length > 0 ? b2`<div class="gallery-grid">${sightings.map((item) => this._renderSighting(item, now))}</div>` : A}
+        ${samples.length > 0 ? b2`<div class="gallery-sub">${samples.length === 1 ? "1 training photo" : `${samples.length} training photos`}</div>
+              <div class="gallery-grid">${samples.map((sample) => this._renderSample(cat.name, sample, null))}</div>` : A}
       </section>
+    `;
+  }
+  /** One identified visit, with the live image from that moment when the feeder kept one
+   * (a vendor `track` pairs with the nearest visit/eat frame; a labelled face crop is its own
+   * image) -- the same picture the timeline row shows. */
+  _renderSighting(item, now) {
+    const when = relativeTimeSentence(new Date(item.ts * 1e3), now);
+    const path = item.image && this._entryId ? kibbleImageUrl(this._entryId, item.image_kind, item.image) : null;
+    const url = path ? this._imageCache.get(this.hass, path, () => this.requestUpdate()) : null;
+    const title = `${detectionHeadline(item)}, ${new Date(item.ts * 1e3).toLocaleString()}`;
+    return b2`
+      <div class="sample sighting" title=${title}>
+        ${url ? b2`<img src=${url} alt="" loading="lazy" />` : b2`<kibble-avatar .hass=${this.hass} .name=${null} .colorIndex=${null} .entryId=${this._entryId} .sampleName=${null}></kibble-avatar>`}
+        <span class="caption">${item.paired_class === "eat" ? "ate \xB7 " : ""}${when}</span>
+      </div>
     `;
   }
   _renderSample(catName, sample, caption) {
@@ -12051,6 +12227,11 @@ var KibbleCatsCard = class extends i4 {
   _refreshAll() {
     this._refreshCats();
     this._refreshPending();
+    if (this.hass?.callWS && this._entryId) {
+      const callWS2 = this.hass.callWS;
+      const entryId2 = this._entryId;
+      this._timelineQuery.refresh(() => callWS2({ type: "kibble/timeline", entry_id: entryId2, include_visits: false }).then((r6) => r6));
+    }
     const callWS = this.hass?.callWS;
     if (!callWS || !this._entryId) return;
     const entryId = this._entryId;
@@ -12427,6 +12608,12 @@ var KibbleCatsCard = class extends i4 {
       font-size: var(--kibble-text-caption, 12px);
       color: var(--secondary-text-color);
     }
+    .sample.sighting kibble-avatar {
+      display: block;
+      width: 100%;
+      height: 100%;
+      --kibble-avatar-size: 56px;
+    }
     .sample .caption {
       position: absolute;
       left: 0;
@@ -12617,12 +12804,13 @@ var KibbleCard = class extends i4 {
     if (!this._config || !this.hass) return A;
     const e6 = this._entities;
     const feedingState = e6.feeding ? this.hass.states[e6.feeding]?.state : void 0;
-    const coreIds = [e6.feeding, e6.bowlFill1, e6.bowlFill2, e6.schedule].filter((id) => Boolean(id));
+    const coreIds = [e6.feeding, e6.bowlFill, e6.schedule].filter((id) => Boolean(id));
     const coreStates = coreIds.map((id) => this.hass.states[id]?.state);
     const status = deriveFeederStatus(coreStates, feedingState);
     const feeding = feedingState === "on";
-    const hopper1 = this._numberState(e6.bowlFill1);
-    const hopper2 = this._numberState(e6.bowlFill2);
+    const bowlFill = this._numberState(e6.bowlFill);
+    const hopperLevel1 = parseHopperLevel(e6.hopperLevel1 && this.hass.states[e6.hopperLevel1]?.state);
+    const hopperLevel2 = parseHopperLevel(e6.hopperLevel2 && this.hass.states[e6.hopperLevel2]?.state);
     const scheduleEntries = this._scheduleEntries();
     const feedAmount = this._numberState(e6.feedAmount) ?? 1;
     const overlay = this._heroOverlay(status);
@@ -12653,7 +12841,13 @@ var KibbleCard = class extends i4 {
               ${this._config.name ? b2`<div class="name-chip">${this._config.name}</div>` : A}
             </div>
             <div class="side">
-            <kibble-bowl class="bowl-block" .hopper1=${hopper1} .hopper2=${hopper2} .feeding=${feeding}></kibble-bowl>
+            <kibble-bowl
+              class="bowl-block"
+              .fill=${bowlFill}
+              .hopperLevel1=${hopperLevel1}
+              .hopperLevel2=${hopperLevel2}
+              .feeding=${feeding}
+            ></kibble-bowl>
             <div class="feed-controls" @hass-action=${this._onBubbleAction}>
               ${this._bubble ? b2`<div class="portions">
                       ${this._portionConfigs(feedAmount, status === "unreachable" || feeding).map(
@@ -12712,12 +12906,14 @@ var KibbleCard = class extends i4 {
       return { text: statusText(status, null), tone: "amber", live, catName: null, colorIndex: null, avatarSample: null };
     }
     const seen = this._catSeen();
+    const eatingId = this._entities.eating;
+    const eating = eatingId !== void 0 && this.hass.states[eatingId]?.state === "on";
     if (!seen) {
-      return { text: "Ready to feed", tone: "normal", live, catName: null, colorIndex: null, avatarSample: null };
+      return { text: eating ? "Eating now" : "Ready to feed", tone: "normal", live, catName: null, colorIndex: null, avatarSample: null };
     }
     const roster = this._catsQuery.state.data?.cats.find((cat) => cat.name === seen.name) ?? null;
     return {
-      text: `${seen.name} seen ${seen.relative}`,
+      text: eating ? `${seen.name} is eating` : `${seen.name} seen ${seen.relative}`,
       tone: "normal",
       live,
       catName: seen.name,
@@ -13066,8 +13262,10 @@ window.customCards.push({
 // src/lib/resolve-entities.ts
 var RULES2 = {
   feeding: { domain: "binary_sensor", translationKeys: ["feeding"], idSuffixes: ["_feeding"] },
-  bowlFill1: { domain: "sensor", translationKeys: ["bowl_fill_1"], idSuffixes: ["_bowl_fill_1", "_bowl_fill_hopper_1"] },
-  bowlFill2: { domain: "sensor", translationKeys: ["bowl_fill_2"], idSuffixes: ["_bowl_fill_2", "_bowl_fill_hopper_2"] },
+  eating: { domain: "binary_sensor", translationKeys: ["eating"], idSuffixes: ["_eating"] },
+  bowlFill: { domain: "sensor", translationKeys: ["bowl_fill", "bowl_fill_1"], idSuffixes: ["_bowl_fill", "_bowl_fill_1", "_bowl_fill_hopper_1"] },
+  hopperLevel1: { domain: "sensor", translationKeys: ["hopper_1_level"], idSuffixes: ["_hopper_1_level"] },
+  hopperLevel2: { domain: "sensor", translationKeys: ["hopper_2_level"], idSuffixes: ["_hopper_2_level"] },
   desiccantDays: { domain: "sensor", translationKeys: ["desiccant_days", "desiccant_left"], idSuffixes: ["_desiccant_days", "_desiccant_left"] },
   schedule: { domain: "sensor", translationKeys: ["schedule"], idSuffixes: ["_schedule"] },
   scheduleCardState: { domain: "sensor", translationKeys: ["schedule_card_state"], idSuffixes: ["_schedule_card_state"] },
@@ -13079,6 +13277,7 @@ var RULES2 = {
   feedAmountHopper1: { domain: "number", translationKeys: ["feed_amount_hopper_1"], idSuffixes: ["_feed_amount_hopper_1"] },
   feedAmountHopper2: { domain: "number", translationKeys: ["feed_amount_hopper_2"], idSuffixes: ["_feed_amount_hopper_2"] },
   cloudSwitch: { domain: "switch", translationKeys: ["cloud", "petkit_cloud"], idSuffixes: ["_cloud", "_petkit_cloud"] },
+  stackSelect: { domain: "select", translationKeys: ["stack"], idSuffixes: ["_stack"] },
   cloudConnection: { domain: "sensor", translationKeys: ["cloud_connection"], idSuffixes: ["_cloud_connection"] },
   nightVisionSwitch: { domain: "switch", translationKeys: ["night", "night_vision"], idSuffixes: ["_night", "_night_vision"] },
   statusLedSwitch: { domain: "switch", translationKeys: ["light", "status_led"], idSuffixes: ["_light", "_status_led"] },

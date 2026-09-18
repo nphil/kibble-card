@@ -9,6 +9,11 @@
  * - Idle: HA's `hui-image` snapshot, a "Live" affordance, no network cost beyond the snapshot.
  * - Playing: the video element, muted by default (browsers refuse autoplay with sound) with a
  *   speaker toggle, and a hold-to-talk mic button when Scrypted reports the camera has Intercom.
+ * - Tapping the picture expands it: the SAME frame (still, video, controls) becomes a
+ *   full-viewport overlay -- the video element is never re-created, so the WebRTC session and
+ *   its decoder just carry on at the bigger size -- with a close chip and a fullscreen chip
+ *   (the Fullscreen API on the frame; iOS Safari only allows fullscreen on the video element
+ *   itself, so that path is used there). Esc, the backdrop and leaving fullscreen all close.
  * - Talk is press-and-hold on purpose (pointer/touch/keyboard all supported): the feeder's
  *   speaker session lasts exactly as long as the button is held, which is also what keeps it from
  *   colliding with the Petkit app's own talkback.
@@ -46,6 +51,8 @@ export class KibbleLiveHero extends LitElement {
     _talking: { state: true },
     _muted: { state: true },
     _reconnecting: { state: true },
+    _expanded: { state: true },
+    _fullscreen: { state: true },
     _tick: { state: true },
   };
 
@@ -73,6 +80,10 @@ export class KibbleLiveHero extends LitElement {
   declare private _muted: boolean;
   /** True from the moment a dead session is torn down until a fresh one starts playing. */
   declare private _reconnecting: boolean;
+  /** The frame is a full-viewport overlay (tap to enter; Esc/backdrop/close chip to leave). */
+  declare private _expanded: boolean;
+  /** Native fullscreen is active on the frame (or the video, on iOS). */
+  declare private _fullscreen: boolean;
   declare private _tick: number;
 
   private _live = new ScryptedLive(() => {
@@ -85,18 +96,25 @@ export class KibbleLiveHero extends LitElement {
     this._talking = false;
     this._muted = true;
     this._reconnecting = false;
+    this._expanded = false;
+    this._fullscreen = false;
     this._tick = 0;
   }
 
   connectedCallback(): void {
     super.connectedCallback();
     document.addEventListener("visibilitychange", this._onVisibilityChange);
+    document.addEventListener("fullscreenchange", this._onFullscreenChange);
+    document.addEventListener("webkitfullscreenchange", this._onFullscreenChange);
     this._stallCheckInterval = setInterval(this._checkStall, STALL_CHECK_INTERVAL_MS) as unknown as number;
   }
 
   disconnectedCallback(): void {
     super.disconnectedCallback();
     document.removeEventListener("visibilitychange", this._onVisibilityChange);
+    document.removeEventListener("fullscreenchange", this._onFullscreenChange);
+    document.removeEventListener("webkitfullscreenchange", this._onFullscreenChange);
+    document.removeEventListener("keydown", this._onKeyDown);
     clearInterval(this._stallCheckInterval);
     this._stallCheckInterval = undefined;
     this._stop();
@@ -118,9 +136,18 @@ export class KibbleLiveHero extends LitElement {
 
   render() {
     return html`
-      <div class="frame">
+      ${this._expanded ? html`<div class="backdrop" @click=${this._collapse}></div>` : nothing}
+      <div class="frame ${this._expanded ? "expanded" : ""}" id="frame" @click=${this._onFrameClick}>
         ${this._renderStill()}
         ${this._playing ? this._renderVideo() : nothing}
+        ${this._expanded
+          ? html`<div class="topbar">
+              <button class="chip" aria-label=${this._fullscreen ? "Leave fullscreen" : "Fullscreen"} title=${this._fullscreen ? "Leave fullscreen" : "Fullscreen"} @click=${this._toggleFullscreen}>
+                ${mdiIcon(this._fullscreen ? "fullscreenExit" : "fullscreen")}
+              </button>
+              <button class="chip" aria-label="Close" title="Close" @click=${this._collapse}>${mdiIcon("close")}</button>
+            </div>`
+          : nothing}
         ${this._reconnecting
           ? html`<div class="reconnect" role="status" aria-label="Reconnecting to the feeder's camera">${mdiIcon("refresh")}</div>`
           : nothing}
@@ -278,6 +305,70 @@ export class KibbleLiveHero extends LitElement {
     this._backoffMs = RECONNECT_BASE_MS;
   };
 
+  /** A tap on the picture itself expands; taps on the chips are their own buttons and never
+   * bubble here as "the picture" (they stop propagation). */
+  private _onFrameClick = (e: Event): void => {
+    if ((e.target as HTMLElement).closest?.(".chip")) {
+      e.stopPropagation();
+      return;
+    }
+    if (!this._expanded) this._expand();
+  };
+
+  private _expand(): void {
+    this._expanded = true;
+    document.addEventListener("keydown", this._onKeyDown);
+  }
+
+  private _collapse = (e?: Event): void => {
+    e?.stopPropagation();
+    document.removeEventListener("keydown", this._onKeyDown);
+    if (this._fullscreen) {
+      void (document.exitFullscreen?.() ?? Promise.resolve()).catch(() => undefined);
+    }
+    this._expanded = false;
+  };
+
+  private _onKeyDown = (e: KeyboardEvent): void => {
+    if (e.key === "Escape") this._collapse();
+  };
+
+  /** Fullscreen goes on the frame so the chips stay usable; iOS Safari refuses everything but
+   * the video element, which is why `webkitEnterFullscreen` on the video is the fallback. */
+  private _toggleFullscreen = async (e: Event): Promise<void> => {
+    e.stopPropagation();
+    if (this._fullscreen) {
+      await (document.exitFullscreen?.() ?? Promise.resolve()).catch(() => undefined);
+      return;
+    }
+    const frame = this.renderRoot.querySelector<HTMLElement>("#frame");
+    const video = this.renderRoot.querySelector<HTMLVideoElement & { webkitEnterFullscreen?: () => void }>("#video");
+    try {
+      if (frame?.requestFullscreen) await frame.requestFullscreen();
+      else if (video?.webkitEnterFullscreen) video.webkitEnterFullscreen();
+    } catch {
+      // Denied (no user gesture, embedded frame policy): the overlay is still the big view.
+    }
+  };
+
+  /** `document.fullscreenElement` is retargeted to the outermost shadow host (here the card),
+   * so it is checked through this element's own shadow root first, and otherwise by walking
+   * the host chain up from here -- either way "our frame is the one in fullscreen". */
+  private _onFullscreenChange = (): void => {
+    const root = this.renderRoot as ShadowRoot & { webkitFullscreenElement?: Element | null };
+    const doc = document as Document & { webkitFullscreenElement?: Element | null };
+    const inner = root.fullscreenElement ?? root.webkitFullscreenElement ?? null;
+    const outer = document.fullscreenElement ?? doc.webkitFullscreenElement ?? null;
+    let onHostChain = false;
+    for (let n: Node | null = this; n && outer; n = (n as ShadowRoot).host ?? n.parentNode) {
+      if (n === outer) {
+        onHostChain = true;
+        break;
+      }
+    }
+    this._fullscreen = inner !== null || onHostChain;
+  };
+
   private _toggleMute = (): void => {
     this._muted = !this._muted;
     this._applyMute();
@@ -312,6 +403,36 @@ export class KibbleLiveHero extends LitElement {
       position: absolute;
       inset: 0;
       background: #101010;
+      cursor: zoom-in;
+    }
+    .frame.expanded {
+      position: fixed;
+      inset: 0;
+      z-index: 1001; /* above HA's app header (z-index 4) and dialogs' scrim */
+      cursor: default;
+      background: #000;
+    }
+    .frame.expanded video,
+    .frame.expanded img,
+    .frame.expanded hui-image {
+      object-fit: contain;
+    }
+    .backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 1000;
+      background: rgba(0, 0, 0, 0.85);
+    }
+    .topbar {
+      position: absolute;
+      top: max(8px, env(safe-area-inset-top));
+      right: max(8px, env(safe-area-inset-right));
+      display: flex;
+      gap: 6px;
+      pointer-events: none;
+    }
+    .topbar .chip {
+      pointer-events: auto;
     }
     video,
     img,
@@ -343,6 +464,10 @@ export class KibbleLiveHero extends LitElement {
       gap: 6px;
       justify-content: flex-end;
       pointer-events: none;
+    }
+    .frame.expanded .controls {
+      bottom: max(12px, env(safe-area-inset-bottom));
+      right: max(12px, env(safe-area-inset-right));
     }
     .chip {
       pointer-events: auto;

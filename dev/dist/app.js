@@ -9037,7 +9037,10 @@ var KibbleBeforeAfter = class extends i4 {
     /* Mode toggle */
     .mode-toggle {
       position: absolute;
-      top: 8px;
+      /* Bottom, not top, so it never sits over the "After"/wipe tags, which are always top:
+       * 8px regardless of mode (see .tag above) -- top-right previously hid "After" under
+       * this control entirely. */
+      bottom: 8px;
       right: 8px;
       display: flex;
       gap: 2px;
@@ -10501,6 +10504,10 @@ function comparePairFor(item) {
   if (!before && !after) return null;
   return { before, after };
 }
+function feedPhotos(item) {
+  if (!item.before && !item.after) return null;
+  return { before: item.before, after: item.after };
+}
 function resolveThumbnail(image, imageKind, pair) {
   if (image) return { name: image, kind: imageKind };
   const name = pair?.after ?? pair?.before ?? null;
@@ -11020,16 +11027,16 @@ var KibbleTimelineCard = class extends i4 {
     const time = this._timeLabel(item.ts);
     const entryId = this._entryId;
     const summary = feedSummary(item);
+    const pair = feedPhotos(item);
+    const beforeUrl = pair?.before && entryId ? this._imageCache.get(this.hass, kibbleImageUrl(entryId, "feed", pair.before), () => this.requestUpdate()) : null;
+    const afterUrl = pair?.after && entryId ? this._imageCache.get(this.hass, kibbleImageUrl(entryId, "feed", pair.after), () => this.requestUpdate()) : null;
     return b2`
       <div class="row row-feed">
         <span class="time">${time}</span>
         <span class="row-text feed-text">
           ${summary.headline}${summary.scheduled ? b2` <span class="quiet">(scheduled)</span>` : A}
         </span>
-        <div class="feed-thumbs">
-          ${item.before && entryId ? this._renderCaptionedThumb(kibbleImageUrl(entryId, "feed", item.before), `Bowl before the ${time} feed`, "before") : A}
-          ${item.after && entryId ? this._renderCaptionedThumb(kibbleImageUrl(entryId, "feed", item.after), `Bowl after the ${time} feed`, "after") : A}
-        </div>
+        ${pair ? b2`<kibble-before-after class="feed-compare" .beforeSrc=${beforeUrl} .afterSrc=${afterUrl} aspect="1.8"></kibble-before-after>` : b2`<span class="feed-no-photo">No photo for this feed</span>`}
       </div>
     `;
   }
@@ -11040,14 +11047,6 @@ var KibbleTimelineCard = class extends i4 {
       <button type="button" class="thumb" ?disabled=${!url} aria-label=${label} @click=${(event) => onOpen ? onOpen(event) : this._openLightbox(event, url, alt)}>
         ${url ? b2`<img src=${url} alt="" loading="lazy" />` : A}
       </button>
-    `;
-  }
-  _renderCaptionedThumb(path, alt, caption) {
-    return b2`
-      <div class="thumb-slot">
-        ${this._renderThumb(path, alt)}
-        <span class="thumb-caption">${caption}</span>
-      </div>
     `;
   }
   _timeLabel(ts) {
@@ -11163,24 +11162,19 @@ var KibbleTimelineCard = class extends i4 {
     }
     .row-feed {
       min-height: 56px;
+      flex-wrap: wrap;
+      align-items: flex-start;
     }
     .feed-text {
       font-weight: 500;
     }
-    .feed-thumbs {
-      display: flex;
-      align-items: flex-start;
-      gap: 8px;
-      flex: 0 0 auto;
+    .feed-compare {
+      flex: 1 1 100%;
+      max-width: 360px;
     }
-    .thumb-slot {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 2px;
-    }
-    .thumb-caption {
-      font-size: 10px;
+    .feed-no-photo {
+      flex: 1 1 100%;
+      font-size: var(--kibble-text-caption);
       color: var(--secondary-text-color);
     }
     .quiet {
@@ -11256,6 +11250,10 @@ window.customCards.push({
   description: "Today's feeds and who's been by, one rail, newest first, with day separators and photos.",
   preview: true
 });
+function catLastSeenTs(lastSeen, sightingTimestamps) {
+  const newest = Math.max(lastSeen ?? 0, 0, ...sightingTimestamps);
+  return newest > 0 ? newest : null;
+}
 function chooseSuggestion(crop, confidence, knownCats) {
   if (crop.guess && crop.guess.score >= confidence && knownCats.has(crop.guess.cat)) {
     return { cat: crop.guess.cat, source: "classifier" };
@@ -11694,24 +11692,34 @@ var KibbleFacePicker = class extends i4 {
   constructor() {
     super();
     this._firstButtonRef = e5();
+    this._cache = new ImageUrlCache();
+    this._imageUrl = null;
+    this._resolvedPath = null;
     this._keydownHandler = (event) => {
-      if (event.key === "Escape" && this.open) {
-        event.preventDefault();
-        this._close();
+      if (event.key !== "Escape" || !this.open) return;
+      event.preventDefault();
+      if (this._zoomed) {
+        this._zoomed = false;
+        return;
       }
+      this._close();
     };
     this._close = () => {
       this.dispatchEvent(new CustomEvent("close-requested", { bubbles: true, composed: true }));
     };
     this.open = false;
     this.cats = [];
+    this.crop = null;
+    this._zoomed = false;
   }
   static {
     this.properties = {
       open: { type: Boolean, reflect: true },
       hass: { attribute: false },
       cats: { attribute: false },
-      entryId: { type: String }
+      entryId: { type: String },
+      crop: { attribute: false },
+      _zoomed: { state: true }
     };
   }
   connectedCallback() {
@@ -11721,18 +11729,49 @@ var KibbleFacePicker = class extends i4 {
   disconnectedCallback() {
     super.disconnectedCallback();
     window.removeEventListener("keydown", this._keydownHandler);
+    this._cache.dispose();
   }
   updated(changed) {
     if (changed.has("open") && this.open) {
       this._firstButtonRef.value?.focus();
     }
   }
+  /** Resolves `crop`'s pending-image URL through the shared authenticated-fetch cache, the
+   * same pattern `kibble-avatar` uses -- callers just hand this a crop, never plumbing
+   * fetch/object-URL bookkeeping themselves. Also resets `_zoomed`: a freshly opened crop
+   * should never inherit the previous one's zoom state. */
+  willUpdate() {
+    const path = this.entryId && this.crop ? kibbleImageUrl(this.entryId, "pending", this.crop.name) : null;
+    if (path === this._resolvedPath) return;
+    this._resolvedPath = path;
+    this._imageUrl = null;
+    this._zoomed = false;
+    if (!path || !this.hass) return;
+    this._imageUrl = this._cache.get(this.hass, path, (url) => {
+      if (this._resolvedPath !== path) return;
+      this._imageUrl = url;
+      this.requestUpdate();
+    });
+  }
   render() {
     if (!this.open) return A;
+    const crop = this.crop;
+    const alt = crop ? `Captured ${new Date(crop.ts * 1e3).toLocaleString()}` : "";
     return b2`
       <div class="backdrop" @click=${this._close} role="dialog" aria-modal="true" aria-label="Choose a cat">
         <div class="sheet" @click=${(event) => event.stopPropagation()}>
           <div class="heading">Choose a cat</div>
+          ${crop ? b2`
+                <button
+                  type="button"
+                  class="preview"
+                  ?disabled=${!this._imageUrl}
+                  aria-label=${`View full size. ${alt}`}
+                  @click=${() => this._zoomed = true}
+                >
+                  ${this._imageUrl ? b2`<img src=${this._imageUrl} alt="" loading="lazy" />` : A}
+                </button>
+              ` : A}
           <div class="rows">
             ${this.cats.map(
       (cat, index) => b2`
@@ -11760,6 +11799,7 @@ var KibbleFacePicker = class extends i4 {
           <button type="button" class="cancel" @click=${this._close}>Cancel</button>
         </div>
       </div>
+      <kibble-lightbox ?open=${this._zoomed} .imageUrl=${this._imageUrl} .alt=${alt} @close-requested=${() => this._zoomed = false}></kibble-lightbox>
     `;
   }
   _choose(cat) {
@@ -11804,6 +11844,34 @@ var KibbleFacePicker = class extends i4 {
       font-weight: 600;
       color: var(--primary-text-color);
       padding-bottom: 8px;
+    }
+    .preview {
+      display: block;
+      width: 100%;
+      aspect-ratio: 1;
+      margin-bottom: 8px;
+      border: none;
+      border-radius: 8px;
+      background: color-mix(in srgb, var(--primary-text-color) 8%, transparent);
+      padding: 0;
+      cursor: pointer;
+      overflow: hidden;
+    }
+    .preview:disabled {
+      cursor: default;
+    }
+    .preview:focus-visible {
+      outline: 2px solid var(--primary-color, #03a9f4);
+      outline-offset: 2px;
+    }
+    .preview img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+      /* Same reasoning as the cats card's crop/sample grids: a real photo, smooth upscale,
+       * never "pixelated". */
+      image-rendering: auto;
     }
     .rows {
       display: flex;
@@ -12008,6 +12076,7 @@ var KibbleCatsCard = class extends i4 {
     this._lastPendingData = null;
     this._pickerTrigger = null;
     this._fileInputRef = e5();
+    this._lightboxTrigger = null;
     this._scrolledTo = null;
     this._onLocationChanged = () => {
       this._scrolledTo = null;
@@ -12065,6 +12134,11 @@ var KibbleCatsCard = class extends i4 {
       this._pickerCrop = null;
       if (crop) this._confirm(crop, event.detail.cat);
     };
+    this._closeLightbox = () => {
+      this._lightboxUrl = null;
+      this._lightboxTrigger?.focus();
+      this._lightboxTrigger = null;
+    };
     this._hiddenCrops = /* @__PURE__ */ new Set();
     this._pickerCrop = null;
     this._undo = null;
@@ -12080,6 +12154,8 @@ var KibbleCatsCard = class extends i4 {
     this._uploadBusy = false;
     this._uploadError = null;
     this._uploadNotice = null;
+    this._lightboxUrl = null;
+    this._lightboxAlt = "";
   }
   static {
     this.properties = {
@@ -12099,7 +12175,9 @@ var KibbleCatsCard = class extends i4 {
       _uploadCat: { state: true },
       _uploadBusy: { state: true },
       _uploadError: { state: true },
-      _uploadNotice: { state: true }
+      _uploadNotice: { state: true },
+      _lightboxUrl: { state: true },
+      _lightboxAlt: { state: true }
     };
   }
   setConfig(config) {
@@ -12212,6 +12290,7 @@ var KibbleCatsCard = class extends i4 {
         .hass=${this.hass}
         .cats=${cats}
         .entryId=${this._entryId}
+        .crop=${this._pickerCrop}
         @choice=${this._onPickerChoice}
         @close-requested=${this._closePicker}
       ></kibble-face-picker>
@@ -12227,14 +12306,20 @@ var KibbleCatsCard = class extends i4 {
         @use-crop=${this._onUseCrop}
         @close-requested=${this._onCropDialogClosed}
       ></kibble-crop-dialog>
+      <kibble-lightbox
+        ?open=${this._lightboxUrl !== null}
+        .imageUrl=${this._lightboxUrl}
+        .alt=${this._lightboxAlt}
+        @close-requested=${this._closeLightbox}
+      ></kibble-lightbox>
     `;
   }
   _renderCatHeader(cat, present) {
-    const newest = Math.max(
-      cat.last_seen ?? 0,
-      ...(this._timelineQuery.state.data?.items ?? []).filter((item) => item.kind === "identified" && item.cat === cat.name).map((item) => item.ts)
+    const lastSeenTs = catLastSeenTs(
+      cat.last_seen,
+      (this._timelineQuery.state.data?.items ?? []).filter((item) => item.kind === "identified" && item.cat === cat.name).map((item) => item.ts)
     );
-    const seen = newest > 0 ? `seen ${relativeTimeSentence(new Date(newest * 1e3), /* @__PURE__ */ new Date())}` : "not seen yet";
+    const seen = lastSeenTs !== null ? `seen ${relativeTimeSentence(new Date(lastSeenTs * 1e3), /* @__PURE__ */ new Date())}` : "not seen yet";
     return b2`
       <div class="cat">
         <kibble-avatar
@@ -12438,6 +12523,16 @@ var KibbleCatsCard = class extends i4 {
     this._pickerTrigger = event.currentTarget;
     this._pickerCrop = crop;
   }
+  /** Opens the same full-viewport overlay `kibble-timeline-card` uses, for a sighting or
+   * training-photo thumbnail tapped out of `_renderSighting`/`_renderSample` -- the grids stay
+   * small enough to scan at a glance, this is the "let me actually look at that one" escape
+   * valve. */
+  _openLightbox(event, url, alt) {
+    if (!url) return;
+    this._lightboxTrigger = event.currentTarget;
+    this._lightboxUrl = url;
+    this._lightboxAlt = alt;
+  }
   _confirm(crop, cat) {
     if (!this._entities.deviceId) return;
     const deviceId = this._entities.deviceId;
@@ -12521,12 +12616,15 @@ var KibbleCatsCard = class extends i4 {
     );
     if (samples.length === 0 && cat.samples === 0 && sightings.length === 0) return A;
     const now = /* @__PURE__ */ new Date();
+    const lastSeenTs = catLastSeenTs(cat.last_seen, sightings.map((item) => item.ts));
+    const relativeSeen = lastSeenTs !== null ? relativeTimeSentence(new Date(lastSeenTs * 1e3), now) : null;
+    const sightingsSummary = sightings.length > 0 ? `${sightings.length === 1 ? "1 sighting" : `${sightings.length} sightings`}${relativeSeen ? `, seen ${relativeSeen}` : ""}` : relativeSeen ? `Seen ${relativeSeen}` : "Not seen yet";
     return b2`
       <section class="gallery" id=${catSectionId(cat.name)}>
         <div class="gallery-header">
           <kibble-avatar .hass=${this.hass} .name=${cat.name} .colorIndex=${cat.color_index} .entryId=${this._entryId} .sampleName=${cat.avatar}></kibble-avatar>
           <span class="gallery-name">${cat.name}</span>
-          <span class="gallery-sub">${sightings.length === 0 ? "No sightings yet" : sightings.length === 1 ? "1 sighting" : `${sightings.length} sightings`}</span>
+          <span class="gallery-sub">${sightingsSummary}</span>
         </div>
         ${sightings.length > 0 ? b2`<div class="gallery-grid">${sightings.map((item) => this._renderSighting(item, now))}</div>` : A}
         ${samples.length > 0 ? b2`<div class="gallery-sub">${samples.length === 1 ? "1 training photo" : `${samples.length} training photos`}</div>
@@ -12536,15 +12634,18 @@ var KibbleCatsCard = class extends i4 {
   }
   /** One identified visit, with the live image from that moment when the feeder kept one
    * (a vendor `track` pairs with the nearest visit/eat frame; a labelled face crop is its own
-   * image) -- the same picture the timeline row shows. */
+   * image) -- the same picture the timeline row shows. Large enough in the grid to actually
+   * judge, and tap opens the same full-size overlay every photo in this card uses. */
   _renderSighting(item, now) {
     const when = relativeTimeSentence(new Date(item.ts * 1e3), now);
     const path = item.image && this._entryId ? kibbleImageUrl(this._entryId, item.image_kind, item.image) : null;
     const url = path ? this._imageCache.get(this.hass, path, () => this.requestUpdate()) : null;
     const title = `${detectionHeadline(item)}, ${new Date(item.ts * 1e3).toLocaleString()}`;
     return b2`
-      <div class="sample sighting" title=${title}>
-        ${url ? b2`<img src=${url} alt="" loading="lazy" />` : b2`<kibble-avatar .hass=${this.hass} .name=${null} .colorIndex=${null} .entryId=${this._entryId} .sampleName=${null}></kibble-avatar>`}
+      <div class="sample sighting">
+        ${url ? b2`<button type="button" class="sample-photo" aria-label=${`View full size: ${title}`} @click=${(event) => this._openLightbox(event, url, title)}>
+              <img src=${url} alt="" loading="lazy" title=${title} />
+            </button>` : b2`<kibble-avatar .hass=${this.hass} .name=${null} .colorIndex=${null} .entryId=${this._entryId} .sampleName=${null}></kibble-avatar>`}
         <span class="caption">${item.paired_class === "eat" ? "ate \xB7 " : ""}${when}</span>
       </div>
     `;
@@ -12552,9 +12653,12 @@ var KibbleCatsCard = class extends i4 {
   _renderSample(catName, sample, caption) {
     const path = this._entryId ? kibbleImageUrl(this._entryId, `sample/${catName}`, sample.name) : null;
     const url = path ? this._imageCache.get(this.hass, path, () => this.requestUpdate()) : null;
+    const title = new Date(sample.ts * 1e3).toLocaleString();
     return b2`
       <div class="sample">
-        ${url ? b2`<img src=${url} alt="" loading="lazy" title=${new Date(sample.ts * 1e3).toLocaleString()} />` : A}
+        ${url ? b2`<button type="button" class="sample-photo" aria-label=${`View full size, captured ${title}`} @click=${(event) => this._openLightbox(event, url, title)}>
+              <img src=${url} alt="" loading="lazy" title=${title} />
+            </button>` : A}
         <button type="button" class="remove" aria-label=${`Remove this sample of ${catName}`} @click=${() => this._removeSample(catName, sample)}>
           ${"\xD7"}
         </button>
@@ -12836,7 +12940,7 @@ var KibbleCatsCard = class extends i4 {
     }
     .crop-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
       gap: 10px;
     }
     .crop {
@@ -12860,8 +12964,14 @@ var KibbleCatsCard = class extends i4 {
       height: 100%;
       object-fit: cover;
       display: block;
+      /* These are real photos (224x224 JPEGs), not pixel art -- smooth interpolation reads
+       * as a slightly soft photo; "pixelated" would read as a blocky one. Explicit because
+       * "auto" is also the browser default, and a future "these look blurry, sharpen them"
+       * pass should see this comment before reaching for that value. */
+      image-rendering: auto;
     }
     .crop-thumb:focus-visible,
+    .sample-photo:focus-visible,
     .chooser:focus-visible,
     .remove:focus-visible,
     .add-cat button:focus-visible,
@@ -12980,7 +13090,16 @@ var KibbleCatsCard = class extends i4 {
       display: block;
       width: 100%;
       height: 100%;
-      --kibble-avatar-size: 56px;
+      --kibble-avatar-size: 96px;
+    }
+    .sample-photo {
+      display: block;
+      width: 100%;
+      height: 100%;
+      padding: 0;
+      border: none;
+      background: none;
+      cursor: pointer;
     }
     .sample .caption {
       position: absolute;
@@ -13005,8 +13124,8 @@ var KibbleCatsCard = class extends i4 {
     }
     .sample {
       position: relative;
-      width: 56px;
-      height: 56px;
+      width: 96px;
+      height: 96px;
     }
     .sample img {
       width: 100%;
@@ -13014,6 +13133,8 @@ var KibbleCatsCard = class extends i4 {
       object-fit: cover;
       border-radius: 8px;
       display: block;
+      /* Same reasoning as .crop-thumb img: real photos, smooth upscale, never "pixelated". */
+      image-rendering: auto;
     }
     .remove {
       position: absolute;
@@ -13927,7 +14048,13 @@ function localTime(hour, minute, daysAgo = 0) {
 }
 var CATS = [
   { name: "Kitty", samples: 12, last_seen: secondsAgo(126), avatar: "1789500000-kitty.jpg", vendor_pet_id: 101321480, color_index: 0 },
-  { name: "Pancake", samples: 11, last_seen: secondsAgo(1), avatar: "1789500600-pancake.jpg", vendor_pet_id: 101321488, color_index: 1 }
+  { name: "Pancake", samples: 11, last_seen: secondsAgo(1), avatar: "1789500600-pancake.jpg", vendor_pet_id: 101321488, color_index: 1 },
+  // Deliberately carries no "identified" timeline rows at all (unlike Kitty/Pancake below) --
+  // exercises the real bug this fixture set never caught: `last_seen` keeps moving (a
+  // detection updated it 20 minutes ago) while this cat's own sightings list in the timeline
+  // stays empty, so the gallery must say "Seen 20 min ago", never the false "No sightings
+  // yet" that implies the cat has never been seen at all.
+  { name: "Whiskers", samples: 3, last_seen: secondsAgo(20), avatar: "1789580000-whiskers.jpg", vendor_pet_id: 101321499, color_index: 2 }
 ];
 var PENDING_CROPS = [
   { name: `${secondsAgo(340)}-101321480.jpg`, ts: secondsAgo(340), vendor_pet_id: 101321480, vendor_cat: "Kitty", guess: { cat: "Kitty", score: 0.91 } },
@@ -13965,7 +14092,8 @@ function uploadSamplesFor(catName, count, startMinutesAgo) {
 }
 var SAMPLES_BY_CAT = {
   Kitty: samplesFor("Kitty", 12, 200),
-  Pancake: [...samplesFor("Pancake", 9, 400), ...uploadSamplesFor("Pancake", 2, 15)]
+  Pancake: [...samplesFor("Pancake", 9, 400), ...uploadSamplesFor("Pancake", 2, 15)],
+  Whiskers: samplesFor("Whiskers", 3, 300)
 };
 var TIMELINE_ITEMS = [
   {

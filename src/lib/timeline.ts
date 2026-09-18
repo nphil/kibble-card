@@ -25,6 +25,17 @@ export function comparePairFor(item: Pick<TimelineIdentifiedItem, "image_before"
   return { before, after };
 }
 
+/** A feed row's own before/after dish pair -- unlike the eat-compare pair above, `before`/
+ * `after` are never optional on `TimelineFeedItem` (every agent has always sent both keys,
+ * `null` or not), so this only ever needs the same "both missing reads as no pair" rule, not
+ * `??`'s optional-key handling. `null` for a feed cycle that captured neither photo (an older
+ * agent, or a cycle Kibble couldn't snapshot) -- the row must say so, never render an empty
+ * compare tile in its place; see `KibbleTimelineCard#_renderFeed`. */
+export function feedPhotos(item: Pick<TimelineFeedItem, "before" | "after">): ComparePairRefs | null {
+  if (!item.before && !item.after) return null;
+  return { before: item.before, after: item.after };
+}
+
 export interface RowThumbnail {
   name: string;
   kind: string;

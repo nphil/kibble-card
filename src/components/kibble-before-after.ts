@@ -10,9 +10,10 @@
  * that photo with its label and no toggle/wipe affordance at all, never a grey box standing in
  * for the photo that doesn't exist.
  *
- * Used two places: embedded directly in `kibble-settings-dialog`'s "Last feed" section (the
- * dispense pair), and inside `kibble-lightbox`'s overlay frame for a timeline row's eat-compare
- * pair (`kibble-timeline-card`) -- this component owns none of that dialog chrome itself.
+ * Used three places: embedded directly in `kibble-settings-dialog`'s "Last feed" section (the
+ * dispense pair) and in a `kibble-timeline-card` feed row (the same pair, inline in the rail),
+ * and inside `kibble-lightbox`'s overlay frame for a timeline row's eat-compare pair -- this
+ * component owns none of that dialog chrome itself.
  */
 
 import { LitElement, css, html, nothing } from "lit";
@@ -312,7 +313,10 @@ export class KibbleBeforeAfter extends LitElement {
     /* Mode toggle */
     .mode-toggle {
       position: absolute;
-      top: 8px;
+      /* Bottom, not top, so it never sits over the "After"/wipe tags, which are always top:
+       * 8px regardless of mode (see .tag above) -- top-right previously hid "After" under
+       * this control entirely. */
+      bottom: 8px;
       right: 8px;
       display: flex;
       gap: 2px;

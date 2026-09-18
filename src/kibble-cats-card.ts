@@ -16,11 +16,13 @@ import { resolveEntryId } from "./lib/entry-id";
 import { WsQuery, watchKey, describeWsError } from "./lib/ws-query";
 import { ImageUrlCache, kibbleImageUrl } from "./lib/image-cache";
 import { relativeTimeSentence } from "./lib/relative-time";
+import { catLastSeenTs } from "./lib/cat-activity";
 import { detectionHeadline } from "./lib/timeline";
 import { chooseSuggestion } from "./lib/suggestion";
 import "./components/kibble-avatar";
 import "./components/kibble-crop-dialog";
 import "./components/kibble-face-picker";
+import "./components/kibble-lightbox";
 import "./cats-editor";
 
 const EMPTY_ENTITIES: KibbleEntities = { deviceId: "", catPresence: [] };
@@ -67,6 +69,8 @@ export class KibbleCatsCard extends LitElement {
     _uploadBusy: { state: true },
     _uploadError: { state: true },
     _uploadNotice: { state: true },
+    _lightboxUrl: { state: true },
+    _lightboxAlt: { state: true },
   };
 
   declare hass: HomeAssistant;
@@ -91,6 +95,9 @@ export class KibbleCatsCard extends LitElement {
   declare _uploadBusy: boolean;
   declare _uploadError: string | null;
   declare _uploadNotice: string | null;
+  /** Set by tapping a sighting/sample photo to view it full size; see `_openLightbox`. */
+  declare _lightboxUrl: string | null;
+  declare _lightboxAlt: string;
 
   private _entities: KibbleEntities = EMPTY_ENTITIES;
   private _entryId: string | undefined;
@@ -111,6 +118,7 @@ export class KibbleCatsCard extends LitElement {
   private _pickerTrigger: HTMLElement | null = null;
   private _deleteConfirmTimer: number | undefined;
   private _fileInputRef = createRef<HTMLInputElement>();
+  private _lightboxTrigger: HTMLElement | null = null;
 
   constructor() {
     super();
@@ -129,6 +137,8 @@ export class KibbleCatsCard extends LitElement {
     this._uploadBusy = false;
     this._uploadError = null;
     this._uploadNotice = null;
+    this._lightboxUrl = null;
+    this._lightboxAlt = "";
   }
 
   setConfig(config: KibbleCatsCardConfig): void {
@@ -272,6 +282,7 @@ export class KibbleCatsCard extends LitElement {
         .hass=${this.hass}
         .cats=${cats}
         .entryId=${this._entryId}
+        .crop=${this._pickerCrop}
         @choice=${this._onPickerChoice}
         @close-requested=${this._closePicker}
       ></kibble-face-picker>
@@ -287,19 +298,25 @@ export class KibbleCatsCard extends LitElement {
         @use-crop=${this._onUseCrop}
         @close-requested=${this._onCropDialogClosed}
       ></kibble-crop-dialog>
+      <kibble-lightbox
+        ?open=${this._lightboxUrl !== null}
+        .imageUrl=${this._lightboxUrl}
+        .alt=${this._lightboxAlt}
+        @close-requested=${this._closeLightbox}
+      ></kibble-lightbox>
     `;
   }
 
   private _renderCatHeader(cat: KibbleCatSummary, present: boolean) {
     // Newest of: the feeder's own identifications (the timeline's sightings) and the agent's
     // labelled-crop timestamp -- so this agrees with the sightings list below it.
-    const newest = Math.max(
-      cat.last_seen ?? 0,
-      ...(this._timelineQuery.state.data?.items ?? [])
+    const lastSeenTs = catLastSeenTs(
+      cat.last_seen,
+      (this._timelineQuery.state.data?.items ?? [])
         .filter((item) => item.kind === "identified" && item.cat === cat.name)
         .map((item) => item.ts),
     );
-    const seen = newest > 0 ? `seen ${relativeTimeSentence(new Date(newest * 1000), new Date())}` : "not seen yet";
+    const seen = lastSeenTs !== null ? `seen ${relativeTimeSentence(new Date(lastSeenTs * 1000), new Date())}` : "not seen yet";
     return html`
       <div class="cat">
         <kibble-avatar
@@ -592,6 +609,23 @@ export class KibbleCatsCard extends LitElement {
     if (crop) this._confirm(crop, event.detail.cat);
   };
 
+  /** Opens the same full-viewport overlay `kibble-timeline-card` uses, for a sighting or
+   * training-photo thumbnail tapped out of `_renderSighting`/`_renderSample` -- the grids stay
+   * small enough to scan at a glance, this is the "let me actually look at that one" escape
+   * valve. */
+  private _openLightbox(event: Event, url: string | null, alt: string): void {
+    if (!url) return;
+    this._lightboxTrigger = event.currentTarget as HTMLElement;
+    this._lightboxUrl = url;
+    this._lightboxAlt = alt;
+  }
+
+  private _closeLightbox = (): void => {
+    this._lightboxUrl = null;
+    this._lightboxTrigger?.focus();
+    this._lightboxTrigger = null;
+  };
+
   private _confirm(crop: PendingFaceCrop, cat: string): void {
     if (!this._entities.deviceId) return;
     const deviceId = this._entities.deviceId;
@@ -683,12 +717,25 @@ export class KibbleCatsCard extends LitElement {
     );
     if (samples.length === 0 && cat.samples === 0 && sightings.length === 0) return nothing;
     const now = new Date();
+    // `sightings` and `cat.last_seen` are independent signals that can disagree -- most
+    // obviously while per-cat identification is off, where `last_seen` keeps moving and this
+    // list stays empty -- so a real `last_seen` always gets an honest "seen ..." line here,
+    // never "No sightings yet" (a false claim the cat has never been seen at all). See
+    // `catLastSeenTs`.
+    const lastSeenTs = catLastSeenTs(cat.last_seen, sightings.map((item) => item.ts));
+    const relativeSeen = lastSeenTs !== null ? relativeTimeSentence(new Date(lastSeenTs * 1000), now) : null;
+    const sightingsSummary =
+      sightings.length > 0
+        ? `${sightings.length === 1 ? "1 sighting" : `${sightings.length} sightings`}${relativeSeen ? `, seen ${relativeSeen}` : ""}`
+        : relativeSeen
+          ? `Seen ${relativeSeen}`
+          : "Not seen yet";
     return html`
       <section class="gallery" id=${catSectionId(cat.name)}>
         <div class="gallery-header">
           <kibble-avatar .hass=${this.hass} .name=${cat.name} .colorIndex=${cat.color_index} .entryId=${this._entryId} .sampleName=${cat.avatar}></kibble-avatar>
           <span class="gallery-name">${cat.name}</span>
-          <span class="gallery-sub">${sightings.length === 0 ? "No sightings yet" : sightings.length === 1 ? "1 sighting" : `${sightings.length} sightings`}</span>
+          <span class="gallery-sub">${sightingsSummary}</span>
         </div>
         ${sightings.length > 0
           ? html`<div class="gallery-grid">${sightings.map((item) => this._renderSighting(item, now))}</div>`
@@ -703,15 +750,20 @@ export class KibbleCatsCard extends LitElement {
 
   /** One identified visit, with the live image from that moment when the feeder kept one
    * (a vendor `track` pairs with the nearest visit/eat frame; a labelled face crop is its own
-   * image) -- the same picture the timeline row shows. */
+   * image) -- the same picture the timeline row shows. Large enough in the grid to actually
+   * judge, and tap opens the same full-size overlay every photo in this card uses. */
   private _renderSighting(item: TimelineIdentifiedItem, now: Date) {
     const when = relativeTimeSentence(new Date(item.ts * 1000), now);
     const path = item.image && this._entryId ? kibbleImageUrl(this._entryId, item.image_kind, item.image) : null;
     const url = path ? this._imageCache.get(this.hass, path, () => this.requestUpdate()) : null;
     const title = `${detectionHeadline(item)}, ${new Date(item.ts * 1000).toLocaleString()}`;
     return html`
-      <div class="sample sighting" title=${title}>
-        ${url ? html`<img src=${url} alt="" loading="lazy" />` : html`<kibble-avatar .hass=${this.hass} .name=${null} .colorIndex=${null} .entryId=${this._entryId} .sampleName=${null}></kibble-avatar>`}
+      <div class="sample sighting">
+        ${url
+          ? html`<button type="button" class="sample-photo" aria-label=${`View full size: ${title}`} @click=${(event: Event) => this._openLightbox(event, url, title)}>
+              <img src=${url} alt="" loading="lazy" title=${title} />
+            </button>`
+          : html`<kibble-avatar .hass=${this.hass} .name=${null} .colorIndex=${null} .entryId=${this._entryId} .sampleName=${null}></kibble-avatar>`}
         <span class="caption">${item.paired_class === "eat" ? "ate · " : ""}${when}</span>
       </div>
     `;
@@ -720,9 +772,14 @@ export class KibbleCatsCard extends LitElement {
   private _renderSample(catName: string, sample: CatSample, caption: string | null) {
     const path = this._entryId ? kibbleImageUrl(this._entryId, `sample/${catName}`, sample.name) : null;
     const url = path ? this._imageCache.get(this.hass, path, () => this.requestUpdate()) : null;
+    const title = new Date(sample.ts * 1000).toLocaleString();
     return html`
       <div class="sample">
-        ${url ? html`<img src=${url} alt="" loading="lazy" title=${new Date(sample.ts * 1000).toLocaleString()} />` : nothing}
+        ${url
+          ? html`<button type="button" class="sample-photo" aria-label=${`View full size, captured ${title}`} @click=${(event: Event) => this._openLightbox(event, url, title)}>
+              <img src=${url} alt="" loading="lazy" title=${title} />
+            </button>`
+          : nothing}
         <button type="button" class="remove" aria-label=${`Remove this sample of ${catName}`} @click=${() => this._removeSample(catName, sample)}>
           ${"\u00d7"}
         </button>
@@ -1011,7 +1068,7 @@ export class KibbleCatsCard extends LitElement {
     }
     .crop-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
       gap: 10px;
     }
     .crop {
@@ -1035,8 +1092,14 @@ export class KibbleCatsCard extends LitElement {
       height: 100%;
       object-fit: cover;
       display: block;
+      /* These are real photos (224x224 JPEGs), not pixel art -- smooth interpolation reads
+       * as a slightly soft photo; "pixelated" would read as a blocky one. Explicit because
+       * "auto" is also the browser default, and a future "these look blurry, sharpen them"
+       * pass should see this comment before reaching for that value. */
+      image-rendering: auto;
     }
     .crop-thumb:focus-visible,
+    .sample-photo:focus-visible,
     .chooser:focus-visible,
     .remove:focus-visible,
     .add-cat button:focus-visible,
@@ -1155,7 +1218,16 @@ export class KibbleCatsCard extends LitElement {
       display: block;
       width: 100%;
       height: 100%;
-      --kibble-avatar-size: 56px;
+      --kibble-avatar-size: 96px;
+    }
+    .sample-photo {
+      display: block;
+      width: 100%;
+      height: 100%;
+      padding: 0;
+      border: none;
+      background: none;
+      cursor: pointer;
     }
     .sample .caption {
       position: absolute;
@@ -1180,8 +1252,8 @@ export class KibbleCatsCard extends LitElement {
     }
     .sample {
       position: relative;
-      width: 56px;
-      height: 56px;
+      width: 96px;
+      height: 96px;
     }
     .sample img {
       width: 100%;
@@ -1189,6 +1261,8 @@ export class KibbleCatsCard extends LitElement {
       object-fit: cover;
       border-radius: 8px;
       display: block;
+      /* Same reasoning as .crop-thumb img: real photos, smooth upscale, never "pixelated". */
+      image-rendering: auto;
     }
     .remove {
       position: absolute;

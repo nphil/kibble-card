@@ -253,6 +253,12 @@ function localTime(hour: number, minute: number, daysAgo = 0): number {
 export const CATS: KibbleCatSummary[] = [
   { name: "Kitty", samples: 12, last_seen: secondsAgo(126), avatar: "1789500000-kitty.jpg", vendor_pet_id: 101321480, color_index: 0 },
   { name: "Pancake", samples: 11, last_seen: secondsAgo(1), avatar: "1789500600-pancake.jpg", vendor_pet_id: 101321488, color_index: 1 },
+  // Deliberately carries no "identified" timeline rows at all (unlike Kitty/Pancake below) --
+  // exercises the real bug this fixture set never caught: `last_seen` keeps moving (a
+  // detection updated it 20 minutes ago) while this cat's own sightings list in the timeline
+  // stays empty, so the gallery must say "Seen 20 min ago", never the false "No sightings
+  // yet" that implies the cat has never been seen at all.
+  { name: "Whiskers", samples: 3, last_seen: secondsAgo(20), avatar: "1789580000-whiskers.jpg", vendor_pet_id: 101321499, color_index: 2 },
 ];
 
 /** 14 pending crops, oldest first (the agent's own `GET /faces/pending` order -- "newest
@@ -303,6 +309,7 @@ function uploadSamplesFor(catName: string, count: number, startMinutesAgo: numbe
 export const SAMPLES_BY_CAT: Record<string, CatSample[]> = {
   Kitty: samplesFor("Kitty", 12, 200),
   Pancake: [...samplesFor("Pancake", 9, 400), ...uploadSamplesFor("Pancake", 2, 15)],
+  Whiskers: samplesFor("Whiskers", 3, 300),
 };
 
 /** One day of merged identifications, eats, visits and feeds, newest first (per DESIGN.md's

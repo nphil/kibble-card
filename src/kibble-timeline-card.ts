@@ -19,7 +19,8 @@ import { resolveKibbleEntities, type KibbleEntities } from "./lib/resolve-entiti
 import { resolveEntryId } from "./lib/entry-id";
 import { WsQuery, watchKey } from "./lib/ws-query";
 import { ImageUrlCache, kibbleImageUrl } from "./lib/image-cache";
-import { comparePairFor, detectionHeadline, feedSummary, filterVisits, groupByDay, resolveThumbnail, type ComparePairRefs, type TimelineDay } from "./lib/timeline";
+import { comparePairFor, detectionHeadline, feedPhotos, feedSummary, filterVisits, groupByDay, resolveThumbnail, type ComparePairRefs, type TimelineDay } from "./lib/timeline";
+import "./components/kibble-before-after";
 import "./components/kibble-lightbox";
 import "./timeline-editor";
 
@@ -234,20 +235,22 @@ export class KibbleTimelineCard extends LitElement {
     const time = this._timeLabel(item.ts);
     const entryId = this._entryId;
     const summary = feedSummary(item);
+    // The device's own before/after dish pair, resolved the same way every other row's photo
+    // is (an authenticated fetch through the shared object-URL cache) -- see `feedPhotos`'s
+    // doc comment for why a feed cycle that captured neither photo renders honest text below
+    // instead of an empty `kibble-before-after` tile.
+    const pair = feedPhotos(item);
+    const beforeUrl = pair?.before && entryId ? this._imageCache.get(this.hass, kibbleImageUrl(entryId, "feed", pair.before), () => this.requestUpdate()) : null;
+    const afterUrl = pair?.after && entryId ? this._imageCache.get(this.hass, kibbleImageUrl(entryId, "feed", pair.after), () => this.requestUpdate()) : null;
     return html`
       <div class="row row-feed">
         <span class="time">${time}</span>
         <span class="row-text feed-text">
           ${summary.headline}${summary.scheduled ? html` <span class="quiet">(scheduled)</span>` : nothing}
         </span>
-        <div class="feed-thumbs">
-          ${item.before && entryId
-            ? this._renderCaptionedThumb(kibbleImageUrl(entryId, "feed", item.before), `Bowl before the ${time} feed`, "before")
-            : nothing}
-          ${item.after && entryId
-            ? this._renderCaptionedThumb(kibbleImageUrl(entryId, "feed", item.after), `Bowl after the ${time} feed`, "after")
-            : nothing}
-        </div>
+        ${pair
+          ? html`<kibble-before-after class="feed-compare" .beforeSrc=${beforeUrl} .afterSrc=${afterUrl} aspect="1.8"></kibble-before-after>`
+          : html`<span class="feed-no-photo">No photo for this feed</span>`}
       </div>
     `;
   }
@@ -259,15 +262,6 @@ export class KibbleTimelineCard extends LitElement {
       <button type="button" class="thumb" ?disabled=${!url} aria-label=${label} @click=${(event: Event) => (onOpen ? onOpen(event) : this._openLightbox(event, url, alt))}>
         ${url ? html`<img src=${url} alt="" loading="lazy" />` : nothing}
       </button>
-    `;
-  }
-
-  private _renderCaptionedThumb(path: string, alt: string, caption: string) {
-    return html`
-      <div class="thumb-slot">
-        ${this._renderThumb(path, alt)}
-        <span class="thumb-caption">${caption}</span>
-      </div>
     `;
   }
 
@@ -407,24 +401,19 @@ export class KibbleTimelineCard extends LitElement {
     }
     .row-feed {
       min-height: 56px;
+      flex-wrap: wrap;
+      align-items: flex-start;
     }
     .feed-text {
       font-weight: 500;
     }
-    .feed-thumbs {
-      display: flex;
-      align-items: flex-start;
-      gap: 8px;
-      flex: 0 0 auto;
+    .feed-compare {
+      flex: 1 1 100%;
+      max-width: 360px;
     }
-    .thumb-slot {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 2px;
-    }
-    .thumb-caption {
-      font-size: 10px;
+    .feed-no-photo {
+      flex: 1 1 100%;
+      font-size: var(--kibble-text-caption);
       color: var(--secondary-text-color);
     }
     .quiet {

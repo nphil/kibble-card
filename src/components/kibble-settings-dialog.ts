@@ -47,6 +47,8 @@ export class KibbleSettingsDialog extends LitElement {
 
   private _cloudConfirmArmed = false;
   private _cloudConfirmTimer: number | undefined = undefined;
+  private _stackConfirmArmed = false;
+  private _stackConfirmTimer: number | undefined = undefined;
 
   constructor() {
     super();
@@ -56,6 +58,7 @@ export class KibbleSettingsDialog extends LitElement {
   disconnectedCallback(): void {
     super.disconnectedCallback();
     clearTimeout(this._cloudConfirmTimer);
+    clearTimeout(this._stackConfirmTimer);
   }
 
   render() {
@@ -74,6 +77,7 @@ export class KibbleSettingsDialog extends LitElement {
           ${this._renderToggles()}
           ${e.volume ? this._renderVolume() : nothing}
           ${e.cloudSwitch ? this._renderCloud() : nothing}
+          ${e.stackSelect ? this._renderStack() : nothing}
           ${e.wifiNetwork ? this._renderWifi() : nothing}
           ${e.dishBefore || e.dishAfter ? this._renderDishPhotos() : nothing}
           ${e.speaker ? this._renderSpeaker() : nothing}
@@ -272,6 +276,44 @@ export class KibbleSettingsDialog extends LitElement {
 
   private _setNumber(entityId: string, value: number): void {
     this.hass.callService("number", "set_value", { value }, { entity_id: entityId });
+  }
+
+  /** Which userland the feeder boots. Switching reboots it (~40 s offline), so it takes the
+   *  same tap-twice confirm as the cloud toggle. The entity is unavailable on agents that
+   *  predate it, in which case the section is simply absent. */
+  private _renderStack() {
+    const state = this.hass.states[this.entities.stackSelect!];
+    if (!state || state.state === "unavailable") return nothing;
+    const running = state.state;
+    const other = running === "librefeed" ? "vendor" : "librefeed";
+    const label = (v: string) => (v === "librefeed" ? "LibreFeed" : "Petkit stack");
+    return html`
+      <section>
+        <h3>Stack</h3>
+        <p class="hint">Running ${label(running)}. Switching reboots the feeder; it is back in about a minute.</p>
+        <button type="button" class="cloud-toggle ${this._stackConfirmArmed ? "confirming" : ""}" @click=${this._onStackClick}>
+          ${this._stackConfirmArmed ? `Tap again to boot ${label(other)}` : `Switch to ${label(other)}`}
+        </button>
+      </section>
+    `;
+  }
+
+  private _onStackClick(): void {
+    const state = this.hass.states[this.entities.stackSelect!];
+    const other = state?.state === "librefeed" ? "vendor" : "librefeed";
+    if (this._stackConfirmArmed) {
+      clearTimeout(this._stackConfirmTimer);
+      this._stackConfirmArmed = false;
+      void this.hass.callService("select", "select_option", { entity_id: this.entities.stackSelect, option: other });
+      this.requestUpdate();
+      return;
+    }
+    this._stackConfirmArmed = true;
+    this.requestUpdate();
+    this._stackConfirmTimer = setTimeout(() => {
+      this._stackConfirmArmed = false;
+      this.requestUpdate();
+    }, CLOUD_CONFIRM_WINDOW_MS);
   }
 
   private _onCloudToggleClick(): void {

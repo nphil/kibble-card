@@ -32,6 +32,8 @@ export interface KibbleEntities {
   feedAmountHopper1?: string;
   feedAmountHopper2?: string;
   cloudSwitch?: string;
+  /** `select.<feeder>_stack`: which userland the feeder boots (Petkit stack / LibreFeed). */
+  stackSelect?: string;
   cloudConnection?: string;
   nightVisionSwitch?: string;
   statusLedSwitch?: string;
@@ -79,6 +81,7 @@ const RULES: Record<RuleRole, RoleRule> = {
   feedAmountHopper1: { domain: "number", translationKeys: ["feed_amount_hopper_1"], idSuffixes: ["_feed_amount_hopper_1"] },
   feedAmountHopper2: { domain: "number", translationKeys: ["feed_amount_hopper_2"], idSuffixes: ["_feed_amount_hopper_2"] },
   cloudSwitch: { domain: "switch", translationKeys: ["cloud", "petkit_cloud"], idSuffixes: ["_cloud", "_petkit_cloud"] },
+  stackSelect: { domain: "select", translationKeys: ["stack"], idSuffixes: ["_stack"] },
   cloudConnection: { domain: "sensor", translationKeys: ["cloud_connection"], idSuffixes: ["_cloud_connection"] },
   nightVisionSwitch: { domain: "switch", translationKeys: ["night", "night_vision"], idSuffixes: ["_night", "_night_vision"] },
   statusLedSwitch: { domain: "switch", translationKeys: ["light", "status_led"], idSuffixes: ["_light", "_status_led"] },

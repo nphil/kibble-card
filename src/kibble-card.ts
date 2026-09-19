@@ -299,15 +299,24 @@ export class KibbleCard extends LitElement {
     };
   }
 
-  /** Who was last seen and how long ago, straight off `lastSeenPet`'s own state/`last_changed` --
-   * `null` covers both "no such entity" and the sensor's own unknown/unavailable idle value. */
+  /** Who was last seen and how long ago. The time comes from the sensor's own
+   * `last_identified` attribute -- the moment the feeder actually identified that cat -- never
+   * from HA's `last_changed`, which is merely when the state STRING last changed. Those differ
+   * badly in exactly the cases that matter: reloading the integration rewrote `last_changed`
+   * and the hero cheerfully announced "Kitty seen 13 min ago" while the roster beside it, which
+   * reads the real timestamp, said two hours (2026-09-19). `last_changed` remains the fallback
+   * for a feeder too old to send the attribute. `null` covers both "no such entity" and the
+   * sensor's own unknown/unavailable idle value. */
   private _catSeen(): { name: string; relative: string } | null {
     const id = this._entities.lastSeenPet;
     const entityState = id ? this.hass.states[id] : undefined;
     if (!entityState || entityState.state === "unavailable" || entityState.state.toLowerCase() === "unknown") {
       return null;
     }
-    return { name: entityState.state, relative: relativeTimeSentence(new Date(entityState.last_changed), new Date()) };
+    const identified = entityState.attributes?.last_identified;
+    const when = typeof identified === "string" ? new Date(identified) : new Date(entityState.last_changed);
+    const at = Number.isNaN(when.getTime()) ? new Date(entityState.last_changed) : when;
+    return { name: entityState.state, relative: relativeTimeSentence(at, new Date()) };
   }
 
   private _scheduleEntries(): ScheduleEntry[] {

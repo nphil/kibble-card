@@ -6,6 +6,7 @@
  */
 
 import type {
+  CalibrationState,
   CatSample,
   DeviceRegistryEntry,
   EntityRegistryEntry,
@@ -377,3 +378,27 @@ export const TIMELINE_ITEMS: TimelineItem[] = [
   { kind: "feed", ts: localTime(7, 30, 1), amount: null, hopper: null, manual: false, before: null, after: null },
   { kind: "visit", ts: localTime(7, 10, 1), image: null },
 ];
+
+// ---- `kibble/calibration` WS fixture data -- Hopper 1 (index 0) starts never calibrated so
+// the harness can walk the whole begin/collect/mark-full/offer-inherit flow; Hopper 2 (index 1)
+// starts already measured and finished so the "choose hopper" step's other status wordings
+// (measured, with a date and a note) and the recalibrate/clear entry points have something to
+// show without any clicking first. ----
+export const INITIAL_CALIBRATION: CalibrationState = {
+  hoppers: [
+    null,
+    {
+      points: [
+        { portions: 0, score: 0.03 },
+        { portions: 1, score: 0.19 },
+        { portions: 2, score: 0.37 },
+        { portions: 3, score: 0.52 },
+      ],
+      full_portions: 3,
+      full_score: 0.52,
+      measured_at: secondsAgo(60 * 24 * 3),
+      source: "measured",
+      note: "Dry kibble, both hoppers",
+    },
+  ],
+};

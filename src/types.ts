@@ -260,3 +260,44 @@ export interface VisionFrame {
    * daemon always sends regardless so `/vision/last` stays a complete diagnostic. */
   overlay_suppressed?: boolean;
 }
+
+// ---- `kibble/calibration` WebSocket payload (forwards LibreFeed's `GET /calibration`
+// verbatim) -- one entry per hopper, at the daemon's own 0-based array position; `null` means
+// that hopper has never been calibrated. `kibble/calibration/action` (`begin`/`point`/`full`/
+// `inherit`/`clear`) returns this same shape after acting, so the wizard never needs a second
+// read just to see what it just did. See `lib/calibration.ts` for the step logic built on
+// this, and DESIGN.md's calibration section for the full wire contract. ----
+
+export interface CalibrationPoint {
+  /** Portions dispensed since the curve's `begin`, including the initial `0` (empty bowl). */
+  portions: number;
+  /** The bowl's raw vision score at that portion count -- the same unitless number `bowl_fill`
+   * reports live, not a percentage (kibble docs/34; see `lib/calibration.ts`'s header). */
+  score: number;
+}
+
+/** `"measured"` for a curve captured on this hopper directly; `{inherited_from}` (the *other*
+ * hopper's 0-based index) when this curve was copied over via the wizard's "same food in both
+ * hoppers" shortcut instead of measured again. */
+export type CalibrationSource = "measured" | { inherited_from: 0 | 1 };
+
+export interface CalibrationHopper {
+  points: CalibrationPoint[];
+  /** The portion count the operator confirmed as "full", or `null` until they do -- a curve
+   * with points but no `full_portions` yet is mid-calibration, not finished. */
+  full_portions: number | null;
+  /** `points.find(p => p.portions === full_portions)?.score`, kept alongside rather than
+   * re-derived so a consumer never has to search `points` to know the top of the curve. */
+  full_score: number | null;
+  /** Unix seconds. */
+  measured_at: number;
+  source: CalibrationSource;
+  note: string;
+}
+
+/** `kibble/calibration {entry_id}`'s response. Array position is the daemon's own hopper
+ * index (0 = "Hopper 1", 1 = "Hopper 2" in every user-facing string -- the +1 is display-only,
+ * never sent back over the wire; confirmed against the integration side of this contract). */
+export interface CalibrationState {
+  hoppers: [CalibrationHopper | null, CalibrationHopper | null];
+}

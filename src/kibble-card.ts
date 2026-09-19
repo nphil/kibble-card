@@ -5,7 +5,7 @@
  */
 
 import { LitElement, css, html, nothing, unsafeCSS } from "lit";
-import type { HomeAssistant, KibbleCardConfig, KibbleCatSummary } from "./types";
+import type { CalibrationState, HomeAssistant, KibbleCardConfig, KibbleCatSummary } from "./types";
 import { resolveKibbleEntities, type KibbleEntities } from "./lib/resolve-entities";
 import { resolveEntryId } from "./lib/entry-id";
 import { deriveFeederStatus, statusText, type FeederStatus } from "./lib/feeding";
@@ -16,6 +16,7 @@ import { mdiIcon } from "./lib/mdi-icons";
 import { KIOSK_MIN_HEIGHT_PX, KIBBLE_AMBER, KIBBLE_AMBER_DARK, KIBBLE_INK_ON_AMBER, KIBBLE_LIVE } from "./styles/tokens";
 import "./components/kibble-bowl";
 import { parseHopperLevel } from "./lib/hopper-status";
+import { displayCalibrationHopper } from "./lib/calibration";
 import "./components/kibble-segmented-picker";
 import "./components/kibble-stepper";
 import "./components/kibble-hold-button";
@@ -84,6 +85,11 @@ export class KibbleCard extends LitElement {
   // The status overlay's avatar needs the named cat's color/photo from the roster; a private
   // field (not a reactive property) since `WsQuery` drives its own `requestUpdate` on change.
   private _catsQuery = new WsQuery<{ cats: KibbleCatSummary[] }>(() => this.requestUpdate());
+  // No entity's state changing correlates with a calibration change the way `lastSeenPet`
+  // does for the cat roster above -- the wizard is the only thing that ever mutates this, so
+  // it bumps this generation counter itself (`_onCalibrationChanged`) instead of a watch key.
+  private _calibrationQuery = new WsQuery<CalibrationState>(() => this.requestUpdate());
+  private _calibrationGeneration = 0;
 
   constructor() {
     super();
@@ -153,6 +159,14 @@ export class KibbleCard extends LitElement {
         callWS({ type: "kibble/cats", entry_id: entryId }).then((result) => result as { cats: KibbleCatSummary[] }),
       );
     }
+    // Gated on `bowlFill` (not, say, `hopperLevel1`): calibration only means anything where
+    // there's a raw score to interpret in the first place.
+    if (this.hass && this._entryId && callWS && this._entities.bowlFill) {
+      const entryId = this._entryId;
+      this._calibrationQuery.sync(`${entryId}:${this._calibrationGeneration}`, () =>
+        callWS({ type: "kibble/calibration", entry_id: entryId }).then((result) => result as CalibrationState),
+      );
+    }
   }
 
   render() {
@@ -166,6 +180,7 @@ export class KibbleCard extends LitElement {
     const feeding = feedingState === "on";
 
     const bowlFill = this._numberState(e.bowlFill);
+    const calibrationHopper = displayCalibrationHopper(this._calibrationQuery.state.data);
     const hopperLevel1 = parseHopperLevel(e.hopperLevel1 && this.hass.states[e.hopperLevel1]?.state);
     const hopperLevel2 = parseHopperLevel(e.hopperLevel2 && this.hass.states[e.hopperLevel2]?.state);
     const scheduleEntries = this._scheduleEntries();
@@ -206,6 +221,7 @@ export class KibbleCard extends LitElement {
             <kibble-bowl
               class="bowl-block"
               .fill=${bowlFill}
+              .calibration=${calibrationHopper}
               .hopperLevel1=${hopperLevel1}
               .hopperLevel2=${hopperLevel2}
               .feeding=${feeding}
@@ -249,7 +265,14 @@ export class KibbleCard extends LitElement {
           </div>
         </div>
       </ha-card>
-      <kibble-settings-dialog .hass=${this.hass} .entities=${e} ?open=${this._settingsOpen} @close-requested=${this._closeSettings}></kibble-settings-dialog>
+      <kibble-settings-dialog
+        .hass=${this.hass}
+        .entities=${e}
+        .entryId=${this._entryId}
+        ?open=${this._settingsOpen}
+        @close-requested=${this._closeSettings}
+        @calibration-changed=${this._onCalibrationChanged}
+      ></kibble-settings-dialog>
     `;
   }
 
@@ -420,6 +443,14 @@ export class KibbleCard extends LitElement {
 
   private _closeSettings = (): void => {
     this._settingsOpen = false;
+  };
+
+  /** The wizard just changed a hopper's curve (or discarded/cleared one) -- bump the sync key
+   * `willUpdate` compares so the bowl's calibrated-percentage display refetches, the same way
+   * an entity's own state change would if calibration had one to watch. */
+  private _onCalibrationChanged = (): void => {
+    this._calibrationGeneration += 1;
+    this.requestUpdate();
   };
 
   static styles = css`

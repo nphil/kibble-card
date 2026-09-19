@@ -7823,6 +7823,59 @@ function hopperStatus(side1, side2) {
   }
   return { text: problems.map(([side, level]) => `Hopper ${side} ${WORD[level]}`).join(" \xB7 "), tone };
 }
+var TRANSITIONS = {
+  "choose-hopper": { start: "confirm-empty" },
+  "confirm-empty": { "empty-confirmed": "collecting" },
+  collecting: { capture: "collecting", "review-full": "mark-full" },
+  "mark-full": { "full-marked": "offer-inherit" },
+  "offer-inherit": { "inherit-resolved": "done" },
+  done: { restart: "choose-hopper" }
+};
+function nextCalibrationStep(step, event) {
+  return TRANSITIONS[step][event] ?? step;
+}
+function canReviewFull(points) {
+  return points.some((point) => point.portions > 0);
+}
+function detectScoreRegression(points, newPoint) {
+  const previous = points[points.length - 1];
+  if (!previous || newPoint.score >= previous.score) return null;
+  return { previousPortions: previous.portions, previousScore: previous.score, newScore: newPoint.score };
+}
+function calibrationStatus(hopper) {
+  if (!hopper) return { kind: "never", inheritedFromDisplay: null, measuredAt: null, note: null, finished: false };
+  const inheritedFrom = typeof hopper.source === "object" ? hopper.source.inherited_from : null;
+  return {
+    kind: inheritedFrom !== null ? "inherited" : "measured",
+    inheritedFromDisplay: inheritedFrom !== null ? inheritedFrom + 1 : null,
+    measuredAt: hopper.measured_at,
+    note: hopper.note || null,
+    finished: hopper.full_portions != null
+  };
+}
+function calibratedPercent(hopper, rawScore) {
+  if (!hopper || hopper.full_portions == null || hopper.full_score == null) return null;
+  const points = [...hopper.points].sort((a3, b3) => a3.portions - b3.portions);
+  const first = points[0];
+  if (!first) return null;
+  if (rawScore <= first.score) return 0;
+  if (rawScore >= hopper.full_score) return 100;
+  for (let i6 = 1; i6 < points.length; i6 += 1) {
+    const prev = points[i6 - 1];
+    const curr = points[i6];
+    if (rawScore > curr.score) continue;
+    const span = curr.score - prev.score;
+    const fraction = span <= 0 ? 0 : (rawScore - prev.score) / span;
+    const portionAtScore = prev.portions + fraction * (curr.portions - prev.portions);
+    const percent = portionAtScore / hopper.full_portions * 100;
+    return Math.max(0, Math.min(100, percent));
+  }
+  return 100;
+}
+function displayCalibrationHopper(state2) {
+  if (!state2) return null;
+  return state2.hoppers[0] ?? state2.hoppers[1] ?? null;
+}
 var VIEW_W = 240;
 var VIEW_H = 176;
 var CX = 120;
@@ -7882,13 +7935,15 @@ var KibbleBowl = class extends i4 {
     this.hopperLevel1 = null;
     this.hopperLevel2 = null;
     this.feeding = false;
+    this.calibration = null;
   }
   static {
     this.properties = {
       fill: { type: Number },
       hopperLevel1: { type: String },
       hopperLevel2: { type: String },
-      feeding: { type: Boolean }
+      feeding: { type: Boolean },
+      calibration: { attribute: false }
     };
   }
   disconnectedCallback() {
@@ -7909,7 +7964,8 @@ var KibbleBowl = class extends i4 {
     }
   }
   render() {
-    const label = this.fill == null ? "Bowl level unknown" : `Bowl ${Math.round(this.fill)}% full`;
+    const calibratedFillPercent = this.fill == null ? null : calibratedPercent(this.calibration, this.fill / 100);
+    const label = calibratedFillPercent != null ? `Bowl ${Math.round(calibratedFillPercent)}% full (raw score ${Math.round(this.fill)})` : this.fill == null ? "Bowl level unknown" : `Bowl ${Math.round(this.fill)}% full`;
     const x0 = RIM_X + CAV_INSET;
     const x1 = RIM_X + RIM_W - CAV_INSET;
     const fraction = this.fill == null ? null : this.fill / 100;
@@ -7946,6 +8002,7 @@ var KibbleBowl = class extends i4 {
         ${this._renderCavity(x0, x1, fraction)}
         ${this._dropping ? this._renderFallingKibble() : A}
       </svg>
+      ${calibratedFillPercent != null ? b2`<div class="calibrated" role="status">${Math.round(calibratedFillPercent)}% full <span class="raw">\u00b7 raw ${Math.round(this.fill)}</span></div>` : A}
       ${hopper ? b2`<div class="hopper" data-tone=${hopper.tone} role="status">${hopper.text}</div>` : A}
     `;
   }
@@ -8033,6 +8090,20 @@ var KibbleBowl = class extends i4 {
       aspect-ratio: ${VIEW_W} / ${VIEW_H};
       margin: 0 auto;
       overflow: visible;
+    }
+    /* The calibrated readout: a real, meaningful number now that a curve exists, so unlike the
+     * raw score it earns primary-text weight -- the raw figure stays too, just secondary,
+     * since every existing threshold elsewhere is still keyed to it, never this one. */
+    .calibrated {
+      flex: none;
+      margin-top: 6px;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--primary-text-color);
+    }
+    .calibrated .raw {
+      font-weight: 400;
+      color: var(--secondary-text-color);
     }
     /* The hopper line: secondary text when stocked, the card's amber when a side is running
      * low, the theme's error colour when one is empty. */
@@ -9074,6 +9145,702 @@ var KibbleBeforeAfter = class extends i4 {
   }
 };
 customElements.define("kibble-before-after", KibbleBeforeAfter);
+var CALIBRATION_BUSY_CODE = "calibration_busy";
+function portionWord(portions) {
+  return `${portions} portion${portions === 1 ? "" : "s"}`;
+}
+function formatScore(score) {
+  return String(Math.round(score * 100));
+}
+var KibbleCalibrationDialog = class extends i4 {
+  constructor() {
+    super();
+    this._closeButtonRef = e5();
+    this._keydownHandler = (event) => {
+      if (event.key === "Escape" && this.open) this._close();
+    };
+    this._loadCalibration = () => {
+      const callWS = this.hass?.callWS;
+      const entryId = this.entryId;
+      if (!callWS || !entryId) {
+        this._loadError = "Not connected.";
+        return;
+      }
+      this._loading = true;
+      this._loadError = null;
+      callWS({ type: "kibble/calibration", entry_id: entryId }).then(
+        (result) => {
+          this._calibration = result;
+          this._loading = false;
+        },
+        (err) => {
+          this._loadError = describeWsError(err);
+          this._loading = false;
+        }
+      );
+    };
+    this._confirmEmpty = () => {
+      if (this._hopper === null) return;
+      const hopper = this._hopper;
+      const note = this._note.trim();
+      this._runAction({ action: "begin", hopper, ...note ? { note } : {} }, this._confirmEmpty, () => {
+        this._runAction({ action: "point", hopper, portions: 0 }, this._confirmEmpty, (state2) => {
+          this._calibration = state2;
+          this._regression = null;
+          this._step = nextCalibrationStep(this._step, "empty-confirmed");
+        });
+      });
+    };
+    this._capturePoint = () => {
+      if (this._hopper === null) return;
+      const hopper = this._hopper;
+      const points = this._hopperData(hopper)?.points ?? [];
+      const portions = (points[points.length - 1]?.portions ?? 0) + 1;
+      this._runAction({ action: "point", hopper, portions }, this._capturePoint, (state2) => {
+        const newPoint = state2.hoppers[hopper]?.points.find((point) => point.portions === portions);
+        this._regression = newPoint ? detectScoreRegression(points, newPoint) : null;
+        this._calibration = state2;
+        this._step = nextCalibrationStep(this._step, "capture");
+      });
+    };
+    this._confirmMarkFull = () => {
+      if (this._hopper === null || this._markFullPortions === null) return;
+      const hopper = this._hopper;
+      const portions = this._markFullPortions;
+      this._runAction({ action: "full", hopper, portions }, this._confirmMarkFull, (state2) => {
+        this._calibration = state2;
+        this._step = nextCalibrationStep(this._step, "full-marked");
+      });
+    };
+    this._acceptInherit = () => {
+      if (this._hopper === null) return;
+      const from = this._hopper;
+      const to = from === 0 ? 1 : 0;
+      this._runAction({ action: "inherit", hopper: to, from }, this._acceptInherit, (state2) => {
+        this._calibration = state2;
+        this._inheritedTo = to;
+        this._step = nextCalibrationStep(this._step, "inherit-resolved");
+      });
+    };
+    this._runClear = () => {
+      if (this._hopper === null) return;
+      const hopper = this._hopper;
+      this._runAction({ action: "clear", hopper }, this._runClear, (state2) => {
+        this._calibration = state2;
+      });
+    };
+    this._close = () => {
+      this.dispatchEvent(new CustomEvent("close-requested", { bubbles: true, composed: true }));
+    };
+    this.open = false;
+    this.entryId = void 0;
+    this._resetWizard();
+  }
+  static {
+    this.properties = {
+      hass: { attribute: false },
+      entryId: { attribute: false },
+      open: { type: Boolean, reflect: true },
+      _step: { state: true },
+      _hopper: { state: true },
+      _calibration: { state: true },
+      _loading: { state: true },
+      _loadError: { state: true },
+      _note: { state: true },
+      _busy: { state: true },
+      _error: { state: true },
+      _waitingForBowl: { state: true },
+      _regression: { state: true },
+      _markFullPortions: { state: true },
+      _clearConfirmArmed: { state: true },
+      _inheritedTo: { state: true }
+    };
+  }
+  connectedCallback() {
+    super.connectedCallback();
+    window.addEventListener("keydown", this._keydownHandler);
+  }
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    window.removeEventListener("keydown", this._keydownHandler);
+    clearTimeout(this._clearConfirmTimer);
+  }
+  updated(changed) {
+    if (changed.has("open") && this.open) {
+      this._resetWizard();
+      this._closeButtonRef.value?.focus();
+      this._loadCalibration();
+    }
+  }
+  _resetWizard() {
+    this._step = "choose-hopper";
+    this._hopper = null;
+    this._calibration = null;
+    this._loading = false;
+    this._loadError = null;
+    this._note = "";
+    this._busy = false;
+    this._error = null;
+    this._waitingForBowl = false;
+    this._regression = null;
+    this._markFullPortions = null;
+    this._clearConfirmArmed = false;
+    this._inheritedTo = null;
+  }
+  _hopperData(index) {
+    if (index === null || !this._calibration) return null;
+    return this._calibration.hoppers[index];
+  }
+  /** Every mutating call shares this: busy/error bookkeeping, the daemon's one special-cased
+   * failure code, and telling the bowl display a finished/discarded curve may have changed. */
+  _runAction(action, retry, onSuccess) {
+    const callWS = this.hass?.callWS;
+    const entryId = this.entryId;
+    if (!callWS || !entryId) return;
+    this._busy = true;
+    this._error = null;
+    this._waitingForBowl = false;
+    callWS({ type: "kibble/calibration/action", entry_id: entryId, ...action }).then(
+      (result) => {
+        this._busy = false;
+        onSuccess(result);
+        this.dispatchEvent(new CustomEvent("calibration-changed", { bubbles: true, composed: true }));
+      },
+      (err) => {
+        this._busy = false;
+        if (err?.code === CALIBRATION_BUSY_CODE) {
+          this._waitingForBowl = true;
+          return;
+        }
+        this._error = { message: describeWsError(err), retry };
+      }
+    );
+  }
+  _selectHopper(index) {
+    this._hopper = index;
+    this._error = null;
+  }
+  _beginRequested() {
+    this._note = "";
+    this._step = nextCalibrationStep(this._step, "start");
+  }
+  _reviewFull() {
+    this._markFullPortions = null;
+    this._step = nextCalibrationStep(this._step, "review-full");
+  }
+  /** "Not now" resolves the offer with no daemon call at all -- declining isn't an action the
+   * curve needs to remember, it just means this session doesn't touch the other hopper. */
+  _declineInherit() {
+    this._inheritedTo = null;
+    this._step = nextCalibrationStep(this._step, "inherit-resolved");
+  }
+  /** Same tap-twice window `kibble-settings-dialog`'s cloud/stack toggles use -- clearing a
+   * finished curve is exactly as consequential as those, so it gets the same second-tap guard
+   * rather than firing on one accidental click. */
+  _clearRequested() {
+    if (this._clearConfirmArmed) {
+      clearTimeout(this._clearConfirmTimer);
+      this._clearConfirmArmed = false;
+      this._runClear();
+      return;
+    }
+    this._clearConfirmArmed = true;
+    this._clearConfirmTimer = setTimeout(() => {
+      this._clearConfirmArmed = false;
+    }, 3e3);
+  }
+  _restart() {
+    const other = this._hopper === 0 ? 1 : this._hopper === 1 ? 0 : null;
+    this._step = nextCalibrationStep(this._step, "restart");
+    this._hopper = other;
+    this._note = "";
+    this._markFullPortions = null;
+    this._regression = null;
+    this._inheritedTo = null;
+    this._clearConfirmArmed = false;
+  }
+  render() {
+    if (!this.open) return A;
+    return b2`
+      <div class="backdrop" @click=${this._close} role="dialog" aria-modal="true" aria-label="Calibrate bowl">
+        <div class="sheet" @click=${(event) => event.stopPropagation()}>
+          <header>
+            <span>Calibrate bowl</span>
+            <button type="button" class="icon-button" ${n5(this._closeButtonRef)} @click=${this._close} aria-label="Close">${mdiIcon("close")}</button>
+          </header>
+          <div class="body">
+            ${!this.hass?.callWS || !this.entryId ? b2`<p class="hint">Calibration isn't available right now.</p>` : this._renderStep()}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+  _renderStep() {
+    switch (this._step) {
+      case "choose-hopper":
+        return this._renderChooseHopper();
+      case "confirm-empty":
+        return this._renderConfirmEmpty();
+      case "collecting":
+        return this._renderCollecting();
+      case "mark-full":
+        return this._renderMarkFull();
+      case "offer-inherit":
+        return this._renderOfferInherit();
+      case "done":
+        return this._renderDone();
+    }
+  }
+  _renderChooseHopper() {
+    if (this._loading) return b2`<p class="hint">Loading calibration\u2026</p>`;
+    if (this._loadError) {
+      return b2`
+        <div class="error">
+          <span>Couldn't load calibration. ${this._loadError}</span>
+          <button type="button" @click=${this._loadCalibration}>Try again</button>
+        </div>
+      `;
+    }
+    return b2`
+      <p class="hint">Pick a hopper. Each side keeps its own curve, since the two hoppers can hold different food.</p>
+      <div class="hopper-rows">${[0, 1].map((index) => this._renderHopperRow(index))}</div>
+      ${this._hopper !== null ? this._renderHopperActions(this._hopper) : A}
+    `;
+  }
+  _renderHopperRow(index) {
+    const status = calibrationStatus(this._hopperData(index));
+    return b2`
+      <button type="button" class="hopper-row ${this._hopper === index ? "selected" : ""}" @click=${() => this._selectHopper(index)}>
+        <span class="hopper-row-label">Hopper ${index + 1}</span>
+        <span class="hopper-row-status">${this._statusLine(status)}</span>
+        ${status.note ? b2`<span class="hopper-row-note">${status.note}</span>` : A}
+      </button>
+    `;
+  }
+  _statusLine(status) {
+    if (status.kind === "never") return "Never calibrated";
+    const when = status.measuredAt ? relativeTimeSentence(new Date(status.measuredAt * 1e3), /* @__PURE__ */ new Date()) : null;
+    const finished = status.finished ? "" : " (unfinished)";
+    if (status.kind === "inherited") {
+      return `Inherited from Hopper ${status.inheritedFromDisplay}${when ? ` \xB7 ${when}` : ""}${finished}`;
+    }
+    return `Measured${when ? ` ${when}` : ""}${finished}`;
+  }
+  _renderHopperActions(index) {
+    const status = calibrationStatus(this._hopperData(index));
+    const label = index + 1;
+    if (status.kind === "never") {
+      return b2`<button type="button" class="primary" @click=${() => this._beginRequested()}>Calibrate Hopper ${label}</button>`;
+    }
+    return b2`
+      <div class="hopper-actions">
+        <button type="button" class="danger ${this._clearConfirmArmed ? "confirming" : ""}" ?disabled=${this._busy} @click=${() => this._clearRequested()}>
+          ${this._clearConfirmArmed ? "Tap again to clear" : "Clear calibration"}
+        </button>
+        <button type="button" class="primary" @click=${() => this._beginRequested()}>Recalibrate Hopper ${label}</button>
+      </div>
+      ${this._renderError()}
+    `;
+  }
+  _renderConfirmEmpty() {
+    const index = this._hopper;
+    if (index === null) return A;
+    const label = index + 1;
+    const alreadyCalibrated = calibrationStatus(this._hopperData(index)).kind !== "never";
+    return b2`
+      <p class="hint">Make sure Hopper ${label}'s side of the bowl is completely empty, then start.</p>
+      ${alreadyCalibrated ? b2`<div class="warning">Starting discards Hopper ${label}'s existing calibration.</div>` : A}
+      <label class="field">
+        <span>What food is this? (optional)</span>
+        <input
+          type="text"
+          .value=${this._note}
+          placeholder="e.g. freeze-dried on this side"
+          @input=${(event) => {
+      this._note = event.target.value;
+    }}
+        />
+      </label>
+      ${this._waitingForBowl ? this._renderWaitingForBowl() : A}
+      ${this._renderError()}
+      <div class="actions">
+        <button type="button" class="primary" ?disabled=${this._busy} @click=${this._confirmEmpty}>${this._busy ? "Starting\u2026" : "Bowl is empty \u2014 start"}</button>
+      </div>
+    `;
+  }
+  _renderCollecting() {
+    const index = this._hopper;
+    if (index === null) return A;
+    const points = this._hopperData(index)?.points ?? [];
+    return b2`
+      <p class="hint">Dispense one portion into Hopper ${index + 1}'s side yourself, then capture the reading.</p>
+      ${this._renderCurve(points)}
+      ${this._regression ? b2`<div class="warning">
+            This step's score (${formatScore(this._regression.newScore)}) is lower than the previous step's (${formatScore(this._regression.previousScore)}) \u2014 a
+            curve that dips can't be interpolated. Recapture this step before continuing.
+          </div>` : A}
+      ${this._waitingForBowl ? this._renderWaitingForBowl() : A}
+      ${this._renderError()}
+      <div class="actions">
+        <button type="button" ?disabled=${this._busy || !canReviewFull(points)} @click=${() => this._reviewFull()}>This is full</button>
+        <button type="button" class="primary" ?disabled=${this._busy} @click=${this._capturePoint}>${this._busy ? "Capturing\u2026" : "Capture reading"}</button>
+      </div>
+    `;
+  }
+  _renderCurve(points) {
+    if (points.length === 0) return A;
+    return b2`
+      <ul class="curve">
+        ${points.map((point, i6) => {
+      const previous = i6 > 0 ? points[i6 - 1] : null;
+      const dropped = previous !== null && point.score < previous.score;
+      return b2`
+            <li class="curve-row ${dropped ? "dropped" : ""}">
+              <span>${portionWord(point.portions)}</span>
+              <span class="score">${formatScore(point.score)}</span>
+            </li>
+          `;
+    })}
+      </ul>
+    `;
+  }
+  _renderMarkFull() {
+    const index = this._hopper;
+    if (index === null) return A;
+    const points = (this._hopperData(index)?.points ?? []).filter((point) => point.portions > 0);
+    return b2`
+      <p class="hint">Which step looked full?</p>
+      <ul class="curve selectable">
+        ${points.map(
+      (point) => b2`
+            <li>
+              <button type="button" class="curve-choice ${this._markFullPortions === point.portions ? "selected" : ""}" @click=${() => this._markFullPortions = point.portions}>
+                <span>${portionWord(point.portions)}</span>
+                <span class="score">${formatScore(point.score)}</span>
+              </button>
+            </li>
+          `
+    )}
+      </ul>
+      ${this._renderError()}
+      <div class="actions">
+        <button type="button" class="primary" ?disabled=${this._busy || this._markFullPortions === null} @click=${this._confirmMarkFull}>
+          ${this._busy ? "Saving\u2026" : this._markFullPortions === null ? "Mark full" : `Mark full at ${portionWord(this._markFullPortions)}`}
+        </button>
+      </div>
+    `;
+  }
+  _renderOfferInherit() {
+    const from = this._hopper;
+    if (from === null) return A;
+    const to = from === 0 ? 1 : 0;
+    const otherHasData = calibrationStatus(this._hopperData(to)).kind !== "never";
+    return b2`
+      <p class="hint">Hopper ${from + 1} is calibrated.</p>
+      <p class="hint">
+        Copy this curve to Hopper ${to + 1}? Only do this if it's the same food in both hoppers \u2014 this is a shortcut for
+        "same food," not a second measurement.${otherHasData ? b2` This replaces Hopper ${to + 1}'s existing calibration.` : A}
+      </p>
+      ${this._renderError()}
+      <div class="actions">
+        <button type="button" ?disabled=${this._busy} @click=${() => this._declineInherit()}>Not now</button>
+        <button type="button" class="primary" ?disabled=${this._busy} @click=${this._acceptInherit}>${this._busy ? "Copying\u2026" : `Copy to Hopper ${to + 1}`}</button>
+      </div>
+    `;
+  }
+  _renderDone() {
+    const index = this._hopper;
+    if (index === null) return A;
+    return b2`
+      <p class="hint">Hopper ${index + 1} is calibrated.${this._inheritedTo !== null ? b2` Copied to Hopper ${this._inheritedTo + 1} too.` : A}</p>
+      <div class="actions">
+        <button type="button" @click=${() => this._restart()}>Calibrate the other hopper</button>
+        <button type="button" class="primary" @click=${this._close}>Done</button>
+      </div>
+    `;
+  }
+  _renderWaitingForBowl() {
+    const retry = this._step === "collecting" ? this._capturePoint : this._confirmEmpty;
+    return b2`
+      <div class="warning">
+        <span>No clear bowl reading right now \u2014 something may be in the way, or the feeder hasn't reported one yet. Try again in a moment.</span>
+        <button
+          type="button"
+          @click=${() => {
+      this._waitingForBowl = false;
+      retry();
+    }}
+        >
+          Try again
+        </button>
+      </div>
+    `;
+  }
+  _renderError() {
+    const error = this._error;
+    if (!error) return A;
+    return b2`
+      <div class="error">
+        <span>${error.message}</span>
+        <button
+          type="button"
+          @click=${() => {
+      this._error = null;
+      error.retry();
+    }}
+        >
+          Try again
+        </button>
+      </div>
+    `;
+  }
+  static {
+    this.styles = i`
+    :host {
+      display: contents;
+    }
+    .backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.6);
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      z-index: 1000;
+      box-sizing: border-box;
+    }
+    @media (min-width: 480px) {
+      .backdrop {
+        align-items: center;
+        padding: 24px;
+      }
+    }
+    .sheet {
+      width: 100%;
+      max-width: 420px;
+      max-height: 92vh;
+      overflow-y: auto;
+      background: var(--ha-card-background, var(--card-background-color, #fff));
+      color: var(--primary-text-color);
+      border-radius: 16px 16px 0 0;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }
+    @media (min-width: 480px) {
+      .sheet {
+        border-radius: 16px;
+      }
+    }
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px;
+      border-bottom: 1px solid var(--divider-color);
+      font-size: 16px;
+      font-weight: 600;
+      position: sticky;
+      top: 0;
+      background: inherit;
+    }
+    .icon-button {
+      background: none;
+      border: none;
+      color: var(--primary-text-color);
+      cursor: pointer;
+      min-width: 44px;
+      min-height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+    }
+    .body {
+      padding: 4px 16px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .hint {
+      margin: 0;
+      font-size: 13px;
+      color: var(--secondary-text-color);
+    }
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: 13px;
+      color: var(--secondary-text-color);
+    }
+    .field input {
+      min-height: 44px;
+      border-radius: 8px;
+      border: 1px solid var(--divider-color);
+      background: var(--card-background-color, transparent);
+      color: var(--primary-text-color);
+      font: inherit;
+      padding: 0 12px;
+      box-sizing: border-box;
+    }
+    .hopper-rows {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .hopper-row {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 2px;
+      width: 100%;
+      min-height: 48px;
+      padding: 10px 14px;
+      border-radius: 10px;
+      border: 2px solid var(--divider-color);
+      background: none;
+      color: var(--primary-text-color);
+      font: inherit;
+      text-align: left;
+      cursor: pointer;
+      box-sizing: border-box;
+    }
+    .hopper-row.selected {
+      border-color: var(--primary-color, #03a9f4);
+    }
+    .hopper-row-label {
+      font-weight: 600;
+    }
+    .hopper-row-status,
+    .hopper-row-note {
+      font-size: 12px;
+      color: var(--secondary-text-color);
+    }
+    .hopper-actions {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+    .curve {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      max-height: 220px;
+      overflow-y: auto;
+    }
+    .curve-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 10px;
+      border-radius: 8px;
+      background: color-mix(in srgb, var(--primary-text-color) 5%, transparent);
+      font-size: 13px;
+      font-variant-numeric: tabular-nums;
+    }
+    .curve-row.dropped {
+      background: color-mix(in srgb, var(--kibble-amber-dark, #de8a3a) 16%, transparent);
+      color: var(--kibble-amber-dark, #de8a3a);
+      font-weight: 600;
+    }
+    .curve .score {
+      font-weight: 600;
+    }
+    .curve.selectable {
+      gap: 6px;
+    }
+    .curve-choice {
+      display: flex;
+      justify-content: space-between;
+      width: 100%;
+      min-height: 44px;
+      padding: 8px 12px;
+      border-radius: 8px;
+      border: 2px solid var(--divider-color);
+      background: none;
+      color: var(--primary-text-color);
+      font: inherit;
+      font-variant-numeric: tabular-nums;
+      cursor: pointer;
+      box-sizing: border-box;
+    }
+    .curve-choice.selected {
+      border-color: var(--primary-color, #03a9f4);
+    }
+    .actions {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+    button {
+      min-height: 44px;
+      border-radius: 8px;
+      border: none;
+      font: inherit;
+      font-weight: 600;
+      cursor: pointer;
+      padding: 0 16px;
+    }
+    .actions button:not(.primary):not(.danger) {
+      background: color-mix(in srgb, var(--primary-text-color) 8%, transparent);
+      color: var(--primary-text-color);
+    }
+    .primary {
+      background: color-mix(in srgb, var(--primary-color, #03a9f4) 14%, transparent);
+      color: var(--primary-color, #03a9f4);
+    }
+    .danger {
+      background: none;
+      border: 2px solid var(--error-color, #db4437);
+      color: var(--error-color, #db4437);
+    }
+    .danger.confirming {
+      background: color-mix(in srgb, var(--error-color, #db4437) 12%, transparent);
+    }
+    button:disabled {
+      opacity: 0.5;
+      cursor: default;
+    }
+    button:focus-visible {
+      outline: 2px solid var(--primary-color, #03a9f4);
+      outline-offset: 2px;
+    }
+    .warning,
+    .error {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      font-size: 13px;
+    }
+    .warning {
+      background: color-mix(in srgb, var(--kibble-amber-dark, #de8a3a) 12%, transparent);
+      color: var(--kibble-amber-dark, #de8a3a);
+    }
+    .error {
+      background: color-mix(in srgb, var(--error-color, #db4437) 10%, transparent);
+      color: var(--error-color, #db4437);
+    }
+    .warning button,
+    .error button {
+      flex: 0 0 auto;
+      min-height: 32px;
+      border: 1px solid currentColor;
+      background: none;
+      color: inherit;
+      border-radius: 8px;
+      padding: 4px 10px;
+      font-size: 12px;
+    }
+  `;
+  }
+};
+customElements.define("kibble-calibration-dialog", KibbleCalibrationDialog);
 var CLOUD_CONFIRM_WINDOW_MS = 3e3;
 function numberAttrs(hass, entityId) {
   if (!entityId) return null;
@@ -9096,12 +9863,15 @@ var KibbleSettingsDialog = class extends i4 {
     this._stackConfirmArmed = false;
     this._stackConfirmTimer = void 0;
     this.open = false;
+    this._calibrationOpen = false;
   }
   static {
     this.properties = {
       hass: { attribute: false },
       entities: { attribute: false },
-      open: { type: Boolean, reflect: true }
+      entryId: { attribute: false },
+      open: { type: Boolean, reflect: true },
+      _calibrationOpen: { state: true }
     };
   }
   disconnectedCallback() {
@@ -9121,6 +9891,7 @@ var KibbleSettingsDialog = class extends i4 {
         </header>
         <div class="body">
           ${e6.feedButtonHopper1 || e6.feedButtonHopper2 ? this._renderHopperSection() : A}
+          ${e6.bowlFill ? this._renderCalibrationSection() : A}
           ${e6.feedAmount ? this._renderMoreAmountSection() : A}
           ${this._renderToggles()}
           ${e6.cloudSwitch ? this._renderCloud() : A}
@@ -9133,6 +9904,12 @@ var KibbleSettingsDialog = class extends i4 {
           </button>
         </div>
       </div>
+      <kibble-calibration-dialog
+        .hass=${this.hass}
+        .entryId=${this.entryId}
+        ?open=${this._calibrationOpen}
+        @close-requested=${this._closeCalibration}
+      ></kibble-calibration-dialog>
     `;
   }
   _renderMoreAmountSection() {
@@ -9170,6 +9947,20 @@ var KibbleSettingsDialog = class extends i4 {
                 </div>
               ` : A}
         </div>
+      </section>
+    `;
+  }
+  /** Just the entry point -- picking a hopper, seeing its status, and every action beyond that
+   * (begin/capture/mark full/inherit/clear) is the wizard dialog's own job, not this panel's. */
+  _renderCalibrationSection() {
+    return b2`
+      <section>
+        <h3>Bowl calibration</h3>
+        <p class="hint">
+          Turns the bowl's raw fill reading into a real percentage by dispensing known portions
+          into an empty bowl. Each hopper keeps its own curve.
+        </p>
+        <button type="button" class="cloud-toggle" @click=${this._openCalibration}>Calibrate bowl</button>
       </section>
     `;
   }
@@ -9343,6 +10134,16 @@ var KibbleSettingsDialog = class extends i4 {
   }
   _onKeydown(event) {
     if (event.key === "Escape") this._close();
+  }
+  _openCalibration() {
+    this._calibrationOpen = true;
+  }
+  /** Stops the calibration dialog's own `close-requested` here -- both dialogs use the same
+   * event name (the one contract every controlled overlay in this repo follows), and without
+   * this it would keep bubbling past this panel and close the whole settings dialog too. */
+  _closeCalibration(event) {
+    event.stopPropagation();
+    this._calibrationOpen = false;
   }
   _close() {
     this.dispatchEvent(new CustomEvent("close-requested", { bubbles: true, composed: true }));
@@ -9873,6 +10674,11 @@ var ScryptedLive = class {
     this.onChange();
   }
 };
+function pickVideoSource(scryptedId, scryptedToken, cameraEntity) {
+  if (scryptedId && scryptedToken) return { kind: "scrypted", deviceId: scryptedId, token: scryptedToken };
+  if (cameraEntity) return { kind: "ha-camera", entityId: cameraEntity };
+  return { kind: "none" };
+}
 var RECONNECT_BASE_MS = 1e3;
 var RECONNECT_MAX_MS = 3e4;
 function nextReconnectDelay(current) {
@@ -9952,6 +10758,7 @@ var KibbleLiveHero = class extends i4 {
       this._lastProgress = performance.now();
     };
     this._checkStall = () => {
+      if (this._videoSource().kind !== "scrypted") return;
       if (!this._playing || this._reconnecting || document.hidden) return;
       if (performance.now() - this._lastProgress > STALL_MS) this._beginReconnect();
     };
@@ -9964,6 +10771,7 @@ var KibbleLiveHero = class extends i4 {
       );
     };
     this._onVisibilityChange = () => {
+      if (this._videoSource().kind !== "scrypted") return;
       if (document.hidden) {
         clearTimeout(this._hiddenTimer);
         this._hiddenTimer = setTimeout(this._pauseForHidden, HIDDEN_PAUSE_MS);
@@ -9981,6 +10789,7 @@ var KibbleLiveHero = class extends i4 {
     };
     this._pauseForHidden = () => {
       this._hiddenTimer = void 0;
+      if (this._videoSource().kind !== "scrypted") return;
       if (!this._playing && !this._reconnecting) return;
       this._hiddenPaused = true;
       this._reconnecting = false;
@@ -10051,7 +10860,7 @@ var KibbleLiveHero = class extends i4 {
     };
     this._toggleMute = () => {
       this._muted = !this._muted;
-      this._applyMute();
+      if (this._videoSource().kind === "scrypted") this._applyMute();
     };
     this._applyMute = () => {
       const video = this.renderRoot.querySelector("#video");
@@ -10111,26 +10920,47 @@ var KibbleLiveHero = class extends i4 {
     this._visionTimer = void 0;
     this._stop();
   }
-  /** The stream starts on its own as soon as the card knows where to get it; the still stays
-   * underneath until the first frame paints, so the hand-over is seamless. A session that turns
-   * out to be dead (peer connection disconnected/failed/closed) reroutes through the same
-   * reconnect path a stall does, instead of leaving a frozen or blank video up forever. */
+  /** Which transport (if any) currently has what it needs to show live video -- computed fresh
+   * from the current props on every call rather than cached, since it must never drift from
+   * `hass`/`scryptedId`/`cameraEntity` for even one render or one reconnect-timer tick. */
+  _videoSource() {
+    if (!this.hass) return { kind: "none" };
+    return pickVideoSource(this.scryptedId, findScryptedToken(this.hass), this.cameraEntity);
+  }
+  /** The stream starts on its own as soon as the card knows where to get it, whichever transport
+   * that is; the still stays underneath until the first frame paints, so the hand-over is
+   * seamless either way. Only Scrypted needs an explicit start/stop dance here: a session that
+   * turns out to be dead (peer connection disconnected/failed/closed) reroutes through the same
+   * reconnect path a stall does, instead of leaving a frozen or blank video up forever.
+   * `<ha-camera-stream>` is simply handed to `render()` and manages its own connect/reconnect
+   * lifecycle, so this method's only job for that path is to flip `_playing` to match whether
+   * there is a camera entity to show -- tearing down a still-live (or still-reconnecting)
+   * Scrypted session first if the source just switched away from it, so the two transports can
+   * never both be mid-session at once. */
   updated() {
     this._syncVisionPolling();
+    const source = this._videoSource();
+    if (source.kind !== "scrypted") {
+      if (this._playing || this._starting || this._reconnecting || this._hiddenPaused || this._live.state !== "idle") {
+        this._stop();
+      }
+      this._playing = source.kind === "ha-camera";
+      return;
+    }
     if (this._live.state === "error" && this._playing) {
       this._beginReconnect();
       return;
     }
     if (this._playing || this._starting || this._reconnecting || this._hiddenPaused) return;
-    if (!this.hass || !this.scryptedId || !findScryptedToken(this.hass)) return;
     void this._start();
   }
   render() {
+    const source = this._videoSource();
     return b2`
       ${this._expanded ? b2`<div class="backdrop" @click=${this._collapse}></div>` : A}
       <div class="frame ${this._expanded ? "expanded" : ""}" id="frame" @click=${this._onFrameClick}>
         ${this._renderStill()}
-        ${this._playing ? this._renderVideo() : A}
+        ${this._playing ? this._renderVideo(source) : A}
         ${this._playing ? this._renderDetections() : A}
         ${this._expanded ? b2`<div class="topbar">
               <button class="chip" aria-label=${this._fullscreen ? "Leave fullscreen" : "Fullscreen"} title=${this._fullscreen ? "Leave fullscreen" : "Fullscreen"} @click=${this._toggleFullscreen}>
@@ -10138,7 +10968,7 @@ var KibbleLiveHero = class extends i4 {
               </button>
               <button class="chip" aria-label="Close" title="Close" @click=${this._collapse}>${mdiIcon("close")}</button>
             </div>` : A}
-        ${this._reconnecting ? b2`<div class="reconnect" role="status" aria-label="Reconnecting to the feeder's camera">${mdiIcon("refresh")}</div>` : A}
+        ${source.kind === "scrypted" && this._reconnecting ? b2`<div class="reconnect" role="status" aria-label="Reconnecting to the feeder's camera">${mdiIcon("refresh")}</div>` : A}
         <div class="controls">
           ${this._playing ? b2`<button
                 class="chip"
@@ -10149,7 +10979,7 @@ var KibbleLiveHero = class extends i4 {
               >
                 ${mdiIcon(this._muted ? "volumeOff" : "volumeHigh")}
               </button>` : A}
-          ${this._playing && this._live.hasIntercom ? b2`<button
+          ${this._playing && source.kind === "scrypted" && this._live.hasIntercom ? b2`<button
                 class="chip talk"
                 aria-pressed=${this._talking}
                 aria-label=${this._talking ? "Stop talking to the feeder" : "Talk to the feeder"}
@@ -10159,19 +10989,40 @@ var KibbleLiveHero = class extends i4 {
                 ${mdiIcon(this._talking ? "microphone" : "microphoneOff")}
               </button>` : A}
         </div>
-        ${this._live.state === "error" && !this._reconnecting ? b2`<div class="note error">${this._live.error}</div>` : A}
+        ${source.kind === "scrypted" && this._live.state === "error" && !this._reconnecting ? b2`<div class="note error">${this._live.error}</div>` : A}
       </div>
     `;
   }
-  _renderVideo() {
-    return b2`<video
-      id="video"
-      autoplay
-      playsinline
-      ?muted=${this._muted}
-      @loadedmetadata=${this._applyMute}
-      @timeupdate=${this._onTimeUpdate}
-    ></video>`;
+  /** The live layer -- Scrypted's own `<video>` (its `srcObject` is wired up imperatively by
+   * `ScryptedLive.open`, not through a template binding) or HA's `<ha-camera-stream>` bound
+   * straight to the camera entity's own state object -- whichever `source` says is active.
+   * `static styles` positions both by tag name into the exact box `<video>` has always had
+   * (`position:absolute;inset:0`), so the detection overlay and the expand/fullscreen chips work
+   * unchanged either way. No `id="video"` on the HA element: `_applyMute` and
+   * `_toggleFullscreen`'s `#video` lookups assume a real `<video>` (to set `.muted`/call
+   * `.play()`/`.webkitEnterFullscreen()`), true only for Scrypted's element -- giving
+   * `<ha-camera-stream>` the same id would hand those two a wrong-shaped element instead of the
+   * clean miss they already handle. */
+  _renderVideo(source) {
+    if (source.kind === "scrypted") {
+      return b2`<video
+        id="video"
+        autoplay
+        playsinline
+        ?muted=${this._muted}
+        @loadedmetadata=${this._applyMute}
+        @timeupdate=${this._onTimeUpdate}
+      ></video>`;
+    }
+    if (source.kind === "ha-camera" && customElements.get("ha-camera-stream")) {
+      return b2`<ha-camera-stream
+        .hass=${this.hass}
+        .stateObj=${this.hass.states[source.entityId]}
+        .fitMode=${this._expanded ? "contain" : "cover"}
+        .muted=${this._muted}
+      ></ha-camera-stream>`;
+    }
+    return A;
   }
   _renderStill() {
     if (!this.cameraEntity) return b2`<div class="placeholder">No camera on this device</div>`;
@@ -10182,13 +11033,18 @@ var KibbleLiveHero = class extends i4 {
     return typeof src === "string" ? b2`<img src=${src} alt="The feeder's camera" />` : b2`<div class="placeholder">Camera unavailable</div>`;
   }
   /** The feeder's own detection boxes for the frame it most recently analysed. `admitted`
-   * boxes get the accent treatment; everything else (clutter memory's furniture) is drawn
-   * quieter, never omitted -- that is the whole point of shipping them. The identified cat's
+   * boxes get the accent treatment; the ones its clutter memory rejected are drawn quieter --
+   * and only when the feeder's own `overlay_suppressed` flag says to. They are how "the feeder
+   * is ignoring the cat" becomes visible rather than looking like an empty room, but a busy
+   * room emits several of them on every frame forever, so they are opt-in (the "Overlay
+   * ignored detections" switch) instead of permanent dashboard furniture. The identified cat's
    * name labels whichever admitted box is largest. */
   _renderDetections() {
     const frame = this._visionQuery.state.data?.frame;
-    const detections = frame?.detections;
-    if (!this._overlayOn() || !detections || detections.length === 0) return A;
+    if (!this._overlayOn() || !frame?.detections) return A;
+    const showIgnored = frame.overlay_suppressed ?? true;
+    const detections = frame.detections.filter((d3) => d3.admitted || showIgnored);
+    if (detections.length === 0) return A;
     const cat = frame.cat;
     const labelBox = cat ? largestAdmittedDetection(detections) : null;
     return b2`
@@ -10299,13 +11155,15 @@ var KibbleLiveHero = class extends i4 {
     }
     video,
     img,
-    hui-image {
+    hui-image,
+    ha-camera-stream {
       display: block;
       width: 100%;
       height: 100%;
-      object-fit: cover;
+      object-fit: cover; /* ha-camera-stream ignores this on its own host; see .fitMode in _renderVideo */
     }
-    video {
+    video,
+    ha-camera-stream {
       position: absolute;
       inset: 0;
     }
@@ -10499,7 +11357,7 @@ var SCHEMA = [
 var FIELD_LABELS = {
   device_id: "Kibble device",
   name: "Name (optional)",
-  scrypted_id: "Scrypted camera id (live view + talk)",
+  scrypted_id: "Scrypted camera id (optional \u2014 adds low-latency video + talk)",
   settings_hash: "Settings pop-up hash (optional)",
   schedule_hash: "Schedule handled by dashboard (optional hash)"
 };
@@ -10661,9 +11519,9 @@ function feedSummary(item) {
   const scheduled = !item.manual;
   const unconfirmed = item.confirmed === false;
   if (item.amount == null) return { headline: "Fed", scheduled, unconfirmed };
-  const portionWord = item.amount === 1 ? "portion" : "portions";
+  const portionWord2 = item.amount === 1 ? "portion" : "portions";
   const hopperClause = item.hopper && item.hopper !== "both" ? ` from hopper ${item.hopper}` : "";
-  return { headline: `Fed ${item.amount} ${portionWord}${hopperClause}`, scheduled, unconfirmed };
+  return { headline: `Fed ${item.amount} ${portionWord2}${hopperClause}`, scheduled, unconfirmed };
 }
 function dayKey(date) {
   return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
@@ -13328,6 +14186,8 @@ var KibbleCard = class extends i4 {
     super();
     this._entities = EMPTY_ENTITIES3;
     this._catsQuery = new WsQuery(() => this.requestUpdate());
+    this._calibrationQuery = new WsQuery(() => this.requestUpdate());
+    this._calibrationGeneration = 0;
     this._onBubbleAction = (event) => {
       const detail = event.detail;
       const action = detail?.config?.[`${detail.action}_action`];
@@ -13361,6 +14221,10 @@ var KibbleCard = class extends i4 {
     };
     this._closeSettings = () => {
       this._settingsOpen = false;
+    };
+    this._onCalibrationChanged = () => {
+      this._calibrationGeneration += 1;
+      this.requestUpdate();
     };
     this._settingsOpen = false;
     this._bubble = false;
@@ -13424,6 +14288,13 @@ var KibbleCard = class extends i4 {
         () => callWS({ type: "kibble/cats", entry_id: entryId }).then((result) => result)
       );
     }
+    if (this.hass && this._entryId && callWS && this._entities.bowlFill) {
+      const entryId = this._entryId;
+      this._calibrationQuery.sync(
+        `${entryId}:${this._calibrationGeneration}`,
+        () => callWS({ type: "kibble/calibration", entry_id: entryId }).then((result) => result)
+      );
+    }
   }
   render() {
     if (!this._config || !this.hass) return A;
@@ -13434,6 +14305,7 @@ var KibbleCard = class extends i4 {
     const status = deriveFeederStatus(coreStates, feedingState);
     const feeding = feedingState === "on";
     const bowlFill = this._numberState(e6.bowlFill);
+    const calibrationHopper = displayCalibrationHopper(this._calibrationQuery.state.data);
     const hopperLevel1 = parseHopperLevel(e6.hopperLevel1 && this.hass.states[e6.hopperLevel1]?.state);
     const hopperLevel2 = parseHopperLevel(e6.hopperLevel2 && this.hass.states[e6.hopperLevel2]?.state);
     const scheduleEntries = this._scheduleEntries();
@@ -13471,6 +14343,7 @@ var KibbleCard = class extends i4 {
             <kibble-bowl
               class="bowl-block"
               .fill=${bowlFill}
+              .calibration=${calibrationHopper}
               .hopperLevel1=${hopperLevel1}
               .hopperLevel2=${hopperLevel2}
               .feeding=${feeding}
@@ -13510,7 +14383,14 @@ var KibbleCard = class extends i4 {
           </div>
         </div>
       </ha-card>
-      <kibble-settings-dialog .hass=${this.hass} .entities=${e6} ?open=${this._settingsOpen} @close-requested=${this._closeSettings}></kibble-settings-dialog>
+      <kibble-settings-dialog
+        .hass=${this.hass}
+        .entities=${e6}
+        .entryId=${this._entryId}
+        ?open=${this._settingsOpen}
+        @close-requested=${this._closeSettings}
+        @calibration-changed=${this._onCalibrationChanged}
+      ></kibble-settings-dialog>
     `;
   }
   _numberState(entityId) {
@@ -14298,8 +15178,33 @@ var TIMELINE_ITEMS = [
   { kind: "feed", ts: localTime(7, 30, 1), amount: null, hopper: null, manual: false, before: null, after: null },
   { kind: "visit", ts: localTime(7, 10, 1), image: null }
 ];
+var INITIAL_CALIBRATION = {
+  hoppers: [
+    null,
+    {
+      points: [
+        { portions: 0, score: 0.03 },
+        { portions: 1, score: 0.19 },
+        { portions: 2, score: 0.37 },
+        { portions: 3, score: 0.52 }
+      ],
+      full_portions: 3,
+      full_score: 0.52,
+      measured_at: secondsAgo(60 * 24 * 3),
+      source: "measured",
+      note: "Dry kibble, both hoppers"
+    }
+  ]
+};
 
 // dev/mock-hass.ts
+function cloneCalibration(state2) {
+  const cloneHopper = (hopper) => hopper ? { ...hopper, points: hopper.points.map((point) => ({ ...point })) } : null;
+  return { hoppers: [cloneHopper(state2.hoppers[0]), cloneHopper(state2.hoppers[1])] };
+}
+function mockBowlScore(portions) {
+  return Math.min(0.95, 0.03 + portions * 0.18);
+}
 function createMockHass(scenario, onChange) {
   const fixture = buildFixture(scenario);
   const states = { ...fixture.states };
@@ -14310,6 +15215,7 @@ function createMockHass(scenario, onChange) {
     Object.entries(SAMPLES_BY_CAT).map(([cat, samples]) => [cat, [...samples]])
   );
   const timelineItems = [...TIMELINE_ITEMS];
+  const calibration = cloneCalibration(INITIAL_CALIBRATION);
   function notify() {
     hass.states = { ...states };
     onChange?.();
@@ -14450,6 +15356,61 @@ function createMockHass(scenario, onChange) {
         if (rosterEntry) rosterEntry.samples = gallery.length;
         notify();
         return {};
+      }
+      if (type === "kibble/calibration") {
+        return cloneCalibration(calibration);
+      }
+      if (type === "kibble/calibration/action") {
+        const hopper = msg.hopper;
+        if (hopper !== 0 && hopper !== 1) throw { code: "agent_rejected", message: `Invalid hopper ${String(hopper)}` };
+        const action = msg.action;
+        if (action === "begin") {
+          calibration.hoppers[hopper] = {
+            points: [],
+            full_portions: null,
+            full_score: null,
+            measured_at: Math.floor(Date.now() / 1e3),
+            source: "measured",
+            note: msg.note ?? ""
+          };
+          notify();
+          return cloneCalibration(calibration);
+        }
+        const existing = calibration.hoppers[hopper];
+        if (action === "point") {
+          if (!existing) throw { code: "agent_rejected", message: "Calibration not started" };
+          const portions = msg.portions;
+          existing.points = [...existing.points.filter((point) => point.portions !== portions), { portions, score: mockBowlScore(portions) }].sort(
+            (a3, b3) => a3.portions - b3.portions
+          );
+          notify();
+          return cloneCalibration(calibration);
+        }
+        if (action === "full") {
+          if (!existing) throw { code: "agent_rejected", message: "Calibration not started" };
+          const portions = msg.portions;
+          const point = existing.points.find((p3) => p3.portions === portions);
+          if (!point) throw { code: "agent_rejected", message: `No point recorded at ${portions} portions` };
+          existing.full_portions = portions;
+          existing.full_score = point.score;
+          notify();
+          return cloneCalibration(calibration);
+        }
+        if (action === "inherit") {
+          const from = msg.from;
+          if (from !== 0 && from !== 1) throw { code: "agent_rejected", message: `Invalid source hopper ${String(from)}` };
+          const source = calibration.hoppers[from];
+          if (!source) throw { code: "agent_rejected", message: "Nothing to inherit from" };
+          calibration.hoppers[hopper] = { ...source, points: source.points.map((point) => ({ ...point })), source: { inherited_from: from }, measured_at: Math.floor(Date.now() / 1e3) };
+          notify();
+          return cloneCalibration(calibration);
+        }
+        if (action === "clear") {
+          calibration.hoppers[hopper] = null;
+          notify();
+          return cloneCalibration(calibration);
+        }
+        throw { code: "agent_rejected", message: `Unknown action: ${String(action)}` };
       }
       throw { code: "unknown_command", message: `Unknown command: ${String(type)}` };
     },

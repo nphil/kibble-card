@@ -1,8 +1,9 @@
 /** Everything secondary lives here, behind the header gear: per-hopper feed (the wear-leveling /
- * jam-workaround case), the device toggles, cloud (with a tap-twice confirm since it
- * opens/closes an external pathway), Wi-Fi/desiccant detail, before/after dish photos when the
- * integration ships them, the speaker, and the link out to the device page. A controlled overlay:
- * the parent owns `open`, this dialog only ever asks to close.
+ * jam-workaround case), bowl calibration (per hopper, since the two sides can hold different
+ * food), the device toggles, cloud (with a tap-twice confirm since it opens/closes an external
+ * pathway), Wi-Fi/desiccant detail, before/after dish photos when the integration ships them,
+ * the speaker, and the link out to the device page. A controlled overlay: the parent owns
+ * `open`, this dialog only ever asks to close.
  */
 
 import { LitElement, css, html, nothing } from "lit";
@@ -11,6 +12,7 @@ import { mdiIcon, type MdiIconName } from "../lib/mdi-icons";
 import type { HomeAssistant } from "../types";
 import "./kibble-hold-button";
 import "./kibble-before-after";
+import "./kibble-calibration-dialog";
 
 const CLOUD_CONFIRM_WINDOW_MS = 3000;
 
@@ -39,12 +41,17 @@ export class KibbleSettingsDialog extends LitElement {
   static properties = {
     hass: { attribute: false },
     entities: { attribute: false },
+    entryId: { attribute: false },
     open: { type: Boolean, reflect: true },
+    _calibrationOpen: { state: true },
   };
 
   declare hass: HomeAssistant;
   declare entities: KibbleEntities;
+  /** HA config-entry id, for the calibration dialog's `kibble/calibration*` WS calls. */
+  declare entryId: string | undefined;
   declare open: boolean;
+  declare _calibrationOpen: boolean;
 
   private _cloudConfirmArmed = false;
   private _cloudConfirmTimer: number | undefined = undefined;
@@ -54,6 +61,7 @@ export class KibbleSettingsDialog extends LitElement {
   constructor() {
     super();
     this.open = false;
+    this._calibrationOpen = false;
   }
 
   disconnectedCallback(): void {
@@ -74,6 +82,7 @@ export class KibbleSettingsDialog extends LitElement {
         </header>
         <div class="body">
           ${e.feedButtonHopper1 || e.feedButtonHopper2 ? this._renderHopperSection() : nothing}
+          ${e.bowlFill ? this._renderCalibrationSection() : nothing}
           ${e.feedAmount ? this._renderMoreAmountSection() : nothing}
           ${this._renderToggles()}
           ${e.cloudSwitch ? this._renderCloud() : nothing}
@@ -86,6 +95,12 @@ export class KibbleSettingsDialog extends LitElement {
           </button>
         </div>
       </div>
+      <kibble-calibration-dialog
+        .hass=${this.hass}
+        .entryId=${this.entryId}
+        ?open=${this._calibrationOpen}
+        @close-requested=${this._closeCalibration}
+      ></kibble-calibration-dialog>
     `;
   }
 
@@ -133,6 +148,21 @@ export class KibbleSettingsDialog extends LitElement {
               `
             : nothing}
         </div>
+      </section>
+    `;
+  }
+
+  /** Just the entry point -- picking a hopper, seeing its status, and every action beyond that
+   * (begin/capture/mark full/inherit/clear) is the wizard dialog's own job, not this panel's. */
+  private _renderCalibrationSection() {
+    return html`
+      <section>
+        <h3>Bowl calibration</h3>
+        <p class="hint">
+          Turns the bowl's raw fill reading into a real percentage by dispensing known portions
+          into an empty bowl. Each hopper keeps its own curve.
+        </p>
+        <button type="button" class="cloud-toggle" @click=${this._openCalibration}>Calibrate bowl</button>
       </section>
     `;
   }
@@ -322,6 +352,18 @@ export class KibbleSettingsDialog extends LitElement {
 
   private _onKeydown(event: KeyboardEvent): void {
     if (event.key === "Escape") this._close();
+  }
+
+  private _openCalibration(): void {
+    this._calibrationOpen = true;
+  }
+
+  /** Stops the calibration dialog's own `close-requested` here -- both dialogs use the same
+   * event name (the one contract every controlled overlay in this repo follows), and without
+   * this it would keep bubbling past this panel and close the whole settings dialog too. */
+  private _closeCalibration(event: Event): void {
+    event.stopPropagation();
+    this._calibrationOpen = false;
   }
 
   private _close(): void {

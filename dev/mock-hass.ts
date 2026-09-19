@@ -20,9 +20,25 @@
  * like the real frontend instead of silently going stale after the first click.
  */
 
-import type { CatSample, HomeAssistant, KibbleCatSummary, PendingFaceCrop } from "../src/types";
+import type { CalibrationHopper, CalibrationState, CatSample, HomeAssistant, KibbleCatSummary, PendingFaceCrop } from "../src/types";
 import { resolveKibbleEntities } from "../src/lib/resolve-entities";
-import { buildFixture, CATS, DEVICE_ID, ENTRY_ID, PENDING_CROPS, SAMPLES_BY_CAT, TIMELINE_ITEMS, type ScenarioName } from "./fixtures";
+import { buildFixture, CATS, DEVICE_ID, ENTRY_ID, INITIAL_CALIBRATION, PENDING_CROPS, SAMPLES_BY_CAT, TIMELINE_ITEMS, type ScenarioName } from "./fixtures";
+
+/** Deep-enough clone for `CalibrationState`: every mutating action hands the caller a fresh
+ * snapshot rather than the live mutable record, matching the daemon's own "every action
+ * returns the full object" contract -- a caller holding onto a stale reference should never
+ * see it change out from under them. */
+function cloneCalibration(state: CalibrationState): CalibrationState {
+  const cloneHopper = (hopper: CalibrationHopper | null): CalibrationHopper | null => (hopper ? { ...hopper, points: hopper.points.map((point) => ({ ...point })) } : null);
+  return { hoppers: [cloneHopper(state.hoppers[0]), cloneHopper(state.hoppers[1])] };
+}
+
+/** No real vision model in the harness -- a fixed, always-rising curve per hopper so capturing
+ * a reading during a demo behaves like a normal calibration (real capture reads the daemon's
+ * live score instead). Units match the daemon's own 0.0-1.0 scale, same as a real curve. */
+function mockBowlScore(portions: number): number {
+  return Math.min(0.95, 0.03 + portions * 0.18);
+}
 
 export { DEVICE_ID, ENTRY_ID };
 
@@ -37,6 +53,7 @@ export function createMockHass(scenario: ScenarioName, onChange?: () => void): H
     Object.entries(SAMPLES_BY_CAT).map(([cat, samples]) => [cat, [...samples]]),
   );
   const timelineItems = [...TIMELINE_ITEMS];
+  const calibration: CalibrationState = cloneCalibration(INITIAL_CALIBRATION);
 
   function notify(): void {
     hass.states = { ...states };
@@ -193,6 +210,61 @@ export function createMockHass(scenario: ScenarioName, onChange?: () => void): H
         if (rosterEntry) rosterEntry.samples = gallery.length;
         notify();
         return {};
+      }
+      if (type === "kibble/calibration") {
+        return cloneCalibration(calibration);
+      }
+      if (type === "kibble/calibration/action") {
+        const hopper = msg.hopper;
+        if (hopper !== 0 && hopper !== 1) throw { code: "agent_rejected", message: `Invalid hopper ${String(hopper)}` };
+        const action = msg.action as string | undefined;
+        if (action === "begin") {
+          calibration.hoppers[hopper] = {
+            points: [],
+            full_portions: null,
+            full_score: null,
+            measured_at: Math.floor(Date.now() / 1000),
+            source: "measured",
+            note: (msg.note as string | undefined) ?? "",
+          };
+          notify();
+          return cloneCalibration(calibration);
+        }
+        const existing = calibration.hoppers[hopper];
+        if (action === "point") {
+          if (!existing) throw { code: "agent_rejected", message: "Calibration not started" };
+          const portions = msg.portions as number;
+          existing.points = [...existing.points.filter((point) => point.portions !== portions), { portions, score: mockBowlScore(portions) }].sort(
+            (a, b) => a.portions - b.portions,
+          );
+          notify();
+          return cloneCalibration(calibration);
+        }
+        if (action === "full") {
+          if (!existing) throw { code: "agent_rejected", message: "Calibration not started" };
+          const portions = msg.portions as number;
+          const point = existing.points.find((p) => p.portions === portions);
+          if (!point) throw { code: "agent_rejected", message: `No point recorded at ${portions} portions` };
+          existing.full_portions = portions;
+          existing.full_score = point.score;
+          notify();
+          return cloneCalibration(calibration);
+        }
+        if (action === "inherit") {
+          const from = msg.from;
+          if (from !== 0 && from !== 1) throw { code: "agent_rejected", message: `Invalid source hopper ${String(from)}` };
+          const source = calibration.hoppers[from];
+          if (!source) throw { code: "agent_rejected", message: "Nothing to inherit from" };
+          calibration.hoppers[hopper] = { ...source, points: source.points.map((point) => ({ ...point })), source: { inherited_from: from }, measured_at: Math.floor(Date.now() / 1000) };
+          notify();
+          return cloneCalibration(calibration);
+        }
+        if (action === "clear") {
+          calibration.hoppers[hopper] = null;
+          notify();
+          return cloneCalibration(calibration);
+        }
+        throw { code: "agent_rejected", message: `Unknown action: ${String(action)}` };
       }
       throw { code: "unknown_command", message: `Unknown command: ${String(type)}` };
     },

@@ -4,10 +4,15 @@
  * the feeder's own vision estimate of bowl fullness, not a hopper sensor — kibble docs/34; there is
  * exactly one such reading, the whole bowl, so one cavity: the second value the feeder keeps beside
  * it is the same reading snapshotted when the last meal began, not a second side). No numbers on
- * the face; the exact percentage is the element's accessible name and tooltip. Under the dish, one
- * line of text for the hoppers themselves --
- * the reservoirs above the bowl have only a food-shortage sensor each (empty / low / ok, never a
- * percentage), so their state is a word, coloured only when a side needs refilling.
+ * the face by default -- the raw score means nothing to a viewer without a curve to read it
+ * against (`lib/calibration.ts`), so it stays the element's accessible name and tooltip only.
+ * Once the hopper this display draws from has a finished calibration curve, a second line
+ * appears with the real percentage, raw score alongside it rather than instead of it -- every
+ * existing threshold in this codebase is still expressed in the raw number, so it never
+ * disappears just because a curve now exists. Under the dish, one line of text for the hoppers
+ * themselves -- the reservoirs above the bowl have only a food-shortage sensor each (empty /
+ * low / ok, never a percentage), so their state is a word, coloured only when a side needs
+ * refilling.
  *
  * Theming: every surface derives from Home Assistant's theme variables. The plastic is the card
  * background lifted toward the text colour (`color-mix`), so a dark theme gets a dark-grey dish
@@ -16,8 +21,10 @@
  */
 
 import { LitElement, css, html, nothing, svg, type SVGTemplateResult } from "lit";
-import { hopperStatus, type HopperLevel } from "../lib/hopper-status";
 import type { PropertyValues } from "lit";
+import { hopperStatus, type HopperLevel } from "../lib/hopper-status";
+import { calibratedPercent } from "../lib/calibration";
+import type { CalibrationHopper } from "../types";
 import { KIBBLE_FALL_DURATION_MS, prefersReducedMotion } from "../styles/tokens";
 
 const VIEW_W = 240;
@@ -90,6 +97,7 @@ export class KibbleBowl extends LitElement {
     hopperLevel1: { type: String },
     hopperLevel2: { type: String },
     feeding: { type: Boolean },
+    calibration: { attribute: false },
   };
 
   /** Bowl fullness 0-100, `null` when the feeder has no reading. */
@@ -97,6 +105,9 @@ export class KibbleBowl extends LitElement {
   declare hopperLevel1: HopperLevel | null;
   declare hopperLevel2: HopperLevel | null;
   declare feeding: boolean;
+  /** The hopper `lib/calibration.ts:displayCalibrationHopper` picked to interpret `fill`
+   * against, or `null` when nothing usable is calibrated yet. */
+  declare calibration: CalibrationHopper | null;
 
   private _wasFeeding = false;
   private _dropping = false;
@@ -108,6 +119,7 @@ export class KibbleBowl extends LitElement {
     this.hopperLevel1 = null;
     this.hopperLevel2 = null;
     this.feeding = false;
+    this.calibration = null;
   }
 
   disconnectedCallback(): void {
@@ -130,7 +142,16 @@ export class KibbleBowl extends LitElement {
   }
 
   render() {
-    const label = this.fill == null ? "Bowl level unknown" : `Bowl ${Math.round(this.fill)}% full`;
+    // `calibratedPercent` expects the curve's own 0.0-1.0 scale, not `fill`'s live 0-100 one --
+    // see that function's doc comment for why those two units differ (confirmed against the
+    // daemon: `score = bowl_fill / 100`, exactly).
+    const calibratedFillPercent = this.fill == null ? null : calibratedPercent(this.calibration, this.fill / 100);
+    const label =
+      calibratedFillPercent != null
+        ? `Bowl ${Math.round(calibratedFillPercent)}% full (raw score ${Math.round(this.fill!)})`
+        : this.fill == null
+          ? "Bowl level unknown"
+          : `Bowl ${Math.round(this.fill)}% full`;
     const x0 = RIM_X + CAV_INSET;
     const x1 = RIM_X + RIM_W - CAV_INSET;
     const fraction = this.fill == null ? null : this.fill / 100;
@@ -168,6 +189,9 @@ export class KibbleBowl extends LitElement {
         ${this._renderCavity(x0, x1, fraction)}
         ${this._dropping ? this._renderFallingKibble() : nothing}
       </svg>
+      ${calibratedFillPercent != null
+        ? html`<div class="calibrated" role="status">${Math.round(calibratedFillPercent)}% full <span class="raw">\u00b7 raw ${Math.round(this.fill!)}</span></div>`
+        : nothing}
       ${hopper ? html`<div class="hopper" data-tone=${hopper.tone} role="status">${hopper.text}</div>` : nothing}
     `;
   }
@@ -259,6 +283,20 @@ export class KibbleBowl extends LitElement {
       aspect-ratio: ${VIEW_W} / ${VIEW_H};
       margin: 0 auto;
       overflow: visible;
+    }
+    /* The calibrated readout: a real, meaningful number now that a curve exists, so unlike the
+     * raw score it earns primary-text weight -- the raw figure stays too, just secondary,
+     * since every existing threshold elsewhere is still keyed to it, never this one. */
+    .calibrated {
+      flex: none;
+      margin-top: 6px;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--primary-text-color);
+    }
+    .calibrated .raw {
+      font-weight: 400;
+      color: var(--secondary-text-color);
     }
     /* The hopper line: secondary text when stocked, the card's amber when a side is running
      * low, the theme's error colour when one is empty. */

@@ -30,10 +30,12 @@
  */
 
 import { LitElement, css, html, nothing } from "lit";
-import type { HomeAssistant } from "../types";
+import type { HomeAssistant, VisionDetection, VisionFrame } from "../types";
 import { ScryptedLive, findScryptedToken } from "../lib/scrypted-live";
 import { mdiIcon } from "../lib/mdi-icons";
 import { RECONNECT_BASE_MS, nextReconnectDelay } from "../lib/reconnect";
+import { WsQuery } from "../lib/ws-query";
+import { catLabelText, detectionRect, labelFlipsInside, largestAdmittedDetection } from "../lib/vision-overlay";
 
 /** No `timeupdate` for this long while `_playing` counts as a dead stream. */
 const STALL_MS = 8000;
@@ -41,12 +43,20 @@ const STALL_MS = 8000;
 const STALL_CHECK_INTERVAL_MS = 2000;
 /** A tab hidden this long stops the stream outright instead of just weathering a possible stall. */
 const HIDDEN_PAUSE_MS = 60000;
+/** How often the hero asks the feeder what it currently sees, while the overlay switch is on
+ * and the stream is actually playing. The daemon only re-analyses at 0.5 Hz (`GET
+ * /vision/last`'s own cadence) -- polling faster would just re-read the same frame -- but this
+ * stays close enough to feel live without adding a second live-push channel just for a
+ * diagnostic overlay. */
+const VISION_POLL_MS = 1000;
 
 export class KibbleLiveHero extends LitElement {
   static properties = {
     hass: { attribute: false },
     cameraEntity: { attribute: false },
     scryptedId: { attribute: false },
+    entryId: { attribute: false },
+    overlayEntity: { attribute: false },
     _playing: { state: true },
     _talking: { state: true },
     _muted: { state: true },
@@ -70,11 +80,20 @@ export class KibbleLiveHero extends LitElement {
   /** Set once a long-hidden tab has stopped the stream, so the tab coming visible again knows
    * to restart from scratch (backoff reset) instead of treating it as a stall recovery. */
   private _hiddenPaused = false;
+  /** The feeder's own most recent detection frame, polled while the overlay gate is open (see
+   * `_syncVisionPolling`) -- a private field, not a reactive property, since `WsQuery` drives
+   * its own `requestUpdate` on change, exactly like `kibble-card.ts`'s `_catsQuery`. */
+  private _visionQuery = new WsQuery<{ frame: VisionFrame | null }>(() => this.requestUpdate());
+  private _visionTimer: number | undefined;
 
   declare hass: HomeAssistant;
   declare cameraEntity: string | undefined;
   /** Scrypted device id of the feeder camera, from the card config. */
   declare scryptedId: string | undefined;
+  /** HA config-entry id, for the `kibble/vision/last` WS call's `entry_id`. */
+  declare entryId: string | undefined;
+  /** `switch.<feeder>_detection_overlay`'s entity id; off or missing means no overlay, ever. */
+  declare overlayEntity: string | undefined;
   declare private _playing: boolean;
   declare private _talking: boolean;
   declare private _muted: boolean;
@@ -117,6 +136,8 @@ export class KibbleLiveHero extends LitElement {
     document.removeEventListener("keydown", this._onKeyDown);
     clearInterval(this._stallCheckInterval);
     this._stallCheckInterval = undefined;
+    clearInterval(this._visionTimer);
+    this._visionTimer = undefined;
     this._stop();
   }
 
@@ -125,6 +146,7 @@ export class KibbleLiveHero extends LitElement {
    * out to be dead (peer connection disconnected/failed/closed) reroutes through the same
    * reconnect path a stall does, instead of leaving a frozen or blank video up forever. */
   updated(): void {
+    this._syncVisionPolling();
     if (this._live.state === "error" && this._playing) {
       this._beginReconnect();
       return;
@@ -140,6 +162,7 @@ export class KibbleLiveHero extends LitElement {
       <div class="frame ${this._expanded ? "expanded" : ""}" id="frame" @click=${this._onFrameClick}>
         ${this._renderStill()}
         ${this._playing ? this._renderVideo() : nothing}
+        ${this._playing ? this._renderDetections() : nothing}
         ${this._expanded
           ? html`<div class="topbar">
               <button class="chip" aria-label=${this._fullscreen ? "Leave fullscreen" : "Fullscreen"} title=${this._fullscreen ? "Leave fullscreen" : "Fullscreen"} @click=${this._toggleFullscreen}>
@@ -202,6 +225,37 @@ export class KibbleLiveHero extends LitElement {
       : html`<div class="placeholder">Camera unavailable</div>`;
   }
 
+  /** The feeder's own detection boxes for the frame it most recently analysed. `admitted`
+   * boxes get the accent treatment; everything else (clutter memory's furniture) is drawn
+   * quieter, never omitted -- that is the whole point of shipping them. The identified cat's
+   * name labels whichever admitted box is largest. */
+  private _renderDetections() {
+    const frame = this._visionQuery.state.data?.frame;
+    const detections = frame?.detections;
+    if (!this._overlayOn() || !detections || detections.length === 0) return nothing;
+    const cat = frame.cat;
+    const labelBox = cat ? largestAdmittedDetection(detections) : null;
+    return html`
+      <div class="detections" aria-hidden="true">
+        ${detections.map((detection) => this._renderDetectionBox(detection))}
+        ${labelBox && cat ? this._renderCatLabel(labelBox, cat, frame.cat_score ?? null) : nothing}
+      </div>
+    `;
+  }
+
+  private _renderDetectionBox(detection: VisionDetection) {
+    const rect = detectionRect(detection);
+    const style = `left:${rect.left};top:${rect.top};width:${rect.width};height:${rect.height};`;
+    return html`<div class="det-box ${detection.admitted ? "" : "quiet"}" style=${style}></div>`;
+  }
+
+  private _renderCatLabel(box: VisionDetection, cat: string, catScore: number | null) {
+    const rect = detectionRect(box);
+    return html`<div class="det-label ${labelFlipsInside(box) ? "flip" : ""}" style="left:${rect.left};top:${rect.top};">
+      ${catLabelText(cat, catScore)}
+    </div>`;
+  }
+
   private _start = async (): Promise<void> => {
     const token = findScryptedToken(this.hass);
     if (!token || !this.scryptedId) return;
@@ -256,6 +310,47 @@ export class KibbleLiveHero extends LitElement {
     if (!this._playing || this._reconnecting || document.hidden) return;
     if (performance.now() - this._lastProgress > STALL_MS) this._beginReconnect();
   };
+
+  /** The detection-overlay switch's own state -- an unresolved/missing entity (an older
+   * integration, or the vendor stack, which has no vision pipeline at all) reads as off, same
+   * as the switch itself being off. */
+  private _overlayOn(): boolean {
+    const id = this.overlayEntity;
+    return id !== undefined && this.hass?.states[id]?.state === "on";
+  }
+
+  private _pollVision = (): void => {
+    const callWS = this.hass?.callWS;
+    const entryId = this.entryId;
+    if (!callWS || !entryId) return;
+    this._visionQuery.refresh(() =>
+      callWS({ type: "kibble/vision/last", entry_id: entryId }).then((result) => result as { frame: VisionFrame | null }),
+    );
+  };
+
+  /** Starts or stops the vision poll to match its three gates -- actually playing (not just a
+   * still), the overlay switch on, and somewhere to ask -- every time the element updates. An
+   * idle dashboard (still showing, overlay off, or torn down) never hits the feeder for this at
+   * all: this is a battery-powered-adjacent embedded device. */
+  private _syncVisionPolling(): void {
+    const shouldPoll = this._playing && this._overlayOn() && Boolean(this.entryId) && Boolean(this.hass?.callWS);
+    const isPolling = this._visionTimer !== undefined;
+    if (shouldPoll === isPolling) return;
+    if (!shouldPoll) {
+      this._stopVisionPolling();
+      return;
+    }
+    this._pollVision();
+    this._visionTimer = setInterval(this._pollVision, VISION_POLL_MS) as unknown as number;
+  }
+
+  private _stopVisionPolling(): void {
+    clearInterval(this._visionTimer);
+    this._visionTimer = undefined;
+    // A fresh instance, not just idle -- the overlay must vanish the moment its gate closes,
+    // never keep showing the last thing the feeder saw.
+    this._visionQuery = new WsQuery(() => this.requestUpdate());
+  }
 
   private _onVisibilityChange = (): void => {
     if (document.hidden) {
@@ -541,6 +636,37 @@ export class KibbleLiveHero extends LitElement {
     }
     .note.error {
       color: var(--error-color, #ff8a80);
+    }
+    .detections {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      pointer-events: none;
+    }
+    .det-box {
+      position: absolute;
+      border: 2px solid var(--kibble-amber, #f2a33c);
+      border-radius: 3px;
+      transition: left 250ms ease, top 250ms ease, width 250ms ease, height 250ms ease;
+    }
+    .det-box.quiet {
+      border: 1px dashed rgba(255, 255, 255, 0.45);
+      opacity: 0.6;
+    }
+    .det-label {
+      position: absolute;
+      transform: translateY(calc(-100% - 4px));
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: rgba(0, 0, 0, 0.65);
+      color: #fff;
+      font-size: 12px;
+      font-weight: 500;
+      white-space: nowrap;
+      transition: left 250ms ease, top 250ms ease;
+    }
+    .det-label.flip {
+      transform: translateY(4px);
     }
   `;
 }

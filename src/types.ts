@@ -204,3 +204,56 @@ export interface FaceUploadResult {
   samples: number;
   low_quality?: boolean;
 }
+
+// ---- `kibble/vision/last` WebSocket payload (forwards LibreFeed's `GET /vision/last`
+// verbatim) -- the feeder's own most recent analysed frame, exactly as its admission stage saw
+// it. Every field here may be absent on an older daemon; a consumer (the live hero's detection
+// overlay, `lib/vision-overlay.ts`) must degrade quietly rather than assume a full shape. ----
+
+/** One raw body box exactly as the object detector reported it, in the analysed frame's own
+ * pixel space (`VisionFrame.w`/`h`) -- NOT a fraction, and NOT what the overlay draws (see
+ * `VisionDetection` for that). Diagnostic only. */
+export interface VisionBody {
+  score: number;
+  box: [number, number, number, number];
+}
+
+/** One de-duplicated detection, in fractions (0..1) of the analysed frame -- this is the array
+ * the live hero's overlay actually draws, directly as CSS percentages. `admitted: false` means
+ * the clutter memory suppressed it (furniture the detector keeps hallucinating): still sent,
+ * and still drawn, just quieter -- showing it is how a user sees why a detection wasn't counted. */
+export interface VisionDetection {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  score: number;
+  admitted: boolean;
+}
+
+/** `GET /vision/last`'s body, forwarded verbatim by `kibble/vision/last {entry_id}` as
+ * `{frame}`; `frame` is `null` when the agent has not analysed a frame yet (vision off, or
+ * media still starting). */
+export interface VisionFrame {
+  at_ms?: number;
+  wall_unix?: number;
+  /** Analysed-frame pixel dimensions -- `bodies[].box`'s coordinate space; irrelevant to
+   * `detections`, which are already fractions of it. */
+  w?: number;
+  h?: number;
+  bodies?: VisionBody[];
+  detections?: VisionDetection[];
+  faces?: number;
+  has_body?: boolean;
+  bowl_overlap?: boolean;
+  moved?: boolean;
+  /** Whether the pipeline currently believes a real animal (not clutter) is present. */
+  verified?: boolean;
+  present_frames?: number;
+  clutter_regions?: number;
+  /** The currently open track's identification, or `null` while unidentified. */
+  cat?: string | null;
+  cat_score?: number | null;
+  /** Echoes the daemon's own `detection_overlay` config flag. */
+  overlay?: boolean;
+}

@@ -182,6 +182,8 @@ export class KibbleCard extends LitElement {
                   .hass=${this.hass}
                   .cameraEntity=${e.camera}
                   .scryptedId=${this._config.scrypted_id}
+                  .entryId=${this._entryId}
+                  .overlayEntity=${e.detectionOverlaySwitch}
                 ></kibble-live-hero>
               </div>
               <div class="hero-status">

@@ -127,6 +127,29 @@ export function createMockHass(scenario: ScenarioName, onChange?: () => void): H
       if (type === "kibble/cats") {
         return { cats: cats.map((cat) => ({ ...cat })) };
       }
+      if (type === "kibble/vision/last") {
+        // A fixed diagnostic frame, not simulated live detection -- the harness has no real
+        // camera to analyse. Mirrors a genuine `GET /vision/last` capture (LibreFeed's own
+        // regression fixture for "a cat that arrives and stays still"): one admitted box
+        // touching the top of the frame (exercises the label's flip-inside rule) plus one
+        // clutter-memory box the pipeline never admits (the quiet/dashed treatment).
+        return {
+          frame: {
+            at_ms: Date.now(),
+            wall_unix: Math.floor(Date.now() / 1000),
+            w: 1280,
+            h: 720,
+            detections: [
+              { x1: 0.0875, y1: 0, x2: 0.6586, y2: 0.5014, score: 0.968, admitted: true },
+              { x1: 0.78, y1: 0.62, x2: 0.97, y2: 0.95, score: 0.41, admitted: false },
+            ],
+            verified: true,
+            cat: "Pancake",
+            cat_score: 0.71,
+            overlay: true,
+          },
+        };
+      }
       if (type === "kibble/cats/delete") {
         const name = msg.name as string | undefined;
         const index = name ? cats.findIndex((cat) => cat.name === name) : -1;

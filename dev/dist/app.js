@@ -7626,6 +7626,7 @@ var RULES = {
   lastDetection: { domain: "sensor", translationKeys: ["last_detection"], idSuffixes: ["_last_detection"] },
   detectionsToday: { domain: "sensor", translationKeys: ["detections_today"], idSuffixes: ["_detections_today"] },
   lastDetectionImage: { domain: "image", translationKeys: ["last_detection"], idSuffixes: ["_last_detection"] },
+  detectionOverlaySwitch: { domain: "switch", translationKeys: ["detection_overlay"], idSuffixes: ["_detection_overlay"] },
   pendingFace: { domain: "image", translationKeys: ["pending_face"], idSuffixes: ["_pending_face"] }
 };
 function domainOf(entityId) {
@@ -9877,9 +9878,42 @@ var RECONNECT_MAX_MS = 3e4;
 function nextReconnectDelay(current) {
   return Math.min(current * 2, RECONNECT_MAX_MS);
 }
+var LABEL_FLIP_THRESHOLD = 0.02;
+function toPercent(fraction) {
+  return `${Math.round(fraction * 1e4) / 100}%`;
+}
+function detectionRect(box) {
+  return {
+    left: toPercent(box.x1),
+    top: toPercent(box.y1),
+    width: toPercent(box.x2 - box.x1),
+    height: toPercent(box.y2 - box.y1)
+  };
+}
+function largestAdmittedDetection(detections) {
+  let best = null;
+  let bestArea = -Infinity;
+  for (const detection of detections) {
+    if (!detection.admitted) continue;
+    const area = (detection.x2 - detection.x1) * (detection.y2 - detection.y1);
+    if (area > bestArea) {
+      best = detection;
+      bestArea = area;
+    }
+  }
+  return best;
+}
+function labelFlipsInside(box) {
+  return box.y1 <= LABEL_FLIP_THRESHOLD;
+}
+function catLabelText(cat, catScore) {
+  if (catScore === null || catScore === void 0) return cat;
+  return `${cat} ${Math.round(catScore * 100)}%`;
+}
 var STALL_MS = 8e3;
 var STALL_CHECK_INTERVAL_MS = 2e3;
 var HIDDEN_PAUSE_MS = 6e4;
+var VISION_POLL_MS = 1e3;
 var KibbleLiveHero = class extends i4 {
   constructor() {
     super();
@@ -9887,6 +9921,7 @@ var KibbleLiveHero = class extends i4 {
     this._backoffMs = RECONNECT_BASE_MS;
     this._lastProgress = 0;
     this._hiddenPaused = false;
+    this._visionQuery = new WsQuery(() => this.requestUpdate());
     this._live = new ScryptedLive(() => {
       this._tick = (this._tick ?? 0) + 1;
     });
@@ -9919,6 +9954,14 @@ var KibbleLiveHero = class extends i4 {
     this._checkStall = () => {
       if (!this._playing || this._reconnecting || document.hidden) return;
       if (performance.now() - this._lastProgress > STALL_MS) this._beginReconnect();
+    };
+    this._pollVision = () => {
+      const callWS = this.hass?.callWS;
+      const entryId = this.entryId;
+      if (!callWS || !entryId) return;
+      this._visionQuery.refresh(
+        () => callWS({ type: "kibble/vision/last", entry_id: entryId }).then((result) => result)
+      );
     };
     this._onVisibilityChange = () => {
       if (document.hidden) {
@@ -10038,6 +10081,8 @@ var KibbleLiveHero = class extends i4 {
       hass: { attribute: false },
       cameraEntity: { attribute: false },
       scryptedId: { attribute: false },
+      entryId: { attribute: false },
+      overlayEntity: { attribute: false },
       _playing: { state: true },
       _talking: { state: true },
       _muted: { state: true },
@@ -10062,6 +10107,8 @@ var KibbleLiveHero = class extends i4 {
     document.removeEventListener("keydown", this._onKeyDown);
     clearInterval(this._stallCheckInterval);
     this._stallCheckInterval = void 0;
+    clearInterval(this._visionTimer);
+    this._visionTimer = void 0;
     this._stop();
   }
   /** The stream starts on its own as soon as the card knows where to get it; the still stays
@@ -10069,6 +10116,7 @@ var KibbleLiveHero = class extends i4 {
    * out to be dead (peer connection disconnected/failed/closed) reroutes through the same
    * reconnect path a stall does, instead of leaving a frozen or blank video up forever. */
   updated() {
+    this._syncVisionPolling();
     if (this._live.state === "error" && this._playing) {
       this._beginReconnect();
       return;
@@ -10083,6 +10131,7 @@ var KibbleLiveHero = class extends i4 {
       <div class="frame ${this._expanded ? "expanded" : ""}" id="frame" @click=${this._onFrameClick}>
         ${this._renderStill()}
         ${this._playing ? this._renderVideo() : A}
+        ${this._playing ? this._renderDetections() : A}
         ${this._expanded ? b2`<div class="topbar">
               <button class="chip" aria-label=${this._fullscreen ? "Leave fullscreen" : "Fullscreen"} title=${this._fullscreen ? "Leave fullscreen" : "Fullscreen"} @click=${this._toggleFullscreen}>
                 ${mdiIcon(this._fullscreen ? "fullscreenExit" : "fullscreen")}
@@ -10132,6 +10181,34 @@ var KibbleLiveHero = class extends i4 {
     const src = this.hass.states[this.cameraEntity]?.attributes.entity_picture;
     return typeof src === "string" ? b2`<img src=${src} alt="The feeder's camera" />` : b2`<div class="placeholder">Camera unavailable</div>`;
   }
+  /** The feeder's own detection boxes for the frame it most recently analysed. `admitted`
+   * boxes get the accent treatment; everything else (clutter memory's furniture) is drawn
+   * quieter, never omitted -- that is the whole point of shipping them. The identified cat's
+   * name labels whichever admitted box is largest. */
+  _renderDetections() {
+    const frame = this._visionQuery.state.data?.frame;
+    const detections = frame?.detections;
+    if (!this._overlayOn() || !detections || detections.length === 0) return A;
+    const cat = frame.cat;
+    const labelBox = cat ? largestAdmittedDetection(detections) : null;
+    return b2`
+      <div class="detections" aria-hidden="true">
+        ${detections.map((detection) => this._renderDetectionBox(detection))}
+        ${labelBox && cat ? this._renderCatLabel(labelBox, cat, frame.cat_score ?? null) : A}
+      </div>
+    `;
+  }
+  _renderDetectionBox(detection) {
+    const rect = detectionRect(detection);
+    const style = `left:${rect.left};top:${rect.top};width:${rect.width};height:${rect.height};`;
+    return b2`<div class="det-box ${detection.admitted ? "" : "quiet"}" style=${style}></div>`;
+  }
+  _renderCatLabel(box, cat, catScore) {
+    const rect = detectionRect(box);
+    return b2`<div class="det-label ${labelFlipsInside(box) ? "flip" : ""}" style="left:${rect.left};top:${rect.top};">
+      ${catLabelText(cat, catScore)}
+    </div>`;
+  }
   /** Tears down whatever's left of a dead session and schedules the next attempt on the
    * exponential backoff (`lib/reconnect.ts`), capped at 30s. Idempotent against being called
    * again while an attempt is already pending -- a second stall/error signal arriving before the
@@ -10147,6 +10224,33 @@ var KibbleLiveHero = class extends i4 {
       void this._start();
     }, this._backoffMs);
     this._backoffMs = nextReconnectDelay(this._backoffMs);
+  }
+  /** The detection-overlay switch's own state -- an unresolved/missing entity (an older
+   * integration, or the vendor stack, which has no vision pipeline at all) reads as off, same
+   * as the switch itself being off. */
+  _overlayOn() {
+    const id = this.overlayEntity;
+    return id !== void 0 && this.hass?.states[id]?.state === "on";
+  }
+  /** Starts or stops the vision poll to match its three gates -- actually playing (not just a
+   * still), the overlay switch on, and somewhere to ask -- every time the element updates. An
+   * idle dashboard (still showing, overlay off, or torn down) never hits the feeder for this at
+   * all: this is a battery-powered-adjacent embedded device. */
+  _syncVisionPolling() {
+    const shouldPoll = this._playing && this._overlayOn() && Boolean(this.entryId) && Boolean(this.hass?.callWS);
+    const isPolling = this._visionTimer !== void 0;
+    if (shouldPoll === isPolling) return;
+    if (!shouldPoll) {
+      this._stopVisionPolling();
+      return;
+    }
+    this._pollVision();
+    this._visionTimer = setInterval(this._pollVision, VISION_POLL_MS);
+  }
+  _stopVisionPolling() {
+    clearInterval(this._visionTimer);
+    this._visionTimer = void 0;
+    this._visionQuery = new WsQuery(() => this.requestUpdate());
   }
   _expand() {
     this._expanded = true;
@@ -10300,6 +10404,37 @@ var KibbleLiveHero = class extends i4 {
     }
     .note.error {
       color: var(--error-color, #ff8a80);
+    }
+    .detections {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      pointer-events: none;
+    }
+    .det-box {
+      position: absolute;
+      border: 2px solid var(--kibble-amber, #f2a33c);
+      border-radius: 3px;
+      transition: left 250ms ease, top 250ms ease, width 250ms ease, height 250ms ease;
+    }
+    .det-box.quiet {
+      border: 1px dashed rgba(255, 255, 255, 0.45);
+      opacity: 0.6;
+    }
+    .det-label {
+      position: absolute;
+      transform: translateY(calc(-100% - 4px));
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: rgba(0, 0, 0, 0.65);
+      color: #fff;
+      font-size: 12px;
+      font-weight: 500;
+      white-space: nowrap;
+      transition: left 250ms ease, top 250ms ease;
+    }
+    .det-label.flip {
+      transform: translateY(4px);
     }
   `;
   }
@@ -10524,10 +10659,11 @@ function filterVisits(items, showVisits) {
 }
 function feedSummary(item) {
   const scheduled = !item.manual;
-  if (item.amount == null) return { headline: "Fed", scheduled };
+  const unconfirmed = item.confirmed === false;
+  if (item.amount == null) return { headline: "Fed", scheduled, unconfirmed };
   const portionWord = item.amount === 1 ? "portion" : "portions";
   const hopperClause = item.hopper && item.hopper !== "both" ? ` from hopper ${item.hopper}` : "";
-  return { headline: `Fed ${item.amount} ${portionWord}${hopperClause}`, scheduled };
+  return { headline: `Fed ${item.amount} ${portionWord}${hopperClause}`, scheduled, unconfirmed };
 }
 function dayKey(date) {
   return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
@@ -11034,7 +11170,7 @@ var KibbleTimelineCard = class extends i4 {
       <div class="row row-feed">
         <span class="time">${time}</span>
         <span class="row-text feed-text">
-          ${summary.headline}${summary.scheduled ? b2` <span class="quiet">(scheduled)</span>` : A}
+          ${summary.headline}${summary.scheduled ? b2` <span class="quiet">(scheduled)</span>` : A}${summary.unconfirmed ? b2` <span class="quiet" title="The feeder dispensed, but its controller never confirmed the amount -- this is the amount that was requested.">(unconfirmed)</span>` : A}
         </span>
         ${pair ? b2`<kibble-before-after class="feed-compare" .beforeSrc=${beforeUrl} .afterSrc=${afterUrl} aspect="1.8"></kibble-before-after>` : b2`<span class="feed-no-photo">No photo for this feed</span>`}
       </div>
@@ -13313,6 +13449,8 @@ var KibbleCard = class extends i4 {
                   .hass=${this.hass}
                   .cameraEntity=${e6.camera}
                   .scryptedId=${this._config.scrypted_id}
+                  .entryId=${this._entryId}
+                  .overlayEntity=${e6.detectionOverlaySwitch}
                 ></kibble-live-hero>
               </div>
               <div class="hero-status">
@@ -13410,15 +13548,24 @@ var KibbleCard = class extends i4 {
       avatarSample: roster?.avatar ?? null
     };
   }
-  /** Who was last seen and how long ago, straight off `lastSeenPet`'s own state/`last_changed` --
-   * `null` covers both "no such entity" and the sensor's own unknown/unavailable idle value. */
+  /** Who was last seen and how long ago. The time comes from the sensor's own
+   * `last_identified` attribute -- the moment the feeder actually identified that cat -- never
+   * from HA's `last_changed`, which is merely when the state STRING last changed. Those differ
+   * badly in exactly the cases that matter: reloading the integration rewrote `last_changed`
+   * and the hero cheerfully announced "Kitty seen 13 min ago" while the roster beside it, which
+   * reads the real timestamp, said two hours (2026-09-19). `last_changed` remains the fallback
+   * for a feeder too old to send the attribute. `null` covers both "no such entity" and the
+   * sensor's own unknown/unavailable idle value. */
   _catSeen() {
     const id = this._entities.lastSeenPet;
     const entityState = id ? this.hass.states[id] : void 0;
     if (!entityState || entityState.state === "unavailable" || entityState.state.toLowerCase() === "unknown") {
       return null;
     }
-    return { name: entityState.state, relative: relativeTimeSentence(new Date(entityState.last_changed), /* @__PURE__ */ new Date()) };
+    const identified = entityState.attributes?.last_identified;
+    const when = typeof identified === "string" ? new Date(identified) : new Date(entityState.last_changed);
+    const at = Number.isNaN(when.getTime()) ? new Date(entityState.last_changed) : when;
+    return { name: entityState.state, relative: relativeTimeSentence(at, /* @__PURE__ */ new Date()) };
   }
   _scheduleEntries() {
     const id = this._entities.schedule;
@@ -13778,6 +13925,7 @@ var RULES2 = {
   lastDetection: { domain: "sensor", translationKeys: ["last_detection"], idSuffixes: ["_last_detection"] },
   detectionsToday: { domain: "sensor", translationKeys: ["detections_today"], idSuffixes: ["_detections_today"] },
   lastDetectionImage: { domain: "image", translationKeys: ["last_detection"], idSuffixes: ["_last_detection"] },
+  detectionOverlaySwitch: { domain: "switch", translationKeys: ["detection_overlay"], idSuffixes: ["_detection_overlay"] },
   pendingFace: { domain: "image", translationKeys: ["pending_face"], idSuffixes: ["_pending_face"] }
 };
 function domainOf2(entityId) {
@@ -13890,6 +14038,7 @@ var ENTITY_IDS = {
   lastDetection: "sensor.plant_room_cat_feeder_last_detection",
   detectionsToday: "sensor.plant_room_cat_feeder_detections_today",
   lastDetectionImage: "image.plant_room_cat_feeder_last_detection",
+  detectionOverlaySwitch: "switch.plant_room_cat_feeder_detection_overlay",
   dishBefore: "image.plant_room_cat_feeder_dish_before",
   dishAfter: "image.plant_room_cat_feeder_dish_after",
   pendingFace: "image.plant_room_cat_feeder_pending_face"
@@ -13919,6 +14068,7 @@ function registryFor(includeWifi) {
     [ENTITY_IDS.lastDetection]: entry(ENTITY_IDS.lastDetection, "last_detection"),
     [ENTITY_IDS.detectionsToday]: entry(ENTITY_IDS.detectionsToday, "detections_today"),
     [ENTITY_IDS.lastDetectionImage]: entry(ENTITY_IDS.lastDetectionImage, "last_detection"),
+    [ENTITY_IDS.detectionOverlaySwitch]: entry(ENTITY_IDS.detectionOverlaySwitch, "detection_overlay"),
     [ENTITY_IDS.dishBefore]: entry(ENTITY_IDS.dishBefore, "dish_before"),
     [ENTITY_IDS.dishAfter]: entry(ENTITY_IDS.dishAfter, "dish_after"),
     [ENTITY_IDS.pendingFace]: entry(ENTITY_IDS.pendingFace, "pending_face")
@@ -13964,6 +14114,7 @@ function buildIdle() {
     [ENTITY_IDS.lastDetectionImage]: state(ENTITY_IDS.lastDetectionImage, minutesAgo(14), {
       entity_picture: "./camera-frame.svg"
     }),
+    [ENTITY_IDS.detectionOverlaySwitch]: state(ENTITY_IDS.detectionOverlaySwitch, "on"),
     [ENTITY_IDS.dishBefore]: state(ENTITY_IDS.dishBefore, minutesAgo(390), { entity_picture: "./dish-before.svg" }),
     [ENTITY_IDS.dishAfter]: state(ENTITY_IDS.dishAfter, minutesAgo(390), { entity_picture: "./dish-after.svg" }),
     [ENTITY_IDS.pendingFace]: state(ENTITY_IDS.pendingFace, minutesAgo(6), { status: "pending" })
@@ -13997,6 +14148,7 @@ function buildDispensing() {
     [ENTITY_IDS.lastDetectionImage]: state(ENTITY_IDS.lastDetectionImage, minutesAgo(1), {
       entity_picture: "./camera-frame.svg"
     }),
+    [ENTITY_IDS.detectionOverlaySwitch]: state(ENTITY_IDS.detectionOverlaySwitch, "on"),
     [ENTITY_IDS.dishBefore]: state(ENTITY_IDS.dishBefore, minutesAgo(1), { entity_picture: "./dish-before.svg" }),
     [ENTITY_IDS.dishAfter]: state(ENTITY_IDS.dishAfter, minutesAgo(1), { entity_picture: "./dish-after.svg" }),
     [ENTITY_IDS.pendingFace]: state(ENTITY_IDS.pendingFace, minutesAgo(1), { status: "pending" }),
@@ -14026,6 +14178,7 @@ function buildUnreachable() {
     [ENTITY_IDS.lastDetection]: state(ENTITY_IDS.lastDetection, "unavailable", {}),
     [ENTITY_IDS.detectionsToday]: state(ENTITY_IDS.detectionsToday, "unavailable", {}),
     [ENTITY_IDS.lastDetectionImage]: state(ENTITY_IDS.lastDetectionImage, "unavailable", {}),
+    [ENTITY_IDS.detectionOverlaySwitch]: state(ENTITY_IDS.detectionOverlaySwitch, "unavailable", {}),
     [ENTITY_IDS.dishBefore]: state(ENTITY_IDS.dishBefore, "unavailable", {}),
     [ENTITY_IDS.dishAfter]: state(ENTITY_IDS.dishAfter, "unavailable", {}),
     [ENTITY_IDS.pendingFace]: state(ENTITY_IDS.pendingFace, "unavailable", {})
@@ -14237,6 +14390,24 @@ function createMockHass(scenario, onChange) {
       }
       if (type === "kibble/cats") {
         return { cats: cats.map((cat) => ({ ...cat })) };
+      }
+      if (type === "kibble/vision/last") {
+        return {
+          frame: {
+            at_ms: Date.now(),
+            wall_unix: Math.floor(Date.now() / 1e3),
+            w: 1280,
+            h: 720,
+            detections: [
+              { x1: 0.0875, y1: 0, x2: 0.6586, y2: 0.5014, score: 0.968, admitted: true },
+              { x1: 0.78, y1: 0.62, x2: 0.97, y2: 0.95, score: 0.41, admitted: false }
+            ],
+            verified: true,
+            cat: "Pancake",
+            cat_score: 0.71,
+            overlay: true
+          }
+        };
       }
       if (type === "kibble/cats/delete") {
         const name = msg.name;

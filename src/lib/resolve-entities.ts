@@ -47,6 +47,10 @@ export interface KibbleEntities {
   lastDetection?: string;
   detectionsToday?: string;
   lastDetectionImage?: string;
+  /** `switch.<feeder>_detection_overlay`: draws the feeder's own live detection boxes over the
+   * hero's video, gating both the overlay itself and `kibble-live-hero`'s poll of
+   * `kibble/vision/last` -- off (or missing, e.g. the vendor stack) means neither happens. */
+  detectionOverlaySwitch?: string;
   // The image whose `image_last_updated` timestamp changes on every pending-queue mutation
   // (advances to a new crop, or the current one's status flips once labelled) -- the training
   // inbox and the cats-card watch this to know when to re-read `kibble/faces/pending`, since
@@ -92,6 +96,7 @@ const RULES: Record<RuleRole, RoleRule> = {
   lastDetection: { domain: "sensor", translationKeys: ["last_detection"], idSuffixes: ["_last_detection"] },
   detectionsToday: { domain: "sensor", translationKeys: ["detections_today"], idSuffixes: ["_detections_today"] },
   lastDetectionImage: { domain: "image", translationKeys: ["last_detection"], idSuffixes: ["_last_detection"] },
+  detectionOverlaySwitch: { domain: "switch", translationKeys: ["detection_overlay"], idSuffixes: ["_detection_overlay"] },
   pendingFace: { domain: "image", translationKeys: ["pending_face"], idSuffixes: ["_pending_face"] },
 };
 

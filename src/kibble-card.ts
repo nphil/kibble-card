@@ -21,6 +21,7 @@ import "./components/kibble-segmented-picker";
 import "./components/kibble-stepper";
 import "./components/kibble-hold-button";
 import "./components/kibble-schedule-summary";
+import "./components/kibble-calibration-dialog";
 import "./components/kibble-settings-dialog";
 import "./components/kibble-avatar";
 import "./components/kibble-live-hero";
@@ -90,6 +91,14 @@ export class KibbleCard extends LitElement {
   // it bumps this generation counter itself (`_onCalibrationChanged`) instead of a watch key.
   private _calibrationQuery = new WsQuery<CalibrationState>(() => this.requestUpdate());
   private _calibrationGeneration = 0;
+  /** The calibration wizard, opened from the card itself rather than from the settings panel.
+   *
+   * It lives here as well as inside `kibble-settings-dialog` because a dashboard that sets
+   * `settings_hash` never opens that panel at all: the gear navigates to the operator's own
+   * Bubble Card pop-up instead, and the wizard inside the card's panel is then unreachable --
+   * which is exactly what happened on the real dashboard (2026-09-19). A pop-up row can now
+   * fire `kibble: "calibrate"` the same way its feed rows already fire `kibble: "feed"`. */
+  private _calibrationOpen = false;
 
   constructor() {
     super();
@@ -122,6 +131,9 @@ export class KibbleCard extends LitElement {
 
   connectedCallback(): void {
     super.connectedCallback();
+    window.addEventListener("hashchange", this._onHashChange);
+    window.addEventListener("location-changed", this._onHashChange);
+    this._onHashChange();
     this._resizeObserver = new ResizeObserver((entries) => {
       const rect = entries[0]?.contentRect;
       const height = rect?.height ?? this.getBoundingClientRect().height;
@@ -133,6 +145,8 @@ export class KibbleCard extends LitElement {
   }
 
   disconnectedCallback(): void {
+    window.removeEventListener("hashchange", this._onHashChange);
+    window.removeEventListener("location-changed", this._onHashChange);
     super.disconnectedCallback();
     this._resizeObserver?.disconnect();
   }
@@ -273,6 +287,13 @@ export class KibbleCard extends LitElement {
         @close-requested=${this._closeSettings}
         @calibration-changed=${this._onCalibrationChanged}
       ></kibble-settings-dialog>
+      <kibble-calibration-dialog
+        .hass=${this.hass}
+        .entryId=${this._entryId}
+        ?open=${this._calibrationOpen}
+        @close-requested=${this._closeCalibration}
+        @calibration-changed=${this._onCalibrationChanged}
+      ></kibble-calibration-dialog>
     `;
   }
 
@@ -406,6 +427,8 @@ export class KibbleCard extends LitElement {
       this._onFeedActivate();
     } else if (action.kibble === "cancel") {
       this._onCancelActivate();
+    } else if (action.kibble === "calibrate") {
+      this._calibrationOpen = true;
     }
   };
 
@@ -443,6 +466,28 @@ export class KibbleCard extends LitElement {
 
   private _closeSettings = (): void => {
     this._settingsOpen = false;
+  };
+
+  /** Opens the wizard when the dashboard navigates to `calibrate_hash` (default
+   * `#calibrate`).
+   *
+   * A hash, not a `fire-dom-event` row, because the operator's settings pop-up is a Bubble
+   * Card that lives OUTSIDE this element: its rows cannot reach the `hass-action` listener on
+   * the card's own controls, so the existing `kibble:` action mechanism is unavailable to
+   * them. A hash crosses that boundary, and it is the same mechanism `settings_hash` already
+   * uses to send the gear the other way. */
+  private _onHashChange = (): void => {
+    const hash = this._config?.calibrate_hash ?? "#calibrate";
+    if (window.location.hash === hash) {
+      this._calibrationOpen = true;
+    }
+  };
+
+  private _closeCalibration = (event: Event): void => {
+    // Stopped here for the same reason the settings panel stops it: both dialogs use the
+    // `close-requested` name, and letting it bubble past would close whatever else is open.
+    event.stopPropagation();
+    this._calibrationOpen = false;
   };
 
   /** The wizard just changed a hopper's curve (or discarded/cleared one) -- bump the sync key

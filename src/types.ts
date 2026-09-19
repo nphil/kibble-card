@@ -61,6 +61,11 @@ export interface KibbleCardConfig {
   // Optional Bubble Card pop-up hash for the gear: unset (the HACS default) opens the in-card
   // settings dialog; set, the gear navigates to that dashboard pop-up instead.
   settings_hash?: string;
+  /** Hash that opens the bowl-calibration wizard, default `#calibrate`. Needed when the
+   * dashboard's settings live in an external pop-up (a Bubble Card, say) rather than in this
+   * card's own settings panel: the wizard is inside this element, and a hash is the only
+   * handle a card outside it has on it. */
+  calibrate_hash?: string;
   // Set when the dashboard has its own schedule surface (a `#schedule` pop-up, a schedule
   // section): the hero then omits its "Next feed" line entirely instead of duplicating it.
   // Unset, the line expands in place with the embedded schedule editor.

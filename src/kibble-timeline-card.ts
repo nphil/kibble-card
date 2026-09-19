@@ -246,7 +246,9 @@ export class KibbleTimelineCard extends LitElement {
       <div class="row row-feed">
         <span class="time">${time}</span>
         <span class="row-text feed-text">
-          ${summary.headline}${summary.scheduled ? html` <span class="quiet">(scheduled)</span>` : nothing}
+          ${summary.headline}${summary.scheduled ? html` <span class="quiet">(scheduled)</span>` : nothing}${summary.unconfirmed
+            ? html` <span class="quiet" title="The feeder dispensed, but its controller never confirmed the amount -- this is the amount that was requested.">(unconfirmed)</span>`
+            : nothing}
         </span>
         ${pair
           ? html`<kibble-before-after class="feed-compare" .beforeSrc=${beforeUrl} .afterSrc=${afterUrl} aspect="1.8"></kibble-before-after>`

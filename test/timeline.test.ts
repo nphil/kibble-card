@@ -63,8 +63,14 @@ describe("filterVisits", () => {
 
 describe("feedSummary", () => {
   test("names the amount and pluralizes portions", () => {
-    expect(feedSummary({ amount: 5, hopper: "both", manual: true })).toEqual({ headline: "Fed 5 portions", scheduled: false });
-    expect(feedSummary({ amount: 1, hopper: "both", manual: true })).toEqual({ headline: "Fed 1 portion", scheduled: false });
+    expect(feedSummary({ amount: 5, hopper: "both", manual: true })).toEqual({ headline: "Fed 5 portions", scheduled: false, unconfirmed: false });
+    expect(feedSummary({ amount: 1, hopper: "both", manual: true })).toEqual({ headline: "Fed 1 portion", scheduled: false, unconfirmed: false });
+  });
+
+  test("flags a dispense the feeder never confirmed, and treats a missing flag as confirmed", () => {
+    expect(feedSummary({ amount: 2, hopper: "1", manual: true, confirmed: false }).unconfirmed).toBe(true);
+    expect(feedSummary({ amount: 2, hopper: "1", manual: true, confirmed: true }).unconfirmed).toBe(false);
+    expect(feedSummary({ amount: 2, hopper: "1", manual: true }).unconfirmed).toBe(false);
   });
 
   test("names the hopper only when it isn't both", () => {

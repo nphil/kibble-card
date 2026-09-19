@@ -84,14 +84,20 @@ export interface FeedSummary {
    * secondary tag alongside `headline` rather than folding it into the same sentence, so it
    * reads as a subtle detail rather than a competing headline. */
   scheduled: boolean;
+  /** True when the feeder's MCU never confirmed the dispense (`confirmed: false`): the food
+   * went out, but the amount in `headline` is what was asked for rather than what the
+   * hardware measured. Rendered as a quiet tag next to `scheduled`, for the same reason --
+   * the row is real, one number on it is second-hand. */
+  unconfirmed: boolean;
 }
 
-export function feedSummary(item: Pick<TimelineFeedItem, "amount" | "hopper" | "manual">): FeedSummary {
+export function feedSummary(item: Pick<TimelineFeedItem, "amount" | "hopper" | "manual" | "confirmed">): FeedSummary {
   const scheduled = !item.manual;
-  if (item.amount == null) return { headline: "Fed", scheduled };
+  const unconfirmed = item.confirmed === false;
+  if (item.amount == null) return { headline: "Fed", scheduled, unconfirmed };
   const portionWord = item.amount === 1 ? "portion" : "portions";
   const hopperClause = item.hopper && item.hopper !== "both" ? ` from hopper ${item.hopper}` : "";
-  return { headline: `Fed ${item.amount} ${portionWord}${hopperClause}`, scheduled };
+  return { headline: `Fed ${item.amount} ${portionWord}${hopperClause}`, scheduled, unconfirmed };
 }
 
 export interface TimelineDay {

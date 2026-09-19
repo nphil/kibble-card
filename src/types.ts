@@ -160,6 +160,10 @@ export interface TimelineFeedItem {
   /** Bare filenames under the HTTP image view's `feed` kind. */
   before: string | null;
   after: string | null;
+  /** `false` when the feeder dispensed but its MCU never returned a completed record: the
+   * food went out, but `amount` is what was commanded rather than what the hardware
+   * measured. Absent on rows from an older agent, which are all confirmed. */
+  confirmed?: boolean;
 }
 
 export type TimelineItem = TimelineIdentifiedItem | TimelineVisitItem | TimelineEatItem | TimelineFeedItem;

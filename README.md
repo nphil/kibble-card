@@ -21,8 +21,8 @@ of optional fields. Container queries drive the responsive behavior, never viewp
    ```yaml
    type: custom:kibble-card
    device_id: <your Kibble device>
-   # scrypted_id: "238"           # optional: Scrypted device id of the feeder camera — turns the
-   #                              # hero into a live WebRTC stream with hold-to-talk (see below)
+   # scrypted_id: "238"           # optional: Scrypted device id of the feeder camera — upgrades
+   #                              # the already-live hero to low-latency WebRTC with hold-to-talk
    # name: Plant room             # optional label shown on the camera
    # settings_hash: "#settings"   # optional: gear opens this Bubble Card pop-up instead of the in-card dialog
    # schedule_hash: "#schedule"   # optional: dashboard owns the schedule; hides the "Next feed" line
@@ -46,10 +46,17 @@ of optional fields. Container queries drive the responsive behavior, never viewp
    Or use each card's visual editor — the required field is always just the device picker. Every
    entity id is resolved from the device at render time; you never type one.
 
-### Live view and two-way audio (optional)
+### Live view and two-way audio
 
-Set `scrypted_id` and the hero gains a **Live** button: a low-latency WebRTC stream, a speaker
-toggle, and **hold-to-talk** straight to the feeder. Requirements:
+The hero shows a **Live** button as soon as the Kibble device has a camera entity, which the
+integration creates automatically for a reachable feeder — no extra setup, unlike below. That
+baseline video comes through Home Assistant's own `<ha-camera-stream>` (the same element the
+built-in Picture Glance/Picture Entity cards use for `camera_view: live`), whichever of
+HLS/WebRTC HA's `stream` integration negotiates.
+
+Set `scrypted_id` on top of that and the hero upgrades to Scrypted's own low-latency WebRTC feed
+plus **hold-to-talk** straight to the feeder — an optimisation this card takes when it's there,
+never a requirement for live video itself. Requirements for the upgrade:
 
 - [Scrypted](https://scrypted.app) with the feeder camera added, the
   [Kibble Scrypted plugin](https://github.com/nphil/kibble/tree/main/scrypted-plugin) attached to
@@ -62,9 +69,13 @@ toggle, and **hold-to-talk** straight to the feeder. Requirements:
 - `scrypted_id` is the camera's Scrypted device id (the number in its Scrypted URL, also shown as
   the "Scrypted NVR Card id").
 
-Video and audio both come from Scrypted, which already holds the feeder's one persistent stream —
-the card never opens a second connection to the feeder itself. Talk is press-and-hold (pointer,
-touch or keyboard) so the feeder's speaker session lasts exactly as long as the button is held.
+With Scrypted configured and reachable, video and audio both come from it, which already holds
+the feeder's one persistent stream — the card never opens a second connection to the feeder
+itself. Talk is press-and-hold (pointer, touch or keyboard) so the feeder's speaker session lasts
+exactly as long as the button is held. Without Scrypted (not configured, or its proxy token not
+currently available), the hero falls back to the HA camera stream above automatically: the mute
+toggle still works, but there is no talk button, since HA's own camera stream has no return-audio
+channel to offer.
 
 ## What it looks like
 

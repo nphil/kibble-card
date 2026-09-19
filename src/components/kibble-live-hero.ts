@@ -1,37 +1,55 @@
-/** The card's hero: a still snapshot by default, a real low-latency WebRTC stream plus
- * push-to-talk once tapped.
+/** The card's hero: a still snapshot by default, real low-latency video plus push-to-talk once
+ * tapped -- Scrypted's own WebRTC when it's configured and reachable, HA's own camera stream
+ * when it isn't.
  *
- * Everything audio/video comes from Scrypted (one source of truth for the feeder's streams): the
- * WebRTC session is negotiated through the HA Scrypted integration's authenticated proxy, so the
- * feeder itself is never opened a second time and the mic path is Scrypted's own intercom — the
- * same one HomeKit uses. `lib/scrypted-live.ts` owns the protocol; this component owns the UI:
+ * Two video transports, one UI, one decision (`lib/video-source.ts`'s `pickVideoSource`). When
+ * the card's `scrypted_id` is configured AND the HA Scrypted integration is actually reporting a
+ * live proxy token (`findScryptedToken`), video comes through Scrypted's own WebRTC negotiation
+ * (`lib/scrypted-live.ts`) -- one source of truth for the feeder's streams, the same intercom
+ * HomeKit uses, the feeder never opened a second time. Otherwise, as long as the integration
+ * exposes a camera entity, video comes from HA's own `<ha-camera-stream>` (the element the stock
+ * Picture Glance/Picture Entity cards use for `camera_view: live`) bound straight to that entity
+ * -- HLS or WebRTC, whichever HA's `stream` integration negotiates, no Scrypted required at all.
+ * Scrypted is an optimisation this card takes when it can, exactly like the integration's own
+ * camera entity treats it (`custom_components/kibble/camera.py`'s module docstring) -- never a
+ * dependency of either.
  *
  * - Idle: HA's `hui-image` snapshot, a "Live" affordance, no network cost beyond the snapshot.
- * - Playing: the video element, muted by default (browsers refuse autoplay with sound) with a
- *   speaker toggle, and a hold-to-talk mic button when Scrypted reports the camera has Intercom.
+ * - Playing: the video layer (Scrypted's `<video>`, or HA's `<ha-camera-stream>`), muted by
+ *   default (browsers refuse autoplay with sound) with a speaker toggle, and -- Scrypted only --
+ *   a hold-to-talk mic button when Scrypted reports the camera has Intercom. HA's own camera
+ *   stream has no talkback channel to offer, so the fallback path never renders that button
+ *   rather than rendering one that would just sit there broken.
  * - Tapping the picture expands it: the SAME frame (still, video, controls) becomes a
- *   full-viewport overlay -- the video element is never re-created, so the WebRTC session and
- *   its decoder just carry on at the bigger size -- with a close chip and a fullscreen chip
- *   (the Fullscreen API on the frame; iOS Safari only allows fullscreen on the video element
- *   itself, so that path is used there). Esc, the backdrop and leaving fullscreen all close.
+ *   full-viewport overlay -- the video layer is never re-created, so whichever transport is live
+ *   just carries on at the bigger size -- with a close chip and a fullscreen chip (the
+ *   Fullscreen API on the frame; iOS Safari only allows fullscreen on a `<video>` element itself,
+ *   which is why `_toggleFullscreen` falls back to Scrypted's own `<video>` there -- `ha-camera-
+ *   stream`'s players sit two shadow roots down with no equivalent element to reach for, so that
+ *   one shim is Scrypted-only).
  * - Talk is press-and-hold on purpose (pointer/touch/keyboard all supported): the feeder's
  *   speaker session lasts exactly as long as the button is held, which is also what keeps it from
  *   colliding with the Petkit app's own talkback.
  *
- * Robustness: a WebRTC session can go quiet without Scrypted ever telling us (a Wi-Fi hiccup, a
- * throttled background tab, Scrypted itself restarting) so three independent signals all feed
- * the same reconnect path (`_beginReconnect`): the peer connection reporting
+ * Robustness, Scrypted only: a WebRTC session can go quiet without Scrypted ever telling us (a
+ * Wi-Fi hiccup, a throttled background tab, Scrypted itself restarting) so three independent
+ * signals all feed the same reconnect path (`_beginReconnect`): the peer connection reporting
  * disconnected/failed/closed (`ScryptedLive`'s own `state === "error"`), the `<video>` going
  * `STALL_MS` without a `timeupdate`, and coming back from a hidden tab to find either. While
  * reconnecting the video is torn down so the still snapshot underneath shows through, with a
  * small icon-only badge -- never a wall of retry text over a picture of the room. A tab hidden
  * past `HIDDEN_PAUSE_MS` stops the stream outright (no point decoding video nobody can see) and
- * restarts fresh, backoff reset, on the next visible tick.
+ * restarts fresh, backoff reset, on the next visible tick. None of this runs against the
+ * HA-camera fallback: `<ha-camera-stream>`'s own players (`ha-hls-player`/`ha-web-rtc-player`)
+ * already reconnect and pause-on-hidden themselves, so every one of these signals checks
+ * `_videoSource()` first -- running them against the wrong transport would fight a session that
+ * was never opened, or loop `_start()` forever against a `scryptedId` that was never configured.
  */
 
 import { LitElement, css, html, nothing } from "lit";
 import type { HomeAssistant, VisionDetection, VisionFrame } from "../types";
 import { ScryptedLive, findScryptedToken } from "../lib/scrypted-live";
+import { pickVideoSource, type VideoSource } from "../lib/video-source";
 import { mdiIcon } from "../lib/mdi-icons";
 import { RECONNECT_BASE_MS, nextReconnectDelay } from "../lib/reconnect";
 import { WsQuery } from "../lib/ws-query";
@@ -94,6 +112,10 @@ export class KibbleLiveHero extends LitElement {
   declare entryId: string | undefined;
   /** `switch.<feeder>_detection_overlay`'s entity id; off or missing means no overlay, ever. */
   declare overlayEntity: string | undefined;
+  /** Live video is actually showing, whichever transport is providing it -- Scrypted's `<video>`
+   * or HA's own `<ha-camera-stream>`. Gates the mute button, the detection overlay, and vision
+   * polling identically either way; only the Scrypted-specific reconnect/stall/hidden-pause
+   * logic additionally checks `_videoSource()` before acting on it. */
   declare private _playing: boolean;
   declare private _talking: boolean;
   declare private _muted: boolean;
@@ -141,27 +163,49 @@ export class KibbleLiveHero extends LitElement {
     this._stop();
   }
 
-  /** The stream starts on its own as soon as the card knows where to get it; the still stays
-   * underneath until the first frame paints, so the hand-over is seamless. A session that turns
-   * out to be dead (peer connection disconnected/failed/closed) reroutes through the same
-   * reconnect path a stall does, instead of leaving a frozen or blank video up forever. */
+  /** Which transport (if any) currently has what it needs to show live video -- computed fresh
+   * from the current props on every call rather than cached, since it must never drift from
+   * `hass`/`scryptedId`/`cameraEntity` for even one render or one reconnect-timer tick. */
+  private _videoSource(): VideoSource {
+    if (!this.hass) return { kind: "none" };
+    return pickVideoSource(this.scryptedId, findScryptedToken(this.hass), this.cameraEntity);
+  }
+
+  /** The stream starts on its own as soon as the card knows where to get it, whichever transport
+   * that is; the still stays underneath until the first frame paints, so the hand-over is
+   * seamless either way. Only Scrypted needs an explicit start/stop dance here: a session that
+   * turns out to be dead (peer connection disconnected/failed/closed) reroutes through the same
+   * reconnect path a stall does, instead of leaving a frozen or blank video up forever.
+   * `<ha-camera-stream>` is simply handed to `render()` and manages its own connect/reconnect
+   * lifecycle, so this method's only job for that path is to flip `_playing` to match whether
+   * there is a camera entity to show -- tearing down a still-live (or still-reconnecting)
+   * Scrypted session first if the source just switched away from it, so the two transports can
+   * never both be mid-session at once. */
   updated(): void {
     this._syncVisionPolling();
+    const source = this._videoSource();
+    if (source.kind !== "scrypted") {
+      if (this._playing || this._starting || this._reconnecting || this._hiddenPaused || this._live.state !== "idle") {
+        this._stop();
+      }
+      this._playing = source.kind === "ha-camera";
+      return;
+    }
     if (this._live.state === "error" && this._playing) {
       this._beginReconnect();
       return;
     }
     if (this._playing || this._starting || this._reconnecting || this._hiddenPaused) return;
-    if (!this.hass || !this.scryptedId || !findScryptedToken(this.hass)) return;
     void this._start();
   }
 
   render() {
+    const source = this._videoSource();
     return html`
       ${this._expanded ? html`<div class="backdrop" @click=${this._collapse}></div>` : nothing}
       <div class="frame ${this._expanded ? "expanded" : ""}" id="frame" @click=${this._onFrameClick}>
         ${this._renderStill()}
-        ${this._playing ? this._renderVideo() : nothing}
+        ${this._playing ? this._renderVideo(source) : nothing}
         ${this._playing ? this._renderDetections() : nothing}
         ${this._expanded
           ? html`<div class="topbar">
@@ -171,7 +215,7 @@ export class KibbleLiveHero extends LitElement {
               <button class="chip" aria-label="Close" title="Close" @click=${this._collapse}>${mdiIcon("close")}</button>
             </div>`
           : nothing}
-        ${this._reconnecting
+        ${source.kind === "scrypted" && this._reconnecting
           ? html`<div class="reconnect" role="status" aria-label="Reconnecting to the feeder's camera">${mdiIcon("refresh")}</div>`
           : nothing}
         <div class="controls">
@@ -186,7 +230,7 @@ export class KibbleLiveHero extends LitElement {
                 ${mdiIcon(this._muted ? "volumeOff" : "volumeHigh")}
               </button>`
             : nothing}
-          ${this._playing && this._live.hasIntercom
+          ${this._playing && source.kind === "scrypted" && this._live.hasIntercom
             ? html`<button
                 class="chip talk"
                 aria-pressed=${this._talking}
@@ -198,20 +242,43 @@ export class KibbleLiveHero extends LitElement {
               </button>`
             : nothing}
         </div>
-        ${this._live.state === "error" && !this._reconnecting ? html`<div class="note error">${this._live.error}</div>` : nothing}
+        ${source.kind === "scrypted" && this._live.state === "error" && !this._reconnecting
+          ? html`<div class="note error">${this._live.error}</div>`
+          : nothing}
       </div>
     `;
   }
 
-  private _renderVideo() {
-    return html`<video
-      id="video"
-      autoplay
-      playsinline
-      ?muted=${this._muted}
-      @loadedmetadata=${this._applyMute}
-      @timeupdate=${this._onTimeUpdate}
-    ></video>`;
+  /** The live layer -- Scrypted's own `<video>` (its `srcObject` is wired up imperatively by
+   * `ScryptedLive.open`, not through a template binding) or HA's `<ha-camera-stream>` bound
+   * straight to the camera entity's own state object -- whichever `source` says is active.
+   * `static styles` positions both by tag name into the exact box `<video>` has always had
+   * (`position:absolute;inset:0`), so the detection overlay and the expand/fullscreen chips work
+   * unchanged either way. No `id="video"` on the HA element: `_applyMute` and
+   * `_toggleFullscreen`'s `#video` lookups assume a real `<video>` (to set `.muted`/call
+   * `.play()`/`.webkitEnterFullscreen()`), true only for Scrypted's element -- giving
+   * `<ha-camera-stream>` the same id would hand those two a wrong-shaped element instead of the
+   * clean miss they already handle. */
+  private _renderVideo(source: VideoSource) {
+    if (source.kind === "scrypted") {
+      return html`<video
+        id="video"
+        autoplay
+        playsinline
+        ?muted=${this._muted}
+        @loadedmetadata=${this._applyMute}
+        @timeupdate=${this._onTimeUpdate}
+      ></video>`;
+    }
+    if (source.kind === "ha-camera" && customElements.get("ha-camera-stream")) {
+      return html`<ha-camera-stream
+        .hass=${this.hass}
+        .stateObj=${this.hass.states[source.entityId]}
+        .fitMode=${this._expanded ? "contain" : "cover"}
+        .muted=${this._muted}
+      ></ha-camera-stream>`;
+    }
+    return nothing;
   }
 
   private _renderStill() {
@@ -310,8 +377,12 @@ export class KibbleLiveHero extends LitElement {
 
   /** Runs on a fixed interval the whole time the element is connected -- cheaper and simpler
    * than starting/stopping a timer around every play/reconnect transition, and the playing/
-   * reconnecting guards make it a no-op the rest of the time. */
+   * reconnecting guards make it a no-op the rest of the time. Scrypted-only: `_lastProgress` is
+   * only ever advanced by Scrypted's `<video>`'s `timeupdate` (`_onTimeUpdate`), so judging
+   * staleness against it while the HA-camera fallback is active would just be judging silence
+   * nothing ever promised to break -- `<ha-camera-stream>`'s own players watch themselves. */
   private _checkStall = (): void => {
+    if (this._videoSource().kind !== "scrypted") return;
     // A hidden tab throttles media and timers alike; its silence is not a dead stream. The
     // visibility handler re-checks freshness the moment the tab is seen again.
     if (!this._playing || this._reconnecting || document.hidden) return;
@@ -359,7 +430,12 @@ export class KibbleLiveHero extends LitElement {
     this._visionQuery = new WsQuery(() => this.requestUpdate());
   }
 
+  /** Scrypted-only: `ha-hls-player`/`ha-web-rtc-player` (inside `<ha-camera-stream>`) already
+   * listen for this same event and pause/resume themselves, so running this logic against the
+   * HA-camera fallback too would either fight them or, worse, tear the element down and rebuild
+   * it on every hidden spell for no reason. */
   private _onVisibilityChange = (): void => {
+    if (this._videoSource().kind !== "scrypted") return;
     if (document.hidden) {
       clearTimeout(this._hiddenTimer);
       this._hiddenTimer = setTimeout(this._pauseForHidden, HIDDEN_PAUSE_MS) as unknown as number;
@@ -383,6 +459,9 @@ export class KibbleLiveHero extends LitElement {
    * the feeder's own bandwidth. `_onVisibilityChange` restarts it, backoff reset, once visible. */
   private _pauseForHidden = (): void => {
     this._hiddenTimer = undefined;
+    // Guards a narrow race: the source can switch away from Scrypted while this timer, armed
+    // for Scrypted, is still pending.
+    if (this._videoSource().kind !== "scrypted") return;
     if (!this._playing && !this._reconnecting) return;
     this._hiddenPaused = true;
     this._reconnecting = false;
@@ -471,9 +550,12 @@ export class KibbleLiveHero extends LitElement {
     this._fullscreen = inner !== null || onHostChain;
   };
 
+  /** Scrypted's raw `<video>` needs the imperative re-kick in `_applyMute` (see its own
+   * comment); `<ha-camera-stream>`'s `.muted` binding in `_renderVideo` is a normal Lit
+   * property, so its own next render already carries the new value with no DOM poke needed. */
   private _toggleMute = (): void => {
     this._muted = !this._muted;
-    this._applyMute();
+    if (this._videoSource().kind === "scrypted") this._applyMute();
   };
 
   /** The `muted` attribute alone is unreliable once the element already has a stream, so the
@@ -538,13 +620,15 @@ export class KibbleLiveHero extends LitElement {
     }
     video,
     img,
-    hui-image {
+    hui-image,
+    ha-camera-stream {
       display: block;
       width: 100%;
       height: 100%;
-      object-fit: cover;
+      object-fit: cover; /* ha-camera-stream ignores this on its own host; see .fitMode in _renderVideo */
     }
-    video {
+    video,
+    ha-camera-stream {
       position: absolute;
       inset: 0;
     }

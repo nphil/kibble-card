@@ -24,7 +24,7 @@ const SCHEMA: SchemaField[] = [
 const FIELD_LABELS: Record<string, string> = {
   device_id: "Kibble device",
   name: "Name (optional)",
-  scrypted_id: "Scrypted camera id (live view + talk)",
+  scrypted_id: "Scrypted camera id (optional — adds low-latency video + talk)",
   settings_hash: "Settings pop-up hash (optional)",
   schedule_hash: "Schedule handled by dashboard (optional hash)",
 };

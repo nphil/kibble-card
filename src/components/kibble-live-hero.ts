@@ -226,13 +226,20 @@ export class KibbleLiveHero extends LitElement {
   }
 
   /** The feeder's own detection boxes for the frame it most recently analysed. `admitted`
-   * boxes get the accent treatment; everything else (clutter memory's furniture) is drawn
-   * quieter, never omitted -- that is the whole point of shipping them. The identified cat's
+   * boxes get the accent treatment; the ones its clutter memory rejected are drawn quieter --
+   * and only when the feeder's own `overlay_suppressed` flag says to. They are how "the feeder
+   * is ignoring the cat" becomes visible rather than looking like an empty room, but a busy
+   * room emits several of them on every frame forever, so they are opt-in (the "Overlay
+   * ignored detections" switch) instead of permanent dashboard furniture. The identified cat's
    * name labels whichever admitted box is largest. */
   private _renderDetections() {
     const frame = this._visionQuery.state.data?.frame;
-    const detections = frame?.detections;
-    if (!this._overlayOn() || !detections || detections.length === 0) return nothing;
+    if (!this._overlayOn() || !frame?.detections) return nothing;
+    // `overlay_suppressed` absent (a daemon predating the switch) keeps the old behaviour of
+    // drawing everything, rather than silently hiding detections it cannot ask about.
+    const showIgnored = frame.overlay_suppressed ?? true;
+    const detections = frame.detections.filter((d) => d.admitted || showIgnored);
+    if (detections.length === 0) return nothing;
     const cat = frame.cat;
     const labelBox = cat ? largestAdmittedDetection(detections) : null;
     return html`

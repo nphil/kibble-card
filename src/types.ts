@@ -256,4 +256,7 @@ export interface VisionFrame {
   cat_score?: number | null;
   /** Echoes the daemon's own `detection_overlay` config flag. */
   overlay?: boolean;
+  /** Echoes `detection_overlay_ignored`: whether to draw the `admitted: false` boxes, which the
+   * daemon always sends regardless so `/vision/last` stays a complete diagnostic. */
+  overlay_suppressed?: boolean;
 }

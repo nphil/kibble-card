@@ -1077,10 +1077,10 @@ ${t.peerName}:${t.selfName}`)}};Le.RPCResultError=fe;try{let i=FinalizationRegis
       ?muted=${this._muted}
       @loadedmetadata=${this._applyMute}
       @timeupdate=${this._onTimeUpdate}
-    ></video>`}_renderStill(){if(!this.cameraEntity)return d`<div class="placeholder">No camera on this device</div>`;if(customElements.get("hui-image"))return d`<hui-image .hass=${this.hass} .cameraImage=${this.cameraEntity} cameraView="auto"></hui-image>`;let e=this.hass.states[this.cameraEntity]?.attributes.entity_picture;return typeof e=="string"?d`<img src=${e} alt="The feeder's camera" />`:d`<div class="placeholder">Camera unavailable</div>`}_renderDetections(){let e=this._visionQuery.state.data?.frame,r=e?.detections;if(!this._overlayOn()||!r||r.length===0)return h;let s=e.cat,n=s?Ra(r):null;return d`
+    ></video>`}_renderStill(){if(!this.cameraEntity)return d`<div class="placeholder">No camera on this device</div>`;if(customElements.get("hui-image"))return d`<hui-image .hass=${this.hass} .cameraImage=${this.cameraEntity} cameraView="auto"></hui-image>`;let e=this.hass.states[this.cameraEntity]?.attributes.entity_picture;return typeof e=="string"?d`<img src=${e} alt="The feeder's camera" />`:d`<div class="placeholder">Camera unavailable</div>`}_renderDetections(){let e=this._visionQuery.state.data?.frame;if(!this._overlayOn()||!e?.detections)return h;let r=e.overlay_suppressed??!0,s=e.detections.filter(a=>a.admitted||r);if(s.length===0)return h;let n=e.cat,o=n?Ra(s):null;return d`
       <div class="detections" aria-hidden="true">
-        ${r.map(o=>this._renderDetectionBox(o))}
-        ${n&&s?this._renderCatLabel(n,s,e.cat_score??null):h}
+        ${s.map(a=>this._renderDetectionBox(a))}
+        ${o&&n?this._renderCatLabel(o,n,e.cat_score??null):h}
       </div>
     `}_renderDetectionBox(e){let r=Ls(e),s=`left:${r.left};top:${r.top};width:${r.width};height:${r.height};`;return d`<div class="det-box ${e.admitted?"":"quiet"}" style=${s}></div>`}_renderCatLabel(e,r,s){let n=Ls(e);return d`<div class="det-label ${La(e)?"flip":""}" style="left:${n.left};top:${n.top};">
       ${Ma(r,s)}

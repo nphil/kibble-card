@@ -38,6 +38,8 @@ export class KibbleHoldButton extends LitElement {
   /** The bright leading edge, animated alongside the fill and in the same timing so the two
    * never drift apart mid-sweep. */
   private _edgeAnimation: Animation | null = null;
+  /** Set when the platform has no `Element.animate`; drives the CSS-transition fallback. */
+  private _noWaapi = false;
 
   constructor() {
     super();
@@ -56,7 +58,7 @@ export class KibbleHoldButton extends LitElement {
     return html`
       <button
         type="button"
-        class="button ${this.variant} ${this._holding ? "holding" : ""}"
+        class="button ${this.variant} ${this._holding ? "holding" : ""} ${this._noWaapi ? "css-fallback" : ""}"
         ?disabled=${this.disabled}
         style=${this.variant === "feed" ? `--hold-ms: ${this.holdMs}ms` : ""}
         @pointerdown=${this.variant === "feed" ? this._startHold : undefined}
@@ -65,7 +67,7 @@ export class KibbleHoldButton extends LitElement {
         @pointercancel=${this.variant === "feed" ? this._cancelHold : undefined}
         @click=${this.variant === "cancel" ? this._tapActivate : undefined}
       >
-        ${this.variant === "feed" ? html`<span class="fill"><span class="edge"></span></span>` : ""}
+        ${this.variant === "feed" ? html`<span class="fill"></span><span class="edge"></span>` : ""}
         <span class="label">${this.label}</span>
       </button>
     `;
@@ -86,20 +88,31 @@ export class KibbleHoldButton extends LitElement {
     const edge = this.renderRoot?.querySelector?.(".edge") as HTMLElement | null;
     this._fillAnimation?.cancel();
     this._edgeAnimation?.cancel();
+    // A browser without the Web Animations API (or one that refuses a property) would
+    // otherwise show nothing at all while the hold ran -- the button would look dead for a
+    // second and a half and then simply fire. The CSS class below is a plain transition,
+    // which every engine that can render this card supports.
+    this._noWaapi = !fill?.animate;
     if (fill?.animate) {
-      // The edge travels the button's real width in pixels: a percentage translate would be
-      // a percentage of the 3 px edge itself, which goes nowhere.
-      const width = fill.getBoundingClientRect().width;
+      // `offsetWidth`, not `getBoundingClientRect()`: the latter reports the TRANSFORMED box,
+      // and the fill starts at scaleX(0), so it measured 0 and the guard below skipped the
+      // edge on every hold -- the glow never appeared at all (caught on a touch device,
+      // 2026-09-20). Layout width is what the edge has to travel.
+      const width = fill.offsetWidth;
       if (edge?.animate && width > 0) {
         this._edgeAnimation = edge.animate(
-          [{ transform: "translateX(0)" }, { transform: `translateX(${width}px)` }],
+          [
+            { transform: "translateX(0)", opacity: 0, offset: 0 },
+            { transform: `translateX(${width * 0.05}px)`, opacity: 1, offset: 0.05 },
+            { transform: `translateX(${width}px)`, opacity: 1, offset: 1 },
+          ],
           { duration: this.holdMs, easing: "linear", fill: "forwards" },
         );
       }
       // The bar IS the timer as far as the eye is concerned, so it runs for exactly holdMs
       // and linearly -- an eased progress bar lies about how much longer you must hold.
       this._fillAnimation = fill.animate(
-        [{ clipPath: "inset(0 100% 0 0)" }, { clipPath: "inset(0 0% 0 0)" }],
+        [{ transform: "scaleX(0)" }, { transform: "scaleX(1)" }],
         { duration: this.holdMs, easing: "linear", fill: "forwards" },
       );
     }
@@ -110,15 +123,20 @@ export class KibbleHoldButton extends LitElement {
   private _complete(): void {
     this._holding = false;
     this.requestUpdate();
+    const edge = this.renderRoot?.querySelector?.(".edge") as HTMLElement | null;
     this._edgeAnimation?.cancel();
     this._edgeAnimation = null;
+    if (edge?.animate) {
+      const fade = edge.animate([{ opacity: 1 }, { opacity: 0 }], { duration: SETTLE_MS, easing: "ease-out" });
+      fade.finished.then(() => fade.cancel()).catch(() => {});
+    }
     const fill = this._fill;
     if (fill?.animate) {
       // Full-width and fading, never rewinding: the bar completed, it was not cancelled.
       const settle = fill.animate(
         [
-          { clipPath: "inset(0 0% 0 0)", opacity: 1, filter: "brightness(1)" },
-          { clipPath: "inset(0 0% 0 0)", opacity: 0, filter: "brightness(1.25)" },
+          { transform: "scaleX(1)", opacity: 1 },
+          { transform: "scaleX(1)", opacity: 0 },
         ],
         { duration: SETTLE_MS, easing: "ease-out", fill: "forwards" },
       );
@@ -152,14 +170,24 @@ export class KibbleHoldButton extends LitElement {
     }
     // Retract from wherever the finger let go, quickly -- a released hold should visibly
     // lose its progress, which is the opposite of the completion above.
-    const reached = getComputedStyle(fill).clipPath;
+    // Read where the sweep actually got to, from the matrix the animation is applying.
+    const matrix = new DOMMatrixReadOnly(getComputedStyle(fill).transform);
+    const reached = Number.isFinite(matrix.a) ? matrix.a : 0;
     from?.cancel();
     this._edgeAnimation?.cancel();
     this._edgeAnimation = null;
     const retract = fill.animate(
-      [{ clipPath: reached && reached !== "none" ? reached : "inset(0 0% 0 0)" }, { clipPath: "inset(0 100% 0 0)" }],
+      [{ transform: `scaleX(${reached})` }, { transform: "scaleX(0)" }],
       { duration: RETRACT_MS, easing: "ease-out", fill: "forwards" },
     );
+    const edgeEl = this.renderRoot?.querySelector?.(".edge") as HTMLElement | null;
+    if (edgeEl?.animate) {
+      const back = edgeEl.animate(
+        [{ transform: `translateX(${reached * fill.offsetWidth}px)`, opacity: 1 }, { transform: "translateX(0)", opacity: 0 }],
+        { duration: RETRACT_MS, easing: "ease-out", fill: "forwards" },
+      );
+      back.finished.then(() => back.cancel()).catch(() => {});
+    }
     retract.finished.then(() => retract.cancel()).catch(() => {});
   };
 
@@ -193,6 +221,11 @@ export class KibbleHoldButton extends LitElement {
       touch-action: none;
       user-select: none;
       -webkit-user-select: none;
+      /* Mobile engines paint a translucent grey over a tapped control, which on a touch
+         device sat on top of the fill for the whole 1.5 s hold and dulled the amber to
+         olive. Desktop never shows it, so it survived every check until the owner tried a
+         tablet (2026-09-20). The press state below is this button's own feedback. */
+      -webkit-tap-highlight-color: transparent;
       transition: transform 0.08s ease, box-shadow 0.15s ease;
       box-shadow: 0 1px 2px color-mix(in srgb, var(--kibble-amber-dark) 35%, transparent);
     }
@@ -223,7 +256,8 @@ export class KibbleHoldButton extends LitElement {
     .fill {
       position: absolute;
       inset: 0;
-      clip-path: inset(0 100% 0 0);
+      transform: scaleX(0);
+      transform-origin: left center;
       background: linear-gradient(
         90deg,
         color-mix(in srgb, var(--kibble-amber-dark) 88%, #000) 0%,
@@ -242,8 +276,17 @@ export class KibbleHoldButton extends LitElement {
       bottom: 0;
       width: 3px;
       transform: translateX(0);
+      opacity: 0;
       background: color-mix(in srgb, #fff 70%, var(--kibble-amber));
       box-shadow: 0 0 10px 2px color-mix(in srgb, #fff 45%, var(--kibble-amber));
+    }
+    /* Fallback only: applied when the component could not animate the bar itself. */
+    .button.css-fallback .fill {
+      transition: transform 150ms ease-out;
+    }
+    .button.css-fallback.holding .fill {
+      transform: scaleX(1);
+      transition: transform var(--hold-ms, 1500ms) linear;
     }
     .label {
       position: relative;

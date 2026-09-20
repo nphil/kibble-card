@@ -34,7 +34,9 @@ const CX = 120;
 const RIM_Y = 34;
 const RIM_X = 10;
 const RIM_W = VIEW_W - RIM_X * 2;
-const RIM_H = 18;
+// The rim band. Was 18, which at this scale drew a lip thicker than the bowl's own wall --
+// the eye reads that as a rolled edge on a plastic tub, not the thin rim of a dish.
+const RIM_H = 11;
 const FOOT_Y = 158;
 const FOOT_HALF = 44;
 /** Wall thickness: the interior is the dish silhouette inset by this much, so the bowl reads
@@ -197,8 +199,8 @@ export class KibbleBowl extends LitElement {
         </defs>
         <path class="body" d=${dishPath()} />
         ${this._renderCavity(x0, x1, fraction)}
-        <rect class="cap" x=${RIM_X - 4} y=${RIM_Y - 4} width=${RIM_W + 8} height=${RIM_H} rx="9" />
-        <rect class="cap-highlight" x=${RIM_X + 6} y=${RIM_Y} width=${RIM_W - 12} height="4" rx="2" />
+        <rect class="cap" x=${RIM_X - 3} y=${RIM_Y - 3} width=${RIM_W + 6} height=${RIM_H} rx="5.5" />
+        <rect class="cap-highlight" x=${RIM_X + 6} y=${RIM_Y - 1} width=${RIM_W - 12} height="2.5" rx="1.25" />
         <path class="body-edge" d=${dishPath()} />
         ${this._dropping ? this._renderFallingKibble() : nothing}
       </svg>

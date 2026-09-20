@@ -243,31 +243,30 @@ export class KibbleCard extends LitElement {
               .portions=${feedAmount}
             ></kibble-bowl>
             <div class="feed-controls" @hass-action=${this._onBubbleAction}>
-              ${this._bubble
-                ? html`<div class="portions">
-                      ${this._portionConfigs(feedAmount, status === "unreachable" || feeding).map(
-                        (config) => html`<kibble-bubble-row .hass=${this.hass} .config=${config}></kibble-bubble-row>`,
-                      )}
-                    </div>
-                    <kibble-bubble-row .hass=${this.hass} .config=${this._feedRowConfig(feeding, status === "unreachable")}></kibble-bubble-row>`
-                : html`<kibble-segmented-picker
-                      class="picker-full"
-                      .value=${feedAmount}
-                      ?disabled=${status === "unreachable" || feeding}
-                      @portion-selected=${this._onPortionSelected}
-                    ></kibble-segmented-picker>
-                    <kibble-stepper
-                      class="picker-compact"
-                      .value=${feedAmount}
-                      ?disabled=${status === "unreachable" || feeding}
-                      @value-selected=${this._onPortionSelected}
-                    ></kibble-stepper>
-                    <kibble-hold-button
-                      .label=${feeding ? "Cancel" : "Hold to feed"}
-                      .variant=${feeding ? "cancel" : "feed"}
-                      ?disabled=${status === "unreachable"}
-                      @activate=${feeding ? this._onCancelActivate : this._onFeedActivate}
-                    ></kibble-hold-button>`}
+              <!-- Always this card's own controls, never a Bubble Card row.
+                   Delegating the feed action to Bubble looked native on a Bubble dashboard
+                   and behaved badly everywhere it mattered: no hold animation (Bubble has
+                   none to drive), and on Android a long press raised the OS text-selection
+                   magnifier because that row suppresses neither selection nor the callout.
+                   A press-and-hold control has to own its own pointer handling. -->
+              <kibble-segmented-picker
+                class="picker-full"
+                .value=${feedAmount}
+                ?disabled=${status === "unreachable" || feeding}
+                @portion-selected=${this._onPortionSelected}
+              ></kibble-segmented-picker>
+              <kibble-stepper
+                class="picker-compact"
+                .value=${feedAmount}
+                ?disabled=${status === "unreachable" || feeding}
+                @value-selected=${this._onPortionSelected}
+              ></kibble-stepper>
+              <kibble-hold-button
+                .label=${feeding ? "Cancel" : "Hold to feed"}
+                .variant=${feeding ? "cancel" : "feed"}
+                ?disabled=${status === "unreachable"}
+                @activate=${feeding ? this._onCancelActivate : this._onFeedActivate}
+              ></kibble-hold-button>
             </div>
             ${this._config.schedule_hash
               ? nothing

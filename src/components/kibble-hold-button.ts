@@ -66,6 +66,9 @@ export class KibbleHoldButton extends LitElement {
         @pointerleave=${this.variant === "feed" ? this._cancelHold : undefined}
         @pointercancel=${this.variant === "feed" ? this._cancelHold : undefined}
         @click=${this.variant === "cancel" ? this._tapActivate : undefined}
+        @contextmenu=${this._suppressOsGesture}
+        @selectstart=${this._suppressOsGesture}
+        @dragstart=${this._suppressOsGesture}
       >
         ${this.variant === "feed" ? html`<span class="fill"></span><span class="edge"></span>` : ""}
         <span class="label">${this.label}</span>
@@ -191,6 +194,16 @@ export class KibbleHoldButton extends LitElement {
     retract.finished.then(() => retract.cancel()).catch(() => {});
   };
 
+  /** Cancels the browser's own long-press handling so the gesture belongs to this button.
+   *
+   * Android treats a long press on a text node as the start of a selection and raises the
+   * magnifier, which both hides the button and steals the pointer stream -- the hold then
+   * appears to do nothing at all. CSS alone does not cover every engine, so the events are
+   * cancelled too. */
+  private _suppressOsGesture = (event: Event): void => {
+    event.preventDefault();
+  };
+
   private _tapActivate(): void {
     if (this.disabled) return;
     this._activate();
@@ -226,6 +239,12 @@ export class KibbleHoldButton extends LitElement {
          olive. Desktop never shows it, so it survived every check until the owner tried a
          tablet (2026-09-20). The press state below is this button's own feedback. */
       -webkit-tap-highlight-color: transparent;
+      /* Android raises the text-selection magnifier on a long press unless the element opts
+         out of selection AND of the callout, and the label is a text node, so it is a valid
+         selection target. Reported on a tablet 2026-09-20: the hold gesture summoned the OS
+         magnifier instead of driving the button. The matching events are cancelled in JS as
+         well -- these properties alone do not stop every engine. */
+      -webkit-touch-callout: none;
       transition: transform 0.08s ease, box-shadow 0.15s ease;
       box-shadow: 0 1px 2px color-mix(in srgb, var(--kibble-feed-dark) 35%, transparent);
     }
@@ -293,6 +312,10 @@ export class KibbleHoldButton extends LitElement {
     .label {
       position: relative;
       z-index: 1;
+      /* The one text node in here: a long press on it is what Android offers to select. */
+      user-select: none;
+      -webkit-user-select: none;
+      pointer-events: none;
     }
   `;
 }

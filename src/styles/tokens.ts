@@ -16,6 +16,20 @@ export const KIOSK_SCALE = 1.25;
 export const HOLD_TO_FEED_MS = 1500;
 export const KIBBLE_FALL_DURATION_MS = 900;
 
+/** The feed action's own colour, distinct from the kibble amber.
+ *
+ * Amber does double duty badly: it is the colour of the food itself (the bowl's level, the
+ * falling pieces), so an amber button reads as another piece of scenery rather than as the
+ * one control that makes something happen. Green separates "this is the action" from "this
+ * is the food", and carries the go/dispense meaning on its own.
+ *
+ * Ink is dark rather than white: white on this green measures about 2.6:1, under the 3:1
+ * large text needs, while the dark ink is comfortably past 5:1.
+ */
+export const KIBBLE_FEED = "#43A96A";
+export const KIBBLE_FEED_DARK = "#2F8551";
+export const KIBBLE_INK_ON_FEED = "#10301D";
+
 export const KIBBLE_AMBER = "#F4A452";
 export const KIBBLE_AMBER_DARK = "#DE8A3A";
 export const KIBBLE_INK_ON_AMBER = "#3A2C28";

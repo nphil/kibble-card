@@ -83,15 +83,17 @@ export class KibbleSegmentedPicker extends LitElement {
       transform: scale(0.96);
     }
     .segment.selected {
-      background: var(--kibble-amber);
-      color: var(--kibble-ink-on-amber);
+      /* The selected portion belongs to the feed action, not to the food, so it carries the
+         action colour -- an amber pill above a green button read as two unrelated controls. */
+      background: var(--kibble-feed);
+      color: var(--kibble-ink-on-feed);
     }
     .segment:disabled {
       opacity: 0.5;
       cursor: default;
     }
     .segment:focus-visible {
-      outline: 2px solid var(--kibble-amber-dark);
+      outline: 2px solid var(--kibble-feed-dark);
       outline-offset: 2px;
     }
   `;

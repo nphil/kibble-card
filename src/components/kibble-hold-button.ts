@@ -212,8 +212,8 @@ export class KibbleHoldButton extends LitElement {
       /* Fully rounded: the primary action should read as one confident pill, matching the
          segmented picker above it. */
       border-radius: 999px;
-      background: var(--kibble-amber);
-      color: var(--kibble-ink-on-amber);
+      background: var(--kibble-feed);
+      color: var(--kibble-ink-on-feed);
       font-size: var(--kibble-feed-label-size, 18px);
       font-weight: 700;
       cursor: pointer;
@@ -227,12 +227,14 @@ export class KibbleHoldButton extends LitElement {
          tablet (2026-09-20). The press state below is this button's own feedback. */
       -webkit-tap-highlight-color: transparent;
       transition: transform 0.08s ease, box-shadow 0.15s ease;
-      box-shadow: 0 1px 2px color-mix(in srgb, var(--kibble-amber-dark) 35%, transparent);
+      box-shadow: 0 1px 2px color-mix(in srgb, var(--kibble-feed-dark) 35%, transparent);
     }
     .button:active:not(:disabled) {
       transform: scale(0.985);
       box-shadow: none;
     }
+    /* Cancel keeps the amber family: it is not the go action, and a second green would make
+       the two read as variants of the same thing at a glance. */
     .button.cancel {
       background: color-mix(in srgb, var(--kibble-amber-dark) 12%, transparent);
       color: var(--kibble-amber-dark);
@@ -260,9 +262,9 @@ export class KibbleHoldButton extends LitElement {
       transform-origin: left center;
       background: linear-gradient(
         90deg,
-        color-mix(in srgb, var(--kibble-amber-dark) 88%, #000) 0%,
-        var(--kibble-amber-dark) 55%,
-        color-mix(in srgb, var(--kibble-amber-dark) 82%, #fff) 100%
+        color-mix(in srgb, var(--kibble-feed-dark) 88%, #000) 0%,
+        var(--kibble-feed-dark) 55%,
+        color-mix(in srgb, var(--kibble-feed-dark) 82%, #fff) 100%
       );
     }
     /* The bright line at the head of the sweep -- the detail that makes it read as filling
@@ -277,8 +279,8 @@ export class KibbleHoldButton extends LitElement {
       width: 3px;
       transform: translateX(0);
       opacity: 0;
-      background: color-mix(in srgb, #fff 70%, var(--kibble-amber));
-      box-shadow: 0 0 10px 2px color-mix(in srgb, #fff 45%, var(--kibble-amber));
+      background: color-mix(in srgb, #fff 70%, var(--kibble-feed));
+      box-shadow: 0 0 10px 2px color-mix(in srgb, #fff 45%, var(--kibble-feed));
     }
     /* Fallback only: applied when the component could not animate the bar itself. */
     .button.css-fallback .fill {

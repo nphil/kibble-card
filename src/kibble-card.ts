@@ -13,7 +13,8 @@ import { relativeTimeSentence } from "./lib/relative-time";
 import { WsQuery, watchKey } from "./lib/ws-query";
 import type { ScheduleEntry } from "./lib/schedule";
 import { mdiIcon } from "./lib/mdi-icons";
-import { KIOSK_MIN_HEIGHT_PX, KIBBLE_AMBER, KIBBLE_AMBER_DARK, KIBBLE_INK_ON_AMBER, KIBBLE_LIVE } from "./styles/tokens";
+import { version as KIBBLE_CARD_VERSION } from "../package.json";
+import { KIOSK_MIN_HEIGHT_PX, KIBBLE_AMBER, KIBBLE_AMBER_DARK, KIBBLE_FEED, KIBBLE_FEED_DARK, KIBBLE_INK_ON_AMBER, KIBBLE_INK_ON_FEED, KIBBLE_LIVE } from "./styles/tokens";
 import "./components/kibble-bowl";
 import { parseHopperLevel } from "./lib/hopper-status";
 import { displayCalibrationHopper } from "./lib/calibration";
@@ -38,7 +39,7 @@ const PORTION_OPTIONS = [1, 2, 3, 4, 5] as const;
 /** Bubble's `styles` hook: the feed row is the card's one accent-filled control, so it wears
  * the amber the native hold button always did (theme-overridable through the same variables). */
 const FEED_ROW_STYLES = `
-  .bubble-button-card-container { background: var(--kibble-amber, #f2a33c) !important; height: 56px !important; }
+  .bubble-button-card-container { background: var(--kibble-feed, #43a96a) !important; height: 56px !important; }
   .bubble-name { font-size: 17px; font-weight: 600; }
   .bubble-name, .bubble-icon { color: var(--kibble-ink-on-amber, #241a07) !important; }
   .bubble-icon-container { background: color-mix(in srgb, var(--kibble-ink-on-amber, #241a07) 12%, transparent) !important; }
@@ -47,7 +48,7 @@ const FEED_ROW_STYLES = `
  * one wears the accent. */
 function portionStyles(selected: boolean, disabled: boolean): string {
   return `
-  .bubble-button-card-container { height: var(--kibble-touch-target, 48px) !important; ${selected ? "background: var(--kibble-amber, #f2a33c) !important;" : ""} ${disabled ? "opacity: 0.5;" : ""} }
+  .bubble-button-card-container { height: var(--kibble-touch-target, 48px) !important; ${selected ? "background: var(--kibble-feed, #43a96a) !important;" : ""} ${disabled ? "opacity: 0.5;" : ""} }
   .bubble-button-card { padding: 0 !important; }
   .bubble-name-container { margin: 0 !important; width: 100%; justify-content: center; }
   .bubble-name { width: 100%; justify-content: center; text-align: center; font-size: 17px; font-weight: 600; ${selected ? "color: var(--kibble-ink-on-amber, #241a07) !important;" : ""} }
@@ -505,6 +506,10 @@ export class KibbleCard extends LitElement {
       height: 100%;
       --kibble-amber: ${unsafeCSS(KIBBLE_AMBER)};
       --kibble-amber-dark: ${unsafeCSS(KIBBLE_AMBER_DARK)};
+      /* The feed action, deliberately not the food's amber -- see the token's own doc. */
+      --kibble-feed: ${unsafeCSS(KIBBLE_FEED)};
+      --kibble-feed-dark: ${unsafeCSS(KIBBLE_FEED_DARK)};
+      --kibble-ink-on-feed: ${unsafeCSS(KIBBLE_INK_ON_FEED)};
       --kibble-ink-on-amber: ${unsafeCSS(KIBBLE_INK_ON_AMBER)};
       --kibble-live: ${unsafeCSS(KIBBLE_LIVE)};
       --kibble-touch-target: 48px;
@@ -774,6 +779,12 @@ export class KibbleCard extends LitElement {
     }
   `;
 }
+
+// Printed once on load so "is this browser actually running the new card?" is answerable
+// from the console instead of by guessing at caches. HACS version-busts the resource URL, but
+// a tablet holding a service-worker copy looks identical to a card that simply does not work
+// -- which cost a round of debugging on 2026-09-20.
+console.info(`%c KIBBLE-CARD %c ${KIBBLE_CARD_VERSION} `, "background:#43A96A;color:#10301D;font-weight:700", "background:#10301D;color:#fff");
 
 customElements.define("kibble-card", KibbleCard);
 

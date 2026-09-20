@@ -87,6 +87,16 @@ export interface KibbleTimelineCardConfig {
    * `include_visits`). Off by default -- an unnamed visit with no feed or identification
    * nearby is noise; see `lib/timeline.ts#filterVisits`. */
   show_visits?: boolean;
+  /** Tallest the scrolling rail may get, any CSS length. Default `min(60vh, 560px)`.
+   *
+   * The timeline is open-ended -- a busy day of feeds, meals and "show more" grows without
+   * bound -- and a dashboard whose first screen is a feeder should not turn into a page you
+   * scroll past to reach anything else. The rail scrolls inside itself instead, with the day
+   * heading sticky so you always know what you are looking at. `vh` in the default so a phone
+   * gets a proportionate rail rather than a fixed pixel height that swallows its screen.
+   *
+   * Set `none` to opt out and let the card grow with its content. */
+  max_height?: string;
 }
 
 export interface KibbleCatsCardConfig {

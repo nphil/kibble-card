@@ -19,7 +19,7 @@ import { resolveKibbleEntities, type KibbleEntities } from "./lib/resolve-entiti
 import { resolveEntryId } from "./lib/entry-id";
 import { WsQuery, watchKey } from "./lib/ws-query";
 import { ImageUrlCache, kibbleImageUrl } from "./lib/image-cache";
-import { comparePairFor, detectionHeadline, feedPhotos, feedSummary, filterVisits, groupByDay, resolveThumbnail, type ComparePairRefs, type TimelineDay } from "./lib/timeline";
+import { comparePairFor, detectionHeadline, feedPhotos, feedSummary, filterVisits, groupByDay, railStyle, resolveThumbnail, type ComparePairRefs, type TimelineDay } from "./lib/timeline";
 import "./components/kibble-before-after";
 import "./components/kibble-lightbox";
 import "./timeline-editor";
@@ -133,7 +133,7 @@ export class KibbleTimelineCard extends LitElement {
       <ha-card>
         <div class="container">
           ${this._config.name ? html`<div class="label">${this._config.name}</div>` : nothing}
-          <div class="rail">
+          <div class="rail" style=${railStyle(this._config.max_height)}>
             ${timelineState.error ? this._renderError(timelineState.error) : nothing}
             ${showEmpty ? this._renderEmpty() : nothing}
             ${days.map((day) => this._renderDay(day))}
@@ -385,7 +385,30 @@ export class KibbleTimelineCard extends LitElement {
       outline: 2px solid var(--primary-color, #03a9f4);
       outline-offset: 2px;
     }
+    /* The rail scrolls inside the card rather than lengthening the page -- see
+       KibbleTimelineCardConfig.max_height. overscroll-behavior stops a flick at the end of
+       the list from scrolling the dashboard behind it, which on a phone is the difference
+       between a contained list and an annoying one. */
+    .rail {
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      scrollbar-width: thin;
+      scrollbar-color: var(--divider-color) transparent;
+    }
+    .rail::-webkit-scrollbar {
+      width: 6px;
+    }
+    .rail::-webkit-scrollbar-thumb {
+      background: var(--divider-color);
+      border-radius: 3px;
+    }
     .day-label {
+      /* Sticky so the date stays visible while its own rows scroll past: in a bounded rail
+         you can otherwise be three meals deep with no idea which day you are reading. */
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      background: var(--ha-card-background, var(--card-background-color, #fff));
       padding: 14px 16px 6px 68px;
       font-size: var(--kibble-text-caption);
       font-weight: 600;

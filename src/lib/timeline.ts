@@ -134,3 +134,18 @@ export function groupByDay(items: TimelineItem[], now: Date): TimelineDay[] {
   }
   return days;
 }
+
+/** The scrolling rail's height cap as an inline style.
+ *
+ * `none` (or an empty setting) means the caller wants the old unbounded behaviour, which is
+ * expressed as no `max-height` at all rather than a huge one -- a large cap still creates a
+ * scroll container, and a nested scroller the user never asked for is worse than a long page.
+ *
+ * The default mixes a viewport unit with a pixel ceiling: `60vh` keeps a phone's rail
+ * proportionate to its screen, and the 560 px ceiling stops a desktop monitor from handing
+ * the timeline half a metre of glass. */
+export function railStyle(maxHeight: string | undefined): string {
+  const value = (maxHeight ?? "").trim();
+  if (value === "none") return "";
+  return `max-height:${value || "min(60vh, 560px)"}`;
+}

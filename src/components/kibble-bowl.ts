@@ -54,6 +54,11 @@ const CAV_BOTTOM = FOOT_Y - WALL;
 const TEXTURE_STEP = 9;
 
 const SCATTER = [-0.5, -0.2, 0.1, 0.4, -0.35, 0.25, 0];
+/** Matches the card's own portion picker; a bad `portions` cannot flood the animation. */
+const MAX_PORTIONS = 10;
+/** A dispense runs ~4 s per portion, but a feed whose `feeding` flag never clears must not
+ * animate forever -- that state was real as recently as the MCU ack bug on 2026-09-20. */
+const MAX_DROP_MS = 60_000;
 
 /** The brand's kibble motif as three overlapping lobes — a rounded clover, not a circle. */
 function cloverPiece(x: number, y: number, r: number, rotationDeg: number): SVGTemplateResult {
@@ -110,6 +115,7 @@ export class KibbleBowl extends LitElement {
     hopperLevel1: { type: String },
     hopperLevel2: { type: String },
     feeding: { type: Boolean },
+    portions: { type: Number },
     calibration: { attribute: false },
   };
 
@@ -118,6 +124,9 @@ export class KibbleBowl extends LitElement {
   declare hopperLevel1: HopperLevel | null;
   declare hopperLevel2: HopperLevel | null;
   declare feeding: boolean;
+  /** How many servings the pending feed will dispense: the falling kibble is scaled to it, so
+   * asking for four does not look like asking for one. */
+  declare portions: number;
   /** The hopper `lib/calibration.ts:displayCalibrationHopper` picked to interpret `fill`
    * against, or `null` when nothing usable is calibrated yet. */
   declare calibration: CalibrationHopper | null;
@@ -132,6 +141,7 @@ export class KibbleBowl extends LitElement {
     this.hopperLevel1 = null;
     this.hopperLevel2 = null;
     this.feeding = false;
+    this.portions = 1;
     this.calibration = null;
   }
 
@@ -142,8 +152,21 @@ export class KibbleBowl extends LitElement {
 
   protected willUpdate(changed: PropertyValues): void {
     if (changed.has("feeding")) {
+      // The stream runs for as long as the feeder is actually dispensing, rather than for a
+      // fixed burst: a dispense takes ~4 s per portion (measured on the MCU link), so a
+      // 900 ms animation finished while the motor was still running and the card went still
+      // in the middle of the very event it was depicting. Now it starts when `feeding` does
+      // and stops one fall-time after it clears, which lets the last pieces land.
       if (this.feeding && !this._wasFeeding && !prefersReducedMotion()) {
+        clearTimeout(this._dropTimer);
         this._dropping = true;
+        // A safety stop: if `feeding` somehow never clears (the abandoned-feed case the MCU
+        // ack bug used to produce), the bowl must not animate for the rest of the session.
+        this._dropTimer = setTimeout(() => {
+          this._dropping = false;
+          this.requestUpdate();
+        }, MAX_DROP_MS) as unknown as number;
+      } else if (!this.feeding && this._wasFeeding && this._dropping) {
         clearTimeout(this._dropTimer);
         this._dropTimer = setTimeout(() => {
           this._dropping = false;
@@ -257,13 +280,24 @@ export class KibbleBowl extends LitElement {
     `;
   }
 
+  /** The falling stream, scaled to the servings being dispensed.
+   *
+   * One serving and four used to look identical -- seven pieces either way -- which made the
+   * animation decorative rather than informative. The count now grows with `portions` and the
+   * pieces loop for as long as the feeder is actually running, so the card depicts the event
+   * happening rather than playing a fixed jingle at the start of it. */
   private _renderFallingKibble() {
-    const pieces = SCATTER.map((t, i) => {
+    const servings = Math.max(1, Math.min(MAX_PORTIONS, Math.round(this.portions || 1)));
+    const count = Math.min(SCATTER.length * 3, 5 + servings * 4);
+    const cycleMs = 520;
+    const pieces = Array.from({ length: count }, (_, i) => {
+      const t = SCATTER[i % SCATTER.length] + (i >= SCATTER.length ? (i % 3) * 0.11 - 0.11 : 0);
       const x = CX + t * 40;
-      const delayMs = i * 70;
-      const durationMs = 380;
-      const style = `--fall-delay:${delayMs}ms;--fall-duration:${durationMs}ms;--fall-rotate:${(t * 180).toFixed(0)}deg;--fall-to:34px;`;
-      return svg`<g class="drop" style=${style}>${cloverPiece(x, 4, 6, t * 60)}</g>`;
+      // Spread the launches evenly across one cycle and loop: a continuous fall, not a burst
+      // that lands and leaves the bowl static while the motor still turns.
+      const delayMs = Math.round((i / count) * cycleMs);
+      const style = `--fall-delay:${delayMs}ms;--fall-duration:${cycleMs}ms;--fall-rotate:${(t * 180).toFixed(0)}deg;--fall-to:34px;`;
+      return svg`<g class="drop" style=${style}>${cloverPiece(x, 4, 5.4, t * 60)}</g>`;
     });
     return svg`<g class="drops">${pieces}</g>`;
   }
@@ -379,7 +413,7 @@ export class KibbleBowl extends LitElement {
     }
     .drops circle {
       fill: var(--kibble-amber-dark);
-      animation: kibble-drop var(--fall-duration) cubic-bezier(0.4, 0, 1, 1) var(--fall-delay) both;
+      animation: kibble-drop var(--fall-duration) cubic-bezier(0.4, 0, 1, 1) var(--fall-delay) infinite both;
     }
     @keyframes kibble-drop {
       from {

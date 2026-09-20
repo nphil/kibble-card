@@ -6,7 +6,14 @@
 export const KIOSK_MIN_HEIGHT_PX = 440;
 export const KIOSK_SCALE = 1.25;
 
-export const HOLD_TO_FEED_MS = 600;
+/** How long "Hold to feed" must be held.
+ *
+ * 600 ms was long enough to stop a cat's paw but too short to *read* as a hold: the button
+ * filled and fired before the gesture registered as deliberate, so the interaction was
+ * unclear even to the person performing it (owner, 2026-09-20). 1.5 s is long enough that the
+ * fill sweeping across the button is visibly a progress bar you are driving, and short enough
+ * not to feel like a punishment. */
+export const HOLD_TO_FEED_MS = 1500;
 export const KIBBLE_FALL_DURATION_MS = 900;
 
 export const KIBBLE_AMBER = "#F4A452";

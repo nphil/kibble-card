@@ -239,6 +239,7 @@ export class KibbleCard extends LitElement {
               .hopperLevel1=${hopperLevel1}
               .hopperLevel2=${hopperLevel2}
               .feeding=${feeding}
+              .portions=${feedAmount}
             ></kibble-bowl>
             <div class="feed-controls" @hass-action=${this._onBubbleAction}>
               ${this._bubble

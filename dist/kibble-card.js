@@ -3475,6 +3475,16 @@ ${i.peerName}:${i.selfName}`)}};Oe.RPCResultError=me;try{let t=FinalizationRegis
       padding: 8px 14px 0;
       --kibble-bowl-max-width: 300px;
     }
+    /* On a phone the stacked layout gave the bowl its full 300 px, measured at ~170 px tall
+       on a 390x844 screen -- a fifth of the viewport for an illustration, which pushed
+       "Hold to feed" (the only thing anyone opens this card in a hurry for) to the fold.
+       Scaled to the viewport instead, so the controls stay reachable without scrolling. */
+    @container (max-width: 480px) {
+      .bowl-block {
+        --kibble-bowl-max-width: min(220px, 42vw);
+        padding-top: 4px;
+      }
+    }
     .feed-controls {
       grid-area: feed;
       padding: 0 14px;

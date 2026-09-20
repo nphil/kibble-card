@@ -1961,7 +1961,7 @@ ${i.peerName}:${i.selfName}`)}};Oe.RPCResultError=me;try{let t=FinalizationRegis
         <span class="row-text feed-text">
           ${n.headline}${n.scheduled?c` <span class="quiet">(scheduled)</span>`:h}${n.unconfirmed?c` <span class="quiet" title="The feeder dispensed, but its controller never confirmed the amount -- this is the amount that was requested.">(unconfirmed)</span>`:h}
         </span>
-        ${o?c`<kibble-before-after class="feed-compare" .beforeSrc=${a} .afterSrc=${l} aspect="1.8"></kibble-before-after>`:c`<span class="feed-no-photo">No photo for this feed</span>`}
+        ${o?c`<kibble-before-after class="feed-compare" .beforeSrc=${a} .afterSrc=${l} aspect="2.6"></kibble-before-after>`:c`<span class="feed-no-photo">No photo for this feed</span>`}
       </div>
     `}_renderBowlPair(e,r){if(!this._entryId)return h;let s=this._entryId,n=a=>this._openComparePair(a,e,r),o=(a,l)=>a?this._renderThumb(N(s,"event",a),`${l}: ${r}`,n,"bowl-half"):h;return c`<span class="bowl-pair" title="Bowl before and after">${o(e.before,"Before")}${o(e.after,"After")}</span>`}_renderThumb(e,r,s,n=""){let o=this._imageCache.get(this.hass,e,()=>this.requestUpdate()),a=s?`Compare before and after: ${r}`:`View photo: ${r}`;return c`
       <button type="button" class="thumb ${n}" ?disabled=${!o} aria-label=${a} @click=${l=>s?s(l):this._openLightbox(l,o,r)}>
@@ -2091,9 +2091,13 @@ ${i.peerName}:${i.selfName}`)}};Oe.RPCResultError=me;try{let t=FinalizationRegis
     .feed-text {
       font-weight: 500;
     }
+    /* Capped so a feed row stays the same scale as every other row. At aspect 1.8 and full
+       width the tile stood ~250 px tall on a desktop dashboard, four times a meal row, which
+       made a routine dispense the loudest thing in the list. */
     .feed-compare {
-      flex: 1 1 100%;
-      max-width: 360px;
+      flex: 0 1 auto;
+      width: min(280px, 45%);
+      max-width: 280px;
     }
     .feed-no-photo {
       flex: 1 1 100%;

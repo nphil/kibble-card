@@ -253,7 +253,7 @@ export class KibbleTimelineCard extends LitElement {
             : nothing}
         </span>
         ${pair
-          ? html`<kibble-before-after class="feed-compare" .beforeSrc=${beforeUrl} .afterSrc=${afterUrl} aspect="1.8"></kibble-before-after>`
+          ? html`<kibble-before-after class="feed-compare" .beforeSrc=${beforeUrl} .afterSrc=${afterUrl} aspect="2.6"></kibble-before-after>`
           : html`<span class="feed-no-photo">No photo for this feed</span>`}
       </div>
     `;
@@ -454,9 +454,13 @@ export class KibbleTimelineCard extends LitElement {
     .feed-text {
       font-weight: 500;
     }
+    /* Capped so a feed row stays the same scale as every other row. At aspect 1.8 and full
+       width the tile stood ~250 px tall on a desktop dashboard, four times a meal row, which
+       made a routine dispense the loudest thing in the list. */
     .feed-compare {
-      flex: 1 1 100%;
-      max-width: 360px;
+      flex: 0 1 auto;
+      width: min(280px, 45%);
+      max-width: 280px;
     }
     .feed-no-photo {
       flex: 1 1 100%;

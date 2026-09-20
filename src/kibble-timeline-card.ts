@@ -193,7 +193,8 @@ export class KibbleTimelineCard extends LitElement {
       <div class="row">
         <span class="time">${time}</span>
         <span class="row-text">${detectionHeadline(item)}</span>
-        ${thumb && this._entryId
+        ${pair ? this._renderBowlPair(pair, alt) : nothing}
+        ${thumb && this._entryId && !(pair && thumb.name === (pair.after ?? pair.before))
           ? this._renderThumb(kibbleImageUrl(this._entryId, thumb.kind, thumb.name), alt, pair ? (event) => this._openComparePair(event, pair, alt) : undefined)
           : nothing}
       </div>
@@ -211,7 +212,8 @@ export class KibbleTimelineCard extends LitElement {
       <div class="row">
         <span class="time">${time}</span>
         <span class="row-text">${detectionHeadline(item)}</span>
-        ${thumb && this._entryId
+        ${pair ? this._renderBowlPair(pair, alt) : nothing}
+        ${thumb && this._entryId && !(pair && thumb.name === (pair.after ?? pair.before))
           ? this._renderThumb(kibbleImageUrl(this._entryId, thumb.kind, thumb.name), alt, pair ? (event) => this._openComparePair(event, pair, alt) : undefined)
           : nothing}
       </div>
@@ -257,11 +259,31 @@ export class KibbleTimelineCard extends LitElement {
     `;
   }
 
-  private _renderThumb(path: string, alt: string, onOpen?: (event: Event) => void) {
+  /** The dish before and after a meal, shown side by side on the row itself.
+   *
+   * These used to be reachable only by tapping the row's single thumbnail, which opened a
+   * compare lightbox. The owner's reaction to the first meal that had them (2026-09-20,
+   * Kitty at 01:51) was that the timeline showed no bowl photos at all -- correctly, because
+   * a face crop won the one thumbnail slot and nothing hinted that anything was behind it.
+   * An affordance nobody can see is not an affordance. Both halves are on the row now, and
+   * tapping either still opens the full-size compare.
+   *
+   * Rendered only where `comparePairFor` found something; a half that was never captured is
+   * simply absent rather than a broken frame. */
+  private _renderBowlPair(pair: ComparePairRefs, alt: string) {
+    if (!this._entryId) return nothing;
+    const entryId = this._entryId;
+    const open = (event: Event) => this._openComparePair(event, pair, alt);
+    const half = (name: string | null, which: string) =>
+      name ? this._renderThumb(kibbleImageUrl(entryId, "event", name), `${which}: ${alt}`, open, "bowl-half") : nothing;
+    return html`<span class="bowl-pair" title="Bowl before and after">${half(pair.before, "Before")}${half(pair.after, "After")}</span>`;
+  }
+
+  private _renderThumb(path: string, alt: string, onOpen?: (event: Event) => void, extraClass = "") {
     const url = this._imageCache.get(this.hass, path, () => this.requestUpdate());
     const label = onOpen ? `Compare before and after: ${alt}` : `View photo: ${alt}`;
     return html`
-      <button type="button" class="thumb" ?disabled=${!url} aria-label=${label} @click=${(event: Event) => (onOpen ? onOpen(event) : this._openLightbox(event, url, alt))}>
+      <button type="button" class="thumb ${extraClass}" ?disabled=${!url} aria-label=${label} @click=${(event: Event) => (onOpen ? onOpen(event) : this._openLightbox(event, url, alt))}>
         ${url ? html`<img src=${url} alt="" loading="lazy" />` : nothing}
       </button>
     `;
@@ -421,6 +443,17 @@ export class KibbleTimelineCard extends LitElement {
     .quiet {
       font-weight: 400;
       color: var(--secondary-text-color);
+    }
+    .bowl-pair {
+      display: inline-flex;
+      gap: 3px;
+      flex: 0 0 auto;
+    }
+    /* Slightly smaller than the single thumbnail: two of them sit where one used to, so the
+       row keeps its height on a phone rather than growing for every meal. */
+    .thumb.bowl-half {
+      width: 34px;
+      height: 34px;
     }
     .thumb {
       flex: 0 0 auto;

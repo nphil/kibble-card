@@ -37,10 +37,17 @@ const RIM_W = VIEW_W - RIM_X * 2;
 const RIM_H = 18;
 const FOOT_Y = 158;
 const FOOT_HALF = 44;
-/** The cavity (the gauge): its interior runs between CAV_TOP and CAV_BOTTOM. */
-const CAV_TOP = RIM_Y + 8;
-const CAV_BOTTOM = 124;
-const CAV_INSET = 32;
+/** Wall thickness: the interior is the dish silhouette inset by this much, so the bowl reads
+ * as a shell with a hollow rather than a solid shape with a gauge drawn on its face.
+ *
+ * Until 2026-09-20 the interior was an independent rounded pocket ending at y=124 while the
+ * dish's own foot is at 158, so the level's bottom edge floated in the middle of the bowl and
+ * its walls ran straight where the bowl's curve inward. It read, correctly, as a separate
+ * panel laid over the graphic. */
+const WALL = 9;
+/** The interior's mouth, just under the rim band, and its floor, just above the foot. */
+const CAV_TOP = RIM_Y + RIM_H - 4;
+const CAV_BOTTOM = FOOT_Y - WALL;
 /** Kibble texture inside the level: a fixed zig-zag of dots, clipped by the level itself. */
 const TEXTURE_STEP = 9;
 
@@ -74,18 +81,22 @@ function dishPath(): string {
   ].join(" ");
 }
 
-/** One cavity of the dish: a pocket whose walls follow the dish's own curve, so the level sits
- * inside the bowl rather than in a box drawn on it. */
-function cavityPath(x0: number, x1: number): string {
-  const r = 14;
-  const depth = CAV_BOTTOM - CAV_TOP;
-  const inset = Math.min(18, (x1 - x0) * 0.16);
+/** The hollow inside the dish: the same silhouette as [`dishPath`], inset by [`WALL`].
+ *
+ * Every control point mirrors the outer path's, which is the whole point -- the inside of a
+ * bowl is the outside minus its wall, so the level that fills it curves exactly the way the
+ * bowl does and meets the rim where the rim is. */
+function cavityPath(): string {
+  const left = RIM_X + WALL;
+  const right = RIM_X + RIM_W - WALL;
+  const footHalf = FOOT_HALF - WALL;
   return [
-    `M ${x0} ${CAV_TOP}`,
-    `H ${x1}`,
-    `C ${x1} ${CAV_TOP + depth * 0.55}, ${x1 - inset + r} ${CAV_BOTTOM}, ${x1 - inset - r} ${CAV_BOTTOM}`,
-    `H ${x0 + inset + r}`,
-    `C ${x0 + inset - r} ${CAV_BOTTOM}, ${x0} ${CAV_TOP + depth * 0.55}, ${x0} ${CAV_TOP}`,
+    `M ${left} ${CAV_TOP}`,
+    `H ${right}`,
+    // Mirrors dishPath's right wall: bows out, then sweeps in to the floor.
+    `C ${right} ${CAV_TOP + 62}, ${CX + footHalf + 26} ${CAV_BOTTOM - 9}, ${CX + footHalf} ${CAV_BOTTOM}`,
+    `H ${CX - footHalf}`,
+    `C ${CX - footHalf - 26} ${CAV_BOTTOM - 9}, ${left} ${CAV_TOP + 62}, ${left} ${CAV_TOP}`,
     "Z",
   ].join(" ");
 }
@@ -152,8 +163,10 @@ export class KibbleBowl extends LitElement {
         : this.fill == null
           ? "Bowl level unknown"
           : `Bowl ${Math.round(this.fill)}% full`;
-    const x0 = RIM_X + CAV_INSET;
-    const x1 = RIM_X + RIM_W - CAV_INSET;
+    // The level spans the interior's full mouth and is clipped to its outline, so its edges
+    // are the bowl's own curves rather than a narrower box inside them.
+    const x0 = RIM_X + WALL;
+    const x1 = RIM_X + RIM_W - WALL;
     const fraction = this.fill == null ? null : this.fill / 100;
     const hopper = hopperStatus(this.hopperLevel1, this.hopperLevel2);
 
@@ -180,13 +193,13 @@ export class KibbleBowl extends LitElement {
             <stop offset="1" stop-color="var(--kibble-amber-dark)" />
           </linearGradient>
           <filter id="silo-inner" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="2.4" /></filter>
-          <clipPath id="silo-win"><path d=${cavityPath(x0, x1)} /></clipPath>
+          <clipPath id="silo-win"><path d=${cavityPath()} /></clipPath>
         </defs>
         <path class="body" d=${dishPath()} />
+        ${this._renderCavity(x0, x1, fraction)}
         <rect class="cap" x=${RIM_X - 4} y=${RIM_Y - 4} width=${RIM_W + 8} height=${RIM_H} rx="9" />
         <rect class="cap-highlight" x=${RIM_X + 6} y=${RIM_Y} width=${RIM_W - 12} height="4" rx="2" />
         <path class="body-edge" d=${dishPath()} />
-        ${this._renderCavity(x0, x1, fraction)}
         ${this._dropping ? this._renderFallingKibble() : nothing}
       </svg>
       ${calibratedFillPercent != null
@@ -207,7 +220,7 @@ export class KibbleBowl extends LitElement {
     if (rawFraction == null) {
       return svg`
         <g>
-          <path class="glass" d=${cavityPath(x0, x1)} />
+          <path class="glass" d=${cavityPath()} />
           <text class="unknown" x=${midX} y=${(CAV_TOP + CAV_BOTTOM) / 2 + 2} text-anchor="middle" dominant-baseline="central">?</text>
         </g>
       `;
@@ -227,7 +240,7 @@ export class KibbleBowl extends LitElement {
     }
     return svg`
       <g>
-        <path class="glass" d=${cavityPath(x0, x1)} />
+        <path class="glass" d=${cavityPath()} />
         <g clip-path="url(#silo-win)">
           <rect class="glass-inner" x=${x0 - 2} y=${CAV_TOP - 8} width=${w + 4} height=${CAV_BOTTOM - CAV_TOP + 4} filter="url(#silo-inner)" />
           ${fraction > 0

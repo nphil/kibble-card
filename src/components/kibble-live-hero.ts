@@ -582,6 +582,15 @@ export class KibbleLiveHero extends LitElement {
     :host {
       display: block;
       height: 100%;
+      /* The frame inside is absolutely positioned, so this element has no intrinsic size and
+         takes its height from its parent. In the stacked (phone) layout nothing supplies one,
+         and a hero with no loaded frame collapsed to ~60 px -- measured on a 390x844 viewport
+         -- then jumped to full height the moment the stream arrived. The ratio reserves the
+         space up front. Where a parent does set a height (the wide layout, where the side
+         column drives the row) that height still wins: aspect-ratio only fills in a dimension
+         nothing else has decided. */
+      aspect-ratio: 16 / 9;
+      position: relative;
     }
     .frame {
       position: absolute;

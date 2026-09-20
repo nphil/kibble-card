@@ -17,8 +17,8 @@ import type {
 } from "./types";
 import { resolveKibbleEntities, type KibbleEntities } from "./lib/resolve-entities";
 import { resolveEntryId } from "./lib/entry-id";
-import { WsQuery, watchKey } from "./lib/ws-query";
 import { ImageUrlCache, kibbleImageUrl } from "./lib/image-cache";
+import { TimelineFeed } from "./lib/timeline-feed";
 import { comparePairFor, detectionHeadline, feedPhotos, feedSummary, filterVisits, groupByDay, railStyle, resolveThumbnail, type ComparePairRefs, type TimelineDay } from "./lib/timeline";
 import "./components/kibble-before-after";
 import "./components/kibble-lightbox";
@@ -54,7 +54,7 @@ export class KibbleTimelineCard extends LitElement {
   private _resolvedEntities: HomeAssistant["entities"] | undefined;
   private _resolvedDevices: HomeAssistant["devices"] | undefined;
   private _resolvedDeviceId: string | undefined;
-  private _timelineQuery = new WsQuery<{ items: TimelineItem[] }>(() => this.requestUpdate());
+  private _timelineFeed = new TimelineFeed(() => this.requestUpdate());
   private _imageCache = new ImageUrlCache();
   private _lightboxTrigger: HTMLElement | null = null;
 
@@ -90,6 +90,7 @@ export class KibbleTimelineCard extends LitElement {
   disconnectedCallback(): void {
     super.disconnectedCallback();
     this._imageCache.dispose();
+    this._timelineFeed.dispose();
   }
 
   protected willUpdate(): void {
@@ -105,25 +106,20 @@ export class KibbleTimelineCard extends LitElement {
       this._entities = resolveKibbleEntities(this.hass.entities ?? {}, deviceId);
       this._entryId = resolveEntryId(this.hass.devices ?? {}, deviceId);
     }
-    const callWS = this.hass?.callWS;
-    if (this.hass && this._entryId && callWS) {
-      const entryId = this._entryId;
-      const includeVisits = this._config?.show_visits === true;
-      const key = `${watchKey(this.hass, [this._entities.lastDetection, this._entities.feeding, this._entities.dishAfter])}|visits=${includeVisits}`;
-      this._timelineQuery.sync(key, () =>
-        callWS({ type: "kibble/timeline", entry_id: entryId, include_visits: includeVisits }).then((r) => r as { items: TimelineItem[] }),
-      );
-    }
+    // Rows arrive when they exist, not when a watched entity happens to move -- see
+    // `lib/timeline-feed.ts`. `sync` is a no-op unless the entry or the visits option
+    // changed, which is the case on almost every call.
+    this._timelineFeed.sync(this.hass, this._entryId, this._config?.show_visits === true);
   }
 
   render() {
     if (!this._config || !this.hass) return nothing;
-    const timelineState = this._timelineQuery.state;
-    const items = filterVisits(timelineState.data?.items ?? [], this._config.show_visits === true);
+    const timelineState = this._timelineFeed.state;
+    const items = filterVisits(timelineState.items ?? [], this._config.show_visits === true);
     const visible = items.slice(0, this._visibleCount);
     const days = groupByDay(visible, new Date());
     const hasMore = items.length > visible.length;
-    const showEmpty = !timelineState.error && !timelineState.loading && timelineState.data !== null && days.length === 0;
+    const showEmpty = !timelineState.error && !timelineState.loading && timelineState.items !== null && days.length === 0;
 
     const compare = this._comparePair;
     const compareBeforeUrl = compare?.before ? this._imageCache.get(this.hass, kibbleImageUrl(compare.entryId, "event", compare.before), () => this.requestUpdate()) : null;
@@ -302,9 +298,7 @@ export class KibbleTimelineCard extends LitElement {
     if (!callWS || !this._entryId) return;
     const entryId = this._entryId;
     const includeVisits = this._config?.show_visits === true;
-    this._timelineQuery.refresh(() =>
-      callWS({ type: "kibble/timeline", entry_id: entryId, include_visits: includeVisits }).then((r) => r as { items: TimelineItem[] }),
-    );
+    this._timelineFeed.refresh(this.hass, entryId, includeVisits);
   };
 
   private _openLightbox(event: Event, url: string | null, alt: string): void {

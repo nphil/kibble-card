@@ -95,6 +95,11 @@ export interface KibbleCardConfig {
   scrypted_id?: string;
 }
 
+export interface KibbleScheduleCardConfig {
+  type: string;
+  device_id: string;
+}
+
 export interface KibbleTimelineCardConfig {
   type: string;
   device_id: string;

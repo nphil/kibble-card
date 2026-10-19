@@ -1,6 +1,6 @@
 {
   "name": "kibble-card",
-  "version": "0.27.0",
+  "version": "0.28.0",
   "description": "A Lovelace card for the Kibble Petkit feeder integration",
   "type": "module",
   "license": "MIT",

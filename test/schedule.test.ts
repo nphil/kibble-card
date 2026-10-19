@@ -7,6 +7,7 @@ import {
   nextScheduled,
   parseTimeToMinutes,
   scheduleAddData,
+  scheduleEntriesFrom,
   scheduleSetEntries,
   scheduleSummary,
   serviceErrorMessage,
@@ -245,5 +246,20 @@ describe("serviceErrorMessage", () => {
   test("falls back to a generic sentence when there is nothing to read", () => {
     expect(serviceErrorMessage(undefined)).toBe("Home Assistant did not accept the change");
     expect(serviceErrorMessage({})).toBe("Home Assistant did not accept the change");
+  });
+});
+
+describe("scheduleEntriesFrom", () => {
+  const sensor = (attributes: Record<string, unknown>) => ({ entity_id: "sensor.x_schedule", state: "2", attributes, last_changed: "", last_updated: "" });
+
+  test("reads the entries attribute as the list", () => {
+    const entries = [entryAt("00:00"), entryAt("12:00")];
+    expect(scheduleEntriesFrom(sensor({ entries }))).toEqual(entries);
+  });
+
+  test("is empty while the sensor is missing, carries no list, or reports something else", () => {
+    expect(scheduleEntriesFrom(undefined)).toEqual([]);
+    expect(scheduleEntriesFrom(sensor({}))).toEqual([]);
+    expect(scheduleEntriesFrom(sensor({ entries: "nope" }))).toEqual([]);
   });
 });

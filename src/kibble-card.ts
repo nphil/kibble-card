@@ -11,7 +11,7 @@ import { resolveEntryId } from "./lib/entry-id";
 import { deriveFeederStatus, statusText, type FeederStatus } from "./lib/feeding";
 import { relativeTimeSentence } from "./lib/relative-time";
 import { WsQuery, watchKey } from "./lib/ws-query";
-import type { ScheduleEntry } from "./lib/schedule";
+import { scheduleEntriesFrom, type ScheduleEntry } from "./lib/schedule";
 import { ImageUrlCache } from "./lib/image-cache";
 import { mdiIcon } from "./lib/mdi-icons";
 import { version as KIBBLE_CARD_VERSION } from "../package.json";
@@ -48,6 +48,7 @@ import { bubbleCardAvailable } from "./components/kibble-bubble-row";
 import "./editor";
 import "./kibble-timeline-card";
 import "./kibble-cats-card";
+import "./kibble-schedule-card";
 
 const EMPTY_ENTITIES: KibbleEntities = { deviceId: "", catPresence: [] };
 
@@ -573,10 +574,7 @@ export class KibbleCard extends LitElement {
 
   private _scheduleEntries(): ScheduleEntry[] {
     const id = this._entities.schedule;
-    if (!id) return [];
-    const attrs = this.hass.states[id]?.attributes;
-    const entries = attrs?.entries;
-    return Array.isArray(entries) ? (entries as ScheduleEntry[]) : [];
+    return scheduleEntriesFrom(id ? this.hass.states[id] : undefined);
   }
 
   // The two Bubble rows. Bubble handles the gestures (tap / hold) and reports them as HA's

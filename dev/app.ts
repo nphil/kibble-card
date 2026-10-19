@@ -1,4 +1,4 @@
-/** Dev harness bootstrap. Reads `?card=hero|timeline|cats&scenario=idle|dispensing|unreachable&fixture=default|multicat-a|multicat-b|multicat-c`
+/** Dev harness bootstrap. Reads `?card=hero|timeline|cats|schedule&scenario=idle|dispensing|unreachable&fixture=default|multicat-a|multicat-b|multicat-c`
  * &theme=light|dark&width=<px>&height=<px>&name=<text>&limit=<n>&hopper1=<level>&hopper2=
  * <level>&single=<0|1>&food1=<text>&food2=<text>` from the URL, mounts one real card against
  * the mock hass, and sets `window.__kibbleReady` once it has actually finished rendering so
@@ -8,14 +8,14 @@
  * (`empty`/`low`/`ok`/`unknown`), the divider switch, and hopper food names on top of the
  * chosen scenario. `unknown` maps to `unavailable`, matching a real MCU that has not reported.
  * `single=1` switches the divider off (undivided mode).
- * `schedule=divider|mixed` (hero only) swaps the schedule table: `divider` (the default) is the
+ * `schedule=divider|mixed` (hero and schedule card) swaps the schedule table: `divider` (the default) is the
  * live 00:00 and 12:00 feeds at 0 + 3 portions, `mixed` shows every row shape the per-hopper
  * editor draws. `schedule_fail=1` makes every `kibble.schedule_*` call reject, to see the
  * editor's error line. Every `callService` is also recorded on `window.__kibbleCalls`.
  */
 
 import "../dist/kibble-card.js";
-import type { HomeAssistant, KibbleCardConfig, KibbleCatsCardConfig, KibbleTimelineCardConfig } from "../src/types";
+import type { HomeAssistant, KibbleCardConfig, KibbleCatsCardConfig, KibbleScheduleCardConfig, KibbleTimelineCardConfig } from "../src/types";
 import { createMockHass, DEVICE_ID } from "./mock-hass";
 import { resolveKibbleEntities } from "../src/lib/resolve-entities";
 import { SCHEDULE_FIXTURES, scheduleState, type HarnessFixture, type ScenarioName, type ScheduleFixtureName } from "./fixtures";
@@ -26,21 +26,23 @@ declare global {
   }
 }
 
-type CardName = "hero" | "timeline" | "cats";
+type CardName = "hero" | "timeline" | "cats" | "schedule";
 
 const TAG_FOR_CARD: Record<CardName, string> = {
   hero: "kibble-card",
   timeline: "kibble-timeline-card",
   cats: "kibble-cats-card",
+  schedule: "kibble-schedule-card",
 };
 
 interface MountedCardElement extends HTMLElement {
   hass: HomeAssistant;
-  setConfig: (config: KibbleCardConfig | KibbleTimelineCardConfig | KibbleCatsCardConfig) => void;
+  setConfig: (config: KibbleCardConfig | KibbleTimelineCardConfig | KibbleCatsCardConfig | KibbleScheduleCardConfig) => void;
   updateComplete: Promise<unknown>;
 }
 
-function configFor(card: CardName, params: URLSearchParams, name: string | undefined): KibbleCardConfig | KibbleTimelineCardConfig | KibbleCatsCardConfig {
+function configFor(card: CardName, params: URLSearchParams, name: string | undefined): KibbleCardConfig | KibbleTimelineCardConfig | KibbleCatsCardConfig | KibbleScheduleCardConfig {
+  if (card === "schedule") return { type: "custom:kibble-schedule-card", device_id: DEVICE_ID };
   if (card === "timeline") {
     const config: KibbleTimelineCardConfig = { type: "custom:kibble-timeline-card", device_id: DEVICE_ID };
     if (name) config.name = name;

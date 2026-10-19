@@ -3,12 +3,21 @@
  * against plain objects.
  */
 
+import type { HassEntityState } from "../types";
+
 export interface ScheduleEntry {
   id: string;
   time: string; // "HH:MM", 24h
   amount_l: number;
   amount_r: number;
   enabled: boolean;
+}
+
+/** The schedule sensor's `entries` attribute as a list -- empty while the sensor is missing,
+ * unavailable, or carries no list. Shared by the hero and the standalone schedule card. */
+export function scheduleEntriesFrom(state: HassEntityState | undefined): ScheduleEntry[] {
+  const entries = state?.attributes?.entries;
+  return Array.isArray(entries) ? (entries as ScheduleEntry[]) : [];
 }
 
 export interface NextScheduled {

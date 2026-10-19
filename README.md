@@ -1,10 +1,11 @@
 # Kibble Card
 
-Three Lovelace cards for the [Kibble](https://github.com/nphil/kibble) Petkit feeder integration:
+Four Lovelace cards for the [Kibble](https://github.com/nphil/kibble) Petkit feeder integration:
 `kibble-card` (the daily hero — live camera with a "who's been by" overlay, bowl status, feed,
 schedule), `kibble-timeline-card` (every visit, meal and feed, newest first, with real photos and
 an inline "who was this?" picker for anything unidentified), and `kibble-cats-card` (enrolled
-cats, a paged review queue for the identity engine's leftovers, and per-cat training photos).
+cats, a paged review queue for the identity engine's leftovers, and per-cat training photos), and
+`kibble-schedule-card` (the feeding schedule on its own, already open, for a dashboard pop-up).
 Full design rationale in [`DESIGN.md`](DESIGN.md).
 
 Every card is one responsive component — no layout config beyond the device picker and a couple
@@ -34,6 +35,11 @@ of optional fields. Container queries drive the responsive behavior, never viewp
    # name: Today                  # optional label
    # limit: 30                    # optional: rows shown before older pages auto-load (default 30)
    # max_height: clamp(360px, calc(100dvh - 200px), 900px) # optional: the rail's scroll cap, or "none" to grow with the page
+   ```
+
+   ```yaml
+   type: custom:kibble-schedule-card   # the schedule alone, already expanded: host it in a pop-up
+   device_id: <your Kibble device>     # (pair with the hero's `schedule_hash`); YAML only, no visual editor
    ```
 
    Or use each card's visual editor — the required field is always just the device picker. Every
@@ -173,6 +179,10 @@ or delete a cat from the header; deleting is a tap-twice confirm — it drops ev
 
 ## Schedule card integration
 
+The same expanded schedule is also the standalone `kibble-schedule-card` (config above): put it
+in the dashboard pop-up that `schedule_hash` points at, instead of a bare `dispenser-schedule-card`,
+and the pop-up shows exactly what the hero's own expanded line would.
+
 **Divider in (two foods):** the expanded schedule is Kibble's own per-hopper editor
 (`kibble-schedule-editor`), not the embed. The embed has one amount per entry and the integration
 mirrors it onto both hoppers, so it cannot schedule "kibble only". Each feed shows its time, hopper
@@ -232,12 +242,12 @@ bun test                  # pure-logic unit tests: entity resolution, entry_id, 
                            # cache reference counting, WS paging (timeline/review/training),
                            # timeline title/duration/grouping rules, storage formatting, crop
                            # caption derivation and per-photo/event label requests
-bun run build              # dist/kibble-card.js, minified, all three cards + Lit bundled in
+bun run build              # dist/kibble-card.js, minified, all four cards + Lit bundled in
 ```
 
 ### Local visual harness
 
-No real Home Assistant needed — `dev/` renders any of the three cards against a mock `hass`
+No real Home Assistant needed — `dev/` renders any of the cards against a mock `hass`
 built from fixtures matching the live entity and `kibble/*` WS models, with a `callService` /
 `callWS` that actually mutates the mock state (labelling a crop really moves it into a cat's
 gallery, with a matching `hass` reassignment so the UI updates live) so clicking around behaves
@@ -248,10 +258,10 @@ bun run harness   # builds both bundles, serves dev/ at http://localhost:4173
 ```
 
 Then open `http://localhost:4173/?card=hero&scenario=idle&theme=light&width=480` — query params:
-`card` (`hero` | `timeline` | `cats`, default `hero`), `scenario` (`idle` | `dispensing` |
+`card` (`hero` | `timeline` | `cats` | `schedule`, default `hero`), `scenario` (`idle` | `dispensing` |
 `unreachable`, hero only), `theme` (`light` | `dark`), `width`, `height` (omit for natural content
 height; set both for a fixed kiosk-panel box), `name` (optional label, all cards), `settings_hash`
-/ `schedule_hash` (hero), `limit` (timeline), and (hero) `schedule` (`divider` | `mixed`: the
+/ `schedule_hash` (hero), `limit` (timeline), and (hero, schedule) `schedule` (`divider` | `mixed`: the
 schedule table shown; `divider` is the default, 00:00 and 12:00 at 0 + 3 portions) and
 `schedule_fail=1` (every `kibble.schedule_*` call is refused, to see the editor's error line).
 The harness records each service call on `window.__kibbleCalls`.

@@ -56,6 +56,16 @@ export class WsQuery<T> {
       },
     );
   }
+
+  /** Optimistically rewrites cached `data` in place, without touching `loading`/`error` or
+   * starting a new request -- for a mutation whose own response already tells the caller the
+   * new truth (an avatar change, say), so the UI reflects it before the next full refetch lands
+   * rather than waiting on one. A no-op while there is no data yet to patch. */
+  patch(updater: (data: T) => T): void {
+    if (this._state.data === null) return;
+    this._state = { ...this._state, data: updater(this._state.data) };
+    this._onChange();
+  }
 }
 
 /** Encodes every watched entity's current state string into one key; unresolved (`undefined`)

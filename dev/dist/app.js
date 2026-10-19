@@ -7603,6 +7603,14 @@ var RULES = {
   bowlFill: { domain: "sensor", translationKeys: ["bowl_fill", "bowl_fill_1"], idSuffixes: ["_bowl_fill", "_bowl_fill_1", "_bowl_fill_hopper_1"] },
   hopperLevel1: { domain: "sensor", translationKeys: ["hopper_1_level"], idSuffixes: ["_hopper_1_level"] },
   hopperLevel2: { domain: "sensor", translationKeys: ["hopper_2_level"], idSuffixes: ["_hopper_2_level"] },
+  hopperRemaining1: { domain: "sensor", translationKeys: ["hopper_1_remaining"], idSuffixes: ["_hopper_1_remaining"] },
+  hopperRemaining2: { domain: "sensor", translationKeys: ["hopper_2_remaining"], idSuffixes: ["_hopper_2_remaining"] },
+  markFullHopper1: { domain: "button", translationKeys: ["hopper_1_full"], idSuffixes: ["_hopper_1_full"] },
+  markFullHopper2: { domain: "button", translationKeys: ["hopper_2_full"], idSuffixes: ["_hopper_2_full"] },
+  markFullBoth: { domain: "button", translationKeys: ["hopper_full"], idSuffixes: ["_hopper_full"] },
+  hopperDivider: { domain: "switch", translationKeys: ["hopper_divider"], idSuffixes: ["_hopper_divider"] },
+  hopperFood1: { domain: "text", translationKeys: ["hopper_1_food"], idSuffixes: ["_hopper_1_food"] },
+  hopperFood2: { domain: "text", translationKeys: ["hopper_2_food"], idSuffixes: ["_hopper_2_food"] },
   desiccantDays: { domain: "sensor", translationKeys: ["desiccant_days", "desiccant_left"], idSuffixes: ["_desiccant_days", "_desiccant_left"] },
   schedule: { domain: "sensor", translationKeys: ["schedule"], idSuffixes: ["_schedule"] },
   scheduleCardState: { domain: "sensor", translationKeys: ["schedule_card_state"], idSuffixes: ["_schedule_card_state"] },
@@ -7610,6 +7618,7 @@ var RULES = {
   feedButtonHopper1: { domain: "button", translationKeys: ["feed_hopper_1"], idSuffixes: ["_feed_hopper_1"] },
   feedButtonHopper2: { domain: "button", translationKeys: ["feed_hopper_2"], idSuffixes: ["_feed_hopper_2"] },
   cancelFeedButton: { domain: "button", translationKeys: ["cancel_feed"], idSuffixes: ["_cancel_feed"] },
+  callCatsButton: { domain: "button", translationKeys: ["call_cats"], idSuffixes: ["_call_cats"] },
   feedAmount: { domain: "number", translationKeys: ["feed_amount"], idSuffixes: ["_feed_amount"] },
   feedAmountHopper1: { domain: "number", translationKeys: ["feed_amount_hopper_1"], idSuffixes: ["_feed_amount_hopper_1"] },
   feedAmountHopper2: { domain: "number", translationKeys: ["feed_amount_hopper_2"], idSuffixes: ["_feed_amount_hopper_2"] },
@@ -7626,8 +7635,7 @@ var RULES = {
   lastDetection: { domain: "sensor", translationKeys: ["last_detection"], idSuffixes: ["_last_detection"] },
   detectionsToday: { domain: "sensor", translationKeys: ["detections_today"], idSuffixes: ["_detections_today"] },
   lastDetectionImage: { domain: "image", translationKeys: ["last_detection"], idSuffixes: ["_last_detection"] },
-  detectionOverlaySwitch: { domain: "switch", translationKeys: ["detection_overlay"], idSuffixes: ["_detection_overlay"] },
-  pendingFace: { domain: "image", translationKeys: ["pending_face"], idSuffixes: ["_pending_face"] }
+  detectionOverlaySwitch: { domain: "switch", translationKeys: ["detection_overlay"], idSuffixes: ["_detection_overlay"] }
 };
 function domainOf(entityId) {
   return entityId.slice(0, entityId.indexOf("."));
@@ -7699,7 +7707,7 @@ function deriveFeederStatus(coreStates, feedingState) {
   return feedingState === "on" ? "dispensing" : "idle";
 }
 function statusText(status, lastFedRelative) {
-  if (status === "unreachable") return "Feeder unreachable \u2014 check that kibbled is running";
+  if (status === "unreachable") return "Feeder unreachable. Check that kibbled is running";
   if (status === "dispensing") return "Dispensing\u2026";
   return lastFedRelative ? `Fed ${lastFedRelative}` : "Ready to feed";
 }
@@ -7710,6 +7718,12 @@ function relativeElapsed(from, now) {
   const diffHours = Math.floor(diffMinutes / 60);
   if (diffHours < 24) return { unit: "hours", value: diffHours };
   return { unit: "days", value: Math.floor(diffHours / 24) };
+}
+function relativeTimeCompact(from, now) {
+  const elapsed = relativeElapsed(from, now);
+  if (elapsed.unit === "now") return "just now";
+  const suffix = elapsed.unit === "minutes" ? "m" : elapsed.unit === "hours" ? "h" : "d";
+  return `${elapsed.value}${suffix} ago`;
 }
 function relativeTimeSentence(from, now) {
   const elapsed = relativeElapsed(from, now);
@@ -7754,6 +7768,15 @@ var WsQuery = class {
       }
     );
   }
+  /** Optimistically rewrites cached `data` in place, without touching `loading`/`error` or
+   * starting a new request -- for a mutation whose own response already tells the caller the
+   * new truth (an avatar change, say), so the UI reflects it before the next full refetch lands
+   * rather than waiting on one. A no-op while there is no data yet to patch. */
+  patch(updater) {
+    if (this._state.data === null) return;
+    this._state = { ...this._state, data: updater(this._state.data) };
+    this._onChange();
+  }
 };
 function watchKey(hass, entityIds) {
   return entityIds.filter((id) => Boolean(id)).map((id) => `${id}=${hass.states[id]?.state ?? ""}`).join("|");
@@ -7766,6 +7789,137 @@ function describeWsError(err) {
   }
   return "Something went wrong.";
 }
+var MAX_CACHED_IMAGES = 200;
+var ImageUrlCache = class {
+  constructor() {
+    this._urls = /* @__PURE__ */ new Map();
+    this._refs = /* @__PURE__ */ new Map();
+    this._pending = /* @__PURE__ */ new Set();
+    this._waiters = /* @__PURE__ */ new Map();
+  }
+  /** Returns a cached object URL synchronously when already known (and marks it referenced);
+   * otherwise starts the fetch (once per id, even under concurrent callers), marks it
+   * referenced, and calls `onReady` once it settles. `onReady` receives `null` on failure --
+   * callers show a neutral/broken placeholder rather than nothing, so a crop that failed to
+   * load once doesn't look like a crop that never existed. A failed fetch is not cached: the
+   * next `acquire` for the same id retries.
+   *
+   * Every `acquire` MUST be matched by exactly one later `release(asset.id)` once the caller
+   * stops displaying this asset -- an unreleased reference keeps its blob URL alive forever. */
+  acquire(hass, asset, onReady) {
+    const id = asset.id;
+    this._refs.set(id, (this._refs.get(id) ?? 0) + 1);
+    const cached = this._urls.get(id);
+    if (cached !== void 0) return cached;
+    const waiters = this._waiters.get(id) ?? /* @__PURE__ */ new Set();
+    waiters.add(onReady);
+    this._waiters.set(id, waiters);
+    if (!this._pending.has(id)) {
+      this._pending.add(id);
+      void this._fetch(hass, asset.url).then((url) => {
+        this._pending.delete(id);
+        const pendingWaiters = this._waiters.get(id);
+        this._waiters.delete(id);
+        if (url && (this._refs.get(id) ?? 0) > 0) {
+          this._urls.set(id, url);
+        } else if (url) {
+          URL.revokeObjectURL(url);
+        }
+        for (const waiter of pendingWaiters ?? []) waiter(url);
+      });
+    }
+    return null;
+  }
+  /** Drops one reference. Once an id's reference count reaches zero it becomes eligible for
+   * eviction, but is not revoked immediately -- it stays cached (and instantly reusable) until
+   * the cache actually needs the room, so paging back to a recently-shown asset is still free.
+   *
+   * The eviction check itself is deferred by one microtask rather than run inline: a re-render
+   * that swaps one element showing this asset for a replacement (a template branch changing
+   * shape, for instance) disposes the old element and connects the new one within the same
+   * synchronous DOM patch, so the replacement's own `acquire` for the very same id normally
+   * lands moments later in the same microtask turn. Evicting inline here would let that brief,
+   * spurious zero-reference dip win the race and revoke a blob URL its own replacement was
+   * about to reuse, leaving that element waiting on a cache entry that no longer exists.
+   * Deferring gives any same-turn re-acquire a chance to land first and cancel this check. */
+  release(assetId) {
+    const next = (this._refs.get(assetId) ?? 0) - 1;
+    if (next > 0) {
+      this._refs.set(assetId, next);
+      return;
+    }
+    this._refs.delete(assetId);
+    queueMicrotask(() => {
+      if ((this._refs.get(assetId) ?? 0) > 0) return;
+      this._evictIfOverCap();
+    });
+  }
+  _evictIfOverCap() {
+    if (this._urls.size <= MAX_CACHED_IMAGES) return;
+    for (const [id, url] of this._urls) {
+      if (this._urls.size <= MAX_CACHED_IMAGES) break;
+      if ((this._refs.get(id) ?? 0) > 0) continue;
+      this._urls.delete(id);
+      URL.revokeObjectURL(url);
+    }
+  }
+  async _fetch(hass, url) {
+    if (!hass.fetchWithAuth) return null;
+    try {
+      const response = await hass.fetchWithAuth(url);
+      if (!response.ok) return null;
+      const blob = await response.blob();
+      return URL.createObjectURL(blob);
+    } catch {
+      return null;
+    }
+  }
+  /** Revokes every cached URL regardless of reference count. Call once, from the card (not a
+   * per-row component) that owns this cache's whole lifetime, in `disconnectedCallback`. */
+  dispose() {
+    for (const url of this._urls.values()) URL.revokeObjectURL(url);
+    this._urls.clear();
+    this._refs.clear();
+    this._pending.clear();
+    this._waiters.clear();
+  }
+};
+var AssetRef = class {
+  constructor() {
+    this._acquiredId = null;
+    this._cache = null;
+    this._url = null;
+  }
+  get url() {
+    return this._url;
+  }
+  sync(hass, cache, asset, onChange) {
+    const nextId = asset?.id ?? null;
+    if (nextId !== this._acquiredId) {
+      this._release();
+      this._url = null;
+    }
+    if (!asset || !hass || !cache || this._acquiredId === asset.id) return;
+    this._acquiredId = asset.id;
+    this._cache = cache;
+    const id = asset.id;
+    const url = cache.acquire(hass, asset, (result) => {
+      if (this._acquiredId !== id) return;
+      this._url = result;
+      onChange();
+    });
+    if (url !== null) this._url = url;
+  }
+  _release() {
+    if (this._acquiredId && this._cache) this._cache.release(this._acquiredId);
+    this._acquiredId = null;
+    this._cache = null;
+  }
+  dispose() {
+    this._release();
+    this._url = null;
+  }
+};
 var MDI = {
   cog: "M12,15.5A3.5,3.5 0 0,1 8.5,12A3.5,3.5 0 0,1 12,8.5A3.5,3.5 0 0,1 15.5,12A3.5,3.5 0 0,1 12,15.5M19.43,12.97C19.47,12.65 19.5,12.33 19.5,12C19.5,11.67 19.47,11.34 19.43,11L21.54,9.37C21.73,9.22 21.78,8.95 21.66,8.73L19.66,5.27C19.54,5.05 19.27,4.96 19.05,5.05L16.56,6.05C16.04,5.66 15.5,5.32 14.87,5.07L14.5,2.42C14.46,2.18 14.25,2 14,2H10C9.75,2 9.54,2.18 9.5,2.42L9.13,5.07C8.5,5.32 7.96,5.66 7.44,6.05L4.95,5.05C4.73,4.96 4.46,5.05 4.34,5.27L2.34,8.73C2.21,8.95 2.27,9.22 2.46,9.37L4.57,11C4.53,11.34 4.5,11.67 4.5,12C4.5,12.33 4.53,12.65 4.57,12.97L2.46,14.63C2.27,14.78 2.21,15.05 2.34,15.27L4.34,18.73C4.46,18.95 4.73,19.03 4.95,18.95L7.44,17.94C7.96,18.34 8.5,18.68 9.13,18.93L9.5,21.58C9.54,21.82 9.75,22 10,22H14C14.25,22 14.46,21.82 14.5,21.58L14.87,18.93C15.5,18.67 16.04,18.34 16.56,17.94L19.05,18.95C19.27,19.03 19.54,18.95 19.66,18.73L21.66,15.27C21.78,15.05 21.73,14.78 21.54,14.63L19.43,12.97Z",
   cloudCheck: "M13 19C13 19.34 13.04 19.67 13.09 20H6.5C5 20 3.69 19.5 2.61 18.43C1.54 17.38 1 16.09 1 14.58C1 13.28 1.39 12.12 2.17 11.1S4 9.43 5.25 9.15C5.67 7.62 6.5 6.38 7.75 5.43S10.42 4 12 4C13.95 4 15.6 4.68 16.96 6.04C18.32 7.4 19 9.05 19 11C20.15 11.13 21.1 11.63 21.86 12.5C22.37 13.07 22.7 13.71 22.86 14.42C21.82 13.54 20.5 13 19 13C18.89 13 18.79 13 18.68 13C18.62 13 18.56 13 18.5 13H17V11C17 9.62 16.5 8.44 15.54 7.46C14.56 6.5 13.38 6 12 6S9.44 6.5 8.46 7.46C7.5 8.44 7 9.62 7 11H6.5C5.53 11 4.71 11.34 4.03 12.03C3.34 12.71 3 13.53 3 14.5S3.34 16.29 4.03 17C4.71 17.66 5.53 18 6.5 18H13.09C13.04 18.33 13 18.66 13 19M17.75 19.43L16.16 17.84L15 19L17.75 22L22.5 17.25L21.34 15.84L17.75 19.43Z",
@@ -7786,14 +7940,28 @@ var MDI = {
   volumeHigh: "M14,3.23V5.29C16.89,6.15 19,8.83 19,12C19,15.17 16.89,17.84 14,18.7V20.77C18,19.86 21,16.28 21,12C21,7.72 18,4.14 14,3.23M16.5,12C16.5,10.23 15.5,8.71 14,7.97V16C15.5,15.29 16.5,13.76 16.5,12M3,9V15H7L12,20V4L7,9H3Z",
   openInNew: "M14,3V5H17.59L7.76,14.83L9.17,16.24L19,6.41V10H21V3M19,19H5V5H12V3H5C3.89,3 3,3.9 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V12H19V19Z",
   speaker: "M12,12A3,3 0 0,0 9,15A3,3 0 0,0 12,18A3,3 0 0,0 15,15A3,3 0 0,0 12,12M12,20A5,5 0 0,1 7,15A5,5 0 0,1 12,10A5,5 0 0,1 17,15A5,5 0 0,1 12,20M12,4A2,2 0 0,1 14,6A2,2 0 0,1 12,8C10.89,8 10,7.1 10,6C10,4.89 10.89,4 12,4M17,2H7C5.89,2 5,2.89 5,4V20A2,2 0 0,0 7,22H17A2,2 0 0,0 19,20V4C19,2.89 18.1,2 17,2Z",
-  refresh: "M17.65,6.35C16.2,4.9 14.21,4 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20C15.73,20 18.84,17.45 19.73,14H17.65C16.83,16.33 14.61,18 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6C13.66,6 15.14,6.69 16.22,7.78L13,11H20V4L17.65,6.35Z"
+  refresh: "M17.65,6.35C16.2,4.9 14.21,4 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20C15.73,20 18.84,17.45 19.73,14H17.65C16.83,16.33 14.61,18 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6C13.66,6 15.14,6.69 16.22,7.78L13,11H20V4L17.65,6.35Z",
+  check: "M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z",
+  dotsVertical: "M12,16A2,2 0 0,1 14,18A2,2 0 0,1 12,20A2,2 0 0,1 10,18A2,2 0 0,1 12,16M12,10A2,2 0 0,1 14,12A2,2 0 0,1 12,14A2,2 0 0,1 10,12A2,2 0 0,1 12,10M12,4A2,2 0 0,1 14,6A2,2 0 0,1 12,8A2,2 0 0,1 10,6A2,2 0 0,1 12,4Z",
+  helpCircle: "M11,18H13V16H11V18M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,20C7.59,20 4,16.41 4,12C4,7.59 7.59,4 12,4C16.41,4 20,7.59 20,12C20,16.41 16.41,20 12,20M12,6C9.79,6 8,7.79 8,10H10A2,2 0 0,1 12,8A2,2 0 0,1 14,10C14,12 11,11.75 11,15H13C13,12.75 16,12.5 16,10A4,4 0 0,0 12,6Z",
+  eye: "M12,9A3,3 0 0,1 15,12A3,3 0 0,1 12,15A3,3 0 0,1 9,12A3,3 0 0,1 12,9M12,4.5C17,4.5 21.27,7.61 23,12C21.27,16.39 17,19.5 12,19.5C7,19.5 2.73,16.39 1,12C2.73,7.61 7,4.5 12,4.5M3.18,12C4.83,15.36 8.24,17.5 12,17.5C15.76,17.5 19.17,15.36 20.82,12C19.17,8.64 15.76,6.5 12,6.5C8.24,6.5 4.83,8.64 3.18,12Z",
+  eyeOff: "M2,5.27L3.28,4L20,20.72L18.73,22L15.65,18.92C14.5,19.3 13.28,19.5 12,19.5C7,19.5 2.73,16.39 1,12C1.69,10.24 2.79,8.69 4.19,7.46L2,5.27M12,9A3,3 0 0,1 15,12C15,12.35 14.94,12.69 14.83,13L11,9.17C11.31,9.06 11.65,9 12,9M12,4.5C17,4.5 21.27,7.61 23,12C22.18,14.08 20.79,15.88 19,17.19L17.58,15.76C18.94,14.82 20.06,13.54 20.82,12C19.17,8.64 15.76,6.5 12,6.5C10.91,6.5 9.84,6.68 8.84,7L7.3,5.47C8.74,4.85 10.33,4.5 12,4.5M3.18,12C4.83,15.36 8.24,17.5 12,17.5C12.69,17.5 13.37,17.43 14,17.29L11.72,15C10.29,14.85 9.15,13.71 9,12.28L5.6,8.87C4.61,9.72 3.78,10.78 3.18,12Z",
+  deleteOutline: "M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19M8,9H16V19H8V9M15.5,4L14.5,3H9.5L8.5,4H5V6H19V4H15.5Z",
+  undo: "M12.5,8C9.85,8 7.45,9 5.6,10.6L2,7V16H11L7.38,12.38C8.77,11.22 10.54,10.5 12.5,10.5C16.04,10.5 19.05,12.81 20.1,16L22.47,15.22C21.08,11.03 17.15,8 12.5,8Z",
+  plus: "M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z",
+  cat: "M12,8L10.67,8.09C9.81,7.07 7.4,4.5 5,4.5C5,4.5 3.03,7.46 4.96,11.41C4.41,12.24 4.07,12.67 4,13.66L2.07,13.95L2.28,14.93L4.04,14.67L4.18,15.38L2.61,16.32L3.08,17.21L4.53,16.32C5.68,18.76 8.59,20 12,20C15.41,20 18.32,18.76 19.47,16.32L20.92,17.21L21.39,16.32L19.82,15.38L19.96,14.67L21.72,14.93L21.93,13.95L20,13.66C19.93,12.67 19.59,12.24 19.04,11.41C20.97,7.46 19,4.5 19,4.5C16.6,4.5 14.19,7.07 13.33,8.09L12,8M9,11A1,1 0 0,1 10,12A1,1 0 0,1 9,13A1,1 0 0,1 8,12A1,1 0 0,1 9,11M15,11A1,1 0 0,1 16,12A1,1 0 0,1 15,13A1,1 0 0,1 14,12A1,1 0 0,1 15,11M11,14H13L12.3,15.39C12.5,16.03 13.06,16.5 13.75,16.5A1.5,1.5 0 0,0 15.25,15H15.75A2,2 0 0,1 13.75,17C13,17 12.35,16.59 12,16V16H12C11.65,16.59 11,17 10.25,17A2,2 0 0,1 8.25,15H8.75A1.5,1.5 0 0,0 10.25,16.5C10.94,16.5 11.5,16.03 11.7,15.39L11,14Z",
+  play: "M8,5.14V19.14L19,12.14L8,5.14Z"
 };
 function mdiIcon(name) {
   return w`<svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor" aria-hidden="true"><path d=${MDI[name]}></path></svg>`;
 }
+var version = "0.26.0";
 var KIOSK_MIN_HEIGHT_PX = 440;
-var HOLD_TO_FEED_MS = 600;
+var HOLD_TO_FEED_MS = 1500;
 var KIBBLE_FALL_DURATION_MS = 900;
+var KIBBLE_FEED = "#43A96A";
+var KIBBLE_FEED_DARK = "#2F8551";
+var KIBBLE_INK_ON_FEED = "#10301D";
 var KIBBLE_AMBER = "#F4A452";
 var KIBBLE_AMBER_DARK = "#DE8A3A";
 var KIBBLE_INK_ON_AMBER = "#3A2C28";
@@ -7809,19 +7977,130 @@ function prefersReducedMotion() {
 function parseHopperLevel(state2) {
   return state2 === "empty" || state2 === "low" || state2 === "ok" ? state2 : null;
 }
-var WORD = { empty: "empty", low: "running low" };
-function hopperStatus(side1, side2) {
-  if (side1 === null && side2 === null) return null;
-  const problems = [
-    [1, side1],
-    [2, side2]
-  ].filter((entry2) => entry2[1] !== null && entry2[1] !== "ok");
-  if (problems.length === 0) return { text: "Hopper stocked", tone: "ok" };
-  const tone = problems.some(([, level]) => level === "empty") ? "empty" : "low";
-  if (problems.length === 2 && problems[0][1] === problems[1][1]) {
-    return { text: `Hopper ${WORD[problems[0][1]]}`, tone };
+function parseHopperRemaining(state2) {
+  if (!state2) return null;
+  const raw = state2.state;
+  const portions = raw === "unknown" || raw === "unavailable" || raw === "" ? null : Number(raw);
+  const attrs = state2.attributes ?? {};
+  return {
+    portions: portions != null && Number.isFinite(portions) ? portions : null,
+    fullAt: typeof attrs.full_at === "string" ? attrs.full_at : null,
+    portionsSinceFull: typeof attrs.portions_since_full === "number" ? attrs.portions_since_full : null,
+    fullToLow: typeof attrs.full_to_low === "number" ? attrs.full_to_low : null
+  };
+}
+var HOPPER_LOW_LINE = 0.34;
+var STEP_FILL = {
+  empty: 0,
+  low: 0.2,
+  ok: 0.64
+};
+function agoSentence(from, now) {
+  const elapsed = relativeElapsed(from, now);
+  if (elapsed.unit === "now") return "just now";
+  const word = elapsed.unit === "minutes" ? "minute" : elapsed.unit === "hours" ? "hour" : "day";
+  return `${elapsed.value} ${word}${elapsed.value === 1 ? "" : "s"} ago`;
+}
+function parseFullAt(iso) {
+  if (!iso) return null;
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+var ASSUMED_FULL_TO_LOW = 30;
+function unlearnedFullFraction(portionsSinceFull, compartments) {
+  const since = portionsSinceFull ?? 0;
+  const drained = 1 - since / (ASSUMED_FULL_TO_LOW * compartments);
+  return Math.max(STEP_FILL.ok, Math.min(1, drained));
+}
+function estimateFraction(portions, fullToLow) {
+  const ratio = fullToLow > 0 ? Math.max(0, Math.min(1, portions / fullToLow)) : 0;
+  return HOPPER_LOW_LINE + (1 - HOPPER_LOW_LINE) * ratio;
+}
+function hopperView(index, level, remaining, now = /* @__PURE__ */ new Date()) {
+  const compartments = index === null ? 2 : 1;
+  const fullAt = parseFullAt(remaining?.fullAt ?? null);
+  const portionsSinceFull = remaining?.portionsSinceFull ?? null;
+  const sinceClause = portionsSinceFull != null && portionsSinceFull > 0 ? `, ${portionsSinceFull} portion${portionsSinceFull === 1 ? "" : "s"} since` : "";
+  const filledSentence = fullAt ? `Filled ${agoSentence(fullAt, now)}${sinceClause}` : null;
+  if (level === null) {
+    return { index, level: null, tone: "unknown", headline: "Unknown", fillFraction: null, detail: null };
   }
-  return { text: problems.map(([side, level]) => `Hopper ${side} ${WORD[level]}`).join(" \xB7 "), tone };
+  if (level === "low" || level === "empty") {
+    return { index, level, tone: level, headline: level === "low" ? "Low" : "Empty", fillFraction: STEP_FILL[level], detail: filledSentence };
+  }
+  if (remaining?.portions != null && remaining.fullToLow != null && remaining.fullToLow > 0) {
+    const { portions, fullToLow } = remaining;
+    const rounded = Math.round(portions);
+    const estimateSentence = `About ${rounded} portion${rounded === 1 ? "" : "s"} left`;
+    return {
+      index,
+      level,
+      tone: "ok",
+      headline: `About ${rounded} left`,
+      fillFraction: estimateFraction(portions, fullToLow),
+      detail: fullAt ? `${estimateSentence} \xB7 filled ${agoSentence(fullAt, now)}` : estimateSentence
+    };
+  }
+  if (fullAt) {
+    return {
+      index,
+      level,
+      tone: "ok",
+      headline: `Filled ${relativeTimeCompact(fullAt, now)}`,
+      fillFraction: unlearnedFullFraction(portionsSinceFull, compartments),
+      detail: filledSentence
+    };
+  }
+  return { index, level, tone: "ok", headline: "Stocked", fillFraction: STEP_FILL.ok, detail: null };
+}
+function hopperName(view) {
+  return view.index === null ? "Hopper" : `Hopper ${view.index}`;
+}
+function hopperFoodName(state2) {
+  if (!state2 || state2.state === "unavailable" || state2.state === "unknown") return null;
+  const trimmed = state2.state.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+function foodForHopper(index, food1, food2) {
+  if (index === 1) return food1;
+  if (index === 2) return food2;
+  return null;
+}
+function hopperDisplayName(view, food) {
+  if (view.index === null) return hopperName(view);
+  const trimmed = food?.trim();
+  return trimmed ? trimmed : hopperName(view);
+}
+function hopperAriaLabel(view, food = null) {
+  const name = hopperDisplayName(view, food);
+  if (view.tone === "unknown") return `${name}: level unknown`;
+  const base = `${name}: ${view.headline}`;
+  return view.detail ? `${base}. ${view.detail}` : base;
+}
+var SEVERITY = { empty: 0, low: 1, ok: 2 };
+function sumKnown(a3, b3) {
+  return a3 == null || b3 == null ? null : a3 + b3;
+}
+function combinedHopper(level1, level2, remaining1, remaining2) {
+  const levels = [level1, level2].filter((l3) => l3 !== null);
+  const level = levels.length === 0 ? null : levels.reduce((a3, b3) => SEVERITY[a3] <= SEVERITY[b3] ? a3 : b3);
+  if (!remaining1 && !remaining2) return { level, remaining: null };
+  const fullAts = [remaining1?.fullAt, remaining2?.fullAt].filter((v2) => typeof v2 === "string");
+  const since = [remaining1?.portionsSinceFull, remaining2?.portionsSinceFull].filter((v2) => typeof v2 === "number");
+  return {
+    level,
+    remaining: {
+      portions: sumKnown(remaining1?.portions ?? null, remaining2?.portions ?? null),
+      fullAt: fullAts.length ? fullAts.reduce((a3, b3) => Date.parse(a3) >= Date.parse(b3) ? a3 : b3) : null,
+      portionsSinceFull: since.length ? since.reduce((a3, b3) => a3 + b3, 0) : null,
+      fullToLow: sumKnown(remaining1?.fullToLow ?? null, remaining2?.fullToLow ?? null)
+    }
+  };
+}
+function hopperViews(single, level1, level2, remaining1, remaining2, now = /* @__PURE__ */ new Date()) {
+  if (!single) return [hopperView(1, level1, remaining1, now), hopperView(2, level2, remaining2, now)];
+  const { level, remaining } = combinedHopper(level1, level2, remaining1, remaining2);
+  return [hopperView(null, level, remaining, now)];
 }
 var TRANSITIONS = {
   "choose-hopper": { start: "confirm-empty" },
@@ -7867,8 +8146,8 @@ function calibratedPercent(hopper, rawScore) {
     const span = curr.score - prev.score;
     const fraction = span <= 0 ? 0 : (rawScore - prev.score) / span;
     const portionAtScore = prev.portions + fraction * (curr.portions - prev.portions);
-    const percent = portionAtScore / hopper.full_portions * 100;
-    return Math.max(0, Math.min(100, percent));
+    const percent2 = portionAtScore / hopper.full_portions * 100;
+    return Math.max(0, Math.min(100, percent2));
   }
   return 100;
 }
@@ -7876,20 +8155,55 @@ function displayCalibrationHopper(state2) {
   if (!state2) return null;
   return state2.hoppers[0] ?? state2.hoppers[1] ?? null;
 }
-var VIEW_W = 240;
-var VIEW_H = 176;
-var CX = 120;
-var RIM_Y = 34;
-var RIM_X = 10;
-var RIM_W = VIEW_W - RIM_X * 2;
-var RIM_H = 18;
-var FOOT_Y = 158;
-var FOOT_HALF = 44;
-var CAV_TOP = RIM_Y + 8;
-var CAV_BOTTOM = 124;
-var CAV_INSET = 32;
-var TEXTURE_STEP = 9;
-var SCATTER = [-0.5, -0.2, 0.1, 0.4, -0.35, 0.25, 0];
+function effectivePourSource(pourSource, singleHopper) {
+  return pourSource ?? (singleHopper ? "1" : "both");
+}
+var ART_VIEW_W = 300;
+var ART_VIEW_H = 250;
+var HOPPER_X = 70;
+var HOPPER_W = 160;
+var HOPPER_Y = 16;
+var HOPPER_H = 116;
+var HOPPER_R = 24;
+var CHUTE_TOP = 132;
+var CHUTE_BOTTOM = 160;
+var BOWL_CX = 150;
+var BOWL_RIM_Y = 182;
+var BOWL_RX = 72;
+var BOWL_RY = 7;
+var BOWL_FOOT_Y = 238;
+var BOWL_WALL = 5;
+var MAX_DROP_MS = 6e4;
+var FOOD_1 = { top: "#f0b774", mid: "#c9853f", deep: "#8e5424", hi: "#ffe1b8" };
+var FOOD_2 = { top: "#f6e7cc", mid: "#dcc19a", deep: "#b3916a", hi: "#fffaf0" };
+var FINISH = {
+  frosted: {
+    name: "Frosted glass",
+    body: ["#1f2835", "#141a23"],
+    stroke: "#ffffff26",
+    sheen: 0.1,
+    chute: ["#8b98a6", "#4d5864"],
+    bowl: ["#262f3b", "#11161d"],
+    rim: "#c3ccd6",
+    light: false
+  },
+  ceramic: {
+    name: "Soft ceramic",
+    body: ["#ffffff", "#e7edf3"],
+    stroke: "#1a253122",
+    sheen: 0.45,
+    chute: ["#c9d2db", "#9aa7b4"],
+    bowl: ["#ffffff", "#dfe6ee"],
+    rim: "#ffffff",
+    light: true
+  }
+};
+var TONE_COLOR = {
+  ok: "var(--kibble-feed, #43a96a)",
+  low: "var(--kibble-amber-dark, #de8a3a)",
+  empty: "var(--error-color, #db4437)",
+  unknown: "var(--secondary-text-color, #8b98a6)"
+};
 function cloverPiece(x2, y3, r6, rotationDeg) {
   const lobes = [0, 120, 240].map((angle) => {
     const rad = (angle + rotationDeg) * Math.PI / 180;
@@ -7897,34 +8211,224 @@ function cloverPiece(x2, y3, r6, rotationDeg) {
   });
   return w`<g>${lobes}</g>`;
 }
-function dishPath() {
-  const left = RIM_X;
-  const right = RIM_X + RIM_W;
-  const r6 = 9;
-  return [
-    `M ${left + r6} ${RIM_Y}`,
-    `H ${right - r6}`,
-    `q ${r6} 0 ${r6} ${r6}`,
-    // right wall: bows outward slightly, then sweeps in to the foot
-    `C ${right} ${RIM_Y + 70}, ${CX + FOOT_HALF + 30} ${FOOT_Y - 10}, ${CX + FOOT_HALF} ${FOOT_Y}`,
-    `H ${CX - FOOT_HALF}`,
-    `C ${CX - FOOT_HALF - 30} ${FOOT_Y - 10}, ${left} ${RIM_Y + 70}, ${left} ${RIM_Y + r6}`,
-    `q 0 ${-r6} ${r6} ${-r6}`,
-    "Z"
-  ].join(" ");
+function textureDefs() {
+  return w`
+    <pattern id="tex-dot" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(12)">
+      <circle cx="2" cy="2" r="1.2" fill="#000" opacity="0.13" />
+      <circle cx="5.5" cy="5.5" r="1.2" fill="#fff" opacity="0.09" />
+    </pattern>
+    <pattern id="tex-fleck" width="11" height="9" patternUnits="userSpaceOnUse" patternTransform="rotate(-20)">
+      <path d="M1 2h4M7 6h3M2 7h2" stroke="#6b5234" stroke-width="1.3" stroke-linecap="round" opacity="0.28" />
+      <path d="M6 1.5h2" stroke="#fff" stroke-width="1.2" stroke-linecap="round" opacity="0.35" />
+    </pattern>
+  `;
 }
-function cavityPath(x0, x1) {
-  const r6 = 14;
-  const depth = CAV_BOTTOM - CAV_TOP;
-  const inset = Math.min(18, (x1 - x0) * 0.16);
-  return [
-    `M ${x0} ${CAV_TOP}`,
-    `H ${x1}`,
-    `C ${x1} ${CAV_TOP + depth * 0.55}, ${x1 - inset + r6} ${CAV_BOTTOM}, ${x1 - inset - r6} ${CAV_BOTTOM}`,
-    `H ${x0 + inset + r6}`,
-    `C ${x0 + inset - r6} ${CAV_BOTTOM}, ${x0} ${CAV_TOP + depth * 0.55}, ${x0} ${CAV_TOP}`,
-    "Z"
-  ].join(" ");
+function foodGradient(id, food) {
+  return w`
+    <linearGradient id=${id} x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color=${food.top} />
+      <stop offset="0.55" stop-color=${food.mid} />
+      <stop offset="1" stop-color=${food.deep} />
+    </linearGradient>
+  `;
+}
+function foodLevel(x2, top, w2, bottom, gradientId, textureId, hi) {
+  const h5 = bottom - top;
+  return w`
+    <rect x=${x2} y=${top} width=${w2} height=${h5} fill="url(#${gradientId})" />
+    <rect x=${x2} y=${top} width=${w2} height=${h5} fill="url(#${textureId})" />
+    <rect x=${x2} y=${top} width=${w2} height="2" fill=${hi} opacity="0.85" />
+  `;
+}
+function hopperArt(finish, compartments) {
+  const single = compartments.length === 1;
+  const foodLayer = compartments.map(
+    (c5) => c5.fraction > 0.01 ? foodLevel(c5.x, HOPPER_Y + 6 + (HOPPER_H - 12) * (1 - c5.fraction), c5.w, HOPPER_Y + HOPPER_H, c5.gradientId, c5.textureId, c5.food.hi) : A
+  );
+  return w`
+    <defs>
+      <linearGradient id="hopper-body" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color=${finish.body[0]} />
+        <stop offset="1" stop-color=${finish.body[1]} />
+      </linearGradient>
+      <linearGradient id="hopper-sheen" x1="0" x2="1">
+        <stop offset="0" stop-color="#fff" stop-opacity="0" />
+        <stop offset="0.08" stop-color="#fff" stop-opacity=${finish.sheen} />
+        <stop offset="0.22" stop-color="#fff" stop-opacity="0" />
+        <stop offset="0.85" stop-color="#fff" stop-opacity="0" />
+        <stop offset="0.95" stop-color="#fff" stop-opacity=${finish.sheen * 0.6} />
+        <stop offset="1" stop-color="#fff" stop-opacity="0" />
+      </linearGradient>
+      <linearGradient id="hopper-inner-shadow" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#000" stop-opacity=${finish.light ? 0.06 : 0.35} />
+        <stop offset="0.12" stop-color="#000" stop-opacity="0" />
+        <stop offset="0.88" stop-color="#000" stop-opacity="0" />
+        <stop offset="1" stop-color="#000" stop-opacity=${finish.light ? 0.08 : 0.4} />
+      </linearGradient>
+      ${textureDefs()}
+      ${foodGradient("hopper-food-1", FOOD_1)}
+      ${foodGradient("hopper-food-2", FOOD_2)}
+      <clipPath id="hopper-interior-clip">
+        <rect x=${HOPPER_X + 3} y=${HOPPER_Y + 3} width=${HOPPER_W - 6} height=${HOPPER_H - 6} rx=${HOPPER_R - 3} />
+      </clipPath>
+      <filter id="hopper-shadow-blur" x="-20%" y="-20%" width="140%" height="140%">
+        <feGaussianBlur stdDeviation="3" result="blur" />
+        <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+      </filter>
+    </defs>
+    <rect x=${HOPPER_X} y=${HOPPER_Y + 6} width=${HOPPER_W} height=${HOPPER_H} rx=${HOPPER_R} fill="#000" opacity=${finish.light ? 0.08 : 0.35} filter="url(#hopper-shadow-blur)" />
+    <rect x=${HOPPER_X} y=${HOPPER_Y} width=${HOPPER_W} height=${HOPPER_H} rx=${HOPPER_R} fill="url(#hopper-body)" />
+    <g clip-path="url(#hopper-interior-clip)">
+      ${foodLayer}
+      <rect x=${HOPPER_X} y=${HOPPER_Y} width=${HOPPER_W} height=${HOPPER_H} fill="url(#hopper-inner-shadow)" />
+    </g>
+    ${single ? A : w`<line x1=${HOPPER_X + HOPPER_W / 2} x2=${HOPPER_X + HOPPER_W / 2} y1=${HOPPER_Y + 8} y2=${HOPPER_Y + HOPPER_H - 8} stroke=${finish.light ? "#1a253140" : "#ffffff40"} stroke-width="2" stroke-linecap="round" />`}
+    <rect x=${HOPPER_X} y=${HOPPER_Y} width=${HOPPER_W} height=${HOPPER_H} rx=${HOPPER_R} fill="url(#hopper-sheen)" />
+    <rect x=${HOPPER_X + 0.75} y=${HOPPER_Y + 0.75} width=${HOPPER_W - 1.5} height=${HOPPER_H - 1.5} rx=${HOPPER_R} fill="none" stroke=${finish.stroke} stroke-width="1.5" />
+    <path d="M${HOPPER_X + HOPPER_R} ${HOPPER_Y + 1.5} H${HOPPER_X + HOPPER_W - HOPPER_R}" stroke="#fff" stroke-opacity=${finish.light ? 0.9 : 0.18} stroke-width="1.2" stroke-linecap="round" />
+  `;
+}
+function chuteArt(finish, active) {
+  const top = CHUTE_TOP;
+  const bottom = CHUTE_BOTTOM;
+  return w`
+    <defs>
+      <linearGradient id="chute-body" x1="0" x2="1">
+        <stop offset="0" stop-color=${finish.chute[1]} />
+        <stop offset="0.45" stop-color=${finish.chute[0]} />
+        <stop offset="1" stop-color=${finish.chute[1]} />
+      </linearGradient>
+    </defs>
+    <path
+      d="M104 ${top} L196 ${top} Q192 ${top + 4} 170 ${bottom - 6} L163 ${bottom} L137 ${bottom} L130 ${bottom - 6} Q108 ${top + 4} 104 ${top} Z"
+      fill="url(#chute-body)"
+      stroke=${finish.light ? "#1a253120" : "#00000040"}
+    />
+    <rect
+      x="139"
+      y=${bottom - 3}
+      width="22"
+      height="4"
+      rx="2"
+      fill=${active ? "#f7c948" : finish.light ? "#6b7886" : "#0a0d12"}
+      style=${active ? "filter:drop-shadow(0 0 6px #f7c948)" : ""}
+    />
+  `;
+}
+function bowlLevelY(fraction) {
+  const innerFoot = BOWL_FOOT_Y - BOWL_WALL;
+  const depth = innerFoot - BOWL_RIM_Y;
+  return innerFoot - depth * Math.max(0, Math.min(1, fraction));
+}
+function bowlInteriorPath() {
+  const cx = BOWL_CX;
+  const rimY = BOWL_RIM_Y;
+  const innerX = BOWL_RX - BOWL_WALL;
+  const innerFoot = BOWL_FOOT_Y - BOWL_WALL;
+  return `M${cx - innerX} ${rimY} C${cx - innerX + 2} ${rimY + 37} ${cx - 38} ${innerFoot} ${cx} ${innerFoot} C${cx + 38} ${innerFoot} ${cx + innerX - 2} ${rimY + 37} ${cx + innerX} ${rimY} Z`;
+}
+function bowlArt(finish, fraction, mix) {
+  const cx = BOWL_CX;
+  const rimY = BOWL_RIM_Y;
+  const rx = BOWL_RX;
+  const ry = BOWL_RY;
+  const foot = BOWL_FOOT_Y;
+  const outer = `M${cx - rx} ${rimY} C${cx - rx + 2} ${rimY + 40} ${cx - 42} ${foot} ${cx} ${foot} C${cx + 42} ${foot} ${cx + rx - 2} ${rimY + 40} ${cx + rx} ${rimY} Z`;
+  const innerFoot = foot - BOWL_WALL;
+  const inner = bowlInteriorPath();
+  const f4 = fraction == null ? 0 : Math.max(0, Math.min(1, fraction));
+  const clampedMix = Math.max(0, Math.min(1, mix));
+  const level = bowlLevelY(f4);
+  const w2 = rx * 2;
+  const showFood = f4 > 0.02;
+  const showMix = showFood && clampedMix > 0.01;
+  const mixFrom = Math.max(0, 1 - clampedMix - 0.06).toFixed(3);
+  const mixTo = Math.min(1, 1 - clampedMix + 0.06).toFixed(3);
+  return w`
+    <defs>
+      ${foodGradient("bowl-food-1", FOOD_1)}
+      ${foodGradient("bowl-food-2", FOOD_2)}
+      <clipPath id="bowl-interior-clip"><path d=${inner} /></clipPath>
+      <linearGradient id="bowl-wall" x1="0" x2="1">
+        <stop offset="0" stop-color=${finish.bowl[0]} stop-opacity="0.55" />
+        <stop offset="0.2" stop-color="#fff" stop-opacity=${finish.light ? 0.5 : 0.1} />
+        <stop offset="0.45" stop-color=${finish.bowl[1]} stop-opacity="0.25" />
+        <stop offset="0.9" stop-color="#fff" stop-opacity=${finish.light ? 0.3 : 0.06} />
+        <stop offset="1" stop-color=${finish.bowl[0]} stop-opacity="0.55" />
+      </linearGradient>
+      <linearGradient id="bowl-mix-gradient" x1="0" x2="1">
+        <stop offset=${mixFrom} stop-color="#fff" stop-opacity="0" />
+        <stop offset=${mixTo} stop-color="#fff" stop-opacity="1" />
+      </linearGradient>
+      <mask id="bowl-mix-mask" maskContentUnits="userSpaceOnUse">
+        <rect x=${cx - rx} y=${rimY - 10} width=${w2} height=${foot - rimY + 20} fill="url(#bowl-mix-gradient)" />
+      </mask>
+    </defs>
+    <ellipse cx=${cx} cy=${foot + 5} rx=${rx * 0.7} ry="5" fill="#000" opacity=${finish.light ? 0.1 : 0.4} />
+    <path d=${inner} fill=${finish.light ? "#e9eef3" : "#0b0f15"} />
+    <g clip-path="url(#bowl-interior-clip)">
+      ${showFood ? w`
+            <rect x=${cx - rx} y=${level} width=${w2} height=${innerFoot - level + 2} fill="url(#bowl-food-1)" />
+            <rect x=${cx - rx} y=${level} width=${w2} height=${innerFoot - level + 2} fill="url(#tex-dot)" />
+            ${showMix ? w`<g mask="url(#bowl-mix-mask)">
+                  <rect x=${cx - rx} y=${level} width=${w2} height=${innerFoot - level + 2} fill="url(#bowl-food-2)" />
+                  <rect x=${cx - rx} y=${level} width=${w2} height=${innerFoot - level + 2} fill="url(#tex-fleck)" />
+                </g>` : A}
+            <rect x=${cx - rx} y=${level} width=${w2} height="2" fill="#fff" opacity="0.55" />
+          ` : A}
+    </g>
+    <path d=${outer} fill="url(#bowl-wall)" stroke=${finish.light ? "#1a253126" : "#ffffff30"} stroke-width="1.5" />
+    <ellipse cx=${cx} cy=${rimY} rx=${rx} ry=${ry} fill="none" stroke=${finish.light ? "#ffffff" : finish.rim} stroke-width="2.5" />
+  `;
+}
+function pourColorsFor(source) {
+  if (source === "1") return [FOOD_1.mid, FOOD_1.top, FOOD_1.deep];
+  if (source === "2") return [FOOD_2.mid, FOOD_2.top, FOOD_2.deep];
+  return [FOOD_1.mid, FOOD_1.top, FOOD_2.mid, FOOD_2.top];
+}
+var POUR_CYCLE_MS = 600;
+var POUR_LANES = [
+  { dx: -1.3, rotationDeg: -10, phase: 0 },
+  { dx: 1.1, rotationDeg: 14, phase: 1 / 3 },
+  { dx: -0.2, rotationDeg: 4, phase: 2 / 3 }
+];
+function pourPieces(colors, portions, outletX, outletY, targetY) {
+  const lanes = portions >= 3 ? POUR_LANES : POUR_LANES.slice(0, 2);
+  const distance = (targetY - outletY).toFixed(1);
+  const pieces = lanes.map((lane, i6) => {
+    const delayMs = Math.round(lane.phase * POUR_CYCLE_MS);
+    const style = `--fall-delay:${delayMs}ms;--fall-duration:${POUR_CYCLE_MS}ms;--fall-to:${distance}px;`;
+    return w`<g class="pour-piece" style=${style} fill=${colors[i6 % colors.length]}>${cloverPiece(outletX + lane.dx, outletY, 3.6, lane.rotationDeg)}</g>`;
+  });
+  return w`
+    <defs>
+      <clipPath id="pour-clip">
+        <rect x=${outletX - 6} y=${CHUTE_BOTTOM - 4} width="12" height=${BOWL_RIM_Y - CHUTE_BOTTOM + 4} />
+        <path d=${bowlInteriorPath()} />
+      </clipPath>
+    </defs>
+    <g class="pour-pieces" clip-path="url(#pour-clip)">${pieces}</g>
+  `;
+}
+function bowlTitle(fraction, calibratedPercentValue, isEstimate) {
+  if (fraction == null) return "Bowl level unknown";
+  const percent2 = calibratedPercentValue != null ? calibratedPercentValue : fraction * 100;
+  return isEstimate ? `Bowl about ${Math.round(percent2)}% full` : `Bowl ${Math.round(percent2)}% full`;
+}
+function hopperGroupTitle(hoppers, food1, food2) {
+  if (hoppers.length === 1) return `${hopperDisplayName(hoppers[0], null)}: ${hoppers[0].headline}`;
+  return hoppers.map((view) => `${hopperDisplayName(view, foodForHopper(view.index, food1, food2))}: ${view.headline}`).join(", ");
+}
+function renderChip(view, food, onActivate) {
+  const name = hopperDisplayName(view, food);
+  const label = hopperAriaLabel(view, food);
+  return b2`
+    <button type="button" class="chip" data-tone=${view.tone} style=${`--chip-c:${TONE_COLOR[view.tone]}`} aria-label=${label} title=${view.detail ?? ""} @click=${onActivate}>
+      <span class="chip-dot"></span>
+      <span class="chip-name">${name}</span>
+      <span class="chip-word">${view.headline}</span>
+    </button>
+  `;
 }
 var KibbleBowl = class extends i4 {
   constructor() {
@@ -7934,26 +8438,54 @@ var KibbleBowl = class extends i4 {
     this.fill = null;
     this.hopperLevel1 = null;
     this.hopperLevel2 = null;
+    this.hopperRemaining1 = null;
+    this.hopperRemaining2 = null;
+    this.singleHopper = false;
+    this.food1 = null;
+    this.food2 = null;
     this.feeding = false;
+    this.portions = 1;
     this.calibration = null;
+    this.darkMode = false;
+    this.bowlMix = 0;
+    this.pourSource = null;
   }
   static {
     this.properties = {
       fill: { type: Number },
       hopperLevel1: { type: String },
       hopperLevel2: { type: String },
+      hopperRemaining1: { attribute: false },
+      hopperRemaining2: { attribute: false },
+      singleHopper: { type: Boolean },
+      food1: { type: String },
+      food2: { type: String },
       feeding: { type: Boolean },
-      calibration: { attribute: false }
+      portions: { type: Number },
+      calibration: { attribute: false },
+      darkMode: { type: Boolean },
+      bowlMix: { type: Number },
+      pourSource: { attribute: false },
+      fillSource: { type: String }
     };
   }
   disconnectedCallback() {
     super.disconnectedCallback();
     clearTimeout(this._dropTimer);
   }
+  _openHopperDetail() {
+    this.dispatchEvent(new CustomEvent("hopper-detail-requested", { bubbles: true, composed: true }));
+  }
   willUpdate(changed) {
     if (changed.has("feeding")) {
-      if (this.feeding && !this._wasFeeding && !prefersReducedMotion()) {
+      if (this.feeding && !this._wasFeeding) {
+        clearTimeout(this._dropTimer);
         this._dropping = true;
+        this._dropTimer = setTimeout(() => {
+          this._dropping = false;
+          this.requestUpdate();
+        }, MAX_DROP_MS);
+      } else if (!this.feeding && this._wasFeeding && this._dropping) {
         clearTimeout(this._dropTimer);
         this._dropTimer = setTimeout(() => {
           this._dropping = false;
@@ -7963,101 +8495,45 @@ var KibbleBowl = class extends i4 {
       this._wasFeeding = this.feeding;
     }
   }
+  _compartments(hoppers) {
+    if (hoppers.length === 1) {
+      const view = hoppers[0];
+      return [{ x: HOPPER_X, w: HOPPER_W, fraction: view.fillFraction ?? 0, food: FOOD_1, gradientId: "hopper-food-1", textureId: "tex-dot", toneColor: TONE_COLOR[view.tone] }];
+    }
+    const [view1, view2] = hoppers;
+    return [
+      { x: HOPPER_X, w: HOPPER_W / 2, fraction: view1.fillFraction ?? 0, food: FOOD_1, gradientId: "hopper-food-1", textureId: "tex-dot", toneColor: TONE_COLOR[view1.tone] },
+      { x: HOPPER_X + HOPPER_W / 2, w: HOPPER_W / 2, fraction: view2.fillFraction ?? 0, food: FOOD_2, gradientId: "hopper-food-2", textureId: "tex-fleck", toneColor: TONE_COLOR[view2.tone] }
+    ];
+  }
   render() {
+    const finish = this.darkMode ? FINISH.frosted : FINISH.ceramic;
+    const hoppers = hopperViews(this.singleHopper, this.hopperLevel1, this.hopperLevel2, this.hopperRemaining1, this.hopperRemaining2);
+    const compartments = this._compartments(hoppers);
     const calibratedFillPercent = this.fill == null ? null : calibratedPercent(this.calibration, this.fill / 100);
-    const label = calibratedFillPercent != null ? `Bowl ${Math.round(calibratedFillPercent)}% full (raw score ${Math.round(this.fill)})` : this.fill == null ? "Bowl level unknown" : `Bowl ${Math.round(this.fill)}% full`;
-    const x0 = RIM_X + CAV_INSET;
-    const x1 = RIM_X + RIM_W - CAV_INSET;
     const fraction = this.fill == null ? null : this.fill / 100;
-    const hopper = hopperStatus(this.hopperLevel1, this.hopperLevel2);
+    const source = effectivePourSource(this.pourSource, this.singleHopper);
+    const pourColors = pourColorsFor(source);
+    const outletY = CHUTE_BOTTOM - 2;
+    const level = bowlLevelY(fraction ?? 0);
+    const isEstimate = this.fillSource === "estimate";
+    const artLabel = `${hopperGroupTitle(hoppers, this.food1, this.food2)}. ${bowlTitle(fraction, calibratedFillPercent, isEstimate)}`;
     return b2`
-      <svg class="art" viewBox="0 0 ${VIEW_W} ${VIEW_H}" role="img" aria-label=${label} preserveAspectRatio="xMidYMid meet">
-        <title>${label}</title>
-        <defs>
-          <linearGradient id="silo-body" x1="0" x2="1">
-            <stop offset="0" stop-color="var(--silo-shade)" />
-            <stop offset="0.18" stop-color="var(--silo-light)" />
-            <stop offset="0.62" stop-color="var(--silo-mid)" />
-            <stop offset="1" stop-color="var(--silo-dark)" />
-          </linearGradient>
-          <linearGradient id="silo-cap" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stop-color="var(--silo-light)" />
-            <stop offset="1" stop-color="var(--silo-shade)" />
-          </linearGradient>
-          <linearGradient id="silo-glass" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stop-color="var(--silo-glass-edge)" />
-            <stop offset="1" stop-color="var(--silo-glass)" />
-          </linearGradient>
-          <linearGradient id="silo-food" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stop-color="var(--kibble-amber)" />
-            <stop offset="1" stop-color="var(--kibble-amber-dark)" />
-          </linearGradient>
-          <filter id="silo-inner" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="2.4" /></filter>
-          <clipPath id="silo-win"><path d=${cavityPath(x0, x1)} /></clipPath>
-        </defs>
-        <path class="body" d=${dishPath()} />
-        <rect class="cap" x=${RIM_X - 4} y=${RIM_Y - 4} width=${RIM_W + 8} height=${RIM_H} rx="9" />
-        <rect class="cap-highlight" x=${RIM_X + 6} y=${RIM_Y} width=${RIM_W - 12} height="4" rx="2" />
-        <path class="body-edge" d=${dishPath()} />
-        ${this._renderCavity(x0, x1, fraction)}
-        ${this._dropping ? this._renderFallingKibble() : A}
+      <svg class="art" viewBox="0 0 ${ART_VIEW_W} ${ART_VIEW_H}" role="img" aria-label=${artLabel} preserveAspectRatio="xMidYMid meet">
+        <g class="hopper-scene">
+          <title>${hopperGroupTitle(hoppers, this.food1, this.food2)}</title>
+          ${hopperArt(finish, compartments)}
+        </g>
+        ${chuteArt(finish, this.feeding)}
+        <g class="bowl-scene">
+          <title>${bowlTitle(fraction, calibratedFillPercent, isEstimate)}</title>
+          ${bowlArt(finish, fraction, this.bowlMix)}
+        </g>
+        ${this._dropping && !prefersReducedMotion() ? pourPieces(pourColors, this.portions, BOWL_CX, outletY, level) : A}
       </svg>
       ${calibratedFillPercent != null ? b2`<div class="calibrated" role="status">${Math.round(calibratedFillPercent)}% full <span class="raw">\u00b7 raw ${Math.round(this.fill)}</span></div>` : A}
-      ${hopper ? b2`<div class="hopper" data-tone=${hopper.tone} role="status">${hopper.text}</div>` : A}
+      <div class="chips">${hoppers.map((view) => renderChip(view, foodForHopper(view.index, this.food1, this.food2), () => this._openHopperDetail()))}</div>
     `;
-  }
-  /** The cavity: recessed dark interior with an inner shadow, the level clipped to it with a
-   * kibble texture and a surface highlight (nothing at zero — an empty bowl is an empty cavity,
-   * not a sliver). A `null` fraction means the feeder has no reading (kibble docs/34): the
-   * cavity shows a "?" rather than reading as empty, which is the difference between "I don't
-   * know" and "your cat has no food". */
-  _renderCavity(x0, x1, rawFraction) {
-    const w2 = x1 - x0;
-    const midX = x0 + w2 / 2;
-    if (rawFraction == null) {
-      return w`
-        <g>
-          <path class="glass" d=${cavityPath(x0, x1)} />
-          <text class="unknown" x=${midX} y=${(CAV_TOP + CAV_BOTTOM) / 2 + 2} text-anchor="middle" dominant-baseline="central">?</text>
-        </g>
-      `;
-    }
-    const fraction = Math.max(0, Math.min(1, rawFraction));
-    const top = CAV_BOTTOM - (CAV_BOTTOM - CAV_TOP) * fraction;
-    const dots = [];
-    if (fraction > 0) {
-      let row = 0;
-      for (let y3 = top + 6; y3 < CAV_BOTTOM; y3 += TEXTURE_STEP, row += 1) {
-        const cols = Math.max(1, Math.floor(w2 / 14));
-        for (let k2 = 0; k2 < cols; k2 += 1) {
-          const x2 = x0 + 7 + k2 * 14 + (row % 2 === 0 ? 0 : 7);
-          if (x2 < x1 - 6) dots.push(w`<circle cx=${x2.toFixed(1)} cy=${y3.toFixed(1)} r="2.6" />`);
-        }
-      }
-    }
-    return w`
-      <g>
-        <path class="glass" d=${cavityPath(x0, x1)} />
-        <g clip-path="url(#silo-win)">
-          <rect class="glass-inner" x=${x0 - 2} y=${CAV_TOP - 8} width=${w2 + 4} height=${CAV_BOTTOM - CAV_TOP + 4} filter="url(#silo-inner)" />
-          ${fraction > 0 ? w`
-                <rect class="fill" x=${x0} y=${top} width=${w2} height=${CAV_BOTTOM - top + 2} />
-                <g class="texture">${dots}</g>
-                <rect class="fill-surface" x=${x0} y=${top} width=${w2} height="2" />
-              ` : A}
-        </g>
-      </g>
-    `;
-  }
-  _renderFallingKibble() {
-    const pieces = SCATTER.map((t5, i6) => {
-      const x2 = CX + t5 * 40;
-      const delayMs = i6 * 70;
-      const durationMs = 380;
-      const style = `--fall-delay:${delayMs}ms;--fall-duration:${durationMs}ms;--fall-rotate:${(t5 * 180).toFixed(0)}deg;--fall-to:34px;`;
-      return w`<g class="drop" style=${style}>${cloverPiece(x2, 4, 6, t5 * 60)}</g>`;
-    });
-    return w`<g class="drops">${pieces}</g>`;
   }
   static {
     this.styles = i`
@@ -8065,124 +8541,139 @@ var KibbleBowl = class extends i4 {
       display: flex;
       flex-direction: column;
       align-items: center;
-      height: 100%;
-      min-height: 0;
-      /* The plastic: the card background lifted toward the text colour in four steps, so the
-       * lit face, the mid tone, the turned edges and the rim all come from the theme. */
-      --silo-base: var(--card-background-color, var(--ha-card-background, #fff));
-      --silo-ink: var(--primary-text-color, #222);
-      --silo-light: color-mix(in srgb, var(--silo-base) 78%, var(--silo-ink));
-      --silo-mid: color-mix(in srgb, var(--silo-base) 84%, var(--silo-ink));
-      --silo-shade: color-mix(in srgb, var(--silo-base) 68%, var(--silo-ink));
-      --silo-dark: color-mix(in srgb, var(--silo-base) 58%, var(--silo-ink));
-      /* The cavity is the bowl's interior: always darker than the plastic, in both themes, so
-       * the level reads as something inside the dish. */
-      --silo-glass: color-mix(in srgb, var(--silo-base) 40%, #000);
-      --silo-glass-edge: color-mix(in srgb, var(--silo-base) 52%, #000);
+      gap: var(--kibble-rhythm, 10px);
+      width: 100%;
     }
+    /* width:100% + aspect-ratio gives .art its natural preferred size, same as always -- the
+     * new part is min-height: 0, overriding the flex automatic-minimum-size default (which
+     * clamps shrinking to an item's own preferred size for anything with an intrinsic aspect
+     * ratio and overflow:visible). Without it, a squeezed host (kibble-card.ts's >=960px
+     * side-by-side tier, where this column's own height is capped to match the video) could
+     * not actually shrink .art at all -- it just kept its natural ~256px height and visually
+     * overflowed straight through .calibrated/.chips below it and into whatever sits past this
+     * component entirely. flex-shrink is 1 by default; .calibrated/.chips are flex: none
+     * (below) and never give up their own space, so a genuine squeeze always comes out of .art
+     * first -- preserveAspectRatio="xMidYMid meet" on the svg itself (render(), above) is what
+     * then scales the actual artwork down to whatever smaller box results, instead of cropping
+     * or distorting it. */
     .art {
       display: block;
-      width: auto;
-      max-width: var(--kibble-bowl-max-width, 190px);
-      flex: 1 1 auto;
+      width: 100%;
+      aspect-ratio: ${ART_VIEW_W} / ${ART_VIEW_H};
       min-height: 0;
-      max-height: 100%;
-      aspect-ratio: ${VIEW_W} / ${VIEW_H};
-      margin: 0 auto;
       overflow: visible;
     }
     /* The calibrated readout: a real, meaningful number now that a curve exists, so unlike the
-     * raw score it earns primary-text weight -- the raw figure stays too, just secondary,
-     * since every existing threshold elsewhere is still keyed to it, never this one. */
+     * raw score it earns primary-text weight -- the raw figure stays too, just secondary, since
+     * every existing threshold elsewhere is still keyed to it, never this one. */
     .calibrated {
       flex: none;
-      margin-top: 6px;
       font-size: 14px;
       font-weight: 600;
+      text-align: center;
       color: var(--primary-text-color);
     }
     .calibrated .raw {
       font-weight: 400;
       color: var(--secondary-text-color);
     }
-    /* The hopper line: secondary text when stocked, the card's amber when a side is running
-     * low, the theme's error colour when one is empty. */
-    .hopper {
+    .chips {
       flex: none;
-      margin-top: 4px;
-      font-size: 12px;
-      font-weight: 500;
-      letter-spacing: 0.01em;
-      line-height: 1.2;
-      color: var(--secondary-text-color);
-      white-space: nowrap;
+      display: flex;
+      flex-wrap: nowrap;
+      gap: 8px;
+      width: 100%;
     }
-    .hopper[data-tone="low"] {
+    .chip {
+      flex: 1 1 0;
+      min-width: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      min-height: 44px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid color-mix(in srgb, var(--primary-text-color) 12%, transparent);
+      background: color-mix(in srgb, var(--primary-text-color) 4%, transparent);
+      font: inherit;
+      color: inherit;
+      cursor: pointer;
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .chip:hover {
+      background: color-mix(in srgb, var(--primary-text-color) 8%, transparent);
+    }
+    .chip:focus-visible {
+      outline: 2px solid var(--primary-color, #03a9f4);
+      outline-offset: 1px;
+    }
+    .chip-dot {
+      flex: none;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--chip-c);
+      box-shadow: 0 0 6px var(--chip-c);
+    }
+    .chip-name {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--secondary-text-color);
+    }
+    .chip-word {
+      flex: none;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .chip[data-tone="low"] .chip-word {
       color: var(--kibble-amber-dark);
     }
-    .hopper[data-tone="empty"] {
+    .chip[data-tone="empty"] .chip-word {
       color: var(--error-color, #db4437);
-      font-weight: 600;
     }
-    .body {
-      fill: url(#silo-body);
+    .pour-piece {
+      transform-box: fill-box;
+      animation: kibble-pour-fall var(--fall-duration) linear var(--fall-delay) infinite both;
     }
-    /* On a light card the near-white plastic needs an edge to read as an object; on a dark
-     * card the same 0.14 alpha of the text colour is invisible, which is the point. */
-    .body-edge {
-      fill: none;
-      stroke: var(--primary-text-color);
-      stroke-opacity: 0.14;
-      stroke-width: 1;
-    }
-    .cap {
-      fill: url(#silo-cap);
-    }
-    .cap-highlight {
-      fill: var(--silo-ink);
-      opacity: 0.16;
-    }
-    .glass {
-      fill: url(#silo-glass);
-    }
-    .glass-inner {
-      fill: #000;
-      opacity: 0.35;
-    }
-    .fill {
-      fill: url(#silo-food);
-      transition: y 500ms cubic-bezier(0.2, 0.8, 0.2, 1), height 500ms cubic-bezier(0.2, 0.8, 0.2, 1);
-    }
-    .texture circle {
-      fill: var(--kibble-amber-dark);
-      opacity: 0.55;
-    }
-    .fill-surface {
-      fill: #fff;
-      opacity: 0.5;
-    }
-    .unknown {
-      /* Same ink as the printed rim marks, just larger: legible against the dark cavity in
-       * either theme, still clearly a label rather than a level. */
-      fill: var(--secondary-text-color, var(--primary-text-color));
-      font-size: 36px;
-      font-weight: 700;
-      opacity: 0.6;
-    }
-    .drops circle {
-      fill: var(--kibble-amber-dark);
-      animation: kibble-drop var(--fall-duration) cubic-bezier(0.4, 0, 1, 1) var(--fall-delay) both;
-    }
-    @keyframes kibble-drop {
-      from {
-        transform: translateY(0) rotate(0deg);
+    /* Position samples position at t^2 (0, 0.04, 0.178, 0.415, 0.713, 1) -- true quadratic
+     * ease-in between those stops, so the fall visibly accelerates like a dropped object
+     * instead of following a stock easing curve. The last stretch (90-100%) holds at the
+     * landed position for a brief squash-and-release settle, then fades into the pile. */
+    @keyframes kibble-pour-fall {
+      0% {
+        transform: translateY(0) scale(1);
         opacity: 0;
       }
-      15% {
+      6% {
         opacity: 1;
       }
-      to {
-        transform: translateY(var(--fall-to)) rotate(var(--fall-rotate));
+      18% {
+        transform: translateY(calc(var(--fall-to) * 0.04));
+      }
+      38% {
+        transform: translateY(calc(var(--fall-to) * 0.178));
+      }
+      58% {
+        transform: translateY(calc(var(--fall-to) * 0.415));
+      }
+      76% {
+        transform: translateY(calc(var(--fall-to) * 0.713));
+      }
+      90% {
+        transform: translateY(var(--fall-to));
+      }
+      96% {
+        transform: translateY(var(--fall-to)) scale(1.15, 0.82);
+        opacity: 1;
+      }
+      100% {
+        transform: translateY(var(--fall-to)) scale(1);
         opacity: 0;
       }
     }
@@ -8190,46 +8681,103 @@ var KibbleBowl = class extends i4 {
   }
 };
 customElements.define("kibble-bowl", KibbleBowl);
-var QUICK_VALUES = [1, 2, 3, 4, 5];
+function dualFeedPlan(amount1, amount2) {
+  if (amount1 > 0 && amount2 > 0) return { hopper: "both", amount: amount1, amount2 };
+  if (amount1 > 0) return { hopper: "1", amount: amount1 };
+  if (amount2 > 0) return { hopper: "2", amount: amount2 };
+  return null;
+}
+function popupForHash(hash, config) {
+  if (!config) return null;
+  const detectionAreasHash = config.detection_areas_hash ?? "#detection-areas";
+  if (hash === detectionAreasHash) return "detection-areas";
+  const calibrateHash = config.calibrate_hash ?? "#calibrate";
+  if (hash === calibrateHash) return "calibrate";
+  return null;
+}
+var BOWL_MIX_MAX_AGE_MS = 12 * 60 * 60 * 1e3;
+function deriveBowlMix(events, singleHopper, now = /* @__PURE__ */ new Date()) {
+  if (singleHopper) return 0;
+  const cutoffSeconds = (now.getTime() - BOWL_MIX_MAX_AGE_MS) / 1e3;
+  for (const event of events) {
+    if (event.kind !== "feed" || event.start < cutoffSeconds) continue;
+    const sides = event.feed?.sides;
+    if (!sides || sides.length === 0) continue;
+    const total = sides.reduce((sum, side) => sum + side.portions, 0);
+    if (total <= 0) continue;
+    const hopper2Portions = sides.find((side) => side.hopper === 2)?.portions ?? 0;
+    return hopper2Portions / total;
+  }
+  return 0;
+}
+var FEED_REQUEST_IDLE = { phase: "idle", elapsedMs: 0 };
+var DEFAULT_FEED_REQUEST_CONFIG = { timeoutMs: 1e4 };
+function feedRequestSubmitted() {
+  return { phase: "requesting", elapsedMs: 0 };
+}
+function feedRequestTick(state2, deltaMs, config) {
+  if (state2.phase !== "requesting") return state2;
+  const elapsedMs = state2.elapsedMs + deltaMs;
+  if (elapsedMs >= config.timeoutMs) return { phase: "timeout", elapsedMs: config.timeoutMs };
+  return { phase: "requesting", elapsedMs };
+}
+function feedRequestFeedingChanged(state2, feeding) {
+  if (feeding) return { phase: "feeding", elapsedMs: 0 };
+  if (state2.phase === "feeding") return FEED_REQUEST_IDLE;
+  return state2;
+}
+function feedRequestReset() {
+  return FEED_REQUEST_IDLE;
+}
 var KibbleSegmentedPicker = class extends i4 {
   static {
     this.properties = {
-      value: { type: Number },
-      disabled: { type: Boolean }
+      value: { type: String },
+      options: { attribute: false },
+      groupLabel: { type: String, attribute: "group-label" },
+      disabled: { type: Boolean },
+      /** Segments size to their own label instead of splitting the row evenly -- for the hopper
+       * choice, where "Both" and a long food name have no business being the same width. Unset
+       * (the portion amount's plain digits) keeps the original equal-width segments. */
+      contentFit: { type: Boolean, attribute: "content-fit" }
     };
   }
   constructor() {
     super();
-    this.value = 1;
+    this.value = "";
+    this.options = [];
+    this.groupLabel = "";
     this.disabled = false;
+    this.contentFit = false;
   }
   render() {
     return b2`
-      <div class="segments" role="radiogroup" aria-label="Feed amount, portions">
-        ${QUICK_VALUES.map(
-      (portion) => b2`
+      <div class="segments" role="radiogroup" aria-label=${this.groupLabel}>
+        ${this.options.map(
+      (option) => b2`
             <button
               type="button"
               role="radio"
-              aria-checked=${portion === this.value}
-              class="segment ${portion === this.value ? "selected" : ""}"
+              aria-checked=${option.value === this.value}
+              class="segment ${option.value === this.value ? "selected" : ""}"
               ?disabled=${this.disabled}
-              @click=${() => this._select(portion)}
+              @click=${() => this._select(option.value)}
             >
-              ${portion}
+              <span class="segment-label">${option.label}</span>
             </button>
           `
     )}
       </div>
     `;
   }
-  _select(portion) {
-    this.dispatchEvent(new CustomEvent("portion-selected", { detail: { value: portion }, bubbles: true, composed: true }));
+  _select(value) {
+    this.dispatchEvent(new CustomEvent("option-selected", { detail: { value }, bubbles: true, composed: true }));
   }
   static {
     this.styles = i`
     :host {
       display: block;
+      container-type: inline-size;
     }
     .segments {
       display: flex;
@@ -8255,22 +8803,54 @@ var KibbleSegmentedPicker = class extends i4 {
       align-items: center;
       justify-content: center;
       line-height: 1.1;
+      overflow: hidden;
+      padding: 0 4px;
+      box-sizing: border-box;
       transition: background-color 0.15s ease, color 0.15s ease, transform 0.08s ease;
+    }
+    /* Segments size to their own label (a caller opts in for variable-length text, e.g. the
+       hopper choice's "Both" vs. a food name) instead of splitting the row evenly -- "Both"
+       stays narrow, a long food name gets the room it actually needs. Falls back to a smaller
+       label size before ever truncating, since a name silently getting cut off is worse than a
+       slightly smaller one staying whole. */
+    :host([content-fit]) .segment {
+      flex: 1 1 auto;
+      min-width: 0;
+      padding: 0 14px;
+    }
+    @container (max-width: 300px) {
+      :host([content-fit]) .segment-label {
+        font-size: 13px;
+      }
+    }
+    /* A text label (the hopper choice's "Both"/food names) can run longer than a single
+       portion digit ever does -- truncated with an ellipsis rather than wrapping or blowing
+       out the pill's fixed touch-target width. */
+    .segment-label {
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
     /* Press feedback -- the small tactile detail that makes a touch panel feel native. */
     .segment:active:not(:disabled) {
       transform: scale(0.96);
     }
     .segment.selected {
-      background: var(--kibble-amber);
-      color: var(--kibble-ink-on-amber);
+      /* The selected portion belongs to the feed action, not to the food, so it carries the
+         action colour -- an amber pill above a green button read as two unrelated controls.
+         Fallback hex matches styles/tokens.ts's KIBBLE_FEED/KIBBLE_INK_ON_FEED: this picker
+         is also used standalone (dev/parts.html) outside kibble-card's own :host scope,
+         which is the only place these custom properties are otherwise ever set. */
+      background: var(--kibble-feed, #43a96a);
+      color: var(--kibble-ink-on-feed, #10301d);
     }
     .segment:disabled {
       opacity: 0.5;
       cursor: default;
     }
     .segment:focus-visible {
-      outline: 2px solid var(--kibble-amber-dark);
+      outline: 2px solid var(--kibble-feed-dark, #2f8551);
       outline-offset: 2px;
     }
   `;
@@ -8360,134 +8940,6 @@ var KibbleStepper = class extends i4 {
   }
 };
 customElements.define("kibble-stepper", KibbleStepper);
-var KibbleHoldButton = class extends i4 {
-  constructor() {
-    super();
-    this._holding = false;
-    this._holdTimer = void 0;
-    this._startHold = (event) => {
-      if (this.disabled) return;
-      event.preventDefault();
-      this._holding = true;
-      this.requestUpdate();
-      clearTimeout(this._holdTimer);
-      this._holdTimer = setTimeout(() => {
-        this._holding = false;
-        this.requestUpdate();
-        this._activate();
-      }, this.holdMs);
-    };
-    this._cancelHold = () => {
-      clearTimeout(this._holdTimer);
-      if (this._holding) {
-        this._holding = false;
-        this.requestUpdate();
-      }
-    };
-    this.label = "Hold to feed";
-    this.variant = "feed";
-    this.disabled = false;
-    this.holdMs = HOLD_TO_FEED_MS;
-  }
-  static {
-    this.properties = {
-      label: { type: String },
-      variant: { type: String },
-      disabled: { type: Boolean },
-      holdMs: { type: Number, attribute: "hold-ms" }
-    };
-  }
-  disconnectedCallback() {
-    super.disconnectedCallback();
-    clearTimeout(this._holdTimer);
-  }
-  render() {
-    return b2`
-      <button
-        type="button"
-        class="button ${this.variant} ${this._holding ? "holding" : ""}"
-        ?disabled=${this.disabled}
-        style=${this.variant === "feed" ? `--hold-ms: ${this.holdMs}ms` : ""}
-        @pointerdown=${this.variant === "feed" ? this._startHold : void 0}
-        @pointerup=${this.variant === "feed" ? this._cancelHold : void 0}
-        @pointerleave=${this.variant === "feed" ? this._cancelHold : void 0}
-        @pointercancel=${this.variant === "feed" ? this._cancelHold : void 0}
-        @click=${this.variant === "cancel" ? this._tapActivate : void 0}
-      >
-        ${this.variant === "feed" ? b2`<span class="fill"></span>` : ""}
-        <span class="label">${this.label}</span>
-      </button>
-    `;
-  }
-  _tapActivate() {
-    if (this.disabled) return;
-    this._activate();
-  }
-  _activate() {
-    this.dispatchEvent(new CustomEvent("activate", { bubbles: true, composed: true }));
-  }
-  static {
-    this.styles = i`
-    :host {
-      display: block;
-    }
-    .button {
-      position: relative;
-      width: 100%;
-      height: var(--kibble-feed-button-height, 56px);
-      border: none;
-      /* Fully rounded: the primary action should read as one confident pill, matching the
-         segmented picker above it. */
-      border-radius: 999px;
-      background: var(--kibble-amber);
-      color: var(--kibble-ink-on-amber);
-      font-size: var(--kibble-feed-label-size, 18px);
-      font-weight: 700;
-      cursor: pointer;
-      overflow: hidden;
-      touch-action: none;
-      user-select: none;
-      -webkit-user-select: none;
-      transition: transform 0.08s ease, box-shadow 0.15s ease;
-      box-shadow: 0 1px 2px color-mix(in srgb, var(--kibble-amber-dark) 35%, transparent);
-    }
-    .button:active:not(:disabled) {
-      transform: scale(0.985);
-      box-shadow: none;
-    }
-    .button.cancel {
-      background: color-mix(in srgb, var(--kibble-amber-dark) 12%, transparent);
-      color: var(--kibble-amber-dark);
-      box-shadow: none;
-    }
-    .button:disabled {
-      opacity: 0.5;
-      cursor: default;
-    }
-    .button:focus-visible {
-      outline: 2px solid var(--primary-text-color);
-      outline-offset: 2px;
-    }
-    .fill {
-      position: absolute;
-      inset: 0;
-      background: var(--kibble-amber-dark);
-      transform: scaleX(0);
-      transform-origin: left;
-      transition: transform 150ms ease-out;
-    }
-    .button.holding .fill {
-      transform: scaleX(1);
-      transition: transform var(--hold-ms, 600ms) linear;
-    }
-    .label {
-      position: relative;
-      z-index: 1;
-    }
-  `;
-  }
-};
-customElements.define("kibble-hold-button", KibbleHoldButton);
 var { I: t3 } = j;
 var r4 = (o7) => void 0 === o7.strings;
 var t4 = { ATTRIBUTE: 1, CHILD: 2, PROPERTY: 3, BOOLEAN_ATTRIBUTE: 4, EVENT: 5, ELEMENT: 6 };
@@ -8592,6 +9044,785 @@ var n5 = e4(class extends f3 {
     this.rt(this.ct);
   }
 });
+var HOLD_IDLE = { phase: "idle", elapsedMs: 0, firedStages: [], releaseProgress: 0 };
+var DEFAULT_HOLD_CONFIG = {
+  durationMs: 1500,
+  // Thirds read as more deliberate stage-ups than quarters, and holding the third tier off
+  // until 86% leaves a real "just before completion" gap before the near-complete zone takes
+  // over -- see that zone's own comment for why the two never overlap.
+  stageThresholds: [0.33, 0.66, 0.86],
+  // Starts just after the third stage tier locks in, so the tremble/glow ramp reads as pure
+  // anticipation on a settled gold tier rather than fighting a colour change mid-tremble.
+  nearCompleteAt: 0.88,
+  // A fast ease-out, but with enough room to actually read as a deliberate settle rather than
+  // a snap back to zero.
+  drainMs: 300
+};
+function holdPress() {
+  return { phase: "charging", elapsedMs: 0, firedStages: [], releaseProgress: 0 };
+}
+function holdTick(state2, deltaMs, config) {
+  if (state2.phase === "charging") {
+    const elapsedMs = state2.elapsedMs + deltaMs;
+    if (elapsedMs >= config.durationMs) {
+      return { phase: "completed", elapsedMs: config.durationMs, firedStages: state2.firedStages, releaseProgress: 0 };
+    }
+    return { ...state2, elapsedMs };
+  }
+  if (state2.phase === "draining") {
+    const elapsedMs = state2.elapsedMs + deltaMs;
+    if (elapsedMs >= config.drainMs) return HOLD_IDLE;
+    return { ...state2, elapsedMs };
+  }
+  return state2;
+}
+function holdRelease(state2, config) {
+  if (state2.phase !== "charging") return state2;
+  const progress = Math.min(1, state2.elapsedMs / config.durationMs);
+  return { phase: "draining", elapsedMs: 0, firedStages: [], releaseProgress: progress };
+}
+function holdProgress(state2, config) {
+  if (state2.phase === "idle") return 0;
+  if (state2.phase === "completed") return 1;
+  if (state2.phase === "charging") return Math.min(1, state2.elapsedMs / config.durationMs);
+  const drained = config.drainMs > 0 ? Math.min(1, state2.elapsedMs / config.drainMs) : 1;
+  return state2.releaseProgress * (1 - drained);
+}
+function holdNearComplete(state2, config) {
+  if (state2.phase !== "charging") return false;
+  return holdProgress(state2, config) >= config.nearCompleteAt;
+}
+function holdNewlyCrossedStages(state2, config) {
+  if (state2.phase !== "charging") return [];
+  const progress = holdProgress(state2, config);
+  const crossed = [];
+  config.stageThresholds.forEach((threshold, index) => {
+    if (progress >= threshold && !state2.firedStages.includes(index)) crossed.push(index);
+  });
+  return crossed;
+}
+function holdMarkStagesFired(state2, indices) {
+  if (indices.length === 0) return state2;
+  return { ...state2, firedStages: [...state2.firedStages, ...indices] };
+}
+function fireHaptic(kind) {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent("haptic", { detail: kind }));
+}
+var SETTLE_MS = 600;
+var STATIC_GLOW_MS = 260;
+var STATIC_GLOW_COMPLETE_MS = 450;
+var EMBLEM_INSET_PX = 6;
+var TIER_COLORS = ["#34d3c3", "#9b87f5", "#f7c948"];
+function easeOutCubic(t5) {
+  const inv = 1 - t5;
+  return 1 - inv * inv * inv;
+}
+var KibbleHoldButton = class extends i4 {
+  constructor() {
+    super();
+    this._holdState = HOLD_IDLE;
+    this._config = DEFAULT_HOLD_CONFIG;
+    this._pointerId = null;
+    this._rafId = null;
+    this._lastFrameMs = 0;
+    this._reducedMotion = false;
+    this._completed = false;
+    this._buttonRef = e5();
+    this._tapFlashRef = e5();
+    this._shockRef = e5();
+    this._ringRef = e5();
+    this._triangle1Ref = e5();
+    this._triangle2Ref = e5();
+    this._dotRefs = Array.from({ length: 8 }, () => e5());
+    this._onPointerDown = (event) => {
+      if (this.disabled || this._holdState.phase === "charging") return;
+      event.preventDefault();
+      const button = event.currentTarget;
+      try {
+        button.setPointerCapture(event.pointerId);
+        this._pointerId = event.pointerId;
+      } catch {
+      }
+      this._begin();
+    };
+    this._onPointerUp = (event) => {
+      if (this._pointerId !== null && event.pointerId !== this._pointerId) return;
+      this._release();
+    };
+    this._onKeyDown = (event) => {
+      if (event.key !== " " && event.key !== "Enter") return;
+      if (event.repeat) return;
+      if (this.disabled || this._holdState.phase === "charging") return;
+      event.preventDefault();
+      this._begin();
+    };
+    this._onKeyUp = (event) => {
+      if (event.key !== " " && event.key !== "Enter") return;
+      this._release();
+    };
+    this._onBlur = () => {
+      this._release();
+    };
+    this._suppressOsGesture = (event) => {
+      event.preventDefault();
+    };
+    this._tapActivate = () => {
+      if (this.disabled) return;
+      if (!this._prefersReducedMotion()) this._playTapPulse();
+      this._activate();
+    };
+    this._chargeFrame = (nowMs) => {
+      const deltaMs = Math.min(48, nowMs - this._lastFrameMs);
+      this._lastFrameMs = nowMs;
+      const previousPhase = this._holdState.phase;
+      this._holdState = holdTick(this._holdState, deltaMs, this._config);
+      const crossed = holdNewlyCrossedStages(this._holdState, this._config);
+      if (crossed.length > 0) {
+        this._holdState = holdMarkStagesFired(this._holdState, crossed);
+        this._onStagesCrossed();
+      }
+      this._paintProgress(this._displayProgress());
+      if (previousPhase !== "completed" && this._holdState.phase === "completed") {
+        this._onCompleted();
+        return;
+      }
+      if (this._holdState.phase === "charging" || this._holdState.phase === "draining") {
+        this._rafId = requestAnimationFrame(this._chargeFrame);
+      } else {
+        this._rafId = null;
+        this.requestUpdate();
+      }
+    };
+    this.label = "Hold to feed";
+    this.variant = "feed";
+    this.disabled = false;
+    this.holdMs = HOLD_TO_FEED_MS;
+    this.pending = false;
+  }
+  static {
+    this.properties = {
+      label: { type: String },
+      variant: { type: String },
+      disabled: { type: Boolean },
+      holdMs: { type: Number, attribute: "hold-ms" },
+      pending: { type: Boolean }
+    };
+  }
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    this._stopChargeLoop();
+    clearTimeout(this._settleTimer);
+    clearTimeout(this._staticGlowTimer);
+    this._holdState = HOLD_IDLE;
+    this._pointerId = null;
+  }
+  firstUpdated() {
+    this._paintProgress(0);
+  }
+  updated(changed) {
+    if (changed.has("disabled") && this.disabled) this._release();
+    if (changed.has("holdMs")) this._config = { ...DEFAULT_HOLD_CONFIG, durationMs: this._duration() };
+  }
+  _duration() {
+    return Number.isFinite(this.holdMs) && this.holdMs > 0 ? this.holdMs : HOLD_TO_FEED_MS;
+  }
+  _prefersReducedMotion() {
+    return typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true;
+  }
+  _emblemTemplate() {
+    const dots = this._dotRefs.map((dotRef, index) => {
+      const angle = index / this._dotRefs.length * Math.PI * 2;
+      const cx = (24 + Math.cos(angle) * 21).toFixed(2);
+      const cy = (24 + Math.sin(angle) * 21).toFixed(2);
+      return w`<circle ${n5(dotRef)} class="dot" cx=${cx} cy=${cy} r="1.8"></circle>`;
+    });
+    return w`
+      <svg viewBox="0 0 48 48">
+        <circle class="ring-static" cx="24" cy="24" r="21"></circle>
+        <g class="spin">
+          <circle ${n5(this._ringRef)} class="stroke" cx="24" cy="24" r="21" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100"></circle>
+          <g class="dots">${dots}</g>
+        </g>
+        <g class="spin2">
+          <polygon ${n5(this._triangle1Ref)} class="stroke" points="24,8 37.9,32 10.1,32" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100"></polygon>
+          <polygon ${n5(this._triangle2Ref)} class="stroke" points="24,40 10.1,16 37.9,16" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100"></polygon>
+        </g>
+        <circle class="core" cx="24" cy="24" r="3"></circle>
+      </svg>
+    `;
+  }
+  render() {
+    const isFeed = this.variant === "feed";
+    const phase = this._holdState.phase;
+    const classes = [
+      "button",
+      isFeed ? "feed" : "cancel",
+      phase === "charging" ? "holding" : "",
+      this._completed ? "completed" : "",
+      isFeed && this.pending ? "pending" : "",
+      this._reducedMotion ? "reduced-motion" : ""
+    ].filter(Boolean).join(" ");
+    const accessibleLabel = phase === "charging" ? `${this.label}. Keep holding to continue.` : this.label;
+    return b2`
+      <div class="frame">
+        <button
+          type="button"
+          ${n5(this._buttonRef)}
+          class=${classes}
+          aria-label=${accessibleLabel}
+          ?disabled=${this.disabled}
+          @pointerdown=${isFeed ? this._onPointerDown : void 0}
+          @pointerup=${isFeed ? this._onPointerUp : void 0}
+          @pointerleave=${isFeed ? this._onPointerUp : void 0}
+          @pointercancel=${isFeed ? this._onPointerUp : void 0}
+          @lostpointercapture=${isFeed ? this._onPointerUp : void 0}
+          @keydown=${isFeed ? this._onKeyDown : void 0}
+          @keyup=${isFeed ? this._onKeyUp : void 0}
+          @blur=${isFeed ? this._onBlur : void 0}
+          @click=${isFeed ? void 0 : this._tapActivate}
+          @contextmenu=${this._suppressOsGesture}
+          @selectstart=${this._suppressOsGesture}
+          @dragstart=${this._suppressOsGesture}
+        >
+          ${isFeed ? b2`
+                <span class="clip"><span class="fill"></span><span class="edge"></span></span>
+                <span class="emblem">${this._emblemTemplate()}</span>
+                <span class="shock" ${n5(this._shockRef)} aria-hidden="true"></span>
+                <span class="flash" aria-hidden="true"></span>
+                <span class="label">
+                  <span class="label-text">${this.label}</span>
+                  <span class="label-check" aria-hidden="true">${mdiIcon("check")}</span>
+                </span>
+              ` : b2`<span class="tap-flash" ${n5(this._tapFlashRef)} aria-hidden="true"></span>
+                <span class="label"><span class="label-text">${this.label}</span></span>`}
+        </button>
+      </div>
+    `;
+  }
+  _begin() {
+    this._reducedMotion = this._prefersReducedMotion();
+    this._config = { ...DEFAULT_HOLD_CONFIG, durationMs: this._duration() };
+    this._holdState = holdPress();
+    this._completed = false;
+    clearTimeout(this._settleTimer);
+    this.requestUpdate();
+    this._paintProgress(0);
+    this._lastFrameMs = performance.now();
+    this._stopChargeLoop();
+    this._rafId = requestAnimationFrame(this._chargeFrame);
+  }
+  _release() {
+    this._releasePointerCapture();
+    this._pointerId = null;
+    if (this._holdState.phase !== "charging") return;
+    this._holdState = holdRelease(this._holdState, this._config);
+    this.requestUpdate();
+  }
+  _releasePointerCapture() {
+    const id = this._pointerId;
+    const button = this._buttonRef.value;
+    if (id === null || !button) return;
+    try {
+      if (button.hasPointerCapture(id)) button.releasePointerCapture(id);
+    } catch {
+    }
+  }
+  _playTapPulse() {
+    const button = this._buttonRef.value;
+    const flash = this._tapFlashRef.value;
+    button?.classList.remove("tap-pulse");
+    flash?.classList.remove("flash-pulse");
+    void button?.offsetWidth;
+    button?.classList.add("tap-pulse");
+    flash?.classList.add("flash-pulse");
+  }
+  _activate() {
+    this.dispatchEvent(new CustomEvent("activate", { bubbles: true, composed: true }));
+  }
+  // ---- The charge/drain animation loop ----
+  _stopChargeLoop() {
+    if (this._rafId != null) cancelAnimationFrame(this._rafId);
+    this._rafId = null;
+  }
+  /** 0..1 fill to actually paint. Charging/idle/completed pass `holdProgress` straight through;
+   * draining eases it (fast start, gentle settle) so a cancelled hold reads as a deliberate
+   * release, not a value simply snapping to zero. */
+  _displayProgress() {
+    const raw = holdProgress(this._holdState, this._config);
+    if (this._holdState.phase !== "draining" || this._config.drainMs <= 0) return raw;
+    const releaseProgress = this._holdState.releaseProgress;
+    if (releaseProgress <= 0) return 0;
+    const drained = Math.min(1, this._holdState.elapsedMs / this._config.drainMs);
+    return releaseProgress * (1 - easeOutCubic(drained));
+  }
+  /** Which of the three tiers (teal/violet/gold) the current progress has reached. */
+  _tierColor(progress) {
+    let index = 0;
+    for (const threshold of this._config.stageThresholds) {
+      if (progress >= threshold) index += 1;
+    }
+    return TIER_COLORS[Math.min(index, TIER_COLORS.length - 1)];
+  }
+  /** Writes the current progress straight to the DOM: the pill's `--p`/`--c` custom properties
+   * (drive the CSS fill wash, edge line, and ambient glow), the emblem's ring/triangle
+   * `strokeDashoffset` (the "drawing itself" effect), its eight dots lighting up in turn, and
+   * the tension tremble class. Called every animation frame plus a couple of fixed points
+   * (press start, settle) so the emblem is never left mid-frame. */
+  _paintProgress(rawProgress) {
+    const button = this._buttonRef.value;
+    if (!button) return;
+    const progress = Math.max(0, Math.min(1, rawProgress));
+    const tierColor = this._tierColor(progress);
+    button.style.setProperty("--p", progress.toFixed(4));
+    button.style.setProperty("--c", tierColor);
+    const trembling = holdNearComplete(this._holdState, this._config) && !this._reducedMotion;
+    button.classList.toggle("tense", trembling);
+    const segment = (from, to) => Math.max(0, Math.min(1, (progress - from) / (to - from)));
+    const dashOffset = (drawn) => (100 - drawn * 100).toFixed(2);
+    this._ringRef.value?.setAttribute("stroke-dashoffset", dashOffset(segment(0, 0.45)));
+    this._triangle1Ref.value?.setAttribute("stroke-dashoffset", dashOffset(segment(0.3, 0.7)));
+    this._triangle2Ref.value?.setAttribute("stroke-dashoffset", dashOffset(segment(0.6, 0.95)));
+    this._dotRefs.forEach((dotRef, index) => {
+      dotRef.value?.classList.toggle("lit", progress >= (index + 1) / (this._dotRefs.length + 1));
+    });
+  }
+  _onStagesCrossed() {
+    fireHaptic("light");
+    this._pulseShock(false);
+  }
+  /** Retriggers the shock glow's CSS animation (or, under reduced motion, its static
+   * equivalent) via a forced reflow, so a fresh pulse -- another tier, or completion right on
+   * the heels of the third tier -- always restarts from scratch instead of being a no-op
+   * because the class was already present. `intense` is completion's slightly brighter,
+   * longer-lingering variant of the same glow; everything else (colour, duration under full
+   * motion) is shared with a tier crossing's own pulse. */
+  _pulseShock(intense) {
+    const shock = this._shockRef.value;
+    if (!shock) return;
+    clearTimeout(this._staticGlowTimer);
+    shock.classList.remove("go", "static");
+    shock.classList.toggle("complete", intense);
+    void shock.offsetWidth;
+    if (this._reducedMotion) {
+      shock.classList.add("static");
+      this._staticGlowTimer = window.setTimeout(
+        () => shock.classList.remove("static", "complete"),
+        intense ? STATIC_GLOW_COMPLETE_MS : STATIC_GLOW_MS
+      );
+      return;
+    }
+    shock.classList.add("go");
+  }
+  _onCompleted() {
+    this._releasePointerCapture();
+    this._pointerId = null;
+    this._completed = true;
+    this.requestUpdate();
+    fireHaptic("success");
+    this._pulseShock(true);
+    this._activate();
+    this._settleTimer = window.setTimeout(() => {
+      this._completed = false;
+      this._holdState = HOLD_IDLE;
+      this._paintProgress(0);
+      this.requestUpdate();
+    }, SETTLE_MS);
+  }
+  static {
+    this.styles = i`
+    :host {
+      display: block;
+      /* The pill sits on the card, not floating free of it: base/edge/text all derive from the
+       * card's own theme variables, mixed so the pill reads as slightly raised in both a dark
+       * and a light theme rather than only working for the one it was tuned against. */
+      --kibble-pill-surface: var(--ha-card-background, var(--card-background-color, #1e2533));
+      --kibble-pill-ink: var(--primary-text-color, #eef2f7);
+      --kibble-pill-edge: var(--divider-color, color-mix(in srgb, var(--kibble-pill-ink) 16%, transparent));
+    }
+    .frame {
+      position: relative;
+      display: block;
+    }
+    .button {
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      height: var(--kibble-feed-button-height, 56px);
+      border-radius: 999px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      isolation: isolate;
+      /* Not clipped: the shock glow and the emblem's completion flare both need to bloom a few
+       * pixels past the pill's own rounded edge. Only .clip (the fill + edge line) is cropped. */
+      overflow: visible;
+      cursor: pointer;
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      -webkit-touch-callout: none;
+      outline: none;
+      font: inherit;
+      font-size: var(--kibble-feed-label-size, 18px);
+      font-weight: 700;
+      background: color-mix(in srgb, var(--kibble-pill-surface) 92%, var(--kibble-pill-ink) 8%);
+      border: 1px solid var(--kibble-pill-edge);
+      color: var(--kibble-pill-ink);
+      --kibble-glow: color-mix(
+        in srgb,
+        color-mix(in srgb, var(--c, #34d3c3) 60%, var(--accent-color, var(--primary-color, #34d3c3)) 40%) 82%,
+        var(--kibble-pill-surface) 18%
+      );
+      box-shadow:
+        0 1px 0 0 rgba(255, 255, 255, 0.14) inset,
+        0 3px 10px 0 rgba(0, 0, 0, 0.16),
+        0 0 calc(var(--p, 0) * 9px) color-mix(in srgb, var(--kibble-glow) calc(var(--p, 0) * 45%), transparent);
+      transition: transform 140ms cubic-bezier(0.3, 1.5, 0.5, 1), box-shadow 200ms ease, background 160ms ease, color 160ms ease;
+    }
+    .button.holding {
+      transform: scale(0.975);
+    }
+    .button.tense {
+      animation: kibble-seal-tense 80ms linear infinite;
+    }
+    .button:disabled {
+      opacity: 0.5;
+      cursor: default;
+    }
+    .button:focus-visible {
+      outline: 2px solid var(--primary-color, #03a9f4);
+      outline-offset: 2px;
+    }
+    .button.completed {
+      background: linear-gradient(135deg, #f2c14e, #f6da8a);
+      border-color: transparent;
+      color: #2a1d00;
+      animation: kibble-seal-pop 380ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .clip {
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      overflow: hidden;
+    }
+    .fill {
+      position: absolute;
+      inset: 0;
+      transform-origin: left;
+      transform: scaleX(var(--p, 0));
+      background: linear-gradient(90deg, color-mix(in srgb, var(--c, #34d3c3) 16%, transparent), color-mix(in srgb, var(--c, #34d3c3) 46%, transparent));
+    }
+    .button.completed .fill {
+      background: transparent;
+    }
+    .edge {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: calc(var(--p, 0) * 100% - 1px);
+      width: 3px;
+      background: var(--c, #34d3c3);
+      box-shadow: 0 0 9px 2px var(--c, #34d3c3);
+      opacity: calc(min(0.85, var(--p, 0) * 6));
+    }
+    .button.completed .edge {
+      opacity: 0;
+    }
+    .emblem {
+      position: absolute;
+      left: ${EMBLEM_INSET_PX}px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: calc(var(--kibble-feed-button-height, 56px) - ${EMBLEM_INSET_PX * 2}px);
+      height: calc(var(--kibble-feed-button-height, 56px) - ${EMBLEM_INSET_PX * 2}px);
+      z-index: 2;
+      pointer-events: none;
+    }
+    .emblem svg {
+      display: block;
+      width: 100%;
+      height: 100%;
+      overflow: visible;
+    }
+    .ring-static {
+      fill: none;
+      stroke: currentColor;
+      stroke-opacity: 0.16;
+      stroke-width: 1.5;
+    }
+    .stroke {
+      fill: none;
+      stroke: var(--c, #34d3c3);
+      stroke-width: 1.8;
+      filter: drop-shadow(0 0 1.8px var(--c, #34d3c3));
+    }
+    .spin {
+      transform-origin: 24px 24px;
+      animation: kibble-seal-spin 8s linear infinite;
+    }
+    .spin2 {
+      transform-origin: 24px 24px;
+      animation: kibble-seal-spin 5s linear infinite reverse;
+    }
+    .button.holding .spin {
+      animation-duration: 1.6s;
+    }
+    .button.holding .spin2 {
+      animation-duration: 1.2s;
+    }
+    .dots .dot {
+      fill: color-mix(in srgb, currentColor 22%, transparent);
+      transition: fill 140ms ease;
+    }
+    .dots .dot.lit {
+      fill: currentColor;
+    }
+    .core {
+      fill: var(--c, #34d3c3);
+    }
+    .button.completed .emblem {
+      animation: kibble-seal-flare 700ms cubic-bezier(0.2, 0.8, 0.3, 1);
+    }
+    .button.pending .emblem {
+      animation: kibble-seal-pulse 1.8s ease-in-out infinite;
+    }
+    .shock {
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      opacity: 0;
+      box-shadow: 0 0 0 0 transparent;
+      pointer-events: none;
+    }
+    .shock.go {
+      animation: kibble-seal-shock 560ms cubic-bezier(0.2, 0.7, 0.3, 1);
+    }
+    .shock.go.complete {
+      animation-name: kibble-seal-shock-complete;
+    }
+    .shock.static {
+      opacity: 0.3;
+      box-shadow: 0 0 6px 2px var(--kibble-glow, #34d3c3);
+    }
+    .shock.static.complete {
+      opacity: 0.4;
+      box-shadow: 0 0 7px 2px var(--kibble-glow, #34d3c3);
+    }
+    .flash {
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      background: color-mix(in srgb, var(--kibble-glow, #f7c948) 70%, white 30%);
+      opacity: 0;
+      pointer-events: none;
+      z-index: 3;
+    }
+    .button.completed .flash {
+      animation: kibble-seal-flash 480ms ease-out;
+    }
+    .button.cancel {
+      --kibble-glow: color-mix(in srgb, var(--accent-color, var(--primary-color, #34d3c3)) 78%, var(--kibble-pill-surface) 22%);
+      transition: transform 140ms cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 140ms ease;
+    }
+    .button.cancel:active {
+      transform: scale(0.97);
+    }
+    .tap-flash {
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      background: color-mix(in srgb, var(--kibble-glow, var(--primary-color, #34d3c3)) 65%, white 25%);
+      opacity: 0;
+      pointer-events: none;
+    }
+    .tap-flash.flash-pulse {
+      animation: kibble-tap-flash 260ms ease-out;
+    }
+    .button.tap-pulse {
+      animation: kibble-tap-pulse 260ms cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .label {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 100%;
+      height: 100%;
+      user-select: none;
+      -webkit-user-select: none;
+      pointer-events: none;
+    }
+    /* Nudged right of true-centre by the emblem's own footprint, so the text optically balances
+     * against it instead of sitting dead-centre and crowding it. Cancel has no emblem. */
+    .button.feed .label {
+      padding-left: calc(${EMBLEM_INSET_PX}px + (var(--kibble-feed-button-height, 56px) - ${EMBLEM_INSET_PX * 2}px) + 8px);
+    }
+    .label-text {
+      transition: opacity 180ms ease, transform 180ms cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .label-check {
+      position: absolute;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.35em;
+      opacity: 0;
+      transform: scale(0.4);
+      transition: opacity 180ms ease, transform 180ms cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .button.completed .label-text {
+      opacity: 0;
+      transform: scale(0.85);
+    }
+    .button.completed .label-check {
+      opacity: 1;
+      transform: scale(1);
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .button {
+        transition: box-shadow 160ms ease, background 160ms ease, color 160ms ease;
+      }
+      .button.holding,
+      .button.cancel:active {
+        transform: none;
+      }
+      .button.tense,
+      .spin,
+      .spin2,
+      .button.completed,
+      .button.completed .emblem,
+      .button.pending .emblem,
+      .shock.go,
+      .button.completed .flash,
+      .tap-flash.flash-pulse,
+      .button.tap-pulse {
+        animation: none;
+      }
+      .label-text,
+      .label-check {
+        transition: opacity 180ms ease;
+        transform: none !important;
+      }
+    }
+    @keyframes kibble-seal-spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+    @keyframes kibble-seal-tense {
+      0% {
+        translate: 0 0;
+      }
+      25% {
+        translate: -1px 0.5px;
+      }
+      50% {
+        translate: 1px -0.5px;
+      }
+      75% {
+        translate: -0.5px -0.5px;
+      }
+      100% {
+        translate: 0 0;
+      }
+    }
+    @keyframes kibble-seal-shock {
+      0% {
+        opacity: 0.35;
+        box-shadow: 0 0 0 0 var(--kibble-glow, #34d3c3);
+      }
+      60% {
+        opacity: 0.28;
+        box-shadow: 0 0 5px 1px var(--kibble-glow, #34d3c3);
+      }
+      100% {
+        opacity: 0;
+        box-shadow: 0 0 7px 2px var(--kibble-glow, #34d3c3);
+      }
+    }
+    @keyframes kibble-seal-shock-complete {
+      0% {
+        opacity: 0.48;
+        box-shadow: 0 0 1px 0 var(--kibble-glow, #f7c948);
+      }
+      55% {
+        opacity: 0.4;
+        box-shadow: 0 0 5px 2px var(--kibble-glow, #f7c948);
+      }
+      100% {
+        opacity: 0;
+        box-shadow: 0 0 6px 3px var(--kibble-glow, #f7c948);
+      }
+    }
+    @keyframes kibble-seal-flash {
+      0% {
+        opacity: 0.32;
+      }
+      100% {
+        opacity: 0;
+      }
+    }
+    @keyframes kibble-seal-flare {
+      0% {
+        transform: translateY(-50%) scale(1);
+      }
+      40% {
+        transform: translateY(-50%) scale(1.2);
+      }
+      100% {
+        transform: translateY(-50%) scale(1);
+      }
+    }
+    @keyframes kibble-seal-pulse {
+      0%,
+      100% {
+        opacity: 0.6;
+      }
+      50% {
+        opacity: 0.92;
+      }
+    }
+    @keyframes kibble-seal-pop {
+      0% {
+        transform: scale(0.975);
+      }
+      45% {
+        transform: scale(1.045);
+      }
+      100% {
+        transform: scale(1);
+      }
+    }
+    @keyframes kibble-tap-pulse {
+      0% {
+        transform: scale(1);
+      }
+      40% {
+        transform: scale(1.035);
+      }
+      100% {
+        transform: scale(1);
+      }
+    }
+    @keyframes kibble-tap-flash {
+      0% {
+        opacity: 0;
+      }
+      30% {
+        opacity: 0.16;
+      }
+      100% {
+        opacity: 0;
+      }
+    }
+  `;
+  }
+};
+customElements.define("kibble-hold-button", KibbleHoldButton);
 function parseTimeToMinutes(time) {
   const match = /^(\d{1,2}):(\d{2})$/.exec(time.trim());
   if (!match) {
@@ -8635,6 +9866,561 @@ function scheduleSummary(entries, now, locale) {
   const countWord = COUNT_WORDS[enabledCount] ?? String(enabledCount);
   return `Next feed ${formatClock(next.entry.time, locale)}, ${countWord} a day`;
 }
+var MAX_SCHEDULE_PORTIONS = 20;
+function portionsWord(count) {
+  return count === 1 ? "1 portion" : `${count} portions`;
+}
+function hopperLabel(index, food) {
+  const name = food?.trim();
+  return name ? name : `Hopper ${index}`;
+}
+function entryAmountsLabel(entry2, single, food1, food2) {
+  if (single) return portionsWord(Math.max(entry2.amount_l, entry2.amount_r));
+  const parts = [];
+  if (entry2.amount_l > 0) parts.push(`${hopperLabel(1, food1)} ${entry2.amount_l}`);
+  if (entry2.amount_r > 0) parts.push(`${hopperLabel(2, food2)} ${entry2.amount_r}`);
+  return parts.length > 0 ? parts.join(" + ") : "No food";
+}
+function sortScheduleEntries(entries) {
+  return [...entries].sort((a3, b3) => parseTimeToMinutes(a3.time) - parseTimeToMinutes(b3.time));
+}
+function draftProblem(draft) {
+  if (!/^\d{1,2}:\d{2}$/.test(draft.time.trim())) return "Pick a time";
+  try {
+    parseTimeToMinutes(draft.time);
+  } catch {
+    return "Pick a time";
+  }
+  for (const amount of [draft.amount_l, draft.amount_r]) {
+    if (!Number.isInteger(amount) || amount < 0 || amount > MAX_SCHEDULE_PORTIONS) {
+      return `Portions go from 0 to ${MAX_SCHEDULE_PORTIONS}`;
+    }
+  }
+  if (draft.amount_l === 0 && draft.amount_r === 0) return "Pick at least one portion";
+  return null;
+}
+function toServiceTime(time) {
+  const minutes = parseTimeToMinutes(time);
+  const hh = String(Math.floor(minutes / 60)).padStart(2, "0");
+  const mm = String(minutes % 60).padStart(2, "0");
+  return `${hh}:${mm}:00`;
+}
+function scheduleAddData(deviceId, draft) {
+  return {
+    device_id: deviceId,
+    time: toServiceTime(draft.time),
+    hopper1_g: draft.amount_l,
+    hopper2_g: draft.amount_r,
+    enabled: true
+  };
+}
+function scheduleSetEntries(entries, entryId, draft) {
+  if (!entries.some((entry2) => entry2.id === entryId)) {
+    throw new Error("That feed was removed meanwhile. Reopen the schedule and try again.");
+  }
+  return entries.map(
+    (entry2) => entry2.id === entryId ? { entry_id: entry2.id, time: toServiceTime(draft.time), hopper1_g: draft.amount_l, hopper2_g: draft.amount_r, enabled: entry2.enabled } : { entry_id: entry2.id, time: toServiceTime(entry2.time), hopper1_g: entry2.amount_l, hopper2_g: entry2.amount_r, enabled: entry2.enabled }
+  );
+}
+function serviceErrorMessage(error) {
+  if (typeof error === "string" && error.trim()) return error.trim();
+  if (typeof error === "object" && error !== null) {
+    const message = error.message;
+    if (typeof message === "string" && message.trim()) return message.trim();
+  }
+  return "Home Assistant did not accept the change";
+}
+var NEW_DRAFT = { time: "12:00", amount_l: 1, amount_r: 0 };
+var KibbleScheduleEditor = class extends i4 {
+  constructor() {
+    super();
+    this._openNew = () => {
+      this._error = null;
+      this._confirmRemove = false;
+      this._draft = { ...NEW_DRAFT };
+      this._target = "new";
+    };
+    this._closeForm = () => {
+      this._target = null;
+      this._confirmRemove = false;
+    };
+    this._onTimeInput = (event) => {
+      this._draft = { ...this._draft, time: event.target.value };
+    };
+    this._onSubmit = (event) => {
+      event.preventDefault();
+      void this._save();
+    };
+    this.entries = [];
+    this.food1 = null;
+    this.food2 = null;
+    this._target = null;
+    this._draft = { ...NEW_DRAFT };
+    this._confirmRemove = false;
+    this._busy = false;
+    this._error = null;
+    this._toggling = /* @__PURE__ */ new Set();
+  }
+  static {
+    this.properties = {
+      hass: { attribute: false },
+      entries: { attribute: false },
+      deviceId: { type: String },
+      food1: { type: String },
+      food2: { type: String },
+      _target: { state: true },
+      _draft: { state: true },
+      _confirmRemove: { state: true },
+      _busy: { state: true },
+      _error: { state: true },
+      _toggling: { state: true }
+    };
+  }
+  willUpdate(changed) {
+    if (changed.has("entries") && this._target !== null && this._target !== "new" && !this.entries.some((entry2) => entry2.id === this._target)) {
+      this._closeForm();
+    }
+  }
+  render() {
+    const sorted = sortScheduleEntries(this.entries);
+    return b2`
+      ${this._error ? b2`<p class="error" role="alert">${this._error}</p>` : A}
+      ${sorted.length === 0 && this._target !== "new" ? b2`<p class="empty">No feeds scheduled</p>` : A}
+      <ul class="entries">
+        ${sorted.map((entry2) => b2`<li>${this._target === entry2.id ? this._renderForm(entry2) : this._renderRow(entry2)}</li>`)}
+      </ul>
+      ${this._target === "new" ? b2`<div class="form-slot">${this._renderForm(null)}</div>` : b2`
+            <button type="button" class="add" ?disabled=${this._busy || !this.deviceId} @click=${this._openNew}>
+              <span class="add-icon">${mdiIcon("plus")}</span><span>Add feed</span>
+            </button>
+          `}
+    `;
+  }
+  _renderRow(entry2) {
+    const label = `${formatClock(entry2.time)}, ${entryAmountsLabel(entry2, false, this.food1, this.food2)}, ${entry2.enabled ? "on" : "paused"}`;
+    return b2`
+      <div class="row ${entry2.enabled ? "" : "paused"}">
+        <button type="button" class="row-main" aria-label="Edit feed: ${label}" ?disabled=${this._busy} @click=${() => this._openEdit(entry2)}>
+          <span class="time">${formatClock(entry2.time)}</span>
+          ${this._renderAmount(hopperLabel(1, this.food1), entry2.amount_l)} ${this._renderAmount(hopperLabel(2, this.food2), entry2.amount_r)}
+        </button>
+        <button
+          type="button"
+          class="switch ${entry2.enabled ? "on" : ""}"
+          role="switch"
+          aria-checked=${entry2.enabled}
+          aria-label="${formatClock(entry2.time)} feed ${entry2.enabled ? "on" : "paused"}"
+          ?disabled=${this._busy || this._toggling.has(entry2.id)}
+          @click=${() => this._toggle(entry2)}
+        >
+          <span class="track"><span class="thumb"></span></span>
+          <span class="switch-word">${entry2.enabled ? "On" : "Paused"}</span>
+        </button>
+      </div>
+    `;
+  }
+  _renderAmount(name, amount) {
+    return b2`
+      <span class="amount ${amount === 0 ? "zero" : ""}">
+        <span class="amount-name">${name}</span>
+        <span class="amount-value">${amount}</span>
+      </span>
+    `;
+  }
+  _renderForm(entry2) {
+    if (entry2 && this._confirmRemove) return this._renderRemoveConfirm(entry2);
+    const draft = this._draft;
+    const problem = draftProblem(draft);
+    const name1 = hopperLabel(1, this.food1);
+    const name2 = hopperLabel(2, this.food2);
+    return b2`
+      <form class="form" @submit=${this._onSubmit} novalidate>
+        <h3>${entry2 ? "Edit feed" : "Add feed"}</h3>
+        <label class="field">
+          <span class="field-label">Time</span>
+          <input type="time" step="60" required .value=${draft.time} ?disabled=${this._busy} @input=${this._onTimeInput} />
+        </label>
+        <div class="field">
+          <span class="field-label">${name1}</span>
+          <kibble-stepper
+            .value=${draft.amount_l}
+            .min=${0}
+            .max=${MAX_SCHEDULE_PORTIONS}
+            aria-label="${name1} portions"
+            ?disabled=${this._busy}
+            @value-selected=${(event) => this._setAmount("amount_l", event)}
+          ></kibble-stepper>
+        </div>
+        <div class="field">
+          <span class="field-label">${name2}</span>
+          <kibble-stepper
+            .value=${draft.amount_r}
+            .min=${0}
+            .max=${MAX_SCHEDULE_PORTIONS}
+            aria-label="${name2} portions"
+            ?disabled=${this._busy}
+            @value-selected=${(event) => this._setAmount("amount_r", event)}
+          ></kibble-stepper>
+        </div>
+        ${problem ? b2`<p class="hint" role="status">${problem}</p>` : A}
+        <div class="actions">
+          ${entry2 ? b2`<button type="button" class="btn danger-text" ?disabled=${this._busy} @click=${() => this._confirmRemove = true}>
+                <span class="btn-icon">${mdiIcon("deleteOutline")}</span><span>Remove</span>
+              </button>` : A}
+          <span class="spacer"></span>
+          <button type="button" class="btn" ?disabled=${this._busy} @click=${this._closeForm}>Cancel</button>
+          <button type="submit" class="btn primary" ?disabled=${this._busy || problem !== null}>${this._busy ? "Saving\u2026" : "Save"}</button>
+        </div>
+      </form>
+    `;
+  }
+  _renderRemoveConfirm(entry2) {
+    return b2`
+      <div class="form" role="alertdialog" aria-label="Remove this feed?">
+        <h3>Remove the ${formatClock(entry2.time)} feed?</h3>
+        <p class="confirm-text">
+          ${entryAmountsLabel(entry2, false, this.food1, this.food2)} will no longer be given at that time. This cannot be undone.
+        </p>
+        <div class="actions">
+          <span class="spacer"></span>
+          <button type="button" class="btn" ?disabled=${this._busy} @click=${() => this._confirmRemove = false}>Keep</button>
+          <button type="button" class="btn danger" ?disabled=${this._busy} @click=${() => this._remove(entry2)}>
+            ${this._busy ? "Removing\u2026" : "Remove feed"}
+          </button>
+        </div>
+      </div>
+    `;
+  }
+  _openEdit(entry2) {
+    this._error = null;
+    this._confirmRemove = false;
+    this._draft = { time: entry2.time.padStart(5, "0"), amount_l: entry2.amount_l, amount_r: entry2.amount_r };
+    this._target = entry2.id;
+  }
+  _setAmount(side, event) {
+    event.stopPropagation();
+    this._draft = { ...this._draft, [side]: event.detail.value };
+  }
+  /** Runs one write: marks the editor busy, clears the previous error, and on a rejection shows
+   * why. Resolves `true` only when Home Assistant accepted the call. */
+  async _run(failure, call) {
+    this._error = null;
+    this._busy = true;
+    try {
+      await call();
+      return true;
+    } catch (error) {
+      this._error = `${failure}: ${serviceErrorMessage(error)}`;
+      return false;
+    } finally {
+      this._busy = false;
+    }
+  }
+  async _save() {
+    const target = this._target;
+    if (target === null || draftProblem(this._draft) !== null) return;
+    const deviceId = this.deviceId;
+    if (!deviceId) {
+      this._error = "Could not save the feed: the feeder was not found";
+      return;
+    }
+    const draft = this._draft;
+    const saved = await this._run(
+      "Could not save the feed",
+      () => target === "new" ? this.hass.callService("kibble", "schedule_add", scheduleAddData(deviceId, draft)) : this.hass.callService("kibble", "schedule_set", { device_id: deviceId, entries: scheduleSetEntries(this.entries, target, draft) })
+    );
+    if (saved) {
+      fireHaptic("success");
+      this._closeForm();
+    }
+  }
+  async _remove(entry2) {
+    const deviceId = this.deviceId;
+    if (!deviceId) {
+      this._error = "Could not remove the feed: the feeder was not found";
+      return;
+    }
+    const removed = await this._run(
+      "Could not remove the feed",
+      () => this.hass.callService("kibble", "schedule_remove", { device_id: deviceId, entry_id: entry2.id })
+    );
+    if (removed) this._closeForm();
+  }
+  async _toggle(entry2) {
+    const deviceId = this.deviceId;
+    if (!deviceId) return;
+    this._error = null;
+    this._toggling = new Set(this._toggling).add(entry2.id);
+    try {
+      await this.hass.callService("kibble", "schedule_set_enabled", { device_id: deviceId, entry_id: entry2.id, enabled: !entry2.enabled });
+    } catch (error) {
+      this._error = `Could not ${entry2.enabled ? "pause" : "turn on"} the feed: ${serviceErrorMessage(error)}`;
+    } finally {
+      const next = new Set(this._toggling);
+      next.delete(entry2.id);
+      this._toggling = next;
+    }
+  }
+  static {
+    this.styles = i`
+    :host {
+      display: block;
+    }
+    .entries {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+    }
+    .entries li {
+      border-top: 1px solid var(--divider-color);
+    }
+    .entries li:first-child {
+      border-top: none;
+    }
+    .empty {
+      margin: 0 0 8px;
+      color: var(--secondary-text-color);
+      font-size: var(--kibble-schedule-size, 14px);
+    }
+    .error {
+      margin: 0 0 8px;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: var(--kibble-schedule-size, 14px);
+      background: color-mix(in srgb, var(--error-color, #db4437) 10%, transparent);
+      color: var(--error-color, #db4437);
+    }
+    .row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .row.paused .time,
+    .row.paused .amount-value {
+      color: var(--secondary-text-color);
+    }
+    .row-main {
+      flex: 1;
+      min-width: 0;
+      display: grid;
+      grid-template-columns: 4.6em 1fr 1fr;
+      align-items: center;
+      gap: 8px;
+      min-height: var(--kibble-touch-target, 48px);
+      padding: 6px 0;
+      background: none;
+      border: none;
+      font: inherit;
+      color: var(--primary-text-color);
+      text-align: left;
+      cursor: pointer;
+    }
+    .time {
+      font-size: 16px;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+    }
+    .amount {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+    .amount-name {
+      font-size: 12px;
+      color: var(--secondary-text-color);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .amount-value {
+      font-size: 16px;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+    }
+    .amount.zero .amount-value {
+      font-weight: 400;
+      color: var(--secondary-text-color);
+    }
+    .switch {
+      flex: none;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: var(--kibble-touch-target, 48px);
+      padding: 0 0 0 4px;
+      background: none;
+      border: none;
+      font: inherit;
+      font-size: 12px;
+      color: var(--secondary-text-color);
+      cursor: pointer;
+    }
+    .switch-word {
+      min-width: 3.6em;
+      text-align: left;
+    }
+    .track {
+      position: relative;
+      width: 40px;
+      height: 24px;
+      border-radius: 12px;
+      background: var(--divider-color);
+      transition: background 0.15s ease;
+    }
+    .thumb {
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: var(--ha-card-background, var(--card-background-color, #fff));
+      transition: transform 0.15s ease;
+    }
+    .switch.on .track {
+      background: var(--kibble-feed, #43a96a);
+    }
+    .switch.on .thumb {
+      transform: translateX(16px);
+    }
+    button:disabled {
+      cursor: default;
+      opacity: 0.5;
+    }
+    button:focus-visible,
+    input:focus-visible {
+      outline: 2px solid var(--kibble-amber-dark, #de8a3a);
+      outline-offset: 2px;
+    }
+    .add {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 4px;
+      min-height: var(--kibble-touch-target, 48px);
+      padding: 0 12px 0 0;
+      background: none;
+      border: none;
+      font: inherit;
+      font-size: var(--kibble-schedule-size, 14px);
+      font-weight: 600;
+      color: var(--primary-text-color);
+      cursor: pointer;
+    }
+    .add-icon {
+      display: flex;
+      font-size: 20px;
+    }
+    .form-slot {
+      border-top: 1px solid var(--divider-color);
+      padding-top: 8px;
+    }
+    .form {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin: 8px 0;
+      padding: 12px;
+      border-radius: 8px;
+      background: color-mix(in srgb, var(--primary-text-color) 4%, transparent);
+    }
+    h3 {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 600;
+    }
+    .field {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .field-label {
+      min-width: 0;
+      font-size: var(--kibble-schedule-size, 14px);
+      font-weight: 600;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    input[type="time"] {
+      min-height: 44px;
+      box-sizing: border-box;
+      padding: 0 12px;
+      border: 2px solid var(--divider-color);
+      border-radius: 8px;
+      background: var(--ha-card-background, var(--card-background-color));
+      color: var(--primary-text-color);
+      font: inherit;
+      font-size: 16px;
+      font-variant-numeric: tabular-nums;
+    }
+    kibble-stepper {
+      flex: none;
+    }
+    .hint {
+      margin: 0;
+      font-size: 12px;
+      color: var(--secondary-text-color);
+    }
+    .confirm-text {
+      margin: 0;
+      font-size: var(--kibble-schedule-size, 14px);
+    }
+    .actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .spacer {
+      flex: 1;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      min-height: 44px;
+      padding: 0 16px;
+      border-radius: 8px;
+      border: 2px solid var(--divider-color);
+      background: none;
+      color: var(--primary-text-color);
+      font: inherit;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .btn.primary {
+      border-color: transparent;
+      background: var(--kibble-feed, #43a96a);
+      color: var(--kibble-ink-on-feed, #10301d);
+    }
+    .btn.danger {
+      border-color: transparent;
+      background: var(--error-color, #db4437);
+      color: #fff;
+    }
+    .btn.danger-text {
+      border-color: transparent;
+      padding: 0 8px;
+      color: var(--error-color, #db4437);
+    }
+    .btn-icon {
+      display: flex;
+      font-size: 18px;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .track,
+      .thumb {
+        transition: none;
+      }
+    }
+  `;
+  }
+};
+customElements.define("kibble-schedule-editor", KibbleScheduleEditor);
 var DISPENSER_CARD_TAG = "dispenser-schedule-card";
 var KibbleScheduleSummary = class extends i4 {
   constructor() {
@@ -8674,13 +10460,20 @@ var KibbleScheduleSummary = class extends i4 {
     };
     this.entries = [];
     this.deviceName = "Kibble";
+    this.singleHopper = false;
+    this.food1 = null;
+    this.food2 = null;
   }
   static {
     this.properties = {
       hass: { attribute: false },
       entries: { attribute: false },
       scheduleCardStateEntity: { type: String },
-      deviceName: { type: String }
+      deviceName: { type: String },
+      singleHopper: { type: Boolean },
+      deviceId: { type: String },
+      food1: { type: String },
+      food2: { type: String }
     };
   }
   updated() {
@@ -8700,20 +10493,29 @@ var KibbleScheduleSummary = class extends i4 {
     `;
   }
   _renderExpanded() {
+    if (!this.singleHopper) {
+      return b2`<kibble-schedule-editor
+        .hass=${this.hass}
+        .entries=${this.entries}
+        .deviceId=${this.deviceId}
+        .food1=${this.food1}
+        .food2=${this.food2}
+      ></kibble-schedule-editor>`;
+    }
     if (this._canEmbed()) {
       return b2`<div ${n5(this._configureEmbed)}></div>`;
     }
     if (this.entries.length === 0) {
       return b2`<p class="empty">No schedule set</p>`;
     }
-    const sorted = [...this.entries].sort((a3, b3) => a3.time.localeCompare(b3.time));
+    const sorted = sortScheduleEntries(this.entries);
     return b2`
       <ul class="entries">
         ${sorted.map(
       (entry2) => b2`
             <li class=${entry2.enabled ? "" : "disabled"}>
               <span class="time">${formatClock(entry2.time)}</span>
-              <span class="amounts">${entry2.amount_l}g + ${entry2.amount_r}g</span>
+              <span class="amounts">${entryAmountsLabel(entry2, true)}</span>
               <span class="state">${entry2.enabled ? "On" : "Paused"}</span>
             </li>
           `
@@ -8802,6 +10604,1709 @@ var KibbleScheduleSummary = class extends i4 {
   }
 };
 customElements.define("kibble-schedule-summary", KibbleScheduleSummary);
+var CALIBRATION_BUSY_CODE = "calibration_busy";
+function portionWord(portions) {
+  return `${portions} portion${portions === 1 ? "" : "s"}`;
+}
+function formatScore(score) {
+  return String(Math.round(score * 100));
+}
+var KibbleCalibrationDialog = class extends i4 {
+  constructor() {
+    super();
+    this._closeButtonRef = e5();
+    this._keydownHandler = (event) => {
+      if (event.key === "Escape" && this.open) this._close();
+    };
+    this._loadCalibration = () => {
+      const callWS = this.hass?.callWS;
+      const entryId = this.entryId;
+      if (!callWS || !entryId) {
+        this._loadError = "Not connected.";
+        return;
+      }
+      this._loading = true;
+      this._loadError = null;
+      callWS({ type: "kibble/calibration", entry_id: entryId }).then(
+        (result) => {
+          this._calibration = result;
+          this._loading = false;
+        },
+        (err) => {
+          this._loadError = describeWsError(err);
+          this._loading = false;
+        }
+      );
+    };
+    this._confirmEmpty = () => {
+      if (this._hopper === null) return;
+      const hopper = this._hopper;
+      const note = this._note.trim();
+      this._runAction({ action: "begin", hopper, ...note ? { note } : {} }, this._confirmEmpty, () => {
+        this._runAction({ action: "point", hopper, portions: 0 }, this._confirmEmpty, (state2) => {
+          this._calibration = state2;
+          this._regression = null;
+          this._step = nextCalibrationStep(this._step, "empty-confirmed");
+        });
+      });
+    };
+    this._capturePoint = () => {
+      if (this._hopper === null) return;
+      const hopper = this._hopper;
+      const points = this._hopperData(hopper)?.points ?? [];
+      const portions = (points[points.length - 1]?.portions ?? 0) + 1;
+      this._runAction({ action: "point", hopper, portions }, this._capturePoint, (state2) => {
+        const newPoint = state2.hoppers[hopper]?.points.find((point) => point.portions === portions);
+        this._regression = newPoint ? detectScoreRegression(points, newPoint) : null;
+        this._calibration = state2;
+        this._step = nextCalibrationStep(this._step, "capture");
+      });
+    };
+    this._confirmMarkFull = () => {
+      if (this._hopper === null || this._markFullPortions === null) return;
+      const hopper = this._hopper;
+      const portions = this._markFullPortions;
+      this._runAction({ action: "full", hopper, portions }, this._confirmMarkFull, (state2) => {
+        this._calibration = state2;
+        this._step = this.singleHopper ? "done" : nextCalibrationStep(this._step, "full-marked");
+      });
+    };
+    this._acceptInherit = () => {
+      if (this._hopper === null) return;
+      const from = this._hopper;
+      const to = from === 0 ? 1 : 0;
+      this._runAction({ action: "inherit", hopper: to, from }, this._acceptInherit, (state2) => {
+        this._calibration = state2;
+        this._inheritedTo = to;
+        this._step = nextCalibrationStep(this._step, "inherit-resolved");
+      });
+    };
+    this._runClear = () => {
+      if (this._hopper === null) return;
+      const hopper = this._hopper;
+      this._runAction({ action: "clear", hopper }, this._runClear, (state2) => {
+        this._calibration = state2;
+      });
+    };
+    this._close = () => {
+      this.dispatchEvent(new CustomEvent("close-requested", { bubbles: true, composed: true }));
+    };
+    this.open = false;
+    this.singleHopper = false;
+    this.food1 = null;
+    this.food2 = null;
+    this.entryId = void 0;
+    this._resetWizard();
+  }
+  static {
+    this.properties = {
+      hass: { attribute: false },
+      entryId: { attribute: false },
+      open: { type: Boolean, reflect: true },
+      singleHopper: { type: Boolean },
+      food1: { type: String },
+      food2: { type: String },
+      _step: { state: true },
+      _hopper: { state: true },
+      _calibration: { state: true },
+      _loading: { state: true },
+      _loadError: { state: true },
+      _note: { state: true },
+      _busy: { state: true },
+      _error: { state: true },
+      _waitingForBowl: { state: true },
+      _regression: { state: true },
+      _markFullPortions: { state: true },
+      _clearConfirmArmed: { state: true },
+      _inheritedTo: { state: true }
+    };
+  }
+  connectedCallback() {
+    super.connectedCallback();
+    window.addEventListener("keydown", this._keydownHandler);
+  }
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    window.removeEventListener("keydown", this._keydownHandler);
+    clearTimeout(this._clearConfirmTimer);
+  }
+  updated(changed) {
+    if (changed.has("open") && this.open) {
+      this._resetWizard();
+      this._closeButtonRef.value?.focus();
+      this._loadCalibration();
+    }
+  }
+  _resetWizard() {
+    this._step = "choose-hopper";
+    this._hopper = null;
+    this._calibration = null;
+    this._loading = false;
+    this._loadError = null;
+    this._note = "";
+    this._busy = false;
+    this._error = null;
+    this._waitingForBowl = false;
+    this._regression = null;
+    this._markFullPortions = null;
+    this._clearConfirmArmed = false;
+    this._inheritedTo = null;
+  }
+  _hopperData(index) {
+    if (index === null || !this._calibration) return null;
+    return this._calibration.hoppers[index];
+  }
+  /** Every mutating call shares this: busy/error bookkeeping, the daemon's one special-cased
+   * failure code, and telling the bowl display a finished/discarded curve may have changed. */
+  _runAction(action, retry, onSuccess) {
+    const callWS = this.hass?.callWS;
+    const entryId = this.entryId;
+    if (!callWS || !entryId) return;
+    this._busy = true;
+    this._error = null;
+    this._waitingForBowl = false;
+    callWS({ type: "kibble/calibration/action", entry_id: entryId, ...action }).then(
+      (result) => {
+        this._busy = false;
+        onSuccess(result);
+        this.dispatchEvent(new CustomEvent("calibration-changed", { bubbles: true, composed: true }));
+      },
+      (err) => {
+        this._busy = false;
+        if (err?.code === CALIBRATION_BUSY_CODE) {
+          this._waitingForBowl = true;
+          return;
+        }
+        this._error = { message: describeWsError(err), retry };
+      }
+    );
+  }
+  _selectHopper(index) {
+    this._hopper = index;
+    this._error = null;
+  }
+  _beginRequested() {
+    this._note = "";
+    this._step = nextCalibrationStep(this._step, "start");
+  }
+  _reviewFull() {
+    this._markFullPortions = null;
+    this._step = nextCalibrationStep(this._step, "review-full");
+  }
+  /** "Not now" resolves the offer with no daemon call at all -- declining isn't an action the
+   * curve needs to remember, it just means this session doesn't touch the other hopper. */
+  _declineInherit() {
+    this._inheritedTo = null;
+    this._step = nextCalibrationStep(this._step, "inherit-resolved");
+  }
+  /** Same tap-twice window `kibble-settings-dialog`'s cloud/stack toggles use -- clearing a
+   * finished curve is exactly as consequential as those, so it gets the same second-tap guard
+   * rather than firing on one accidental click. */
+  _clearRequested() {
+    if (this._clearConfirmArmed) {
+      clearTimeout(this._clearConfirmTimer);
+      this._clearConfirmArmed = false;
+      this._runClear();
+      return;
+    }
+    this._clearConfirmArmed = true;
+    this._clearConfirmTimer = setTimeout(() => {
+      this._clearConfirmArmed = false;
+    }, 3e3);
+  }
+  _restart() {
+    const other = this._hopper === 0 ? 1 : this._hopper === 1 ? 0 : null;
+    this._step = nextCalibrationStep(this._step, "restart");
+    this._hopper = other;
+    this._note = "";
+    this._markFullPortions = null;
+    this._regression = null;
+    this._inheritedTo = null;
+    this._clearConfirmArmed = false;
+  }
+  render() {
+    if (!this.open) return A;
+    return b2`
+      <div class="backdrop" @click=${this._close} role="dialog" aria-modal="true" aria-label="Calibrate bowl">
+        <div class="sheet" @click=${(event) => event.stopPropagation()}>
+          <header>
+            <span>Calibrate bowl</span>
+            <button type="button" class="icon-button" ${n5(this._closeButtonRef)} @click=${this._close} aria-label="Close">${mdiIcon("close")}</button>
+          </header>
+          <div class="body">
+            ${!this.hass?.callWS || !this.entryId ? b2`<p class="hint">Calibration isn't available right now.</p>` : this._renderStep()}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+  _renderStep() {
+    switch (this._step) {
+      case "choose-hopper":
+        return this._renderChooseHopper();
+      case "confirm-empty":
+        return this._renderConfirmEmpty();
+      case "collecting":
+        return this._renderCollecting();
+      case "mark-full":
+        return this._renderMarkFull();
+      case "offer-inherit":
+        return this._renderOfferInherit();
+      case "done":
+        return this._renderDone();
+    }
+  }
+  /** "Hopper" (single mode -- there is only one physical side to calibrate) or "Hopper N"
+   * (dual). Every instructional string in the wizard names the physical side this way. */
+  _hopperLabel(index) {
+    return this.singleHopper ? "Hopper" : `Hopper ${index + 1}`;
+  }
+  /** The choose-hopper picker row's own label -- the one screen where naming the food (not
+   * just the side) actually helps pick the right one, e.g. "Hopper 1 \u00b7 Kibble". */
+  _hopperRowLabel(index) {
+    const base = this._hopperLabel(index);
+    if (this.singleHopper) return base;
+    const food = (index === 0 ? this.food1 : this.food2)?.trim();
+    return food ? `${base} \xB7 ${food}` : base;
+  }
+  _renderChooseHopper() {
+    if (this._loading) return b2`<p class="hint">Loading calibration\u2026</p>`;
+    if (this._loadError) {
+      return b2`
+        <div class="error">
+          <span>Couldn't load calibration. ${this._loadError}</span>
+          <button type="button" @click=${this._loadCalibration}>Try again</button>
+        </div>
+      `;
+    }
+    const indices = this.singleHopper ? [0] : [0, 1];
+    return b2`
+      <p class="hint">
+        ${this.singleHopper ? "Dispensing known portions into an empty bowl builds the curve your fill reading is interpreted against." : "Pick a hopper. Each side keeps its own curve, since the two hoppers can hold different food."}
+      </p>
+      <div class="hopper-rows">${indices.map((index) => this._renderHopperRow(index))}</div>
+      ${this._hopper !== null ? this._renderHopperActions(this._hopper) : A}
+    `;
+  }
+  _renderHopperRow(index) {
+    const status = calibrationStatus(this._hopperData(index));
+    return b2`
+      <button type="button" class="hopper-row ${this._hopper === index ? "selected" : ""}" @click=${() => this._selectHopper(index)}>
+        <span class="hopper-row-label">${this._hopperRowLabel(index)}</span>
+        <span class="hopper-row-status">${this._statusLine(status)}</span>
+        ${status.note ? b2`<span class="hopper-row-note">${status.note}</span>` : A}
+      </button>
+    `;
+  }
+  _statusLine(status) {
+    if (status.kind === "never") return "Never calibrated";
+    const when = status.measuredAt ? relativeTimeSentence(new Date(status.measuredAt * 1e3), /* @__PURE__ */ new Date()) : null;
+    const finished = status.finished ? "" : " (unfinished)";
+    if (status.kind === "inherited") {
+      return `Inherited from Hopper ${status.inheritedFromDisplay}${when ? ` \xB7 ${when}` : ""}${finished}`;
+    }
+    return `Measured${when ? ` ${when}` : ""}${finished}`;
+  }
+  _renderHopperActions(index) {
+    const status = calibrationStatus(this._hopperData(index));
+    const label = this._hopperLabel(index);
+    if (status.kind === "never") {
+      return b2`<button type="button" class="primary" @click=${() => this._beginRequested()}>Calibrate ${label}</button>`;
+    }
+    return b2`
+      <div class="hopper-actions">
+        <button type="button" class="danger ${this._clearConfirmArmed ? "confirming" : ""}" ?disabled=${this._busy} @click=${() => this._clearRequested()}>
+          ${this._clearConfirmArmed ? "Tap again to clear" : "Clear calibration"}
+        </button>
+        <button type="button" class="primary" @click=${() => this._beginRequested()}>Recalibrate ${label}</button>
+      </div>
+      ${this._renderError()}
+    `;
+  }
+  _renderConfirmEmpty() {
+    const index = this._hopper;
+    if (index === null) return A;
+    const label = this._hopperLabel(index);
+    const alreadyCalibrated = calibrationStatus(this._hopperData(index)).kind !== "never";
+    return b2`
+      <p class="hint">Make sure ${label}'s side of the bowl is completely empty, then start.</p>
+      ${alreadyCalibrated ? b2`<div class="warning">Starting discards ${label}'s existing calibration.</div>` : A}
+      <label class="field">
+        <span>What food is this? (optional)</span>
+        <input
+          type="text"
+          .value=${this._note}
+          placeholder="e.g. freeze-dried on this side"
+          @input=${(event) => {
+      this._note = event.target.value;
+    }}
+        />
+      </label>
+      ${this._waitingForBowl ? this._renderWaitingForBowl() : A}
+      ${this._renderError()}
+      <div class="actions">
+        <button type="button" class="primary" ?disabled=${this._busy} @click=${this._confirmEmpty}>${this._busy ? "Starting\u2026" : "Bowl is empty, start"}</button>
+      </div>
+    `;
+  }
+  _renderCollecting() {
+    const index = this._hopper;
+    if (index === null) return A;
+    const points = this._hopperData(index)?.points ?? [];
+    return b2`
+      <p class="hint">Dispense one portion into ${this._hopperLabel(index)}'s side yourself, then capture the reading.</p>
+      ${this._renderCurve(points)}
+      ${this._regression ? b2`<div class="warning">
+            This step's score (${formatScore(this._regression.newScore)}) is lower than the previous step's (${formatScore(this._regression.previousScore)}). A
+            curve that dips can't be interpolated. Recapture this step before continuing.
+          </div>` : A}
+      ${this._waitingForBowl ? this._renderWaitingForBowl() : A}
+      ${this._renderError()}
+      <div class="actions">
+        <button type="button" ?disabled=${this._busy || !canReviewFull(points)} @click=${() => this._reviewFull()}>This is full</button>
+        <button type="button" class="primary" ?disabled=${this._busy} @click=${this._capturePoint}>${this._busy ? "Capturing\u2026" : "Capture reading"}</button>
+      </div>
+    `;
+  }
+  _renderCurve(points) {
+    if (points.length === 0) return A;
+    return b2`
+      <ul class="curve">
+        ${points.map((point, i6) => {
+      const previous = i6 > 0 ? points[i6 - 1] : null;
+      const dropped = previous !== null && point.score < previous.score;
+      return b2`
+            <li class="curve-row ${dropped ? "dropped" : ""}">
+              <span>${portionWord(point.portions)}</span>
+              <span class="score">${formatScore(point.score)}</span>
+            </li>
+          `;
+    })}
+      </ul>
+    `;
+  }
+  _renderMarkFull() {
+    const index = this._hopper;
+    if (index === null) return A;
+    const points = (this._hopperData(index)?.points ?? []).filter((point) => point.portions > 0);
+    return b2`
+      <p class="hint">Which step looked full?</p>
+      <ul class="curve selectable">
+        ${points.map(
+      (point) => b2`
+            <li>
+              <button type="button" class="curve-choice ${this._markFullPortions === point.portions ? "selected" : ""}" @click=${() => this._markFullPortions = point.portions}>
+                <span>${portionWord(point.portions)}</span>
+                <span class="score">${formatScore(point.score)}</span>
+              </button>
+            </li>
+          `
+    )}
+      </ul>
+      ${this._renderError()}
+      <div class="actions">
+        <button type="button" class="primary" ?disabled=${this._busy || this._markFullPortions === null} @click=${this._confirmMarkFull}>
+          ${this._busy ? "Saving\u2026" : this._markFullPortions === null ? "Mark full" : `Mark full at ${portionWord(this._markFullPortions)}`}
+        </button>
+      </div>
+    `;
+  }
+  _renderOfferInherit() {
+    const from = this._hopper;
+    if (from === null) return A;
+    const to = from === 0 ? 1 : 0;
+    const otherHasData = calibrationStatus(this._hopperData(to)).kind !== "never";
+    return b2`
+      <p class="hint">${this._hopperLabel(from)} is calibrated.</p>
+      <p class="hint">
+        Copy this curve to ${this._hopperLabel(to)}? Only do this if it's the same food in both hoppers. This is a shortcut for
+        "same food," not a second measurement.${otherHasData ? b2` This replaces ${this._hopperLabel(to)}'s existing calibration.` : A}
+      </p>
+      ${this._renderError()}
+      <div class="actions">
+        <button type="button" ?disabled=${this._busy} @click=${() => this._declineInherit()}>Not now</button>
+        <button type="button" class="primary" ?disabled=${this._busy} @click=${this._acceptInherit}>${this._busy ? "Copying\u2026" : `Copy to ${this._hopperLabel(to)}`}</button>
+      </div>
+    `;
+  }
+  _renderDone() {
+    const index = this._hopper;
+    if (index === null) return A;
+    return b2`
+      <p class="hint">${this._hopperLabel(index)} is calibrated.${this._inheritedTo !== null ? b2` Copied to ${this._hopperLabel(this._inheritedTo)} too.` : A}</p>
+      <div class="actions">
+        ${this.singleHopper ? A : b2`<button type="button" @click=${() => this._restart()}>Calibrate the other hopper</button>`}
+        <button type="button" class="primary" @click=${this._close}>Done</button>
+      </div>
+    `;
+  }
+  _renderWaitingForBowl() {
+    const retry = this._step === "collecting" ? this._capturePoint : this._confirmEmpty;
+    return b2`
+      <div class="warning">
+        <span>No clear bowl reading right now. Something may be in the way, or the feeder hasn't reported one yet. Try again in a moment.</span>
+        <button
+          type="button"
+          @click=${() => {
+      this._waitingForBowl = false;
+      retry();
+    }}
+        >
+          Try again
+        </button>
+      </div>
+    `;
+  }
+  _renderError() {
+    const error = this._error;
+    if (!error) return A;
+    return b2`
+      <div class="error">
+        <span>${error.message}</span>
+        <button
+          type="button"
+          @click=${() => {
+      this._error = null;
+      error.retry();
+    }}
+        >
+          Try again
+        </button>
+      </div>
+    `;
+  }
+  static {
+    this.styles = i`
+    :host {
+      display: contents;
+    }
+    .backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.6);
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      z-index: 1000;
+      box-sizing: border-box;
+    }
+    @media (min-width: 480px) {
+      .backdrop {
+        align-items: center;
+        padding: 24px;
+      }
+    }
+    .sheet {
+      width: 100%;
+      max-width: 420px;
+      max-height: 92vh;
+      overflow-y: auto;
+      background: var(--ha-card-background, var(--card-background-color, #fff));
+      color: var(--primary-text-color);
+      border-radius: 16px 16px 0 0;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }
+    @media (min-width: 480px) {
+      .sheet {
+        border-radius: 16px;
+      }
+    }
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px;
+      border-bottom: 1px solid var(--divider-color);
+      font-size: 16px;
+      font-weight: 600;
+      position: sticky;
+      top: 0;
+      background: inherit;
+    }
+    .icon-button {
+      background: none;
+      border: none;
+      color: var(--primary-text-color);
+      cursor: pointer;
+      min-width: 44px;
+      min-height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+    }
+    .body {
+      padding: 4px 16px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .hint {
+      margin: 0;
+      font-size: 13px;
+      color: var(--secondary-text-color);
+    }
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: 13px;
+      color: var(--secondary-text-color);
+    }
+    .field input {
+      min-height: 44px;
+      border-radius: 8px;
+      border: 1px solid var(--divider-color);
+      background: var(--card-background-color, transparent);
+      color: var(--primary-text-color);
+      font: inherit;
+      padding: 0 12px;
+      box-sizing: border-box;
+    }
+    .hopper-rows {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .hopper-row {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 2px;
+      width: 100%;
+      min-height: 48px;
+      padding: 10px 14px;
+      border-radius: 10px;
+      border: 2px solid var(--divider-color);
+      background: none;
+      color: var(--primary-text-color);
+      font: inherit;
+      text-align: left;
+      cursor: pointer;
+      box-sizing: border-box;
+    }
+    .hopper-row.selected {
+      border-color: var(--primary-color, #03a9f4);
+    }
+    .hopper-row-label {
+      font-weight: 600;
+    }
+    .hopper-row-status,
+    .hopper-row-note {
+      font-size: 12px;
+      color: var(--secondary-text-color);
+    }
+    .hopper-actions {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+    .curve {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      max-height: 220px;
+      overflow-y: auto;
+    }
+    .curve-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 10px;
+      border-radius: 8px;
+      background: color-mix(in srgb, var(--primary-text-color) 5%, transparent);
+      font-size: 13px;
+      font-variant-numeric: tabular-nums;
+    }
+    .curve-row.dropped {
+      background: color-mix(in srgb, var(--kibble-amber-dark, #de8a3a) 16%, transparent);
+      color: var(--kibble-amber-dark, #de8a3a);
+      font-weight: 600;
+    }
+    .curve .score {
+      font-weight: 600;
+    }
+    .curve.selectable {
+      gap: 6px;
+    }
+    .curve-choice {
+      display: flex;
+      justify-content: space-between;
+      width: 100%;
+      min-height: 44px;
+      padding: 8px 12px;
+      border-radius: 8px;
+      border: 2px solid var(--divider-color);
+      background: none;
+      color: var(--primary-text-color);
+      font: inherit;
+      font-variant-numeric: tabular-nums;
+      cursor: pointer;
+      box-sizing: border-box;
+    }
+    .curve-choice.selected {
+      border-color: var(--primary-color, #03a9f4);
+    }
+    .actions {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+    button {
+      min-height: 44px;
+      border-radius: 8px;
+      border: none;
+      font: inherit;
+      font-weight: 600;
+      cursor: pointer;
+      padding: 0 16px;
+    }
+    .actions button:not(.primary):not(.danger) {
+      background: color-mix(in srgb, var(--primary-text-color) 8%, transparent);
+      color: var(--primary-text-color);
+    }
+    .primary {
+      background: color-mix(in srgb, var(--primary-color, #03a9f4) 14%, transparent);
+      color: var(--primary-color, #03a9f4);
+    }
+    .danger {
+      background: none;
+      border: 2px solid var(--error-color, #db4437);
+      color: var(--error-color, #db4437);
+    }
+    .danger.confirming {
+      background: color-mix(in srgb, var(--error-color, #db4437) 12%, transparent);
+    }
+    button:disabled {
+      opacity: 0.5;
+      cursor: default;
+    }
+    button:focus-visible {
+      outline: 2px solid var(--primary-color, #03a9f4);
+      outline-offset: 2px;
+    }
+    .warning,
+    .error {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      font-size: 13px;
+    }
+    .warning {
+      background: color-mix(in srgb, var(--kibble-amber-dark, #de8a3a) 12%, transparent);
+      color: var(--kibble-amber-dark, #de8a3a);
+    }
+    .error {
+      background: color-mix(in srgb, var(--error-color, #db4437) 10%, transparent);
+      color: var(--error-color, #db4437);
+    }
+    .warning button,
+    .error button {
+      flex: 0 0 auto;
+      min-height: 32px;
+      border: 1px solid currentColor;
+      background: none;
+      color: inherit;
+      border-radius: 8px;
+      padding: 4px 10px;
+      font-size: 12px;
+    }
+  `;
+  }
+};
+customElements.define("kibble-calibration-dialog", KibbleCalibrationDialog);
+function clampUnit(value) {
+  return Math.min(1, Math.max(0, value));
+}
+function clientPointToNormalized(clientX, clientY, imageRect) {
+  if (imageRect.width <= 0 || imageRect.height <= 0) return { x: 0, y: 0 };
+  return {
+    x: clampUnit((clientX - imageRect.left) / imageRect.width),
+    y: clampUnit((clientY - imageRect.top) / imageRect.height)
+  };
+}
+function normalizedAreaFromPoints(start, end) {
+  return [
+    Math.min(start.x, end.x),
+    Math.min(start.y, end.y),
+    Math.max(start.x, end.x),
+    Math.max(start.y, end.y)
+  ];
+}
+function areaWidth(area) {
+  return Math.max(0, area[2] - area[0]);
+}
+function areaHeight(area) {
+  return Math.max(0, area[3] - area[1]);
+}
+function isDrawableArea(area, minimumFraction = 0.01) {
+  return areaWidth(area) >= minimumFraction && areaHeight(area) >= minimumFraction;
+}
+function normalizeWireArea(value) {
+  if (!Array.isArray(value) || value.length !== 4) return null;
+  const values = value.map(Number);
+  if (values.some((n6) => !Number.isFinite(n6))) return null;
+  const area = [values[0], values[1], values[2], values[3]];
+  if (area.some((n6) => n6 < 0 || n6 > 1) || areaWidth(area) <= 0 || areaHeight(area) <= 0) return null;
+  return area;
+}
+function normalizeWireAreas(value) {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry2) => {
+    const area = normalizeWireArea(entry2);
+    return area ? [area] : [];
+  });
+}
+var HANDLE_IDS = ["nw", "n", "ne", "e", "se", "s", "sw", "w"];
+function handlePoint(area, handle) {
+  const [x1, y1, x2, y22] = area;
+  const midX = (x1 + x2) / 2;
+  const midY = (y1 + y22) / 2;
+  switch (handle) {
+    case "nw":
+      return { x: x1, y: y1 };
+    case "n":
+      return { x: midX, y: y1 };
+    case "ne":
+      return { x: x2, y: y1 };
+    case "e":
+      return { x: x2, y: midY };
+    case "se":
+      return { x: x2, y: y22 };
+    case "s":
+      return { x: midX, y: y22 };
+    case "sw":
+      return { x: x1, y: y22 };
+    case "w":
+      return { x: x1, y: midY };
+  }
+}
+var MIN_AREA_SIZE = 0.02;
+function resizeAreaFromHandle(area, handle, point, minSize = MIN_AREA_SIZE) {
+  let [x1, y1, x2, y22] = area;
+  const px = clampUnit(point.x);
+  const py = clampUnit(point.y);
+  if (handle === "nw" || handle === "w" || handle === "sw") x1 = Math.min(px, x2 - minSize);
+  if (handle === "ne" || handle === "e" || handle === "se") x2 = Math.max(px, x1 + minSize);
+  if (handle === "nw" || handle === "n" || handle === "ne") y1 = Math.min(py, y22 - minSize);
+  if (handle === "sw" || handle === "s" || handle === "se") y22 = Math.max(py, y1 + minSize);
+  return [x1, y1, x2, y22];
+}
+function moveArea(area, dx, dy) {
+  const width = areaWidth(area);
+  const height = areaHeight(area);
+  const x1 = Math.min(Math.max(area[0] + dx, 0), Math.max(0, 1 - width));
+  const y1 = Math.min(Math.max(area[1] + dy, 0), Math.max(0, 1 - height));
+  return [x1, y1, x1 + width, y1 + height];
+}
+var DEFAULT_BOWL_ROI = [1 / 3, 2 / 3, 2 / 3, 1];
+function percent(value) {
+  return String(Math.round(value * 1e4) / 100) + "%";
+}
+function boxRect(box) {
+  return {
+    left: percent(box[0]),
+    top: percent(box[1]),
+    width: percent(box[2] - box[0]),
+    height: percent(box[3] - box[1])
+  };
+}
+function boxInCrop(box, crop) {
+  const cropWidth = crop[2] - crop[0];
+  const cropHeight = crop[3] - crop[1];
+  if (cropWidth <= 0 || cropHeight <= 0 || box[2] <= box[0] || box[3] <= box[1]) return null;
+  const left = Math.max(box[0], crop[0]);
+  const top = Math.max(box[1], crop[1]);
+  const right = Math.min(box[2], crop[2]);
+  const bottom = Math.min(box[3], crop[3]);
+  if (right <= left || bottom <= top) return null;
+  return [
+    (left - crop[0]) / cropWidth,
+    (top - crop[1]) / cropHeight,
+    (right - crop[0]) / cropWidth,
+    (bottom - crop[1]) / cropHeight
+  ];
+}
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+function overlaps(a3, b3, gap) {
+  return a3.left < b3.left + b3.width + gap && a3.left + a3.width + gap > b3.left && a3.top < b3.top + b3.height + gap && a3.top + a3.height + gap > b3.top;
+}
+function placeLabels(labels, width, height, gap = 4, safeTopInset = 0) {
+  const safeTop = Math.max(0, safeTopInset);
+  const ordered = [...labels].sort((a3, b3) => a3.box[0] + a3.box[2] - (b3.box[0] + b3.box[2]));
+  const placed = [];
+  for (const label of ordered) {
+    const pillHeight = label.height ?? 22;
+    const maxLeft = Math.max(0, width - label.width);
+    const maxTop = Math.max(0, height - pillHeight);
+    const anchorX = label.box[0] * width;
+    const boxTop = label.box[1] * height;
+    const flipped = boxTop - pillHeight - gap < safeTop;
+    const preferredLeft = clamp(anchorX, 0, maxLeft);
+    const insideTop = Math.max(boxTop + gap, safeTop);
+    const preferredTop = clamp(flipped ? insideTop : boxTop - pillHeight - gap, 0, maxTop);
+    const xCandidates = /* @__PURE__ */ new Set([preferredLeft, 0, maxLeft]);
+    for (const prior of placed) {
+      xCandidates.add(clamp(prior.left + prior.width + gap, 0, maxLeft));
+      xCandidates.add(clamp(prior.left - label.width - gap, 0, maxLeft));
+    }
+    const xs = [...xCandidates].sort((a3, b3) => Math.abs(a3 - preferredLeft) - Math.abs(b3 - preferredLeft));
+    const yCandidates = [preferredTop];
+    const rowStep = pillHeight + gap;
+    for (let offset = rowStep; offset <= height; offset += rowStep) {
+      const below = preferredTop + offset;
+      const above = preferredTop - offset;
+      if (below <= maxTop) yCandidates.push(below);
+      if (above >= (flipped ? insideTop : safeTop)) yCandidates.push(above);
+    }
+    let chosen;
+    for (const top of yCandidates) {
+      for (const left of xs) {
+        const candidate = { key: label.key, left, top, flipped, width: label.width, height: pillHeight };
+        if (!placed.some((prior) => overlaps(candidate, prior, gap))) {
+          chosen = candidate;
+          break;
+        }
+      }
+      if (chosen) break;
+    }
+    placed.push(chosen ?? { key: label.key, left: preferredLeft, top: preferredTop, flipped, width: label.width, height: pillHeight });
+  }
+  return placed.map(({ key, left, top, flipped }) => ({ key, left, top, flipped }));
+}
+var VISION_POLL_MS = 1e3;
+var NUDGE_STEP = 0.01;
+var UNDO_LIMIT = 50;
+var HANDLE_CURSOR = {
+  nw: "nwse-resize",
+  n: "ns-resize",
+  ne: "nesw-resize",
+  e: "ew-resize",
+  se: "nwse-resize",
+  s: "ns-resize",
+  sw: "nesw-resize",
+  w: "ew-resize"
+};
+var KibbleDetectionAreasDialog = class extends i4 {
+  constructor() {
+    super();
+    this._imageRef = e5();
+    this._cancelRef = e5();
+    this._imageUrl = null;
+    this._imagePath = null;
+    this._objectUrl = null;
+    this._masks = [];
+    this._bowl = DEFAULT_BOWL_ROI;
+    this._baseline = null;
+    this._selected = null;
+    this._hidden = /* @__PURE__ */ new Set();
+    this._undoStack = [];
+    this._drawStart = null;
+    this._drawing = null;
+    this._pointerId = null;
+    this._edit = null;
+    this._showDetections = false;
+    this._visionFrame = null;
+    this._visionTimer = void 0;
+    this._confirmDiscard = false;
+    this._loading = false;
+    this._saving = false;
+    this._error = null;
+    this._loadGeneration = 0;
+    this._onImageLoad = () => {
+      this.requestUpdate();
+    };
+    this._pollVision = () => {
+      const callWS = this.hass?.callWS;
+      const entryId = this.entryId;
+      if (!callWS || !entryId) return;
+      callWS({ type: "kibble/vision/last", entry_id: entryId }).then(
+        (result) => {
+          this._visionFrame = result.frame;
+          this.requestUpdate();
+        },
+        () => {
+        }
+      );
+    };
+    this._toggleDetections = () => {
+      this._showDetections = !this._showDetections;
+      if (this._showDetections) {
+        this._pollVision();
+        this._visionTimer = setInterval(this._pollVision, VISION_POLL_MS);
+      } else {
+        this._stopVisionPolling();
+      }
+      this.requestUpdate();
+    };
+    this._onStagePointerDown = (event) => {
+      if (this._saving || event.button !== 0) return;
+      const image = this._imageRef.value;
+      if (!image) return;
+      const point = clientPointToNormalized(event.clientX, event.clientY, image.getBoundingClientRect());
+      this._selected = null;
+      this._drawStart = point;
+      this._drawing = [point.x, point.y, point.x, point.y];
+      this._pointerId = event.pointerId;
+      event.currentTarget.setPointerCapture(event.pointerId);
+      event.preventDefault();
+      this.requestUpdate();
+    };
+    this._onStageMove = (event) => {
+      if (this._pointerId !== event.pointerId || !this._drawStart) return;
+      const image = this._imageRef.value;
+      if (!image) return;
+      const point = clientPointToNormalized(event.clientX, event.clientY, image.getBoundingClientRect());
+      this._drawing = normalizedAreaFromPoints(this._drawStart, point);
+      this.requestUpdate();
+    };
+    this._onStageUp = (event) => {
+      if (this._pointerId !== event.pointerId || !this._drawStart) return;
+      const image = this._imageRef.value;
+      if (image) {
+        const point = clientPointToNormalized(event.clientX, event.clientY, image.getBoundingClientRect());
+        const area = normalizedAreaFromPoints(this._drawStart, point);
+        if (isDrawableArea(area)) {
+          this._pushUndo();
+          this._masks = [...this._masks, area];
+          this._selected = { kind: "mask", index: this._masks.length - 1 };
+        }
+      }
+      this._finishStageDraw(event);
+    };
+    this._onStageCancel = (event) => {
+      if (this._pointerId !== event.pointerId) return;
+      this._finishStageDraw(event);
+    };
+    this._beginMove = (event, target) => {
+      if (this._saving || event.button !== 0) return;
+      event.stopPropagation();
+      const image = this._imageRef.value;
+      if (!image) return;
+      this._pushUndo();
+      this._selected = target;
+      const start = clientPointToNormalized(event.clientX, event.clientY, image.getBoundingClientRect());
+      this._edit = { pointerId: event.pointerId, target, handle: null, start, original: this._areaFor(target) };
+      event.currentTarget.setPointerCapture(event.pointerId);
+      event.preventDefault();
+      this.requestUpdate();
+    };
+    this._beginResize = (event, target, handle) => {
+      if (this._saving || event.button !== 0) return;
+      event.stopPropagation();
+      const image = this._imageRef.value;
+      if (!image) return;
+      this._pushUndo();
+      this._selected = target;
+      const start = clientPointToNormalized(event.clientX, event.clientY, image.getBoundingClientRect());
+      this._edit = { pointerId: event.pointerId, target, handle, start, original: this._areaFor(target) };
+      event.currentTarget.setPointerCapture(event.pointerId);
+      event.preventDefault();
+      this.requestUpdate();
+    };
+    this._onEditMove = (event) => {
+      const edit = this._edit;
+      if (!edit || edit.pointerId !== event.pointerId) return;
+      const image = this._imageRef.value;
+      if (!image) return;
+      const point = clientPointToNormalized(event.clientX, event.clientY, image.getBoundingClientRect());
+      const next = edit.handle ? resizeAreaFromHandle(edit.original, edit.handle, point) : moveArea(edit.original, point.x - edit.start.x, point.y - edit.start.y);
+      this._setAreaFor(edit.target, next);
+      this.requestUpdate();
+    };
+    this._onEditEnd = (event) => {
+      const edit = this._edit;
+      if (!edit || edit.pointerId !== event.pointerId) return;
+      const target = event.currentTarget;
+      if (target.hasPointerCapture(event.pointerId)) target.releasePointerCapture(event.pointerId);
+      this._edit = null;
+      this.requestUpdate();
+    };
+    this._selectTarget = (target) => {
+      this._selected = target;
+      this.requestUpdate();
+    };
+    this._toggleVisibility = (index) => {
+      const next = new Set(this._hidden);
+      if (next.has(index)) {
+        next.delete(index);
+      } else {
+        next.add(index);
+        if (this._selected?.kind === "mask" && this._selected.index === index) this._selected = null;
+      }
+      this._hidden = next;
+      this.requestUpdate();
+    };
+    this._deleteMask = (index) => {
+      this._pushUndo();
+      this._masks = this._masks.filter((_2, current) => current !== index);
+      this._hidden = new Set([...this._hidden].filter((hiddenIndex) => hiddenIndex !== index).map((hiddenIndex) => hiddenIndex > index ? hiddenIndex - 1 : hiddenIndex));
+      if (this._selected?.kind === "mask") {
+        if (this._selected.index === index) this._selected = null;
+        else if (this._selected.index > index) this._selected = { kind: "mask", index: this._selected.index - 1 };
+      }
+      this.requestUpdate();
+    };
+    this._resetBowl = () => {
+      this._pushUndo();
+      this._bowl = DEFAULT_BOWL_ROI;
+      this.requestUpdate();
+    };
+    this._undo = () => {
+      const previous = this._undoStack.pop();
+      if (!previous) return;
+      this._masks = previous.masks;
+      this._bowl = previous.bowl;
+      this._selected = null;
+      this.requestUpdate();
+    };
+    this._onKeydown = (event) => {
+      if (event.key === "Escape" && !this._saving) {
+        event.preventDefault();
+        this._requestClose();
+        return;
+      }
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "z" && !this._saving) {
+        event.preventDefault();
+        this._undo();
+        return;
+      }
+      if (!this._selected || this._saving) return;
+      const nudge = {
+        ArrowLeft: { x: -NUDGE_STEP, y: 0 },
+        ArrowRight: { x: NUDGE_STEP, y: 0 },
+        ArrowUp: { x: 0, y: -NUDGE_STEP },
+        ArrowDown: { x: 0, y: NUDGE_STEP }
+      };
+      const delta = nudge[event.key];
+      if (delta) {
+        event.preventDefault();
+        this._pushUndo();
+        const area = this._areaFor(this._selected);
+        const next = event.shiftKey ? resizeAreaFromHandle(area, "se", { x: area[2] + delta.x, y: area[3] + delta.y }) : moveArea(area, delta.x, delta.y);
+        this._setAreaFor(this._selected, next);
+        this.requestUpdate();
+        return;
+      }
+      if ((event.key === "Delete" || event.key === "Backspace") && this._selected.kind === "mask") {
+        event.preventDefault();
+        this._deleteMask(this._selected.index);
+      }
+    };
+    this._requestClose = () => {
+      if (this._saving) return;
+      if (this._isDirty() && !this._confirmDiscard) {
+        this._confirmDiscard = true;
+        this.requestUpdate();
+        return;
+      }
+      this._confirmDiscard = false;
+      this.dispatchEvent(new CustomEvent("close-requested", { bubbles: true, composed: true }));
+    };
+    this._keepEditing = () => {
+      this._confirmDiscard = false;
+      this.requestUpdate();
+    };
+    this.open = false;
+  }
+  static {
+    this.properties = {
+      hass: { attribute: false },
+      cameraEntity: { attribute: false },
+      entryId: { attribute: false },
+      open: { type: Boolean, reflect: true }
+    };
+  }
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    this._revokeObjectUrl();
+    this._stopVisionPolling();
+  }
+  updated(changed) {
+    if (changed.has("open") && this.open) {
+      this._cancelRef.value?.focus();
+      void this._loadEditor();
+    }
+    if (changed.has("open") && !this.open) {
+      this._drawStart = null;
+      this._drawing = null;
+      this._pointerId = null;
+      this._edit = null;
+      this._selected = null;
+      this._confirmDiscard = false;
+      this._showDetections = false;
+      this._stopVisionPolling();
+    }
+  }
+  render() {
+    if (!this.open) return A;
+    const canSave = !this._loading && !this._saving && Boolean(this.entryId);
+    return b2`
+      <div class="backdrop" @click=${this._requestClose}>
+        <section
+          class="panel"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="detection-areas-title"
+          @click=${(event) => event.stopPropagation()}
+          @keydown=${this._onKeydown}
+        >
+          <header class="header">
+            <h2 id="detection-areas-title">Detection areas</h2>
+            <button type="button" class="icon-button" aria-label="Close" @click=${this._requestClose}>${mdiIcon("close")}</button>
+          </header>
+
+          <div class="body">
+            <div class="toolbar" role="group" aria-label="Editor tools">
+              <button
+                type="button"
+                class="toggle-pill ${this._showDetections ? "active" : ""}"
+                aria-pressed=${this._showDetections}
+                @click=${this._toggleDetections}
+              >
+                <span class="swatch detections"></span>Show detections
+              </button>
+              <button
+                type="button"
+                class="quiet-button"
+                ?disabled=${!this._undoStack.length || this._saving}
+                @click=${this._undo}
+              >
+                ${mdiIcon("undo")}Undo
+              </button>
+            </div>
+
+            <div class="stage-wrap">
+              ${this._imageUrl ? this._renderStage() : b2`<div class="empty-stage">${this._loading ? "Loading camera still\u2026" : "Camera still unavailable"}</div>`}
+            </div>
+
+            ${this._error ? b2`<p class="error" role="alert">${this._error}</p>` : A}
+
+            <div class="lists">
+              <section class="mask-section">
+                <h3>Ignore masks</h3>
+                ${this._masks.length ? b2`<ul class="mask-list">${this._masks.map((area, index) => this._renderMaskRow(area, index))}</ul>` : A}
+              </section>
+              <section class="mask-section">
+                <h3>Bowl zone</h3>
+                ${this._renderBowlRow()}
+              </section>
+            </div>
+          </div>
+
+          <footer class="footer">${this._confirmDiscard ? this._renderDiscardConfirm() : this._renderFooterActions(canSave)}</footer>
+        </section>
+      </div>
+    `;
+  }
+  _renderFooterActions(canSave) {
+    return b2`
+      <button type="button" class="cancel" ${n5(this._cancelRef)} ?disabled=${this._saving} @click=${this._requestClose}>Cancel</button>
+      <button type="button" class="save" ?disabled=${!canSave} @click=${this._save}>${this._saving ? "Saving\u2026" : "Save"}</button>
+    `;
+  }
+  _renderDiscardConfirm() {
+    return b2`
+      <p class="discard-prompt" role="alert">Discard unsaved changes?</p>
+      <button type="button" class="quiet-button" @click=${this._keepEditing}>Keep editing</button>
+      <button type="button" class="cancel discard" @click=${this._requestClose}>Discard</button>
+    `;
+  }
+  // ---- stage ------------------------------------------------------------------------------
+  /** Handles for the selected shape are rendered here, as siblings of `.shape`, positioned
+   * relative to the STAGE (the same coordinate space `handlePoint` returns) -- NOT nested
+   * inside `.shape`. `.shape` itself is already offset and scaled to the mask's own box via
+   * its own left/top/width/height percentages; a handle nested inside it would have its
+   * stage-fraction coordinates re-interpreted as a fraction of that already-scaled box,
+   * bunching every handle into one corner instead of spanning the shape's corners and edges. */
+  _renderStage() {
+    const selectedArea = this._selected ? this._areaFor(this._selected) : null;
+    const ratio = this._stageAspectRatio();
+    const stageStyle = `aspect-ratio:${ratio};width:min(100%, calc(min(60vh, 640px) * ${ratio}));`;
+    return b2`
+      <div
+        class="stage"
+        style=${stageStyle}
+        @pointerdown=${this._onStagePointerDown}
+        @pointermove=${this._onStageMove}
+        @pointerup=${this._onStageUp}
+        @pointercancel=${this._onStageCancel}
+      >
+        <img ${n5(this._imageRef)} src=${this._imageUrl} alt="Feeder camera still" @load=${this._onImageLoad} />
+        ${this._showDetections ? this._renderDetections() : A}
+        ${this._masks.length === 0 ? b2`<p class="stage-hint" aria-hidden="true">Drag to mask an area</p>` : A}
+        ${this._renderShape(this._bowl, { kind: "bowl" }, this._selected?.kind === "bowl", "bowl", "Bowl zone")}
+        ${this._masks.map((area, index) => {
+      if (this._hidden.has(index)) return A;
+      const selected = this._selected?.kind === "mask" && this._selected.index === index;
+      return this._renderShape(area, { kind: "mask", index }, selected, "mask", `Mask ${index + 1}`);
+    })}
+        ${this._drawing ? this._renderDrawingPreview(this._drawing) : A}
+        ${this._selected && selectedArea ? HANDLE_IDS.map((handle) => this._renderHandle(selectedArea, this._selected, handle)) : A}
+      </div>
+    `;
+  }
+  _renderDetections() {
+    const detections = this._visionFrame?.detections ?? [];
+    return detections.map((detection) => {
+      const rect = boxRect([detection.x1, detection.y1, detection.x2, detection.y2]);
+      const style = `left:${rect.left};top:${rect.top};width:${rect.width};height:${rect.height};`;
+      return b2`<div class="detection ${detection.admitted ? "" : "quiet"}" style=${style}></div>`;
+    });
+  }
+  _renderShape(area, target, selected, kindClass, label) {
+    const style = `left:${area[0] * 100}%;top:${area[1] * 100}%;width:${areaWidth(area) * 100}%;height:${areaHeight(area) * 100}%;`;
+    return b2`
+      <div class="shape ${kindClass} ${selected ? "selected" : ""}" style=${style}>
+        <button
+          type="button"
+          class="shape-body"
+          aria-label="${label}${selected ? ", selected" : ""}"
+          @pointerdown=${(event) => this._beginMove(event, target)}
+          @pointermove=${this._onEditMove}
+          @pointerup=${this._onEditEnd}
+          @pointercancel=${this._onEditEnd}
+          @click=${() => this._selectTarget(target)}
+          @contextmenu=${(event) => this._onShapeContextMenu(event, target)}
+        >
+          <span class="shape-tag">${label}</span>
+        </button>
+      </div>
+    `;
+  }
+  _renderHandle(area, target, handle) {
+    const point = handlePoint(area, handle);
+    const style = `left:${point.x * 100}%;top:${point.y * 100}%;cursor:${HANDLE_CURSOR[handle]};`;
+    return b2`
+      <div
+        class="handle"
+        style=${style}
+        aria-hidden="true"
+        @pointerdown=${(event) => this._beginResize(event, target, handle)}
+        @pointermove=${this._onEditMove}
+        @pointerup=${this._onEditEnd}
+        @pointercancel=${this._onEditEnd}
+      >
+        <span class="handle-dot"></span>
+      </div>
+    `;
+  }
+  _renderDrawingPreview(area) {
+    const style = `left:${area[0] * 100}%;top:${area[1] * 100}%;width:${areaWidth(area) * 100}%;height:${areaHeight(area) * 100}%;`;
+    return b2`<div class="shape mask drawing" style=${style}><div class="shape-body"></div></div>`;
+  }
+  // ---- lists --------------------------------------------------------------------------------
+  _renderMaskRow(area, index) {
+    const selected = this._selected?.kind === "mask" && this._selected.index === index;
+    const hidden = this._hidden.has(index);
+    return b2`
+      <li class="mask-row ${selected ? "selected" : ""}">
+        <button type="button" class="mask-row-label" @click=${() => this._selectTarget({ kind: "mask", index })}>
+          <span class="swatch exclude"></span>Mask ${index + 1}
+        </button>
+        <button
+          type="button"
+          class="icon-button"
+          aria-label="${hidden ? "Show" : "Hide"} mask ${index + 1}"
+          @click=${() => this._toggleVisibility(index)}
+        >
+          ${mdiIcon(hidden ? "eyeOff" : "eye")}
+        </button>
+        <button type="button" class="icon-button" aria-label="Delete mask ${index + 1}" @click=${() => this._deleteMask(index)}>
+          ${mdiIcon("deleteOutline")}
+        </button>
+      </li>
+    `;
+  }
+  _renderBowlRow() {
+    const selected = this._selected?.kind === "bowl";
+    return b2`
+      <div class="mask-row bowl-row ${selected ? "selected" : ""}">
+        <button type="button" class="mask-row-label" @click=${() => this._selectTarget({ kind: "bowl" })}>
+          <span class="swatch bowl"></span>Bowl zone
+        </button>
+        <button type="button" class="quiet-button" @click=${this._resetBowl}>Reset</button>
+      </div>
+    `;
+  }
+  // ---- data loading -------------------------------------------------------------------------
+  async _loadEditor() {
+    const generation = ++this._loadGeneration;
+    this._error = null;
+    this._selected = null;
+    this._drawing = null;
+    this._undoStack = [];
+    this._hidden = /* @__PURE__ */ new Set();
+    this._confirmDiscard = false;
+    this._loading = true;
+    this.requestUpdate();
+    await Promise.all([this._loadAreas(), this._loadImage()]);
+    if (generation === this._loadGeneration) {
+      this._loading = false;
+      this.requestUpdate();
+    }
+  }
+  async _loadAreas() {
+    const callWS = this.hass?.callWS;
+    if (!callWS || !this.entryId) {
+      this._masks = [];
+      this._bowl = DEFAULT_BOWL_ROI;
+      this._baseline = { masks: [], bowl: DEFAULT_BOWL_ROI };
+      return;
+    }
+    try {
+      const [areas, bowl] = await Promise.all([
+        callWS({ type: "kibble/vision/areas", entry_id: this.entryId }),
+        callWS({ type: "kibble/vision/bowl", entry_id: this.entryId })
+      ]);
+      this._masks = normalizeWireAreas(areas.exclude);
+      this._bowl = normalizeWireArea(bowl.bowl_roi) ?? DEFAULT_BOWL_ROI;
+    } catch (error) {
+      this._error = describeWsError(error);
+      this._masks = [];
+      this._bowl = DEFAULT_BOWL_ROI;
+    }
+    this._baseline = { masks: this._masks, bowl: this._bowl };
+  }
+  async _loadImage() {
+    const entity = this.cameraEntity ? this.hass?.states[this.cameraEntity] : void 0;
+    const path = typeof entity?.attributes.entity_picture === "string" ? entity.attributes.entity_picture : null;
+    if (path === this._imagePath && this._imageUrl) return;
+    this._imagePath = path;
+    if (!path) {
+      if (!this._imageUrl) this.requestUpdate();
+      return;
+    }
+    if (!this.hass.fetchWithAuth) {
+      this._imageUrl = path;
+      this.requestUpdate();
+      return;
+    }
+    try {
+      const response = await this.hass.fetchWithAuth(path);
+      if (!response.ok) throw new Error("Camera still could not be loaded.");
+      const blob = await response.blob();
+      const nextObjectUrl = URL.createObjectURL(blob);
+      this._revokeObjectUrl();
+      this._objectUrl = nextObjectUrl;
+      this._imageUrl = nextObjectUrl;
+    } catch (error) {
+      if (!this._imageUrl) this._error = error instanceof Error ? error.message : "Camera still could not be loaded.";
+    }
+    this.requestUpdate();
+  }
+  /** The real snapshot's own width/height ratio -- an aspect-ratio-correct `.stage` box is
+   * what fills it edge to edge with no letterbox bands, instead of the stage falling back to
+   * some unrelated block-flow height. Priority: the loaded `<img>`'s own decoded size (most
+   * authoritative, and already the exact box mask coordinates are drawn against), else the
+   * most recent `kibble/vision/last` frame's `w`/`h` (present before the image has loaded, if
+   * detection polling happens to already be running), else a plain 16:9 guess. */
+  _stageAspectRatio() {
+    const img = this._imageRef.value;
+    if (img && img.naturalWidth > 0 && img.naturalHeight > 0) return img.naturalWidth / img.naturalHeight;
+    if (this._visionFrame?.w && this._visionFrame?.h) return this._visionFrame.w / this._visionFrame.h;
+    return 16 / 9;
+  }
+  _stopVisionPolling() {
+    if (this._visionTimer !== void 0) clearInterval(this._visionTimer);
+    this._visionTimer = void 0;
+  }
+  _finishStageDraw(event) {
+    const target = event.currentTarget;
+    if (target.hasPointerCapture(event.pointerId)) target.releasePointerCapture(event.pointerId);
+    this._pointerId = null;
+    this._drawStart = null;
+    this._drawing = null;
+    this.requestUpdate();
+  }
+  _onShapeContextMenu(event, target) {
+    event.preventDefault();
+    if (target.kind === "mask") this._deleteMask(target.index);
+  }
+  _areaFor(target) {
+    return target.kind === "bowl" ? this._bowl : this._masks[target.index];
+  }
+  _setAreaFor(target, area) {
+    if (target.kind === "bowl") this._bowl = area;
+    else this._masks = this._masks.map((mask, index) => index === target.index ? area : mask);
+  }
+  // ---- undo -------------------------------------------------------------------------------
+  _pushUndo() {
+    this._undoStack.push({ masks: this._masks, bowl: this._bowl });
+    if (this._undoStack.length > UNDO_LIMIT) this._undoStack.shift();
+  }
+  // ---- save / close / unsaved guard --------------------------------------------------------
+  _isDirty() {
+    if (!this._baseline) return false;
+    const round = (area) => area.map((n6) => Math.round(n6 * 1e4)).join(",");
+    if (this._masks.length !== this._baseline.masks.length) return true;
+    if (round(this._bowl) !== round(this._baseline.bowl)) return true;
+    return this._masks.some((area, index) => round(area) !== round(this._baseline.masks[index]));
+  }
+  async _save() {
+    const callWS = this.hass?.callWS;
+    if (!callWS || !this.entryId) return;
+    this._saving = true;
+    this._error = null;
+    this.requestUpdate();
+    try {
+      try {
+        await callWS({ type: "kibble/vision/areas/set", entry_id: this.entryId, exclude: this._masks });
+      } catch (error) {
+        throw new Error(`Could not save masks. ${describeWsError(error)}`);
+      }
+      try {
+        await callWS({ type: "kibble/vision/bowl/set", entry_id: this.entryId, bowl_roi: this._bowl });
+      } catch (error) {
+        throw new Error(`Masks saved, but the bowl zone failed to save. ${describeWsError(error)}`);
+      }
+      const [areas, bowl] = await Promise.all([
+        callWS({ type: "kibble/vision/areas", entry_id: this.entryId }),
+        callWS({ type: "kibble/vision/bowl", entry_id: this.entryId })
+      ]);
+      this._masks = normalizeWireAreas(areas.exclude);
+      this._bowl = normalizeWireArea(bowl.bowl_roi) ?? DEFAULT_BOWL_ROI;
+      this._baseline = { masks: this._masks, bowl: this._bowl };
+      this._undoStack = [];
+      this.dispatchEvent(new CustomEvent("saved", { bubbles: true, composed: true }));
+    } catch (error) {
+      this._error = error instanceof Error ? error.message : "Could not save detection areas.";
+    } finally {
+      this._saving = false;
+      this.requestUpdate();
+    }
+    if (!this._error) this._requestClose();
+  }
+  _revokeObjectUrl() {
+    if (this._objectUrl) URL.revokeObjectURL(this._objectUrl);
+    this._objectUrl = null;
+  }
+  static {
+    this.styles = i`
+    :host(:not([open])) { display: none; }
+    :host {
+      position: fixed;
+      inset: 0;
+      z-index: 120;
+      color: var(--primary-text-color);
+    }
+    .backdrop {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: stretch;
+      justify-content: center;
+      padding: clamp(12px, 3vw, 32px);
+      background: rgba(0, 0, 0, 0.76);
+      overflow: auto;
+    }
+    .panel {
+      width: min(980px, 100%);
+      min-height: min(720px, 100%);
+      margin: auto;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      border: 1px solid color-mix(in srgb, var(--primary-text-color) 18%, transparent);
+      border-radius: 18px;
+      background: var(--ha-card-background, var(--card-background-color));
+      box-shadow: 0 18px 70px rgba(0, 0, 0, 0.42);
+    }
+    .header {
+      display: flex;
+      gap: 20px;
+      justify-content: space-between;
+      padding: 22px 26px 16px;
+      border-bottom: 1px solid var(--divider-color);
+    }
+    h2 { margin: 0 0 6px; font-size: 23px; }
+    .header p { max-width: 690px; margin: 0; color: var(--secondary-text-color); line-height: 1.45; }
+    .icon-button {
+      width: 44px;
+      height: 44px;
+      min-height: 44px;
+      flex: 0 0 auto;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border: 0;
+      border-radius: 50%;
+      background: transparent;
+      color: var(--primary-text-color);
+      font-size: 30px;
+      line-height: 1;
+      cursor: pointer;
+    }
+    header .icon-button svg { width: 20px; height: 20px; }
+    .mask-list .icon-button svg { width: 18px; height: 18px; }
+    .body { display: flex; flex: 1; flex-direction: column; gap: 14px; padding: 20px 26px; }
+    .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+    .toggle-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      min-height: 44px;
+      padding: 0 14px;
+      border-radius: 999px;
+      border: 1px solid var(--divider-color);
+      background: transparent;
+      color: var(--secondary-text-color);
+      font: inherit;
+      font-weight: 650;
+      cursor: pointer;
+    }
+    .toggle-pill.active {
+      color: var(--primary-text-color);
+      border-color: var(--primary-color, #03a9f4);
+      background: color-mix(in srgb, var(--primary-color, #03a9f4) 14%, transparent);
+    }
+    .swatch { display: inline-block; width: 11px; height: 11px; border-radius: 3px; flex: 0 0 auto; }
+    .swatch.detections { background: var(--primary-color, #03a9f4); border: 1px solid var(--primary-color, #03a9f4); }
+    .swatch.exclude { background: rgba(224, 80, 78, 0.5); border: 1px solid #f16a66; }
+    .swatch.bowl { background: color-mix(in srgb, var(--primary-color, #03a9f4) 25%, transparent); border: 1px solid var(--primary-color, #03a9f4); }
+    /* No flex:1/flex-centering here on purpose: .stage already sizes itself precisely to the
+     * snapshot's own aspect ratio and centers itself horizontally (its own margin: 0 auto) --
+     * a flex-grow wrap would stretch taller than that exact height on a tall viewport and
+     * center the (correctly-sized but now shorter) stage inside itself, showing this wrap's
+     * own dark background as letterbox bands around an otherwise edge-to-edge image.
+     * Shrink-wrapping keeps the wrap exactly as tall as the image, every time. */
+    .stage-wrap { border-radius: 12px; background: #101314; overflow: hidden; }
+    .stage { position: relative; max-height: min(60vh, 640px); margin: 0 auto; overflow: hidden; touch-action: none; cursor: crosshair; }
+    .stage img { display: block; width: 100%; height: 100%; object-fit: cover; }
+    .empty-stage { min-height: 280px; display: grid; place-items: center; color: var(--secondary-text-color); }
+
+    .detection { position: absolute; border: 1.5px dashed rgba(255, 255, 255, 0.85); border-radius: 3px; pointer-events: none; }
+    .detection.quiet { border-color: rgba(255, 255, 255, 0.4); border-style: dotted; }
+
+    .shape { position: absolute; min-width: 0; min-height: 0; }
+    .shape-body {
+      position: absolute;
+      inset: 0;
+      padding: 0;
+      margin: 0;
+      border: 2px solid;
+      border-radius: 4px;
+      color: #fff;
+      font: inherit;
+      font-size: 12px;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+      cursor: move;
+      overflow: hidden;
+      text-align: left;
+      touch-action: none;
+    }
+    .shape-tag { position: absolute; top: 5px; left: 6px; white-space: nowrap; }
+    .shape.mask .shape-body {
+      border-color: #f16a66;
+      background-image: repeating-linear-gradient(45deg, rgba(224, 80, 78, 0.32) 0 6px, rgba(224, 80, 78, 0.12) 6px 12px);
+    }
+    .shape.bowl .shape-body {
+      border-color: var(--primary-color, #03a9f4);
+      border-style: dashed;
+      background: color-mix(in srgb, var(--primary-color, #03a9f4) 10%, transparent);
+      cursor: move;
+    }
+    .shape.drawing { pointer-events: none; }
+    .shape.drawing .shape-body { border: 2px dashed #f16a66; background: rgba(224, 80, 78, 0.18); opacity: 0.9; }
+    .shape.selected .shape-body { border-width: 3px; box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.85), 0 0 0 5px rgba(255, 255, 255, 0.18); }
+    .shape-body:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+
+    .handle {
+      position: absolute;
+      width: 44px;
+      height: 44px;
+      margin: -22px 0 0 -22px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      touch-action: none;
+    }
+    .handle-dot { width: 14px; height: 14px; border-radius: 50%; background: #fff; border: 2px solid #24180a; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4); }
+
+    .error { margin: 0; color: var(--error-color, #ff8a80); }
+    .stage-hint {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      margin: 0;
+      padding: 4px 10px;
+      color: rgba(255, 255, 255, 0.65);
+      font-size: 13px;
+      pointer-events: none;
+    }
+
+    .lists { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    .mask-section h3 { margin: 0 0 8px; font-size: 14px; font-weight: 650; color: var(--primary-text-color); }
+    .mask-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+    .mask-row, .bowl-row { display: flex; align-items: center; gap: 2px; border-radius: 8px; }
+    .mask-row.selected, .bowl-row.selected { background: var(--secondary-background-color, rgba(127, 127, 127, 0.13)); }
+    .mask-row-label {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 44px;
+      padding: 0 8px;
+      border: 0;
+      border-radius: 8px;
+      background: transparent;
+      color: var(--primary-text-color);
+      font: inherit;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .quiet-button, .cancel, .save {
+      min-height: 44px;
+      padding: 0 16px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border-radius: 10px;
+      border: 1px solid var(--divider-color);
+      background: transparent;
+      color: var(--primary-text-color);
+      font: inherit;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .quiet-button svg, .toggle-pill svg { width: 16px; height: 16px; }
+    button:disabled { opacity: 0.45; cursor: default; }
+    .mask-row-label:focus-visible,
+    .icon-button:focus-visible,
+    .quiet-button:focus-visible,
+    .toggle-pill:focus-visible,
+    .save:focus-visible,
+    .cancel:focus-visible {
+      outline: 2px solid var(--primary-color, #03a9f4);
+      outline-offset: 2px;
+    }
+
+    .footer { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 10px; padding: 16px 26px 22px; border-top: 1px solid var(--divider-color); }
+    .discard-prompt { flex: 1; min-width: 160px; margin: 0; color: var(--primary-text-color); font-weight: 600; }
+    .save { border-color: var(--kibble-amber, #e8ab4f); background: var(--kibble-amber, #e8ab4f); color: var(--kibble-ink-on-amber, #24180a); }
+    .cancel.discard { border-color: var(--error-color, #db4437); color: var(--error-color, #db4437); }
+
+    @media (max-width: 640px) {
+      .backdrop { padding: 0; }
+      .panel { min-height: 100%; border: 0; border-radius: 0; }
+      .header, .body, .footer { padding-left: 18px; padding-right: 18px; }
+      .lists { grid-template-columns: 1fr; gap: 16px; }
+    }
+  `;
+  }
+};
+customElements.define("kibble-detection-areas-dialog", KibbleDetectionAreasDialog);
 var WIPE_MIN = 0;
 var WIPE_MAX = 100;
 var WIPE_DEFAULT = 50;
@@ -9145,702 +12650,6 @@ var KibbleBeforeAfter = class extends i4 {
   }
 };
 customElements.define("kibble-before-after", KibbleBeforeAfter);
-var CALIBRATION_BUSY_CODE = "calibration_busy";
-function portionWord(portions) {
-  return `${portions} portion${portions === 1 ? "" : "s"}`;
-}
-function formatScore(score) {
-  return String(Math.round(score * 100));
-}
-var KibbleCalibrationDialog = class extends i4 {
-  constructor() {
-    super();
-    this._closeButtonRef = e5();
-    this._keydownHandler = (event) => {
-      if (event.key === "Escape" && this.open) this._close();
-    };
-    this._loadCalibration = () => {
-      const callWS = this.hass?.callWS;
-      const entryId = this.entryId;
-      if (!callWS || !entryId) {
-        this._loadError = "Not connected.";
-        return;
-      }
-      this._loading = true;
-      this._loadError = null;
-      callWS({ type: "kibble/calibration", entry_id: entryId }).then(
-        (result) => {
-          this._calibration = result;
-          this._loading = false;
-        },
-        (err) => {
-          this._loadError = describeWsError(err);
-          this._loading = false;
-        }
-      );
-    };
-    this._confirmEmpty = () => {
-      if (this._hopper === null) return;
-      const hopper = this._hopper;
-      const note = this._note.trim();
-      this._runAction({ action: "begin", hopper, ...note ? { note } : {} }, this._confirmEmpty, () => {
-        this._runAction({ action: "point", hopper, portions: 0 }, this._confirmEmpty, (state2) => {
-          this._calibration = state2;
-          this._regression = null;
-          this._step = nextCalibrationStep(this._step, "empty-confirmed");
-        });
-      });
-    };
-    this._capturePoint = () => {
-      if (this._hopper === null) return;
-      const hopper = this._hopper;
-      const points = this._hopperData(hopper)?.points ?? [];
-      const portions = (points[points.length - 1]?.portions ?? 0) + 1;
-      this._runAction({ action: "point", hopper, portions }, this._capturePoint, (state2) => {
-        const newPoint = state2.hoppers[hopper]?.points.find((point) => point.portions === portions);
-        this._regression = newPoint ? detectScoreRegression(points, newPoint) : null;
-        this._calibration = state2;
-        this._step = nextCalibrationStep(this._step, "capture");
-      });
-    };
-    this._confirmMarkFull = () => {
-      if (this._hopper === null || this._markFullPortions === null) return;
-      const hopper = this._hopper;
-      const portions = this._markFullPortions;
-      this._runAction({ action: "full", hopper, portions }, this._confirmMarkFull, (state2) => {
-        this._calibration = state2;
-        this._step = nextCalibrationStep(this._step, "full-marked");
-      });
-    };
-    this._acceptInherit = () => {
-      if (this._hopper === null) return;
-      const from = this._hopper;
-      const to = from === 0 ? 1 : 0;
-      this._runAction({ action: "inherit", hopper: to, from }, this._acceptInherit, (state2) => {
-        this._calibration = state2;
-        this._inheritedTo = to;
-        this._step = nextCalibrationStep(this._step, "inherit-resolved");
-      });
-    };
-    this._runClear = () => {
-      if (this._hopper === null) return;
-      const hopper = this._hopper;
-      this._runAction({ action: "clear", hopper }, this._runClear, (state2) => {
-        this._calibration = state2;
-      });
-    };
-    this._close = () => {
-      this.dispatchEvent(new CustomEvent("close-requested", { bubbles: true, composed: true }));
-    };
-    this.open = false;
-    this.entryId = void 0;
-    this._resetWizard();
-  }
-  static {
-    this.properties = {
-      hass: { attribute: false },
-      entryId: { attribute: false },
-      open: { type: Boolean, reflect: true },
-      _step: { state: true },
-      _hopper: { state: true },
-      _calibration: { state: true },
-      _loading: { state: true },
-      _loadError: { state: true },
-      _note: { state: true },
-      _busy: { state: true },
-      _error: { state: true },
-      _waitingForBowl: { state: true },
-      _regression: { state: true },
-      _markFullPortions: { state: true },
-      _clearConfirmArmed: { state: true },
-      _inheritedTo: { state: true }
-    };
-  }
-  connectedCallback() {
-    super.connectedCallback();
-    window.addEventListener("keydown", this._keydownHandler);
-  }
-  disconnectedCallback() {
-    super.disconnectedCallback();
-    window.removeEventListener("keydown", this._keydownHandler);
-    clearTimeout(this._clearConfirmTimer);
-  }
-  updated(changed) {
-    if (changed.has("open") && this.open) {
-      this._resetWizard();
-      this._closeButtonRef.value?.focus();
-      this._loadCalibration();
-    }
-  }
-  _resetWizard() {
-    this._step = "choose-hopper";
-    this._hopper = null;
-    this._calibration = null;
-    this._loading = false;
-    this._loadError = null;
-    this._note = "";
-    this._busy = false;
-    this._error = null;
-    this._waitingForBowl = false;
-    this._regression = null;
-    this._markFullPortions = null;
-    this._clearConfirmArmed = false;
-    this._inheritedTo = null;
-  }
-  _hopperData(index) {
-    if (index === null || !this._calibration) return null;
-    return this._calibration.hoppers[index];
-  }
-  /** Every mutating call shares this: busy/error bookkeeping, the daemon's one special-cased
-   * failure code, and telling the bowl display a finished/discarded curve may have changed. */
-  _runAction(action, retry, onSuccess) {
-    const callWS = this.hass?.callWS;
-    const entryId = this.entryId;
-    if (!callWS || !entryId) return;
-    this._busy = true;
-    this._error = null;
-    this._waitingForBowl = false;
-    callWS({ type: "kibble/calibration/action", entry_id: entryId, ...action }).then(
-      (result) => {
-        this._busy = false;
-        onSuccess(result);
-        this.dispatchEvent(new CustomEvent("calibration-changed", { bubbles: true, composed: true }));
-      },
-      (err) => {
-        this._busy = false;
-        if (err?.code === CALIBRATION_BUSY_CODE) {
-          this._waitingForBowl = true;
-          return;
-        }
-        this._error = { message: describeWsError(err), retry };
-      }
-    );
-  }
-  _selectHopper(index) {
-    this._hopper = index;
-    this._error = null;
-  }
-  _beginRequested() {
-    this._note = "";
-    this._step = nextCalibrationStep(this._step, "start");
-  }
-  _reviewFull() {
-    this._markFullPortions = null;
-    this._step = nextCalibrationStep(this._step, "review-full");
-  }
-  /** "Not now" resolves the offer with no daemon call at all -- declining isn't an action the
-   * curve needs to remember, it just means this session doesn't touch the other hopper. */
-  _declineInherit() {
-    this._inheritedTo = null;
-    this._step = nextCalibrationStep(this._step, "inherit-resolved");
-  }
-  /** Same tap-twice window `kibble-settings-dialog`'s cloud/stack toggles use -- clearing a
-   * finished curve is exactly as consequential as those, so it gets the same second-tap guard
-   * rather than firing on one accidental click. */
-  _clearRequested() {
-    if (this._clearConfirmArmed) {
-      clearTimeout(this._clearConfirmTimer);
-      this._clearConfirmArmed = false;
-      this._runClear();
-      return;
-    }
-    this._clearConfirmArmed = true;
-    this._clearConfirmTimer = setTimeout(() => {
-      this._clearConfirmArmed = false;
-    }, 3e3);
-  }
-  _restart() {
-    const other = this._hopper === 0 ? 1 : this._hopper === 1 ? 0 : null;
-    this._step = nextCalibrationStep(this._step, "restart");
-    this._hopper = other;
-    this._note = "";
-    this._markFullPortions = null;
-    this._regression = null;
-    this._inheritedTo = null;
-    this._clearConfirmArmed = false;
-  }
-  render() {
-    if (!this.open) return A;
-    return b2`
-      <div class="backdrop" @click=${this._close} role="dialog" aria-modal="true" aria-label="Calibrate bowl">
-        <div class="sheet" @click=${(event) => event.stopPropagation()}>
-          <header>
-            <span>Calibrate bowl</span>
-            <button type="button" class="icon-button" ${n5(this._closeButtonRef)} @click=${this._close} aria-label="Close">${mdiIcon("close")}</button>
-          </header>
-          <div class="body">
-            ${!this.hass?.callWS || !this.entryId ? b2`<p class="hint">Calibration isn't available right now.</p>` : this._renderStep()}
-          </div>
-        </div>
-      </div>
-    `;
-  }
-  _renderStep() {
-    switch (this._step) {
-      case "choose-hopper":
-        return this._renderChooseHopper();
-      case "confirm-empty":
-        return this._renderConfirmEmpty();
-      case "collecting":
-        return this._renderCollecting();
-      case "mark-full":
-        return this._renderMarkFull();
-      case "offer-inherit":
-        return this._renderOfferInherit();
-      case "done":
-        return this._renderDone();
-    }
-  }
-  _renderChooseHopper() {
-    if (this._loading) return b2`<p class="hint">Loading calibration\u2026</p>`;
-    if (this._loadError) {
-      return b2`
-        <div class="error">
-          <span>Couldn't load calibration. ${this._loadError}</span>
-          <button type="button" @click=${this._loadCalibration}>Try again</button>
-        </div>
-      `;
-    }
-    return b2`
-      <p class="hint">Pick a hopper. Each side keeps its own curve, since the two hoppers can hold different food.</p>
-      <div class="hopper-rows">${[0, 1].map((index) => this._renderHopperRow(index))}</div>
-      ${this._hopper !== null ? this._renderHopperActions(this._hopper) : A}
-    `;
-  }
-  _renderHopperRow(index) {
-    const status = calibrationStatus(this._hopperData(index));
-    return b2`
-      <button type="button" class="hopper-row ${this._hopper === index ? "selected" : ""}" @click=${() => this._selectHopper(index)}>
-        <span class="hopper-row-label">Hopper ${index + 1}</span>
-        <span class="hopper-row-status">${this._statusLine(status)}</span>
-        ${status.note ? b2`<span class="hopper-row-note">${status.note}</span>` : A}
-      </button>
-    `;
-  }
-  _statusLine(status) {
-    if (status.kind === "never") return "Never calibrated";
-    const when = status.measuredAt ? relativeTimeSentence(new Date(status.measuredAt * 1e3), /* @__PURE__ */ new Date()) : null;
-    const finished = status.finished ? "" : " (unfinished)";
-    if (status.kind === "inherited") {
-      return `Inherited from Hopper ${status.inheritedFromDisplay}${when ? ` \xB7 ${when}` : ""}${finished}`;
-    }
-    return `Measured${when ? ` ${when}` : ""}${finished}`;
-  }
-  _renderHopperActions(index) {
-    const status = calibrationStatus(this._hopperData(index));
-    const label = index + 1;
-    if (status.kind === "never") {
-      return b2`<button type="button" class="primary" @click=${() => this._beginRequested()}>Calibrate Hopper ${label}</button>`;
-    }
-    return b2`
-      <div class="hopper-actions">
-        <button type="button" class="danger ${this._clearConfirmArmed ? "confirming" : ""}" ?disabled=${this._busy} @click=${() => this._clearRequested()}>
-          ${this._clearConfirmArmed ? "Tap again to clear" : "Clear calibration"}
-        </button>
-        <button type="button" class="primary" @click=${() => this._beginRequested()}>Recalibrate Hopper ${label}</button>
-      </div>
-      ${this._renderError()}
-    `;
-  }
-  _renderConfirmEmpty() {
-    const index = this._hopper;
-    if (index === null) return A;
-    const label = index + 1;
-    const alreadyCalibrated = calibrationStatus(this._hopperData(index)).kind !== "never";
-    return b2`
-      <p class="hint">Make sure Hopper ${label}'s side of the bowl is completely empty, then start.</p>
-      ${alreadyCalibrated ? b2`<div class="warning">Starting discards Hopper ${label}'s existing calibration.</div>` : A}
-      <label class="field">
-        <span>What food is this? (optional)</span>
-        <input
-          type="text"
-          .value=${this._note}
-          placeholder="e.g. freeze-dried on this side"
-          @input=${(event) => {
-      this._note = event.target.value;
-    }}
-        />
-      </label>
-      ${this._waitingForBowl ? this._renderWaitingForBowl() : A}
-      ${this._renderError()}
-      <div class="actions">
-        <button type="button" class="primary" ?disabled=${this._busy} @click=${this._confirmEmpty}>${this._busy ? "Starting\u2026" : "Bowl is empty \u2014 start"}</button>
-      </div>
-    `;
-  }
-  _renderCollecting() {
-    const index = this._hopper;
-    if (index === null) return A;
-    const points = this._hopperData(index)?.points ?? [];
-    return b2`
-      <p class="hint">Dispense one portion into Hopper ${index + 1}'s side yourself, then capture the reading.</p>
-      ${this._renderCurve(points)}
-      ${this._regression ? b2`<div class="warning">
-            This step's score (${formatScore(this._regression.newScore)}) is lower than the previous step's (${formatScore(this._regression.previousScore)}) \u2014 a
-            curve that dips can't be interpolated. Recapture this step before continuing.
-          </div>` : A}
-      ${this._waitingForBowl ? this._renderWaitingForBowl() : A}
-      ${this._renderError()}
-      <div class="actions">
-        <button type="button" ?disabled=${this._busy || !canReviewFull(points)} @click=${() => this._reviewFull()}>This is full</button>
-        <button type="button" class="primary" ?disabled=${this._busy} @click=${this._capturePoint}>${this._busy ? "Capturing\u2026" : "Capture reading"}</button>
-      </div>
-    `;
-  }
-  _renderCurve(points) {
-    if (points.length === 0) return A;
-    return b2`
-      <ul class="curve">
-        ${points.map((point, i6) => {
-      const previous = i6 > 0 ? points[i6 - 1] : null;
-      const dropped = previous !== null && point.score < previous.score;
-      return b2`
-            <li class="curve-row ${dropped ? "dropped" : ""}">
-              <span>${portionWord(point.portions)}</span>
-              <span class="score">${formatScore(point.score)}</span>
-            </li>
-          `;
-    })}
-      </ul>
-    `;
-  }
-  _renderMarkFull() {
-    const index = this._hopper;
-    if (index === null) return A;
-    const points = (this._hopperData(index)?.points ?? []).filter((point) => point.portions > 0);
-    return b2`
-      <p class="hint">Which step looked full?</p>
-      <ul class="curve selectable">
-        ${points.map(
-      (point) => b2`
-            <li>
-              <button type="button" class="curve-choice ${this._markFullPortions === point.portions ? "selected" : ""}" @click=${() => this._markFullPortions = point.portions}>
-                <span>${portionWord(point.portions)}</span>
-                <span class="score">${formatScore(point.score)}</span>
-              </button>
-            </li>
-          `
-    )}
-      </ul>
-      ${this._renderError()}
-      <div class="actions">
-        <button type="button" class="primary" ?disabled=${this._busy || this._markFullPortions === null} @click=${this._confirmMarkFull}>
-          ${this._busy ? "Saving\u2026" : this._markFullPortions === null ? "Mark full" : `Mark full at ${portionWord(this._markFullPortions)}`}
-        </button>
-      </div>
-    `;
-  }
-  _renderOfferInherit() {
-    const from = this._hopper;
-    if (from === null) return A;
-    const to = from === 0 ? 1 : 0;
-    const otherHasData = calibrationStatus(this._hopperData(to)).kind !== "never";
-    return b2`
-      <p class="hint">Hopper ${from + 1} is calibrated.</p>
-      <p class="hint">
-        Copy this curve to Hopper ${to + 1}? Only do this if it's the same food in both hoppers \u2014 this is a shortcut for
-        "same food," not a second measurement.${otherHasData ? b2` This replaces Hopper ${to + 1}'s existing calibration.` : A}
-      </p>
-      ${this._renderError()}
-      <div class="actions">
-        <button type="button" ?disabled=${this._busy} @click=${() => this._declineInherit()}>Not now</button>
-        <button type="button" class="primary" ?disabled=${this._busy} @click=${this._acceptInherit}>${this._busy ? "Copying\u2026" : `Copy to Hopper ${to + 1}`}</button>
-      </div>
-    `;
-  }
-  _renderDone() {
-    const index = this._hopper;
-    if (index === null) return A;
-    return b2`
-      <p class="hint">Hopper ${index + 1} is calibrated.${this._inheritedTo !== null ? b2` Copied to Hopper ${this._inheritedTo + 1} too.` : A}</p>
-      <div class="actions">
-        <button type="button" @click=${() => this._restart()}>Calibrate the other hopper</button>
-        <button type="button" class="primary" @click=${this._close}>Done</button>
-      </div>
-    `;
-  }
-  _renderWaitingForBowl() {
-    const retry = this._step === "collecting" ? this._capturePoint : this._confirmEmpty;
-    return b2`
-      <div class="warning">
-        <span>No clear bowl reading right now \u2014 something may be in the way, or the feeder hasn't reported one yet. Try again in a moment.</span>
-        <button
-          type="button"
-          @click=${() => {
-      this._waitingForBowl = false;
-      retry();
-    }}
-        >
-          Try again
-        </button>
-      </div>
-    `;
-  }
-  _renderError() {
-    const error = this._error;
-    if (!error) return A;
-    return b2`
-      <div class="error">
-        <span>${error.message}</span>
-        <button
-          type="button"
-          @click=${() => {
-      this._error = null;
-      error.retry();
-    }}
-        >
-          Try again
-        </button>
-      </div>
-    `;
-  }
-  static {
-    this.styles = i`
-    :host {
-      display: contents;
-    }
-    .backdrop {
-      position: fixed;
-      inset: 0;
-      background: rgba(0, 0, 0, 0.6);
-      display: flex;
-      align-items: flex-end;
-      justify-content: center;
-      z-index: 1000;
-      box-sizing: border-box;
-    }
-    @media (min-width: 480px) {
-      .backdrop {
-        align-items: center;
-        padding: 24px;
-      }
-    }
-    .sheet {
-      width: 100%;
-      max-width: 420px;
-      max-height: 92vh;
-      overflow-y: auto;
-      background: var(--ha-card-background, var(--card-background-color, #fff));
-      color: var(--primary-text-color);
-      border-radius: 16px 16px 0 0;
-      box-sizing: border-box;
-      display: flex;
-      flex-direction: column;
-    }
-    @media (min-width: 480px) {
-      .sheet {
-        border-radius: 16px;
-      }
-    }
-    header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 16px;
-      border-bottom: 1px solid var(--divider-color);
-      font-size: 16px;
-      font-weight: 600;
-      position: sticky;
-      top: 0;
-      background: inherit;
-    }
-    .icon-button {
-      background: none;
-      border: none;
-      color: var(--primary-text-color);
-      cursor: pointer;
-      min-width: 44px;
-      min-height: 44px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 22px;
-    }
-    .body {
-      padding: 4px 16px 16px;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
-    .hint {
-      margin: 0;
-      font-size: 13px;
-      color: var(--secondary-text-color);
-    }
-    .field {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      font-size: 13px;
-      color: var(--secondary-text-color);
-    }
-    .field input {
-      min-height: 44px;
-      border-radius: 8px;
-      border: 1px solid var(--divider-color);
-      background: var(--card-background-color, transparent);
-      color: var(--primary-text-color);
-      font: inherit;
-      padding: 0 12px;
-      box-sizing: border-box;
-    }
-    .hopper-rows {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-    .hopper-row {
-      display: flex;
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 2px;
-      width: 100%;
-      min-height: 48px;
-      padding: 10px 14px;
-      border-radius: 10px;
-      border: 2px solid var(--divider-color);
-      background: none;
-      color: var(--primary-text-color);
-      font: inherit;
-      text-align: left;
-      cursor: pointer;
-      box-sizing: border-box;
-    }
-    .hopper-row.selected {
-      border-color: var(--primary-color, #03a9f4);
-    }
-    .hopper-row-label {
-      font-weight: 600;
-    }
-    .hopper-row-status,
-    .hopper-row-note {
-      font-size: 12px;
-      color: var(--secondary-text-color);
-    }
-    .hopper-actions {
-      display: flex;
-      gap: 8px;
-      justify-content: flex-end;
-    }
-    .curve {
-      list-style: none;
-      margin: 0;
-      padding: 0;
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-      max-height: 220px;
-      overflow-y: auto;
-    }
-    .curve-row {
-      display: flex;
-      justify-content: space-between;
-      padding: 8px 10px;
-      border-radius: 8px;
-      background: color-mix(in srgb, var(--primary-text-color) 5%, transparent);
-      font-size: 13px;
-      font-variant-numeric: tabular-nums;
-    }
-    .curve-row.dropped {
-      background: color-mix(in srgb, var(--kibble-amber-dark, #de8a3a) 16%, transparent);
-      color: var(--kibble-amber-dark, #de8a3a);
-      font-weight: 600;
-    }
-    .curve .score {
-      font-weight: 600;
-    }
-    .curve.selectable {
-      gap: 6px;
-    }
-    .curve-choice {
-      display: flex;
-      justify-content: space-between;
-      width: 100%;
-      min-height: 44px;
-      padding: 8px 12px;
-      border-radius: 8px;
-      border: 2px solid var(--divider-color);
-      background: none;
-      color: var(--primary-text-color);
-      font: inherit;
-      font-variant-numeric: tabular-nums;
-      cursor: pointer;
-      box-sizing: border-box;
-    }
-    .curve-choice.selected {
-      border-color: var(--primary-color, #03a9f4);
-    }
-    .actions {
-      display: flex;
-      gap: 8px;
-      justify-content: flex-end;
-    }
-    button {
-      min-height: 44px;
-      border-radius: 8px;
-      border: none;
-      font: inherit;
-      font-weight: 600;
-      cursor: pointer;
-      padding: 0 16px;
-    }
-    .actions button:not(.primary):not(.danger) {
-      background: color-mix(in srgb, var(--primary-text-color) 8%, transparent);
-      color: var(--primary-text-color);
-    }
-    .primary {
-      background: color-mix(in srgb, var(--primary-color, #03a9f4) 14%, transparent);
-      color: var(--primary-color, #03a9f4);
-    }
-    .danger {
-      background: none;
-      border: 2px solid var(--error-color, #db4437);
-      color: var(--error-color, #db4437);
-    }
-    .danger.confirming {
-      background: color-mix(in srgb, var(--error-color, #db4437) 12%, transparent);
-    }
-    button:disabled {
-      opacity: 0.5;
-      cursor: default;
-    }
-    button:focus-visible {
-      outline: 2px solid var(--primary-color, #03a9f4);
-      outline-offset: 2px;
-    }
-    .warning,
-    .error {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      padding: 10px 12px;
-      border-radius: 8px;
-      font-size: 13px;
-    }
-    .warning {
-      background: color-mix(in srgb, var(--kibble-amber-dark, #de8a3a) 12%, transparent);
-      color: var(--kibble-amber-dark, #de8a3a);
-    }
-    .error {
-      background: color-mix(in srgb, var(--error-color, #db4437) 10%, transparent);
-      color: var(--error-color, #db4437);
-    }
-    .warning button,
-    .error button {
-      flex: 0 0 auto;
-      min-height: 32px;
-      border: 1px solid currentColor;
-      background: none;
-      color: inherit;
-      border-radius: 8px;
-      padding: 4px 10px;
-      font-size: 12px;
-    }
-  `;
-  }
-};
-customElements.define("kibble-calibration-dialog", KibbleCalibrationDialog);
 var CLOUD_CONFIRM_WINDOW_MS = 3e3;
 function numberAttrs(hass, entityId) {
   if (!entityId) return null;
@@ -9863,7 +12672,11 @@ var KibbleSettingsDialog = class extends i4 {
     this._stackConfirmArmed = false;
     this._stackConfirmTimer = void 0;
     this.open = false;
+    this.singleHopper = false;
+    this.food1 = null;
+    this.food2 = null;
     this._calibrationOpen = false;
+    this._detectionAreasOpen = false;
   }
   static {
     this.properties = {
@@ -9871,7 +12684,11 @@ var KibbleSettingsDialog = class extends i4 {
       entities: { attribute: false },
       entryId: { attribute: false },
       open: { type: Boolean, reflect: true },
-      _calibrationOpen: { state: true }
+      singleHopper: { type: Boolean },
+      food1: { type: String },
+      food2: { type: String },
+      _calibrationOpen: { state: true },
+      _detectionAreasOpen: { state: true }
     };
   }
   disconnectedCallback() {
@@ -9892,6 +12709,7 @@ var KibbleSettingsDialog = class extends i4 {
         <div class="body">
           ${e6.feedButtonHopper1 || e6.feedButtonHopper2 ? this._renderHopperSection() : A}
           ${e6.bowlFill ? this._renderCalibrationSection() : A}
+          ${e6.camera ? this._renderCameraSection() : A}
           ${e6.feedAmount ? this._renderMoreAmountSection() : A}
           ${this._renderToggles()}
           ${e6.cloudSwitch ? this._renderCloud() : A}
@@ -9907,9 +12725,30 @@ var KibbleSettingsDialog = class extends i4 {
       <kibble-calibration-dialog
         .hass=${this.hass}
         .entryId=${this.entryId}
+        .singleHopper=${this.singleHopper}
+        .food1=${this.food1}
+        .food2=${this.food2}
         ?open=${this._calibrationOpen}
         @close-requested=${this._closeCalibration}
       ></kibble-calibration-dialog>
+      <kibble-detection-areas-dialog
+        .hass=${this.hass}
+        .cameraEntity=${e6.camera}
+        .entryId=${this.entryId}
+        ?open=${this._detectionAreasOpen}
+        @close-requested=${this._closeDetectionAreas}
+      ></kibble-detection-areas-dialog>
+    `;
+  }
+  _renderCameraSection() {
+    return b2`
+      <section>
+        <h3>Camera</h3>
+        <p class="hint">Choose which parts of the camera frame the detector should use.</p>
+        <button type="button" class="cloud-toggle" @click=${this._openDetectionAreas}>
+          Detection areas
+        </button>
+      </section>
     `;
   }
   _renderMoreAmountSection() {
@@ -9928,20 +12767,20 @@ var KibbleSettingsDialog = class extends i4 {
       <section>
         <h3>Per-hopper feed</h3>
         <p class="hint">
-          Targets one auger's amount byte. This feeder's firmware spins both augers anyway, so
-          expect roughly double into the bowl until a hopper divider is fitted.
+          Targets one auger's amount byte directly. This feeder's firmware has been observed to
+          spin both augers regardless, so expect roughly double into the bowl.
         </p>
         <div class="hoppers">
           ${feedAmountHopper1 ? b2`
                 <div class="hopper">
-                  <span class="hopper-label">Hopper 1</span>
+                  <span class="hopper-label">${this._hopperFeedLabel(1)}</span>
                   ${this._renderStepper(feedAmountHopper1, numberAttrs(this.hass, feedAmountHopper1))}
                   ${feedButtonHopper1 ? b2`<kibble-hold-button label="Hold to feed" @activate=${() => this._pressButton(feedButtonHopper1)}></kibble-hold-button>` : A}
                 </div>
               ` : A}
-          ${feedAmountHopper2 ? b2`
+          ${feedAmountHopper2 && !this.singleHopper ? b2`
                 <div class="hopper">
-                  <span class="hopper-label">Hopper 2</span>
+                  <span class="hopper-label">${this._hopperFeedLabel(2)}</span>
                   ${this._renderStepper(feedAmountHopper2, numberAttrs(this.hass, feedAmountHopper2))}
                   ${feedButtonHopper2 ? b2`<kibble-hold-button label="Hold to feed" @activate=${() => this._pressButton(feedButtonHopper2)}></kibble-hold-button>` : A}
                 </div>
@@ -9949,6 +12788,14 @@ var KibbleSettingsDialog = class extends i4 {
         </div>
       </section>
     `;
+  }
+  /** "Hopper" with the divider out -- there is only one physical side to target, so the
+   * per-side index stops meaning anything -- otherwise the hopper's own food name once dual
+   * mode has one set, falling back to plain "Hopper N". */
+  _hopperFeedLabel(index) {
+    if (this.singleHopper) return "Hopper";
+    const food = index === 1 ? this.food1 : this.food2;
+    return food ?? `Hopper ${index}`;
   }
   /** Just the entry point -- picking a hopper, seeing its status, and every action beyond that
    * (begin/capture/mark full/inherit/clear) is the wizard dialog's own job, not this panel's. */
@@ -9958,7 +12805,7 @@ var KibbleSettingsDialog = class extends i4 {
         <h3>Bowl calibration</h3>
         <p class="hint">
           Turns the bowl's raw fill reading into a real percentage by dispensing known portions
-          into an empty bowl. Each hopper keeps its own curve.
+          into an empty bowl.${this.singleHopper ? A : " Each hopper keeps its own curve."}
         </p>
         <button type="button" class="cloud-toggle" @click=${this._openCalibration}>Calibrate bowl</button>
       </section>
@@ -10016,7 +12863,7 @@ var KibbleSettingsDialog = class extends i4 {
         <h3>Petkit cloud</h3>
         <p class="hint">${connection ? `Connection: ${connection}` : "Turns the feeder's cloud link on or off."}</p>
         <button type="button" class="cloud-toggle ${this._cloudConfirmArmed ? "confirming" : ""}" @click=${this._onCloudToggleClick}>
-          ${this._cloudConfirmArmed ? `Tap again to turn ${on ? "off" : "on"}` : on ? "On \u2014 tap to turn off" : "Off \u2014 tap to turn on"}
+          ${this._cloudConfirmArmed ? `Tap again to turn ${on ? "off" : "on"}` : on ? "On, tap to turn off" : "Off, tap to turn on"}
         </button>
       </section>
     `;
@@ -10083,7 +12930,7 @@ var KibbleSettingsDialog = class extends i4 {
     if (!state2 || state2.state === "unavailable") return A;
     const running = state2.state;
     const other = running === "librefeed" ? "vendor" : "librefeed";
-    const label = (v2) => v2 === "librefeed" ? "LibreFeed" : "Petkit stack";
+    const label = (v2) => v2 === "librefeed" ? "KibbleOS" : "Petkit stack";
     return b2`
       <section>
         <h3>Stack</h3>
@@ -10137,6 +12984,14 @@ var KibbleSettingsDialog = class extends i4 {
   }
   _openCalibration() {
     this._calibrationOpen = true;
+  }
+  _openDetectionAreas() {
+    this._detectionAreasOpen = true;
+  }
+  /** The editor is a nested overlay; keep its close event from closing Settings too. */
+  _closeDetectionAreas(event) {
+    event.stopPropagation();
+    this._detectionAreasOpen = false;
   }
   /** Stops the calibration dialog's own `close-requested` here -- both dialogs use the same
    * event name (the one contract every controlled overlay in this repo follows), and without
@@ -10352,68 +13207,415 @@ var KibbleSettingsDialog = class extends i4 {
   }
 };
 customElements.define("kibble-settings-dialog", KibbleSettingsDialog);
-var MAX_CACHED_IMAGES = 200;
-function kibbleImageUrl(entryId, kind, name) {
-  const kindPath = kind.split("/").map((segment) => encodeURIComponent(segment)).join("/");
-  return `/api/kibble/${encodeURIComponent(entryId)}/image/${kindPath}/${encodeURIComponent(name)}`;
+var TANK_VB_H = 46;
+var TANK_X = 5;
+var TANK_Y = 8;
+var TANK_H = 34;
+var TANK_R = 7;
+var TANK_CAP_Y = 2;
+var TANK_CAP_W = 8;
+var TANK_CAP_H = 7;
+var TANK_CAP_R = 2;
+var TANK_W_SINGLE_COMPARTMENT = 24;
+var TANK_W_UNDIVIDED = 48;
+function hopperTank(view) {
+  const clipId = `hopper-clip-${view.index ?? "all"}`;
+  const TANK_W = view.index === null ? TANK_W_UNDIVIDED : TANK_W_SINGLE_COMPARTMENT;
+  const TANK_VB_W = TANK_W + TANK_X * 2;
+  const TANK_CAP_X = TANK_X + (TANK_W - TANK_CAP_W) / 2;
+  const lowLineY = (TANK_Y + TANK_H * (1 - HOPPER_LOW_LINE)).toFixed(1);
+  const fraction = view.fillFraction;
+  return w`
+    <svg class="tank" data-tone=${view.tone} data-wide=${view.index === null} viewBox="0 0 ${TANK_VB_W} ${TANK_VB_H}" aria-hidden="true">
+      <defs>
+        <clipPath id=${clipId}><rect x=${TANK_X} y=${TANK_Y} width=${TANK_W} height=${TANK_H} rx=${TANK_R} /></clipPath>
+      </defs>
+      <rect class="tank-cap" x=${TANK_CAP_X} y=${TANK_CAP_Y} width=${TANK_CAP_W} height=${TANK_CAP_H} rx=${TANK_CAP_R} />
+      <rect class="tank-body" x=${TANK_X} y=${TANK_Y} width=${TANK_W} height=${TANK_H} rx=${TANK_R} />
+      ${fraction != null && fraction > 0 ? w`<g clip-path="url(#${clipId})"><rect class="tank-fill" x=${TANK_X} y=${(TANK_Y + TANK_H * (1 - fraction)).toFixed(1)} width=${TANK_W} height=${(TANK_H * fraction + 1).toFixed(1)} /></g>` : ""}
+      ${view.tone !== "unknown" ? w`<line class="tank-low-line" x1=${TANK_X + 2} y1=${lowLineY} x2=${TANK_X + TANK_W - 2} y2=${lowLineY} />` : w`<text class="tank-unknown" x=${TANK_X + TANK_W / 2} y=${TANK_Y + TANK_H / 2 + 1} text-anchor="middle" dominant-baseline="central">\u2013</text>`}
+      <rect class="tank-outline" x=${TANK_X} y=${TANK_Y} width=${TANK_W} height=${TANK_H} rx=${TANK_R} />
+    </svg>
+  `;
 }
-var ImageUrlCache = class {
+var TANK_STYLES = `
+  /* The undivided tank keeps the compartment's height and doubles its body width. */
+  .tank[data-wide="true"] {
+    width: 50px;
+  }
+  .tank-cap,
+  .tank-body {
+    fill: var(--silo-mid);
+    stroke: var(--primary-text-color);
+    stroke-opacity: 0.16;
+    stroke-width: 1;
+  }
+  .tank-outline {
+    fill: none;
+    stroke: var(--primary-text-color);
+    stroke-opacity: 0.16;
+    stroke-width: 1;
+  }
+  .tank-low-line {
+    stroke: var(--primary-text-color);
+    stroke-opacity: 0.32;
+    stroke-width: 1;
+    stroke-dasharray: 2 1.4;
+  }
+  .tank-fill {
+    transition: y 400ms cubic-bezier(0.2, 0.8, 0.2, 1), height 400ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  .tank[data-tone="ok"] .tank-fill {
+    fill: var(--kibble-feed, #43a96a);
+  }
+  .tank[data-tone="low"] .tank-fill {
+    fill: var(--kibble-amber-dark, #de8a3a);
+  }
+  .tank[data-tone="empty"] .tank-body,
+  .tank[data-tone="empty"] .tank-cap,
+  .tank[data-tone="empty"] .tank-outline {
+    stroke: var(--error-color, #db4437);
+    stroke-opacity: 0.75;
+  }
+  .tank[data-tone="unknown"] .tank-body,
+  .tank[data-tone="unknown"] .tank-cap {
+    stroke-dasharray: 2.5 2;
+    opacity: 0.55;
+  }
+  .tank-unknown {
+    fill: var(--secondary-text-color);
+    font-size: 11px;
+    font-weight: 700;
+  }
+`;
+var CONFIRM_MS = 1100;
+var KibbleHopperSheet = class extends i4 {
   constructor() {
-    this._urls = /* @__PURE__ */ new Map();
-    this._pending = /* @__PURE__ */ new Map();
+    super();
+    this._closeButtonRef = e5();
+    this._keydownHandler = (event) => {
+      if (event.key === "Escape" && this.open) this._close();
+    };
+    this._close = () => {
+      this.dispatchEvent(new CustomEvent("close-requested", { bubbles: true, composed: true }));
+    };
+    this.open = false;
+    this.hopperLevel1 = null;
+    this.hopperLevel2 = null;
+    this.hopperRemaining1 = null;
+    this.hopperRemaining2 = null;
+    this.singleHopper = false;
+    this.food1 = null;
+    this.food2 = null;
+    this._confirmed = null;
   }
-  /** Returns a cached object URL synchronously when already known; otherwise starts the fetch
-   * (once per path, even under concurrent callers) and calls `onReady` when it settles.
-   * `onReady` receives `null` on failure -- callers show a broken-image fallback rather than
-   * nothing, so a crop that failed to load once doesn't look like a crop that never existed. */
-  get(hass, path, onReady) {
-    const cached = this._urls.get(path);
-    if (cached) {
-      this._urls.delete(path);
-      this._urls.set(path, cached);
-      return cached;
-    }
-    const pending = this._pending.get(path);
-    if (pending) {
-      pending.then(() => onReady(this._urls.get(path) ?? null));
-      return null;
-    }
-    const request = this._fetch(hass, path).then((url) => {
-      this._pending.delete(path);
-      if (url) this._remember(path, url);
-      onReady(url);
-    });
-    this._pending.set(path, request);
-    return null;
+  static {
+    this.properties = {
+      hass: { attribute: false },
+      entities: { attribute: false },
+      open: { type: Boolean, reflect: true },
+      hopperLevel1: { attribute: false },
+      hopperLevel2: { attribute: false },
+      hopperRemaining1: { attribute: false },
+      hopperRemaining2: { attribute: false },
+      singleHopper: { type: Boolean },
+      food1: { type: String },
+      food2: { type: String },
+      _confirmed: { state: true }
+    };
   }
-  async _fetch(hass, path) {
-    if (!hass.fetchWithAuth) return null;
-    try {
-      const response = await hass.fetchWithAuth(path);
-      if (!response.ok) return null;
-      const blob = await response.blob();
-      return URL.createObjectURL(blob);
-    } catch {
-      return null;
+  connectedCallback() {
+    super.connectedCallback();
+    window.addEventListener("keydown", this._keydownHandler);
+  }
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    window.removeEventListener("keydown", this._keydownHandler);
+    clearTimeout(this._confirmTimer);
+  }
+  updated(changed) {
+    if (changed.has("open") && this.open) {
+      clearTimeout(this._confirmTimer);
+      this._confirmed = null;
+      this._closeButtonRef.value?.focus();
     }
   }
-  _remember(path, url) {
-    this._urls.set(path, url);
-    while (this._urls.size > MAX_CACHED_IMAGES) {
-      const oldestPath = this._urls.keys().next().value;
-      if (oldestPath === void 0) break;
-      const oldestUrl = this._urls.get(oldestPath);
-      this._urls.delete(oldestPath);
-      if (oldestUrl) URL.revokeObjectURL(oldestUrl);
-    }
+  _entityFor(target) {
+    if (target === "1") return this.entities?.markFullHopper1;
+    if (target === "2") return this.entities?.markFullHopper2;
+    return this.entities?.markFullBoth;
   }
-  /** Revoke every cached URL. Call from `disconnectedCallback`. */
-  dispose() {
-    for (const url of this._urls.values()) URL.revokeObjectURL(url);
-    this._urls.clear();
-    this._pending.clear();
+  _markFull(target) {
+    const entityId = this._entityFor(target);
+    if (!entityId) return;
+    this.hass.callService("button", "press", {}, { entity_id: entityId });
+    clearTimeout(this._confirmTimer);
+    this._confirmed = target;
+    fireHaptic("success");
+    this._confirmTimer = window.setTimeout(() => {
+      this._confirmed = null;
+      this.requestUpdate();
+    }, CONFIRM_MS);
+  }
+  render() {
+    if (!this.open) return A;
+    const hoppers = hopperViews(this.singleHopper, this.hopperLevel1, this.hopperLevel2, this.hopperRemaining1, this.hopperRemaining2);
+    const canMarkAny = Boolean(this.entities?.markFullHopper1 || this.entities?.markFullHopper2 || this.entities?.markFullBoth);
+    return b2`
+      <div class="backdrop" @click=${this._close} role="dialog" aria-modal="true" aria-label=${this.singleHopper ? "Hopper" : "Hoppers"}>
+        <div class="sheet" @click=${(event) => event.stopPropagation()}>
+          <header>
+            <span>${this.singleHopper ? "Hopper" : "Hoppers"}</span>
+            <button type="button" class="icon-button" ${n5(this._closeButtonRef)} @click=${this._close} aria-label="Close">${mdiIcon("close")}</button>
+          </header>
+          <div class="body">
+            ${hoppers.map((view) => this._renderRow(view, foodForHopper(view.index, this.food1, this.food2)))}
+            ${canMarkAny ? b2`
+                  <div class="actions">
+                    ${this.singleHopper ? this._renderMarkButton("both", "Mark hopper full", this.entities?.markFullBoth, "primary") : b2`
+                          ${this._renderMarkButton("1", "Mark hopper 1 full", this.entities?.markFullHopper1)}
+                          ${this._renderMarkButton("2", "Mark hopper 2 full", this.entities?.markFullHopper2)}
+                          ${this._renderMarkButton("both", "Mark both full", this.entities?.markFullBoth, "primary")}
+                        `}
+                  </div>
+                  <p class="hint">
+                    Tip: press the small button on the side of the feeder twice to mark
+                    ${this.singleHopper ? "the hopper" : "both hoppers"} full.
+                  </p>
+                ` : A}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+  _renderRow(view, food) {
+    const name = hopperDisplayName(view, food);
+    const label = hopperAriaLabel(view, food);
+    return b2`
+      <div class="hopper-row" data-tone=${view.tone} aria-label=${label}>
+        <span class="hopper-row-glyph">${hopperTank(view)}</span>
+        <div class="hopper-row-text">
+          <span class="hopper-row-name">${name}</span>
+          <span class="hopper-row-word">${view.tone === "unknown" ? "Level unknown" : view.headline}</span>
+          ${view.detail ? b2`<span class="hopper-row-detail">${view.detail}</span>` : A}
+        </div>
+      </div>
+    `;
+  }
+  _renderMarkButton(target, label, entityId, variant) {
+    const confirmed = this._confirmed === target;
+    return b2`
+      <button
+        type="button"
+        class="mark-button ${variant ?? ""} ${confirmed ? "confirmed" : ""}"
+        ?disabled=${!entityId || confirmed}
+        @click=${() => this._markFull(target)}
+      >
+        ${confirmed ? b2`<span class="mark-check">${mdiIcon("check")}</span><span>Marked full</span>` : label}
+      </button>
+    `;
+  }
+  static {
+    this.styles = i`
+    :host {
+      display: contents;
+    }
+    .backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.6);
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      z-index: 1000;
+      box-sizing: border-box;
+    }
+    @media (min-width: 480px) {
+      .backdrop {
+        align-items: center;
+        padding: 24px;
+      }
+    }
+    .sheet {
+      width: 100%;
+      max-width: 400px;
+      max-height: 92vh;
+      overflow-y: auto;
+      background: var(--ha-card-background, var(--card-background-color, #fff));
+      color: var(--primary-text-color);
+      border-radius: 16px 16px 0 0;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }
+    @media (min-width: 480px) {
+      .sheet {
+        border-radius: 16px;
+      }
+    }
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px;
+      border-bottom: 1px solid var(--divider-color);
+      font-size: 16px;
+      font-weight: 600;
+      position: sticky;
+      top: 0;
+      background: inherit;
+    }
+    .icon-button {
+      background: none;
+      border: none;
+      color: var(--primary-text-color);
+      cursor: pointer;
+      min-width: 44px;
+      min-height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+    }
+    .body {
+      padding: 4px 16px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .hopper-row {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      background: color-mix(in srgb, var(--primary-text-color) 4%, transparent);
+    }
+    /* Reuses the hero tile's own material tokens -- the sheet has no bowl of its own to compute
+       them from, so it borrows the same theme-derived plastic look via inherited custom
+       properties set on :host below. */
+    .tank {
+      display: block;
+      width: 30px;
+      height: 40px;
+      overflow: visible;
+      flex: none;
+    }
+    ${r(TANK_STYLES)}
+    .hopper-row-text {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+      min-width: 0;
+    }
+    .hopper-row-name {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--secondary-text-color);
+      /* A food name can run longer than "Hopper N" ever does -- .hopper-row-text above is
+         already min-width: 0, the enabler this ellipsis needs inside the flex row. */
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .hopper-row-word {
+      font-size: 15px;
+      font-weight: 700;
+    }
+    .hopper-row[data-tone="low"] .hopper-row-word {
+      color: var(--kibble-amber-dark);
+    }
+    .hopper-row[data-tone="empty"] .hopper-row-word {
+      color: var(--error-color, #db4437);
+    }
+    .hopper-row-detail {
+      font-size: 12px;
+      color: var(--secondary-text-color);
+    }
+    .actions {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 4px;
+    }
+    .mark-button {
+      position: relative;
+      min-height: 46px;
+      border-radius: 10px;
+      border: 2px solid var(--divider-color);
+      background: none;
+      color: var(--primary-text-color);
+      font: inherit;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: transform 0.12s ease;
+    }
+    .mark-button:active:not(:disabled) {
+      transform: scale(0.98);
+    }
+    .mark-button.primary {
+      border-color: transparent;
+      background: var(--kibble-feed, #43a96a);
+      color: var(--kibble-ink-on-feed, #10301d);
+    }
+    .mark-button:disabled {
+      cursor: default;
+    }
+    .mark-button:disabled:not(.confirmed) {
+      opacity: 0.45;
+    }
+    .mark-button.confirmed {
+      border-color: transparent;
+      background: var(--kibble-feed, #43a96a);
+      color: var(--kibble-ink-on-feed, #10301d);
+      opacity: 1;
+      animation: hopper-mark-pulse 700ms ease-out;
+    }
+    .mark-check {
+      display: inline-flex;
+      font-size: 16px;
+      animation: hopper-check-in 260ms cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .hint {
+      margin: 2px 0 0;
+      font-size: 12px;
+      color: var(--secondary-text-color);
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .mark-button.confirmed {
+        animation: none;
+      }
+      .mark-check {
+        animation: none;
+      }
+    }
+    @keyframes hopper-mark-pulse {
+      from {
+        box-shadow: 0 0 0 0 color-mix(in srgb, var(--kibble-feed, #43a96a) 55%, transparent);
+      }
+      to {
+        box-shadow: 0 0 0 12px color-mix(in srgb, var(--kibble-feed, #43a96a) 0%, transparent);
+      }
+    }
+    @keyframes hopper-check-in {
+      from {
+        transform: scale(0.3);
+        opacity: 0;
+      }
+      to {
+        transform: scale(1);
+        opacity: 1;
+      }
+    }
+  `;
   }
 };
+customElements.define("kibble-hopper-sheet", KibbleHopperSheet);
 function catSilhouette() {
   return w`
     <svg viewBox="0 0 256 256" fill="currentColor">
@@ -10430,40 +13632,136 @@ function fallbackCatColor(name) {
   }
   return catColorAt(hash);
 }
+var KibbleImage = class extends i4 {
+  constructor() {
+    super();
+    this._ref = new AssetRef();
+    this._visible = false;
+    this._observer = null;
+    this.alt = "";
+    this.rounded = false;
+    this.fit = "cover";
+  }
+  static {
+    this.properties = {
+      hass: { attribute: false },
+      asset: { attribute: false },
+      cache: { attribute: false },
+      alt: { type: String },
+      rounded: { type: Boolean },
+      fit: { type: String }
+    };
+  }
+  connectedCallback() {
+    super.connectedCallback();
+    this._visible = false;
+    this._observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry2) => entry2.isIntersecting)) this._markVisible();
+      },
+      { rootMargin: "200px" }
+    );
+    this._observer.observe(this);
+    requestAnimationFrame(() => {
+      if (this._visible || !this.isConnected) return;
+      const rect = this.getBoundingClientRect();
+      const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+      const nearViewport = rect.width > 0 && rect.height > 0 && rect.bottom > -200 && rect.top < viewportHeight + 200;
+      if (nearViewport) this._markVisible();
+    });
+  }
+  _markVisible() {
+    if (this._visible) return;
+    this._visible = true;
+    this._sync();
+    this.requestUpdate();
+    this._observer?.disconnect();
+    this._observer = null;
+  }
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    this._observer?.disconnect();
+    this._observer = null;
+    this._ref.dispose();
+  }
+  willUpdate(changed) {
+    if (changed.has("asset") || changed.has("cache") || changed.has("hass")) this._sync();
+  }
+  _sync() {
+    if (!this._visible) return;
+    this._ref.sync(this.hass, this.cache, this.asset, () => this.requestUpdate());
+  }
+  render() {
+    const url = this._ref.url;
+    return b2`
+      <div class="box ${this.rounded ? "rounded" : ""}">
+        ${url ? b2`<img src=${url} alt=${this.alt} loading="lazy" style="object-fit:${this.fit}" />` : b2`<div class="placeholder"></div>`}
+      </div>
+    `;
+  }
+  static {
+    this.styles = i`
+    :host {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+    .box {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: color-mix(in srgb, var(--primary-text-color) 8%, transparent);
+    }
+    .box.rounded {
+      border-radius: 50%;
+    }
+    img {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+    @media (prefers-reduced-motion: no-preference) {
+      img {
+        animation: kibble-image-in 180ms ease-out;
+      }
+    }
+    @keyframes kibble-image-in {
+      from {
+        opacity: 0;
+      }
+      to {
+        opacity: 1;
+      }
+    }
+    .placeholder {
+      width: 100%;
+      height: 100%;
+    }
+  `;
+  }
+};
+customElements.define("kibble-image", KibbleImage);
 var KibbleAvatar = class extends i4 {
   constructor() {
     super();
-    this._cache = new ImageUrlCache();
-    this._imageUrl = null;
-    this._resolvedPath = null;
+    this._ownCache = new ImageUrlCache();
     this.name = null;
     this.colorIndex = null;
-    this.sampleName = null;
+    this.asset = null;
   }
   static {
     this.properties = {
       hass: { attribute: false },
       name: { type: String },
       colorIndex: { type: Number, attribute: "color-index" },
-      entryId: { type: String, attribute: "entry-id" },
-      sampleName: { type: String, attribute: "sample-name" }
+      asset: { attribute: false },
+      cache: { attribute: false }
     };
   }
   disconnectedCallback() {
     super.disconnectedCallback();
-    this._cache.dispose();
-  }
-  willUpdate() {
-    const path = this.entryId && this.name && this.sampleName ? kibbleImageUrl(this.entryId, `sample/${this.name}`, this.sampleName) : null;
-    if (path === this._resolvedPath) return;
-    this._resolvedPath = path;
-    this._imageUrl = null;
-    if (!path || !this.hass) return;
-    this._imageUrl = this._cache.get(this.hass, path, (url) => {
-      if (this._resolvedPath !== path) return;
-      this._imageUrl = url;
-      this.requestUpdate();
-    });
+    this._ownCache.dispose();
   }
   render() {
     if (!this.name) {
@@ -10472,44 +13770,44 @@ var KibbleAvatar = class extends i4 {
     const color = this.colorIndex != null ? catColorAt(this.colorIndex) : fallbackCatColor(this.name);
     return b2`
       <div class="avatar" style="--kibble-avatar-color: ${color}">
-        ${this._imageUrl ? b2`<img src=${this._imageUrl} alt="" />` : b2`<span class="monogram">${this.name.trim().charAt(0).toUpperCase()}</span>`}
+        ${this.asset ? b2`<kibble-image rounded .hass=${this.hass} .asset=${this.asset} .cache=${this.cache ?? this._ownCache} alt=""></kibble-image>` : b2`<span class="monogram">${this.name.trim().charAt(0).toUpperCase()}</span>`}
       </div>
     `;
   }
   static {
     this.styles = i`
     :host {
-      display: inline-block;
-      width: var(--kibble-avatar-size, 32px);
-      height: var(--kibble-avatar-size, 32px);
-      flex: 0 0 auto;
+      display: block;
+      width: var(--kibble-avatar-size, 40px);
+      height: var(--kibble-avatar-size, 40px);
     }
     .avatar {
       width: 100%;
       height: 100%;
       border-radius: 50%;
       overflow: hidden;
-      background: var(--kibble-avatar-color);
       display: flex;
       align-items: center;
       justify-content: center;
+      background: color-mix(in srgb, var(--kibble-avatar-color, var(--primary-color, #03a9f4)) 22%, var(--card-background-color, #fff));
+      color: var(--kibble-avatar-color, var(--primary-color, #03a9f4));
+      flex: none;
     }
     .avatar.neutral {
-      background: color-mix(in srgb, var(--secondary-text-color) 16%, transparent);
-      color: var(--secondary-text-color);
-      padding: 18%;
-      box-sizing: border-box;
+      background: color-mix(in srgb, var(--primary-text-color) 10%, transparent);
+      color: color-mix(in srgb, var(--primary-text-color) 40%, transparent);
     }
-    img {
+    .avatar.neutral svg {
+      width: 62%;
+      height: 62%;
+    }
+    kibble-image {
       width: 100%;
       height: 100%;
-      object-fit: cover;
-      display: block;
     }
     .monogram {
-      color: #fff;
-      font-weight: 600;
-      font-size: calc(var(--kibble-avatar-size, 32px) * 0.42);
+      font-size: calc(var(--kibble-avatar-size, 40px) * 0.42);
+      font-weight: 700;
       line-height: 1;
       user-select: none;
     }
@@ -10684,42 +13982,28 @@ var RECONNECT_MAX_MS = 3e4;
 function nextReconnectDelay(current) {
   return Math.min(current * 2, RECONNECT_MAX_MS);
 }
-var LABEL_FLIP_THRESHOLD = 0.02;
-function toPercent(fraction) {
-  return `${Math.round(fraction * 1e4) / 100}%`;
+var IDLE_MS = 5e3;
+var VISIBLE = { visible: true };
+var HIDDEN = { visible: false };
+function revealOnFirstTap(state2) {
+  if (state2.visible) return { state: state2, consumed: false };
+  return { state: VISIBLE, consumed: true };
 }
-function detectionRect(box) {
-  return {
-    left: toPercent(box.x1),
-    top: toPercent(box.y1),
-    width: toPercent(box.x2 - box.x1),
-    height: toPercent(box.y2 - box.y1)
-  };
+function onIdleTimeout(state2, pinned) {
+  return pinned ? state2 : HIDDEN;
 }
-function largestAdmittedDetection(detections) {
-  let best = null;
-  let bestArea = -Infinity;
-  for (const detection of detections) {
-    if (!detection.admitted) continue;
-    const area = (detection.x2 - detection.x1) * (detection.y2 - detection.y1);
-    if (area > bestArea) {
-      best = detection;
-      bestArea = area;
-    }
-  }
-  return best;
-}
-function labelFlipsInside(box) {
-  return box.y1 <= LABEL_FLIP_THRESHOLD;
-}
-function catLabelText(cat, catScore) {
-  if (catScore === null || catScore === void 0) return cat;
-  return `${cat} ${Math.round(catScore * 100)}%`;
+function shouldArmTimer(state2, pinned) {
+  return state2.visible && !pinned;
 }
 var STALL_MS = 8e3;
 var STALL_CHECK_INTERVAL_MS = 2e3;
 var HIDDEN_PAUSE_MS = 6e4;
-var VISION_POLL_MS = 1e3;
+var VISION_POLL_MS2 = 1e3;
+var CALL_COOLDOWN_MS = 1e4;
+var CALL_CUE_PULSE_MS = 1100;
+var MIN_HERO_ASPECT = 1;
+var MAX_HERO_ASPECT = 2.4;
+var LIVE_HERO_CHROME_SAFE_TOP = 8 + 48 + 8;
 var KibbleLiveHero = class extends i4 {
   constructor() {
     super();
@@ -10728,9 +14012,19 @@ var KibbleLiveHero = class extends i4 {
     this._lastProgress = 0;
     this._hiddenPaused = false;
     this._visionQuery = new WsQuery(() => this.requestUpdate());
+    this._watchedStillImg = null;
     this._live = new ScryptedLive(() => {
       this._tick = (this._tick ?? 0) + 1;
     });
+    this._onScryptedLoadedMetadata = () => {
+      this._applyMute();
+      const video = this.renderRoot.querySelector("#video");
+      if (video) this._reportMediaAspect(video.videoWidth, video.videoHeight);
+    };
+    this._onStillImgLoad = (e6) => {
+      const img = e6.target;
+      this._reportMediaAspect(img.naturalWidth, img.naturalHeight);
+    };
     this._start = async () => {
       const token = findScryptedToken(this.hass);
       if (!token || !this.scryptedId) return;
@@ -10813,6 +14107,13 @@ var KibbleLiveHero = class extends i4 {
       this._backoffMs = RECONNECT_BASE_MS;
     };
     this._onFrameClick = (e6) => {
+      if (!this._overlayIdle.visible) {
+        this._applyOverlayIdle(revealOnFirstTap(this._overlayIdle).state);
+        this._armIdleTimer();
+        e6.stopPropagation();
+        return;
+      }
+      this._onOverlayActivity();
       if (e6.target.closest?.(".chip")) {
         e6.stopPropagation();
         return;
@@ -10821,6 +14122,7 @@ var KibbleLiveHero = class extends i4 {
     };
     this._collapse = (e6) => {
       e6?.stopPropagation();
+      this._onOverlayActivity();
       document.removeEventListener("keydown", this._onKeyDown);
       if (this._fullscreen) {
         void (document.exitFullscreen?.() ?? Promise.resolve()).catch(() => void 0);
@@ -10832,6 +14134,7 @@ var KibbleLiveHero = class extends i4 {
     };
     this._toggleFullscreen = async (e6) => {
       e6.stopPropagation();
+      this._onOverlayActivity();
       if (this._fullscreen) {
         await (document.exitFullscreen?.() ?? Promise.resolve()).catch(() => void 0);
         return;
@@ -10859,6 +14162,7 @@ var KibbleLiveHero = class extends i4 {
       this._fullscreen = inner !== null || onHostChain;
     };
     this._toggleMute = () => {
+      this._onOverlayActivity();
       this._muted = !this._muted;
       if (this._videoSource().kind === "scrypted") this._applyMute();
     };
@@ -10869,6 +14173,7 @@ var KibbleLiveHero = class extends i4 {
       void video.play().catch(() => void 0);
     };
     this._toggleTalk = async () => {
+      this._onOverlayActivity();
       const next = !this._talking;
       this._talking = next;
       try {
@@ -10877,6 +14182,42 @@ var KibbleLiveHero = class extends i4 {
         if (next) this._talking = false;
       }
     };
+    this._callCats = (e6) => {
+      e6.stopPropagation();
+      this._onOverlayActivity();
+      if (this._callingCats || !this.callCatsEntity) return;
+      const entityId = this.callCatsEntity;
+      this._callingCats = true;
+      this._pulsingCue = true;
+      this._cooldownTimer = setTimeout(() => {
+        this._callingCats = false;
+      }, CALL_COOLDOWN_MS);
+      this._pulseTimer = setTimeout(() => {
+        this._pulsingCue = false;
+      }, CALL_CUE_PULSE_MS);
+      void this.hass.callService("button", "press", { entity_id: entityId }).catch(() => void 0);
+    };
+    this._onOverlayActivity = () => {
+      this._applyOverlayIdle(VISIBLE);
+      this._armIdleTimer();
+    };
+    this._onFrameFocusIn = (e6) => {
+      this._onOverlayActivity();
+      const target = e6.target;
+      this._controlsFocusVisible = typeof target.matches === "function" && target.matches(":focus-visible");
+    };
+    this._onFrameFocusOut = (e6) => {
+      const next = e6.relatedTarget;
+      const frame = this.renderRoot.querySelector("#frame");
+      if (!next || !frame?.contains(next)) {
+        this._controlsFocusVisible = false;
+      }
+    };
+    this._onIdleTimerFired = () => {
+      this._idleTimer = void 0;
+      this._applyOverlayIdle(onIdleTimeout(this._overlayIdle, this._idlePinned()));
+    };
+    this.cats = [];
     this._playing = false;
     this._talking = false;
     this._muted = true;
@@ -10884,21 +14225,33 @@ var KibbleLiveHero = class extends i4 {
     this._expanded = false;
     this._fullscreen = false;
     this._tick = 0;
+    this._callingCats = false;
+    this._pulsingCue = false;
+    this._overlayIdle = VISIBLE;
+    this._controlsFocusVisible = false;
   }
   static {
     this.properties = {
       hass: { attribute: false },
       cameraEntity: { attribute: false },
+      cats: { attribute: false },
+      cache: { attribute: false },
       scryptedId: { attribute: false },
       entryId: { attribute: false },
       overlayEntity: { attribute: false },
+      callCatsEntity: { attribute: false },
+      externalPin: { attribute: false },
       _playing: { state: true },
       _talking: { state: true },
       _muted: { state: true },
       _reconnecting: { state: true },
       _expanded: { state: true },
       _fullscreen: { state: true },
-      _tick: { state: true }
+      _tick: { state: true },
+      _callingCats: { state: true },
+      _pulsingCue: { state: true },
+      _overlayIdle: { state: true },
+      _controlsFocusVisible: { state: true }
     };
   }
   connectedCallback() {
@@ -10907,6 +14260,7 @@ var KibbleLiveHero = class extends i4 {
     document.addEventListener("fullscreenchange", this._onFullscreenChange);
     document.addEventListener("webkitfullscreenchange", this._onFullscreenChange);
     this._stallCheckInterval = setInterval(this._checkStall, STALL_CHECK_INTERVAL_MS);
+    this._armIdleTimer();
   }
   disconnectedCallback() {
     super.disconnectedCallback();
@@ -10918,6 +14272,12 @@ var KibbleLiveHero = class extends i4 {
     this._stallCheckInterval = void 0;
     clearInterval(this._visionTimer);
     this._visionTimer = void 0;
+    clearTimeout(this._cooldownTimer);
+    this._cooldownTimer = void 0;
+    clearTimeout(this._pulseTimer);
+    this._pulseTimer = void 0;
+    clearTimeout(this._idleTimer);
+    this._idleTimer = void 0;
     this._stop();
   }
   /** Which transport (if any) currently has what it needs to show live video -- computed fresh
@@ -10937,11 +14297,15 @@ var KibbleLiveHero = class extends i4 {
    * there is a camera entity to show -- tearing down a still-live (or still-reconnecting)
    * Scrypted session first if the source just switched away from it, so the two transports can
    * never both be mid-session at once. */
-  updated() {
+  updated(changedProperties) {
     this._syncVisionPolling();
+    this._syncStillAspectWatch();
+    if (changedProperties.has("_talking") || changedProperties.has("_pulsingCue") || changedProperties.has("_controlsFocusVisible") || changedProperties.has("externalPin")) {
+      this._syncIdlePin();
+    }
     const source = this._videoSource();
     if (source.kind !== "scrypted") {
-      if (this._playing || this._starting || this._reconnecting || this._hiddenPaused || this._live.state !== "idle") {
+      if (this._starting || this._reconnecting || this._hiddenPaused || this._live.state !== "idle") {
         this._stop();
       }
       this._playing = source.kind === "ha-camera";
@@ -10958,18 +14322,27 @@ var KibbleLiveHero = class extends i4 {
     const source = this._videoSource();
     return b2`
       ${this._expanded ? b2`<div class="backdrop" @click=${this._collapse}></div>` : A}
-      <div class="frame ${this._expanded ? "expanded" : ""}" id="frame" @click=${this._onFrameClick}>
+      <div
+        class="frame ${this._expanded ? "expanded" : ""}"
+        id="frame"
+        @click=${this._onFrameClick}
+        @pointermove=${this._onOverlayActivity}
+        @pointerenter=${this._onOverlayActivity}
+        @wheel=${this._onOverlayActivity}
+        @focusin=${this._onFrameFocusIn}
+        @focusout=${this._onFrameFocusOut}
+      >
         ${this._renderStill()}
         ${this._playing ? this._renderVideo(source) : A}
         ${this._playing ? this._renderDetections() : A}
-        ${this._expanded ? b2`<div class="topbar">
+        ${this._expanded ? b2`<div class="topbar ${this._overlayIdle.visible ? "" : "idle-hidden"}">
               <button class="chip" aria-label=${this._fullscreen ? "Leave fullscreen" : "Fullscreen"} title=${this._fullscreen ? "Leave fullscreen" : "Fullscreen"} @click=${this._toggleFullscreen}>
                 ${mdiIcon(this._fullscreen ? "fullscreenExit" : "fullscreen")}
               </button>
               <button class="chip" aria-label="Close" title="Close" @click=${this._collapse}>${mdiIcon("close")}</button>
             </div>` : A}
         ${source.kind === "scrypted" && this._reconnecting ? b2`<div class="reconnect" role="status" aria-label="Reconnecting to the feeder's camera">${mdiIcon("refresh")}</div>` : A}
-        <div class="controls">
+        <div class="controls ${this._overlayIdle.visible ? "" : "idle-hidden"}">
           ${this._playing ? b2`<button
                 class="chip"
                 aria-pressed=${!this._muted}
@@ -10987,6 +14360,15 @@ var KibbleLiveHero = class extends i4 {
                 @click=${this._toggleTalk}
               >
                 ${mdiIcon(this._talking ? "microphone" : "microphoneOff")}
+              </button>` : A}
+          ${this._callCatsAvailable() ? b2`<button
+                class="chip call-cats ${this._pulsingCue ? "pulsing" : ""}"
+                aria-label="Call the cats"
+                title="Call the cats"
+                ?disabled=${this._callingCats}
+                @click=${this._callCats}
+              >
+                ${mdiIcon("cat")}
               </button>` : A}
         </div>
         ${source.kind === "scrypted" && this._live.state === "error" && !this._reconnecting ? b2`<div class="note error">${this._live.error}</div>` : A}
@@ -11010,7 +14392,7 @@ var KibbleLiveHero = class extends i4 {
         autoplay
         playsinline
         ?muted=${this._muted}
-        @loadedmetadata=${this._applyMute}
+        @loadedmetadata=${this._onScryptedLoadedMetadata}
         @timeupdate=${this._onTimeUpdate}
       ></video>`;
     }
@@ -11018,7 +14400,7 @@ var KibbleLiveHero = class extends i4 {
       return b2`<ha-camera-stream
         .hass=${this.hass}
         .stateObj=${this.hass.states[source.entityId]}
-        .fitMode=${this._expanded ? "contain" : "cover"}
+        .fitMode=${"contain"}
         .muted=${this._muted}
       ></ha-camera-stream>`;
     }
@@ -11030,40 +14412,65 @@ var KibbleLiveHero = class extends i4 {
       return b2`<hui-image .hass=${this.hass} .cameraImage=${this.cameraEntity} cameraView="auto"></hui-image>`;
     }
     const src = this.hass.states[this.cameraEntity]?.attributes.entity_picture;
-    return typeof src === "string" ? b2`<img src=${src} alt="The feeder's camera" />` : b2`<div class="placeholder">Camera unavailable</div>`;
+    return typeof src === "string" ? b2`<img src=${src} alt="The feeder's camera" @load=${this._onStillImgLoad} />` : b2`<div class="placeholder">Camera unavailable</div>`;
   }
-  /** The feeder's own detection boxes for the frame it most recently analysed. `admitted`
-   * boxes get the accent treatment; the ones its clutter memory rejected are drawn quieter --
-   * and only when the feeder's own `overlay_suppressed` flag says to. They are how "the feeder
-   * is ignoring the cat" becomes visible rather than looking like an empty room, but a busy
-   * room emits several of them on every frame forever, so they are opt-in (the "Overlay
-   * ignored detections" switch) instead of permanent dashboard furniture. The identified cat's
-   * name labels whichever admitted box is largest. */
+  /** Reports the media's real width/height ratio once known -- Scrypted's `<video>` on
+   * `loadedmetadata`, or the snapshot `<img>`'s natural size once it loads (`hui-image`'s own
+   * internal `<img>`, reached through its shadow root, or this component's own fallback `<img>`
+   * when `hui-image` is not registered) -- so `kibble-card.ts` can size `.hero` to the stream's
+   * true aspect instead of a guessed default. Degenerate readings (a `0x0` metadata event, an
+   * image that has not actually finished loading) are dropped; everything else is clamped to a
+   * sane range so a corrupt frame can never squash the hero to a sliver or blow it up past
+   * anything a camera stream plausibly is. Also set directly on this element's own
+   * `--kibble-hero-aspect` (its `:host` rule below reads that same variable), so a standalone
+   * `<kibble-live-hero>` -- the dev harness, `dev/parts.html` -- sizes itself correctly too, not
+   * only `.hero` after the event bubbles up to `kibble-card.ts`. */
+  _reportMediaAspect(width, height) {
+    if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return;
+    const ratio = Math.min(MAX_HERO_ASPECT, Math.max(MIN_HERO_ASPECT, width / height));
+    if (this._reportedAspect !== void 0 && Math.abs(this._reportedAspect - ratio) < 1e-3) return;
+    this._reportedAspect = ratio;
+    this.style.setProperty("--kibble-hero-aspect", String(ratio));
+    this.dispatchEvent(new CustomEvent("media-aspect-changed", { detail: { ratio }, bubbles: true, composed: true }));
+  }
+  /** `hui-image` renders its own `<img>` inside ITS OWN shadow root -- reached only through
+   * that boundary, and only best-effort: a future HA version restructuring it, or a closed
+   * shadow root, just leaves the default aspect standing, never a thrown error. Re-checked on
+   * every `updated()` (cheap: two `querySelector`s) rather than once, since `hui-image` mounts
+   * its own `<img>` on its own render cycle, not necessarily by the time this component's
+   * first render has committed. */
+  _syncStillAspectWatch() {
+    const host = this.renderRoot.querySelector("hui-image");
+    const img = host?.shadowRoot?.querySelector("img") ?? null;
+    if (img === this._watchedStillImg) return;
+    if (this._watchedStillImg) this._watchedStillImg.removeEventListener("load", this._onStillImgLoad);
+    this._watchedStillImg = img;
+    if (!img) return;
+    if (img.complete && img.naturalWidth > 0) this._reportMediaAspect(img.naturalWidth, img.naturalHeight);
+    img.addEventListener("load", this._onStillImgLoad, { once: true });
+  }
+  /** Render each detector box independently. Rejected clutter stays quiet and opt-in, while
+   * named detections use their own roster color and avatar. */
   _renderDetections() {
     const frame = this._visionQuery.state.data?.frame;
     if (!this._overlayOn() || !frame?.detections) return A;
     const showIgnored = frame.overlay_suppressed ?? true;
-    const detections = frame.detections.filter((d3) => d3.admitted || showIgnored);
+    const detections = frame.detections.filter((detection) => detection.admitted || showIgnored);
     if (detections.length === 0) return A;
-    const cat = frame.cat;
-    const labelBox = cat ? largestAdmittedDetection(detections) : null;
-    return b2`
-      <div class="detections" aria-hidden="true">
-        ${detections.map((detection) => this._renderDetectionBox(detection))}
-        ${labelBox && cat ? this._renderCatLabel(labelBox, cat, frame.cat_score ?? null) : A}
-      </div>
-    `;
-  }
-  _renderDetectionBox(detection) {
-    const rect = detectionRect(detection);
-    const style = `left:${rect.left};top:${rect.top};width:${rect.width};height:${rect.height};`;
-    return b2`<div class="det-box ${detection.admitted ? "" : "quiet"}" style=${style}></div>`;
-  }
-  _renderCatLabel(box, cat, catScore) {
-    const rect = detectionRect(box);
-    return b2`<div class="det-label ${labelFlipsInside(box) ? "flip" : ""}" style="left:${rect.left};top:${rect.top};">
-      ${catLabelText(cat, catScore)}
-    </div>`;
+    const boxes = detections.map((detection, index) => {
+      const name = detection.cat || null;
+      const cat = name ? this.cats?.find((candidate) => candidate.name === name) : void 0;
+      const named = detection.admitted && name !== null;
+      return {
+        key: `vision-${detection.sid ?? "unmatched"}-${index}`,
+        box: [detection.x1, detection.y1, detection.x2, detection.y2],
+        tone: detection.admitted ? named ? "cat" : "unknown" : "clutter",
+        color: named ? cat ? catColorAt(cat.color) : fallbackCatColor(name) : void 0,
+        label: named ? name : void 0,
+        avatar: cat?.avatar ?? null
+      };
+    });
+    return b2`<kibble-box-overlay class="detections" .boxes=${boxes} .hass=${this.hass} .cache=${this.cache} .labelSafeTop=${LIVE_HERO_CHROME_SAFE_TOP}></kibble-box-overlay>`;
   }
   /** Tears down whatever's left of a dead session and schedules the next attempt on the
    * exponential backoff (`lib/reconnect.ts`), capped at 30s. Idempotent against being called
@@ -11101,7 +14508,7 @@ var KibbleLiveHero = class extends i4 {
       return;
     }
     this._pollVision();
-    this._visionTimer = setInterval(this._pollVision, VISION_POLL_MS);
+    this._visionTimer = setInterval(this._pollVision, VISION_POLL_MS2);
   }
   _stopVisionPolling() {
     clearInterval(this._visionTimer);
@@ -11112,11 +14519,75 @@ var KibbleLiveHero = class extends i4 {
     this._expanded = true;
     document.addEventListener("keydown", this._onKeyDown);
   }
+  /** Missing entity (an older integration, no LibreFeed daemon) or unavailable (feeder
+   * unreachable, or running the vendor stack -- `KibbleCallCatsButton.available` in the
+   * integration) both hide the button outright, same convention `_overlayOn` uses for the
+   * detection-overlay switch. Not gated by `_playing`: calling the cats needs no live video. */
+  _callCatsAvailable() {
+    const id = this.callCatsEntity;
+    return id !== void 0 && this.hass?.states[id]?.state !== "unavailable";
+  }
+  /** Public hook for chrome that overlaps this component's video from *outside* its own shadow
+   * DOM (`kibble-card.ts`'s `.gear-button`, absolutely positioned over the hero) -- lets an
+   * external click/focus on that chrome count as activity too, exactly like an internal one. */
+  notifyActivity() {
+    this._onOverlayActivity();
+  }
+  /** The one place `_overlayIdle` is ever reassigned -- dispatches `overlay-idle-changed`
+   * (bubbling, composed) whenever visibility actually transitions, so chrome outside this
+   * component's shadow DOM (`kibble-card.ts`'s `.gear-button`) can fade in step without needing
+   * to poll this component's own state. */
+  _applyOverlayIdle(next) {
+    const changed = next.visible !== this._overlayIdle.visible;
+    this._overlayIdle = next;
+    if (changed) {
+      this.dispatchEvent(new CustomEvent("overlay-idle-changed", { detail: { visible: next.visible }, bubbles: true, composed: true }));
+    }
+  }
+  /** Everything that must keep the overlay controls on screen regardless of the idle timer:
+   * active talkback, the call-cats cooldown pulse, keyboard focus inside the controls, or (from
+   * outside this component entirely) `kibble-card.ts`'s settings popup being open. */
+  _idlePinned() {
+    return this._talking || this._pulsingCue || this._controlsFocusVisible || Boolean(this.externalPin);
+  }
+  /** Cancels/re-arms the idle timer to match the current pin state -- called from `updated()`
+   * whenever anything `_idlePinned()` reads changes. A pin starting always reveals immediately
+   * (it must never race a timeout already in flight); a pin ending is treated like fresh
+   * activity, restarting the full `IDLE_MS` window rather than resuming a partially-elapsed one. */
+  _syncIdlePin() {
+    if (this._idlePinned()) {
+      clearTimeout(this._idleTimer);
+      this._idleTimer = void 0;
+      if (!this._overlayIdle.visible) this._applyOverlayIdle(VISIBLE);
+      return;
+    }
+    if (this._idleTimer === void 0) this._armIdleTimer();
+  }
+  _armIdleTimer() {
+    clearTimeout(this._idleTimer);
+    this._idleTimer = void 0;
+    if (!shouldArmTimer(this._overlayIdle, this._idlePinned())) return;
+    this._idleTimer = setTimeout(this._onIdleTimerFired, IDLE_MS);
+  }
   static {
     this.styles = i`
     :host {
       display: block;
       height: 100%;
+      /* The frame inside is absolutely positioned, so this element has no intrinsic size and
+         takes its height from its parent. In the stacked (phone) layout nothing supplies one,
+         and a hero with no loaded frame collapsed to ~60 px -- measured on a 390x844 viewport
+         -- then jumped to full height the moment the stream arrived. The ratio reserves the
+         space up front, and is always the media's own real ratio once _reportMediaAspect
+         learns it (set directly on this host's own --kibble-hero-aspect custom property;
+         kibble-card.ts sets the same variable on .hero from the bubbled media-aspect-changed
+         event, so the two stay in lockstep even though .hero -- not this element's own
+         aspect-ratio -- is what actually sizes the video once this is nested inside the card).
+         Where a parent does set a height (the wide layout, where the side column drives the
+         row) that height still wins: aspect-ratio only fills in a dimension nothing else has
+         decided. */
+      aspect-ratio: var(--kibble-hero-aspect, 16 / 9);
+      position: relative;
     }
     .frame {
       position: absolute;
@@ -11130,11 +14601,6 @@ var KibbleLiveHero = class extends i4 {
       z-index: 1001; /* above HA's app header (z-index 4) and dialogs' scrim */
       cursor: default;
       background: #000;
-    }
-    .frame.expanded video,
-    .frame.expanded img,
-    .frame.expanded hui-image {
-      object-fit: contain;
     }
     .backdrop {
       position: fixed;
@@ -11160,7 +14626,7 @@ var KibbleLiveHero = class extends i4 {
       display: block;
       width: 100%;
       height: 100%;
-      object-fit: cover; /* ha-camera-stream ignores this on its own host; see .fitMode in _renderVideo */
+      object-fit: contain; /* never cropped, inline or expanded; ha-camera-stream ignores this on its own host -- its .fitMode in _renderVideo carries the same "contain" instead */
     }
     video,
     ha-camera-stream {
@@ -11190,6 +14656,28 @@ var KibbleLiveHero = class extends i4 {
       bottom: max(12px, env(safe-area-inset-bottom));
       right: max(12px, env(safe-area-inset-right));
     }
+    /* Video-player-style auto-hide (lib/overlay-idle.ts): no transition property outside the
+       no-preference query, so a reduced-motion user's browser snaps the final opacity/position
+       instantly instead of animating it, matching .reconnect svg's spin and
+       .chip.call-cats.pulsing's rings just below. */
+    @media (prefers-reduced-motion: no-preference) {
+      .controls,
+      .topbar {
+        transition: opacity 200ms ease, transform 200ms ease;
+      }
+    }
+    .controls.idle-hidden {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    .topbar.idle-hidden {
+      opacity: 0;
+      transform: translateY(-6px);
+    }
+    .controls.idle-hidden .chip,
+    .topbar.idle-hidden .chip {
+      pointer-events: none;
+    }
     .chip {
       pointer-events: auto;
       display: inline-flex;
@@ -11218,6 +14706,41 @@ var KibbleLiveHero = class extends i4 {
     .chip.talk[aria-pressed="true"] {
       background: var(--kibble-amber, #f2a33c);
       color: var(--kibble-ink-on-amber, #241a07);
+    }
+    .chip.call-cats {
+      position: relative;
+    }
+    .chip.call-cats:disabled {
+      opacity: 0.5;
+      cursor: default;
+    }
+    .chip.call-cats.pulsing::before,
+    .chip.call-cats.pulsing::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      border: 2px solid var(--kibble-amber, #f2a33c);
+      opacity: 0;
+      pointer-events: none;
+    }
+    @media (prefers-reduced-motion: no-preference) {
+      .chip.call-cats.pulsing::before {
+        animation: kibble-cue-pulse 1.1s ease-out;
+      }
+      .chip.call-cats.pulsing::after {
+        animation: kibble-cue-pulse 1.1s ease-out 0.25s;
+      }
+    }
+    @keyframes kibble-cue-pulse {
+      0% {
+        transform: scale(1);
+        opacity: 0.7;
+      }
+      100% {
+        transform: scale(1.9);
+        opacity: 0;
+      }
     }
     .reconnect {
       position: absolute;
@@ -11266,33 +14789,6 @@ var KibbleLiveHero = class extends i4 {
     .detections {
       position: absolute;
       inset: 0;
-      overflow: hidden;
-      pointer-events: none;
-    }
-    .det-box {
-      position: absolute;
-      border: 2px solid var(--kibble-amber, #f2a33c);
-      border-radius: 3px;
-      transition: left 250ms ease, top 250ms ease, width 250ms ease, height 250ms ease;
-    }
-    .det-box.quiet {
-      border: 1px dashed rgba(255, 255, 255, 0.45);
-      opacity: 0.6;
-    }
-    .det-label {
-      position: absolute;
-      transform: translateY(calc(-100% - 4px));
-      padding: 2px 8px;
-      border-radius: 999px;
-      background: rgba(0, 0, 0, 0.65);
-      color: #fff;
-      font-size: 12px;
-      font-weight: 500;
-      white-space: nowrap;
-      transition: left 250ms ease, top 250ms ease;
-    }
-    .det-label.flip {
-      transform: translateY(4px);
     }
   `;
   }
@@ -11352,13 +14848,15 @@ var SCHEMA = [
   { name: "name", selector: { text: {} } },
   { name: "scrypted_id", selector: { text: {} } },
   { name: "settings_hash", selector: { text: {} } },
+  { name: "detection_areas_hash", selector: { text: {} } },
   { name: "schedule_hash", selector: { text: {} } }
 ];
 var FIELD_LABELS = {
   device_id: "Kibble device",
   name: "Name (optional)",
-  scrypted_id: "Scrypted camera id (optional \u2014 adds low-latency video + talk)",
+  scrypted_id: "Scrypted camera id (optional, adds low-latency video and talk)",
   settings_hash: "Settings pop-up hash (optional)",
+  detection_areas_hash: "Detection areas pop-up hash (optional)",
   schedule_hash: "Schedule handled by dashboard (optional hash)"
 };
 var KibbleCardEditor = class extends i4 {
@@ -11424,6 +14922,15 @@ var KibbleCardEditor = class extends i4 {
           />
         </label>
         <label>
+          <span>Detection areas pop-up hash (optional)</span>
+          <input
+            type="text"
+            placeholder="#detection-areas"
+            .value=${this._config?.detection_areas_hash ?? ""}
+            @change=${(event) => this._updateDetectionAreasHash(event.target.value)}
+          />
+        </label>
+        <label>
           <span>Schedule pop-up hash (optional)</span>
           <input
             type="text"
@@ -11452,6 +14959,11 @@ var KibbleCardEditor = class extends i4 {
   _updateSettingsHash(value) {
     if (!this._config) return;
     this._config = { ...this._config, settings_hash: value || void 0 };
+    this._fireConfigChanged();
+  }
+  _updateDetectionAreasHash(value) {
+    if (!this._config) return;
+    this._config = { ...this._config, detection_areas_hash: value || void 0 };
     this._fireConfigChanged();
   }
   _updateScheduleHash(value) {
@@ -11491,37 +15003,292 @@ var KibbleCardEditor = class extends i4 {
   }
 };
 customElements.define("kibble-card-editor", KibbleCardEditor);
-function comparePairFor(item) {
-  const before = item.image_before ?? null;
-  const after = item.image_after ?? null;
-  if (!before && !after) return null;
-  return { before, after };
+var LiveSignal = class {
+  constructor(_onChanged) {
+    this._onChanged = _onChanged;
+    this._unsubscribe = null;
+    this._subscribing = false;
+  }
+  /** Call on every `willUpdate`; only (re)subscribes when `entryId` actually changes. */
+  sync(hass, entryId) {
+    if (entryId === this._entryId) return;
+    this._entryId = entryId;
+    void this._resubscribe(hass, entryId);
+  }
+  async _resubscribe(hass, entryId) {
+    const previous = this._unsubscribe;
+    this._unsubscribe = null;
+    if (previous) await previous().catch(() => {
+    });
+    if (!hass?.connection || !entryId || this._subscribing) return;
+    this._subscribing = true;
+    try {
+      const unsubscribe = await hass.connection.subscribeMessage(
+        () => {
+          if (this._entryId === entryId) this._onChanged();
+        },
+        { type: "kibble/timeline/subscribe", entry_id: entryId }
+      );
+      this._subscribing = false;
+      if (this._entryId !== entryId) {
+        void unsubscribe().catch(() => {
+        });
+        return;
+      }
+      this._unsubscribe = unsubscribe;
+    } catch {
+      this._subscribing = false;
+    }
+  }
+  dispose() {
+    const unsubscribe = this._unsubscribe;
+    this._unsubscribe = null;
+    this._entryId = void 0;
+    if (unsubscribe) void unsubscribe().catch(() => {
+    });
+  }
+};
+var TimelineFeed = class {
+  constructor(_onChange) {
+    this._onChange = _onChange;
+    this.state = {
+      items: null,
+      loading: false,
+      loadingMore: false,
+      cursor: null,
+      hasMore: false,
+      error: null
+    };
+    this._key = null;
+    this._generation = 0;
+    this._lastLimit = 30;
+    this._live = new LiveSignal(() => this._onLiveChange());
+  }
+  /** Loads the newest page when its filter changes, and keeps the live subscription pointed at
+   * the current entry. Safe to call on every card update. */
+  sync(hass, entryId, limit) {
+    this._lastHass = hass;
+    this._lastEntryId = entryId;
+    this._lastLimit = limit;
+    this._live.sync(hass, entryId);
+    const key = entryId ? `${entryId}:${limit}` : null;
+    if (key === this._key) return;
+    this._key = key;
+    if (!hass?.callWS || !entryId) return;
+    void this._readPage(hass, entryId, limit, null, ++this._generation, true);
+  }
+  /** Appends one older page. No-op while a request is outstanding or history is exhausted. */
+  loadMore(hass, entryId, limit) {
+    if (!hass?.callWS || !entryId || this.state.loading || this.state.loadingMore || !this.state.hasMore) return;
+    void this._readPage(hass, entryId, limit, this.state.cursor, this._generation, false);
+  }
+  /** Re-reads the newest page. */
+  refresh(hass, entryId, limit) {
+    if (!hass?.callWS || !entryId) return;
+    void this._readPage(hass, entryId, limit, null, ++this._generation, true);
+  }
+  /** Splices a freshly labelled event back into the loaded pages in place, by uid -- a no-op
+   * if that uid isn't currently loaded (it scrolled past "Show more", or hasn't loaded yet).
+   * The caller decides whether a label should instead call `removeItem` (a row labelled
+   * `not_a_cat` stops matching what `kibble/timeline` would return). */
+  replaceItem(uid, updated) {
+    const items = this.state.items;
+    if (!items) return;
+    const index = items.findIndex((item) => item.uid === uid);
+    if (index === -1) return;
+    const next = items.slice();
+    next[index] = updated;
+    this.state = { ...this.state, items: next };
+    this._onChange();
+  }
+  removeItem(uid) {
+    const items = this.state.items;
+    if (!items) return;
+    if (!items.some((item) => item.uid === uid)) return;
+    this.state = { ...this.state, items: items.filter((item) => item.uid !== uid) };
+    this._onChange();
+  }
+  /** Restores a prior `items` snapshot wholesale -- the rollback half of an optimistic label:
+   * the card snapshots `state.items` before mutating rows for instant feedback, then calls this
+   * with that snapshot if the server call fails, undoing any mix of `replaceItem`/`removeItem`
+   * calls in one step regardless of how many rows were touched. */
+  restoreItems(items) {
+    this.state = { ...this.state, items };
+    this._onChange();
+  }
+  _onLiveChange() {
+    this.refresh(this._lastHass, this._lastEntryId, this._lastLimit);
+  }
+  async _readPage(hass, entryId, limit, cursor, generation, replace) {
+    this.state = replace ? { ...this.state, loading: true, error: null } : { ...this.state, loadingMore: true, error: null };
+    this._onChange();
+    try {
+      const result = await hass.callWS({
+        type: "kibble/timeline",
+        entry_id: entryId,
+        limit,
+        ...cursor ? { cursor } : {}
+      });
+      if (generation !== this._generation) return;
+      const items = replace ? result.items : [...this.state.items ?? [], ...result.items];
+      this.state = { items, loading: false, loadingMore: false, cursor: result.cursor, hasMore: result.has_more, error: null };
+    } catch (err) {
+      if (generation !== this._generation) return;
+      this.state = { ...this.state, loading: false, loadingMore: false, error: describeWsError(err) };
+    }
+    this._onChange();
+  }
+  /** Invalidates in-flight requests and drops the live subscription. */
+  dispose() {
+    this._generation += 1;
+    this._live.dispose();
+  }
+};
+async function labelSample(hass, entryId, request) {
+  if (!hass.callWS) throw new Error("Not connected.");
+  const result = await hass.callWS({
+    type: "kibble/sample/label",
+    entry_id: entryId,
+    sample_uid: request.sampleUid,
+    label: request.label
+  });
+  return result.sample;
 }
-function feedPhotos(item) {
-  if (!item.before && !item.after) return null;
-  return { before: item.before, after: item.after };
+function rowThumbAsset(event) {
+  if (event.kind === "feed") return null;
+  return event.thumb ?? event.scene ?? null;
 }
-function resolveThumbnail(image, imageKind, pair) {
-  if (image) return { name: image, kind: imageKind };
-  const name = pair?.after ?? pair?.before ?? null;
-  return name ? { name, kind: "event" } : null;
+function formatDuration(seconds) {
+  const minutes = Math.floor(seconds / 60);
+  const remainder = seconds % 60;
+  if (minutes === 0) return `${remainder} sec`;
+  return remainder === 0 ? `${minutes} min` : `${minutes} min ${remainder} sec`;
 }
-function detectionHeadline(item) {
-  if (item.kind === "identified") return item.paired_class === "eat" ? `${item.cat} ate` : `${item.cat} was here`;
-  if (item.kind === "eat") return "A cat ate";
-  return "A cat came by";
+function eventDuration(event) {
+  if (event.kind !== "eat" || event.open || event.end == null || event.end <= event.start) return null;
+  return formatDuration(event.end - event.start);
 }
-function filterVisits(items, showVisits) {
-  if (showVisits) return items;
-  return items.filter((item) => item.kind !== "visit");
+function spanDuration(start, end) {
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return null;
+  return formatDuration(Math.floor(end - start));
 }
-function feedSummary(item) {
-  const scheduled = !item.manual;
-  const unconfirmed = item.confirmed === false;
-  if (item.amount == null) return { headline: "Fed", scheduled, unconfirmed };
-  const portionWord2 = item.amount === 1 ? "portion" : "portions";
-  const hopperClause = item.hopper && item.hopper !== "both" ? ` from hopper ${item.hopper}` : "";
-  return { headline: `Fed ${item.amount} ${portionWord2}${hopperClause}`, scheduled, unconfirmed };
+function catVerb(event) {
+  if (event.open) return event.kind === "eat" ? "is eating" : "is here";
+  return event.kind === "eat" ? "ate" : "came by";
+}
+function eventTitle(event) {
+  if (event.kind === "feed") return feedTitle(event);
+  if (!event.cat) return event.kind === "eat" ? "Someone is eating" : "Someone is here";
+  return `${event.cat} ${catVerb(event)}`;
+}
+function portionWord2(n6) {
+  return `${n6} portion${n6 === 1 ? "" : "s"}`;
+}
+function feedTitle(event) {
+  const feed = event.feed;
+  if (!feed || feed.portions == null) return "Fed";
+  if (feed.single || feed.sides.length === 0) return `Fed ${portionWord2(feed.portions)}`;
+  if (feed.sides.length === 1) {
+    const [side] = feed.sides;
+    const clause = side.food ? `of ${side.food}` : `from hopper ${side.hopper}`;
+    return `Fed ${portionWord2(side.portions)} ${clause}`;
+  }
+  const [first, second] = feed.sides;
+  if (first.food && second.food) {
+    return `Fed ${first.portions} ${first.food} and ${second.portions} ${second.food}`;
+  }
+  if (first.portions === second.portions) {
+    return `Fed ${portionWord2(first.portions)} from each hopper`;
+  }
+  return `Fed ${first.portions} from hopper ${first.hopper} and ${second.portions} from hopper ${second.hopper}`;
+}
+function timeLabel(unixSeconds, locale) {
+  return new Date(unixSeconds * 1e3).toLocaleTimeString(locale, { hour: "numeric", minute: "2-digit" });
+}
+function compareAssets(event) {
+  if (event.kind !== "eat" && event.kind !== "feed") return null;
+  if (!event.before || !event.after) return null;
+  return { before: event.before, after: event.after };
+}
+var COLLAPSE_WINDOW_SECONDS = 5 * 60;
+function joinedNames(names) {
+  if (names.length < 2) return names[0] ?? "";
+  if (names.length === 2) return names[0] + " and " + names[1];
+  return names.slice(0, -1).join(", ") + ", and " + names[names.length - 1];
+}
+function orderTogetherEvents(events) {
+  return [...events].sort(
+    (left, right) => Number(right.kind === "eat") - Number(left.kind === "eat") || Number(left.cat === null) - Number(right.cat === null)
+  );
+}
+function togetherTitle(events) {
+  const lanes = orderTogetherEvents(events);
+  const names = lanes.map((lane) => lane.cat ?? "Who?");
+  const sameKind = lanes.every((lane) => lane.kind === lanes[0]?.kind);
+  const sameState = lanes.every((lane) => lane.open === lanes[0]?.open);
+  if (sameKind && sameState && lanes[0]?.kind !== "feed") {
+    const kind = lanes[0]?.kind;
+    const verb = lanes[0]?.open ? kind === "eat" ? "are eating" : "are here" : kind === "eat" ? "ate" : "came by";
+    return joinedNames(names) + " " + verb;
+  }
+  return lanes.map((lane, index) => names[index] + " " + catVerb(lane)).join(", ");
+}
+function groupConsecutive(events, now = Date.now() / 1e3) {
+  const sessions = /* @__PURE__ */ new Map();
+  for (const event of events) {
+    if (event.session === null || event.session === void 0) continue;
+    const lanes = sessions.get(event.session) ?? [];
+    lanes.push(event);
+    sessions.set(event.session, lanes);
+  }
+  const togetherByUid = /* @__PURE__ */ new Map();
+  for (const lanes of sessions.values()) {
+    const ordered = [...lanes].sort((left, right) => left.start - right.start);
+    let cluster = [];
+    let clusterEnd = Number.NEGATIVE_INFINITY;
+    const saveCluster = () => {
+      if (cluster.length > 1) {
+        const members = new Set(cluster.map((event) => event.uid));
+        const rowEvents = events.filter((event) => members.has(event.uid));
+        const start = Math.min(...rowEvents.map((event) => event.start));
+        const end = Math.max(...rowEvents.map((event) => Math.max(event.start, event.end ?? now)));
+        const group = { event: rowEvents[0], events: rowEvents, together: true, start, end };
+        for (const event of rowEvents) togetherByUid.set(event.uid, group);
+      }
+      cluster = [];
+      clusterEnd = Number.NEGATIVE_INFINITY;
+    };
+    for (const event of ordered) {
+      const eventEnd = Math.max(event.start, event.end ?? now);
+      if (cluster.length > 0 && event.start > clusterEnd) saveCluster();
+      cluster.push(event);
+      clusterEnd = Math.max(clusterEnd, eventEnd);
+    }
+    saveCluster();
+  }
+  const groups = [];
+  const emitted = /* @__PURE__ */ new Set();
+  for (const event of events) {
+    const together = togetherByUid.get(event.uid);
+    if (together) {
+      if (!emitted.has(together)) {
+        emitted.add(together);
+        groups.push(together);
+      }
+      continue;
+    }
+    const last = groups[groups.length - 1];
+    if (last && !last.together && last.event.kind === event.kind && last.event.cat === event.cat && last.event.start - event.start <= COLLAPSE_WINDOW_SECONDS) {
+      last.events.push(event);
+      continue;
+    }
+    groups.push({ event, events: [event] });
+  }
+  return groups.sort((left, right) => (right.start ?? right.event.start) - (left.start ?? left.event.start));
+}
+function groupCountLabel(kind, count) {
+  const noun = kind === "eat" ? "meal" : kind === "feed" ? "feed" : "visit";
+  return `${count} ${noun}${count === 1 ? "" : "s"}`;
 }
 function dayKey(date) {
   return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
@@ -11532,50 +15299,634 @@ function dayLabel(date, now) {
   if (dayKey(date) === dayKey(yesterday)) return "Yesterday";
   return date.toLocaleDateString(void 0, { weekday: "long", month: "short", day: "numeric" });
 }
-function groupByDay(items, now) {
+function groupByDay(groups, now) {
   const days = [];
   let currentKey = null;
-  for (const item of items) {
-    const date = new Date(item.ts * 1e3);
+  for (const group of groups) {
+    const date = new Date((group.start ?? group.event.start) * 1e3);
     const key = dayKey(date);
     if (key !== currentKey) {
       currentKey = key;
-      days.push({ label: dayLabel(date, now), items: [] });
+      days.push({ label: dayLabel(date, now), groups: [] });
     }
-    days[days.length - 1].items.push(item);
+    days[days.length - 1].groups.push(group);
   }
   return days;
 }
-var KibbleLightbox = class extends i4 {
+var DEFAULT_RAIL_MAX_HEIGHT = "clamp(360px, calc(100dvh - 200px), 900px)";
+function railStyle(maxHeight) {
+  const value = (maxHeight ?? "").trim();
+  if (value === "none") return "";
+  return `max-height:${value || DEFAULT_RAIL_MAX_HEIGHT}`;
+}
+function eventFragment(entry2, locale) {
+  if (entry2.label === "unknown") return null;
+  if (entry2.label === "not_a_cat") return "Not a cat";
+  return `${entry2.label} ${catVerb(entry2.event)} at ${timeLabel(entry2.event.start, locale)}`;
+}
+function photosFragment(count) {
+  if (count <= 0) return null;
+  return `${count} photo${count === 1 ? "" : "s"} updated`;
+}
+function reviewSummaryMessage(input, locale) {
+  const latestByUid = /* @__PURE__ */ new Map();
+  for (const entry2 of input.events) latestByUid.set(entry2.uid, entry2);
+  const fragments = [];
+  for (const entry2 of latestByUid.values()) {
+    const fragment = eventFragment(entry2, locale);
+    if (fragment) fragments.push(fragment);
+  }
+  const photos = photosFragment(input.photosUpdated);
+  if (photos) fragments.push(photos);
+  if (fragments.length === 0) return null;
+  return `Saved: ${fragments.join(", ")}`;
+}
+function draftFrom(cats, identity) {
+  return { cats: cats.map(({ cat, ate }) => ({ cat, ate })), notACat: identity === "not_a_cat", subjects: {} };
+}
+function toggleDraftCat(draft, name, isMeal) {
+  const present = draft.cats.some((cat) => cat.cat === name);
+  return {
+    ...draft,
+    notACat: false,
+    cats: present ? draft.cats.filter((cat) => cat.cat !== name) : [...draft.cats, { cat: name, ate: isMeal }]
+  };
+}
+function toggleDraftNotACat(draft) {
+  return draft.notACat ? { ...draft, notACat: false } : { ...draft, notACat: true, cats: [] };
+}
+function setDraftAte(draft, name, ate) {
+  return { ...draft, cats: draft.cats.map((cat) => cat.cat === name ? { ...cat, ate } : cat) };
+}
+function nameDraftSubject(draft, sid, label, isMeal) {
+  const subjects = { ...draft.subjects, [sid]: label };
+  if (label === "not_a_cat" || draft.cats.some((cat) => cat.cat === label)) return { ...draft, subjects };
+  return { ...draft, subjects, notACat: false, cats: [...draft.cats, { cat: label, ate: isMeal }] };
+}
+function draftChipState(draft, saved, name) {
+  if (!draft.cats.some((cat) => cat.cat === name)) return "neutral";
+  const savedCat = saved.find((cat) => cat.cat === name);
+  return savedCat && !savedCat.confirmed ? "suggested" : "confirmed";
+}
+function confirmAction(draft, saved, identity) {
+  const subjects = Object.entries(draft.subjects).map(([sid, label]) => ({ sid: Number(sid), label }));
+  const extra = subjects.length ? { subjects } : {};
+  if (draft.notACat) {
+    if (identity === "not_a_cat" && !subjects.length) return { kind: "close", text: "Done" };
+    return { kind: "save", text: "Confirm not a cat", request: { verdict: "not_a_cat", ...extra } };
+  }
+  if (draft.cats.length === 0) return { kind: "blocked", text: "Pick who was here" };
+  const unchanged = identity !== "not_a_cat" && saved.length === draft.cats.length && saved.every((cat) => cat.confirmed && draft.cats.some((d3) => d3.cat === cat.cat && d3.ate === cat.ate)) && !subjects.length;
+  if (unchanged) return { kind: "close", text: "Done" };
+  return { kind: "save", text: "Confirm " + joinNames(draft.cats.map((cat) => cat.cat)), request: { cats: draft.cats.map((cat) => ({ ...cat })), ...extra } };
+}
+function joinNames(names) {
+  if (names.length <= 1) return names[0] ?? "";
+  if (names.length === 2) return names[0] + " and " + names[1];
+  return names.slice(0, -1).join(", ") + ", and " + names[names.length - 1];
+}
+function sessionTitle(cats, event) {
+  if (event.identity === "not_a_cat") return "Not a cat";
+  if (cats.length === 0) return "Who was this?";
+  const groups = /* @__PURE__ */ new Map();
+  for (const cat of cats) {
+    const verb = event.open ? cat.ate ? "is eating" : "is here" : cat.ate ? "ate" : "came by";
+    const names = groups.get(verb) ?? [];
+    names.push(cat.cat);
+    groups.set(verb, names);
+  }
+  return [...groups].map(([verb, names]) => joinNames(names) + " " + verb).join(", ");
+}
+function clamp2(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+function placeNamePicker(box, frameWidth, frameHeight, pickerWidth, pickerHeight, gap = 8, inset = 8) {
+  if (!(frameWidth > 0) || !(frameHeight > 0)) return { left: 0, top: 0, flipped: false };
+  const safeInset = Math.max(0, Math.min(inset, frameWidth / 2, frameHeight / 2));
+  const width = Math.min(Math.max(0, pickerWidth), Math.max(0, frameWidth - safeInset * 2));
+  const height = Math.min(Math.max(0, pickerHeight), Math.max(0, frameHeight - safeInset * 2));
+  const maxLeft = frameWidth - safeInset - width;
+  const maxTop = frameHeight - safeInset - height;
+  const anchorX = (box[0] + box[2]) / 2 * frameWidth;
+  const left = clamp2(anchorX - width / 2, safeInset, maxLeft);
+  const below = box[3] * frameHeight + gap;
+  const above = box[1] * frameHeight - gap - height;
+  const canFitBelow = below <= maxTop;
+  const canFitAbove = above >= safeInset;
+  const flipped = !canFitBelow && canFitAbove;
+  return { left, top: clamp2(flipped ? above : below, safeInset, maxTop), flipped };
+}
+function groupSessionPhotos(samples, cats) {
+  if (cats.length < 2) return [];
+  const sections = cats.map((cat) => ({ cat: cat.cat, samples: [] }));
+  const byName = new Map(sections.map((section) => [section.cat, section]));
+  const unassigned = [];
+  for (const sample of samples) {
+    const section = sample.cat ? byName.get(sample.cat) : void 0;
+    if (section) section.samples.push(sample);
+    else unassigned.push(sample);
+  }
+  if (unassigned.length > 0) {
+    const main2 = sections.reduce((best, section) => section.samples.length > best.samples.length ? section : best);
+    main2.samples.push(...unassigned);
+  }
+  return sections;
+}
+async function labelSession(hass, entryId, request) {
+  const callWS = hass.callWS;
+  if (!callWS) throw new Error("Not connected.");
+  let detail = await callWS({
+    type: "kibble/session/label",
+    entry_id: entryId,
+    uid: request.uid,
+    ...request.cats ? { cats: request.cats } : {},
+    ...request.verdict ? { verdict: request.verdict } : {}
+  });
+  for (const subject of request.subjects ?? []) {
+    detail = await callWS({ type: "kibble/session/subject", entry_id: entryId, uid: detail.event.uid, sid: subject.sid, label: subject.label });
+  }
+  return detail;
+}
+var CLIP_SEEK_LEAD_MS = 3e3;
+function clipSeekOffsetSeconds(eventStartSeconds, clipStartMs) {
+  const offsetMs = eventStartSeconds * 1e3 - clipStartMs - CLIP_SEEK_LEAD_MS;
+  return Math.max(0, offsetMs) / 1e3;
+}
+var KibbleBoxOverlay = class extends i4 {
   constructor() {
     super();
-    this._closeButtonRef = e5();
+    this._focusTrigger = null;
+    this._pointerDown = (event) => {
+      if (this._pickerKey && !event.composedPath().includes(this)) this._closePicker(false);
+    };
+    this._keyDown = (event) => {
+      if (event.key !== "Escape" || !this._pickerKey) return;
+      event.preventDefault();
+      event.stopPropagation();
+      this._closePicker(true);
+    };
+    this._repositionLabels = () => {
+      const bounds = this.getBoundingClientRect();
+      if (bounds.width <= 0 || bounds.height <= 0) return;
+      const labelNodes = [...this.renderRoot.querySelectorAll(".label")];
+      const labels = this.boxes.flatMap((box) => {
+        const text = box.label ?? (box.tone === "not-cat" ? "Not a cat" : null);
+        if (!text) return [];
+        const node = labelNodes.find((element) => element.dataset.labelKey === box.key);
+        const measured = node?.getBoundingClientRect();
+        return [{ key: box.key, box: box.box, width: measured?.width || Math.max(44, text.length * 7 + 34), height: measured?.height || 22 }];
+      });
+      const next = Object.fromEntries(placeLabels(labels, bounds.width, bounds.height, 4, this.labelSafeTop).map((placement) => [placement.key, placement]));
+      const keys = Object.keys(next);
+      if (keys.length === Object.keys(this._labelPositions).length && keys.every((key) => {
+        const before = this._labelPositions[key];
+        const after = next[key];
+        return before?.left === after?.left && before?.top === after?.top && before?.flipped === after?.flipped;
+      })) return;
+      this._labelPositions = next;
+    };
+    this._repositionPicker = () => {
+      if (!this._pickerKey) return;
+      const box = this.boxes.find((candidate) => candidate.key === this._pickerKey);
+      const picker = this.renderRoot.querySelector(".picker");
+      const frame = this.getBoundingClientRect();
+      if (!box || !picker || frame.width <= 0 || frame.height <= 0) return;
+      const bounds = picker.getBoundingClientRect();
+      const placement = placeNamePicker(box.box, frame.width, frame.height, bounds.width, bounds.height);
+      const before = this._pickerPlacement;
+      if (before?.left === placement.left && before.top === placement.top && before.flipped === placement.flipped) return;
+      this._pickerPlacement = placement;
+    };
+    this.boxes = [];
+    this.cats = [];
+    this.busy = false;
+    this.labelSafeTop = 0;
+    this._labelPositions = {};
+    this._pickerKey = null;
+    this._pickerPlacement = null;
+  }
+  static {
+    this.properties = {
+      boxes: { attribute: false },
+      hass: { attribute: false },
+      cache: { attribute: false },
+      cats: { attribute: false },
+      busy: { type: Boolean },
+      labelSafeTop: { attribute: false },
+      _labelPositions: { state: true },
+      _pickerKey: { state: true },
+      _pickerPlacement: { state: true }
+    };
+  }
+  connectedCallback() {
+    super.connectedCallback();
+    window.addEventListener("pointerdown", this._pointerDown, true);
+    window.addEventListener("keydown", this._keyDown, true);
+  }
+  firstUpdated() {
+    this._resizeObserver = new ResizeObserver(() => {
+      this._repositionLabels();
+      this._repositionPicker();
+    });
+    this._resizeObserver.observe(this);
+    this._repositionLabels();
+  }
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    window.removeEventListener("pointerdown", this._pointerDown, true);
+    window.removeEventListener("keydown", this._keyDown, true);
+    this._resizeObserver?.disconnect();
+    this._resizeObserver = void 0;
+  }
+  updated(changed) {
+    if (changed.has("boxes") || changed.has("labelSafeTop")) this._repositionLabels();
+    if (changed.has("boxes") && this._pickerKey && !this.boxes.some((box) => box.key === this._pickerKey)) this._closePicker(false);
+    if (changed.has("_pickerKey") || changed.has("boxes") || changed.has("cats")) this._repositionPicker();
+  }
+  _openPicker(box, event) {
+    if (this.busy || box.subjectSid == null) return;
+    this._focusTrigger = event.currentTarget;
+    this._pickerPlacement = null;
+    this._pickerKey = box.key;
+    void this.updateComplete.then(async () => {
+      this._repositionPicker();
+      await this.updateComplete;
+      this.renderRoot.querySelector(".picker-option:not([disabled])")?.focus();
+    });
+  }
+  _closePicker(restoreFocus) {
+    const trigger = this._focusTrigger;
+    this._pickerKey = null;
+    this._pickerPlacement = null;
+    this._focusTrigger = null;
+    if (restoreFocus) trigger?.focus();
+  }
+  _chooseSubject(box, label) {
+    if (this.busy || box.subjectSid == null) return;
+    this._closePicker(true);
+    this.dispatchEvent(new CustomEvent("subject-label-requested", {
+      detail: { sid: box.subjectSid, label },
+      bubbles: true,
+      composed: true
+    }));
+  }
+  render() {
+    const selectable = this.boxes.some((box) => box.selectable);
+    const pickerBox = this.boxes.find((box) => box.key === this._pickerKey);
+    return b2`
+      <div class="overlay ${selectable ? "interactive" : "passive"}" ?aria-hidden=${!selectable}>
+        ${this.boxes.map((box) => this._renderBox(box))}
+        ${pickerBox ? this._renderPicker(pickerBox) : A}
+      </div>`;
+  }
+  _renderPicker(box) {
+    const visible = this._pickerPlacement !== null;
+    const style = visible ? `left:${this._pickerPlacement.left}px;top:${this._pickerPlacement.top}px;` : "left:8px;top:8px;visibility:hidden;";
+    return b2`<div class="picker" role="group" aria-label="Name this animal" style=${style}>
+      ${this.cats.map((cat) => b2`<button type="button" class="picker-option" aria-pressed=${box.subjectLabel === cat.name} ?disabled=${this.busy} @click=${() => this._chooseSubject(box, cat.name)}>
+        <kibble-avatar .hass=${this.hass} .name=${cat.name} .colorIndex=${cat.color} .asset=${cat.avatar} .cache=${this.cache}></kibble-avatar><span>${cat.name}</span>${box.subjectLabel === cat.name ? b2`<span class="picker-check" aria-hidden="true">✓</span>` : A}
+      </button>`)}
+      <button type="button" class="picker-option" aria-pressed=${box.subjectLabel === "not_a_cat"} ?disabled=${this.busy} @click=${() => this._chooseSubject(box, "not_a_cat")}>
+        <kibble-avatar .name=${null}></kibble-avatar><span>Not a cat</span>${box.subjectLabel === "not_a_cat" ? b2`<span class="picker-check" aria-hidden="true">✓</span>` : A}
+      </button>
+    </div>`;
+  }
+  _renderBox(box) {
+    const rect = boxRect(box.box);
+    const boundsStyle = `left:${rect.left};top:${rect.top};width:${rect.width};height:${rect.height};--box-color:${box.color ?? "rgba(255,255,255,.9)"};`;
+    const emphasis = box.emphasis ?? "normal";
+    const text = box.label ?? (box.tone === "not-cat" ? "Not a cat" : null);
+    const placement = this._labelPositions[box.key];
+    const labelStyle = placement ? `left:${placement.left}px;top:${placement.top}px;` : `left:${rect.left};top:${rect.top};`;
+    return b2`
+      <div class="box-wrap tone-${box.tone} emphasis-${emphasis}" style=${boundsStyle}>
+        <span class="stroke"></span>
+        ${box.selectable ? b2`<button type="button" class="hit" aria-label=${text ? `Name ${text}` : "Name this animal"} @click=${(event) => this._openPicker(box, event)}></button>` : A}
+      </div>
+      ${text ? b2`<span class="label tone-${box.tone} emphasis-${emphasis}" data-label-key=${box.key} style=${labelStyle}>
+        ${box.tone === "cat" ? b2`<span class="avatar-ring" style=${`--box-color:${box.color ?? "var(--primary-color)"}`}><span class="monogram" aria-hidden="true">${text.trim().charAt(0).toUpperCase()}</span>${box.avatar ? b2`<kibble-image .hass=${this.hass} .asset=${box.avatar} .cache=${this.cache} alt=""></kibble-image>` : A}</span>` : box.tone === "unknown" ? b2`<span class="unknown-avatar">?</span>` : A}
+        <span class="label-text">${text}</span>
+      </span>` : A}`;
+  }
+  static {
+    this.styles = i`
+    :host {
+      position: absolute;
+      inset: 0;
+      display: block;
+      overflow: hidden;
+      pointer-events: none;
+      contain: layout paint;
+    }
+    .overlay {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+    }
+    .overlay.passive,
+    .overlay.interactive {
+      pointer-events: none;
+    }
+    .picker {
+      position: absolute;
+      z-index: 20;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      width: min(264px, calc(100% - 16px));
+      max-height: calc(100% - 16px);
+      overflow: auto;
+      padding: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.24);
+      border-radius: 14px;
+      background: rgba(18, 18, 20, 0.94);
+      color: #fff;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.38);
+      backdrop-filter: blur(12px);
+      pointer-events: auto;
+      overscroll-behavior: contain;
+    }
+    .picker-option {
+      box-sizing: border-box;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      min-height: 48px;
+      padding: 4px 8px;
+      border: 0;
+      border-radius: 9px;
+      background: transparent;
+      color: inherit;
+      font: inherit;
+      text-align: left;
+      cursor: pointer;
+    }
+    .picker-option kibble-avatar {
+      flex: none;
+      --kibble-avatar-size: 30px;
+    }
+    .picker-option[aria-pressed="true"] {
+      background: rgba(255, 255, 255, 0.14);
+    }
+    .picker-option:focus-visible {
+      outline: 2px solid var(--primary-color, #9c7bff);
+      outline-offset: -2px;
+    }
+    .picker-option:disabled {
+      opacity: 0.55;
+      cursor: default;
+    }
+    .picker-check {
+      margin-left: auto;
+      color: var(--kibble-feed, #6fd398);
+      font-weight: 700;
+    }
+    .box-wrap {
+      position: absolute;
+      box-sizing: border-box;
+      pointer-events: none;
+    }
+    /* A solid box is a 2 px colour line between two thin dark lines, so it reads on bright day
+     * scenes and on the dark purple night (IR) image alike. Cat colours are lifted toward white
+     * for the line itself: the darker palette slots (plum) vanish on an IR frame otherwise. */
+    .stroke {
+      position: absolute;
+      inset: 0;
+      box-sizing: border-box;
+      border: 2px solid rgba(255, 255, 255, 0.9);
+      border-radius: 4px;
+      box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.45), inset 0 0 0 1px rgba(0, 0, 0, 0.3);
+    }
+    .tone-cat .stroke {
+      border-color: color-mix(in srgb, var(--box-color) 68%, #fff);
+    }
+    .tone-unknown .stroke {
+      border-color: rgba(255, 255, 255, 0.9);
+    }
+    .tone-not-cat .stroke {
+      border-width: 1.5px;
+      border-style: dashed;
+      border-color: rgba(255, 255, 255, 0.78);
+    }
+    .tone-clutter .stroke {
+      border: 1px dashed rgba(255, 255, 255, 0.45);
+      border-radius: 3px;
+    }
+    .tone-peer .stroke {
+      border: 1px dashed rgba(255, 255, 255, 0.6);
+      border-radius: 3px;
+      box-shadow: none;
+    }
+    .box-wrap.emphasis-selected .stroke {
+      border-width: 3px;
+      box-shadow: 0 0 0 4px color-mix(in srgb, var(--box-color) 40%, transparent), 0 0 0 1px rgba(0, 0, 0, 0.45),
+        inset 0 0 0 1px rgba(0, 0, 0, 0.3);
+    }
+    .box-wrap.emphasis-dim,
+    .label.emphasis-dim {
+      opacity: 0.45;
+    }
+    .hit {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 100%;
+      height: 100%;
+      min-width: 48px;
+      min-height: 48px;
+      padding: 0;
+      border: 0;
+      border-radius: 4px;
+      background: transparent;
+      opacity: 0;
+      pointer-events: auto;
+      transform: translate(-50%, -50%);
+      cursor: pointer;
+    }
+    .box-wrap:focus-within .stroke {
+      box-shadow: 0 0 0 3px var(--primary-text-color), 0 0 0 5px rgba(0, 0, 0, 0.65);
+    }
+    .label {
+      position: absolute;
+      z-index: 2;
+      height: 22px;
+      box-sizing: border-box;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      max-width: min(240px, calc(100% - 4px));
+      padding: 3px 8px 3px 3px;
+      border-radius: 999px;
+      background: rgba(18, 18, 20, 0.72);
+      color: #fff;
+      font: 600 12px/1.1 var(--paper-font-body1_-_font-family, Roboto, sans-serif);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      pointer-events: none;
+      will-change: left, top;
+    }
+    .avatar-ring,
+    .unknown-avatar {
+      width: 16px;
+      height: 16px;
+      flex: none;
+      box-sizing: border-box;
+      display: inline-grid;
+      place-items: center;
+      border-radius: 50%;
+      overflow: hidden;
+    }
+    .avatar-ring {
+      position: relative;
+      border: 1.5px solid var(--box-color);
+      background: color-mix(in srgb, var(--box-color) 20%, #121214);
+      color: var(--box-color);
+    }
+    .avatar-ring .monogram {
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+      display: grid;
+      place-items: center;
+    }
+    .avatar-ring kibble-image {
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      width: 100%;
+      height: 100%;
+    }
+    .monogram {
+      font-size: 9px;
+      line-height: 1;
+      font-weight: 700;
+    }
+    .unknown-avatar {
+      background: rgba(255, 255, 255, 0.18);
+      color: rgba(255, 255, 255, 0.92);
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .label-text {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .tone-not-cat {
+      color: rgba(255, 255, 255, 0.82);
+    }
+    @media (prefers-reduced-motion: no-preference) {
+      .stroke {
+        transition: border-color 150ms ease, border-width 150ms ease, box-shadow 150ms ease, opacity 150ms ease;
+      }
+      .box-wrap {
+        transition: left 250ms ease, top 250ms ease, width 250ms ease, height 250ms ease, opacity 150ms ease;
+      }
+      .label {
+        transition: left 250ms ease, top 250ms ease, opacity 150ms ease;
+      }
+    }
+  `;
+  }
+};
+customElements.define("kibble-box-overlay", KibbleBoxOverlay);
+var FOCUSABLE_SELECTOR = [
+  "button:not([disabled])",
+  "[href]",
+  "input:not([disabled])",
+  "select:not([disabled])",
+  "textarea:not([disabled])",
+  '[tabindex]:not([tabindex="-1"])'
+].join(",");
+var AUTO_ADVANCE_MS = 350;
+var SAVED_PULSE_MS = 700;
+var SWIPE_MIN_PX = 48;
+var KibblePhotoViewer = class extends i4 {
+  constructor() {
+    super();
+    this._index = 0;
+    this._pendingOption = null;
+    this._justSavedUid = null;
+    this._closeRef = e5();
+    this._touchStartX = 0;
+    this._touchStartY = 0;
     this._keydownHandler = (event) => {
-      if (event.key === "Escape" && this.open) {
+      if (!this.open) return;
+      if (event.key === "Escape") {
         event.preventDefault();
-        this._close();
+        this._requestClose();
+        return;
+      }
+      if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        this._go(-1);
+        return;
+      }
+      if (event.key === "ArrowRight") {
+        event.preventDefault();
+        this._go(1);
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const focusable = [...this.renderRoot.querySelectorAll(FOCUSABLE_SELECTOR)];
+      if (focusable.length === 0) {
+        event.preventDefault();
+        this._closeRef.value?.focus();
+        return;
+      }
+      const active = this.renderRoot.querySelector(":focus");
+      const currentIndex = active ? focusable.indexOf(active) : -1;
+      const nextIndex = event.shiftKey ? currentIndex - 1 : currentIndex + 1;
+      if (currentIndex === -1 || nextIndex < 0 || nextIndex >= focusable.length) {
+        event.preventDefault();
+        (event.shiftKey ? focusable[focusable.length - 1] : focusable[0])?.focus();
       }
     };
-    this._close = () => {
-      this.dispatchEvent(new CustomEvent("close-requested", { bubbles: true, composed: true }));
+    this._requestClose = () => {
+      this.dispatchEvent(new CustomEvent("viewer-close-requested", { bubbles: true, composed: true }));
+    };
+    this._onTouchStart = (event) => {
+      const touch = event.touches[0];
+      if (!touch) return;
+      this._touchStartX = touch.clientX;
+      this._touchStartY = touch.clientY;
+    };
+    this._onTouchEnd = (event) => {
+      const touch = event.changedTouches[0];
+      if (!touch) return;
+      const dx = touch.clientX - this._touchStartX;
+      const dy = touch.clientY - this._touchStartY;
+      if (Math.abs(dx) < SWIPE_MIN_PX || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+      this._go(dx < 0 ? 1 : -1);
+    };
+    this._requestBoxesVisibility = () => {
+      this.dispatchEvent(new CustomEvent("boxes-visibility-requested", { detail: { visible: !this.showBoxes }, bubbles: true, composed: true }));
     };
     this.open = false;
-    this.imageUrl = null;
-    this.alt = "";
-    this.beforeUrl = null;
-    this.afterUrl = null;
-    this.beforeLabel = "Before";
-    this.afterLabel = "After";
+    this.cats = [];
+    this.samples = [];
+    this.initialIndex = 0;
+    this.event = null;
+    this.busyUid = null;
+    this.error = null;
+    this.showBoxes = true;
   }
   static {
     this.properties = {
       open: { type: Boolean, reflect: true },
-      imageUrl: { type: String },
-      alt: { type: String },
-      beforeUrl: { type: String },
-      afterUrl: { type: String },
-      beforeLabel: { type: String },
-      afterLabel: { type: String }
+      hass: { attribute: false },
+      cache: { attribute: false },
+      cats: { attribute: false },
+      samples: { attribute: false },
+      initialIndex: { type: Number },
+      event: { attribute: false },
+      busyUid: { attribute: false },
+      error: { type: String },
+      showBoxes: { type: Boolean },
+      _index: { state: true },
+      _justSavedUid: { state: true }
     };
   }
   connectedCallback() {
@@ -11585,33 +15936,1014 @@ var KibbleLightbox = class extends i4 {
   disconnectedCallback() {
     super.disconnectedCallback();
     window.removeEventListener("keydown", this._keydownHandler);
+    clearTimeout(this._justSavedTimer);
+    clearTimeout(this._advanceTimer);
+  }
+  willUpdate(changed) {
+    if (changed.has("open") && this.open) {
+      this._index = this.initialIndex;
+      this._justSavedUid = null;
+      this._pendingOption = null;
+    }
+    if (changed.has("busyUid")) {
+      const previous = changed.get("busyUid");
+      this._pendingOption = null;
+      if (previous && this.busyUid === null && !this.error && this.samples[this._index]?.uid === previous) {
+        this._flashSaved(previous);
+      }
+    }
   }
   updated(changed) {
-    if (changed.has("open") && this.open) {
-      this._closeButtonRef.value?.focus();
-    }
+    if (changed.has("open") && this.open) this._closeRef.value?.focus();
+  }
+  _flashSaved(uid) {
+    clearTimeout(this._justSavedTimer);
+    this._justSavedUid = uid;
+    this._justSavedTimer = setTimeout(() => {
+      this._justSavedUid = null;
+    }, SAVED_PULSE_MS);
+    clearTimeout(this._advanceTimer);
+    this._advanceTimer = setTimeout(() => {
+      if (this._index < this.samples.length - 1) this._go(1);
+    }, AUTO_ADVANCE_MS);
+  }
+  _go(delta) {
+    const next = this._index + delta;
+    if (next < 0 || next >= this.samples.length) return;
+    this._index = next;
+    this._justSavedUid = null;
+  }
+  _catColor(name) {
+    const cat = this.cats.find((c5) => c5.name === name);
+    return cat ? catColorAt(cat.color) : fallbackCatColor(name);
+  }
+  _photoOverlayBoxes(sample) {
+    if (!sample.body || !sample.box || !sample.crop) return [];
+    const ownBox = boxInCrop(sample.box, sample.crop);
+    if (!ownBox) return [];
+    const name = sample.label ?? sample.guess;
+    const tone = name === "not_a_cat" ? "not-cat" : name && name !== "skip" ? "cat" : "unknown";
+    const cat = tone === "cat" ? this.cats.find((candidate) => candidate.name === name) : null;
+    return [
+      { key: "sample:" + sample.uid, box: ownBox, tone, label: name && name !== "not_a_cat" && name !== "skip" ? name : tone === "not-cat" ? "Not a cat" : "Who?", color: name && name !== "not_a_cat" && name !== "skip" ? this._catColor(name) : void 0, avatar: cat?.avatar ?? null },
+      ...sample.peers.flatMap((peer, index) => {
+        const box = boxInCrop(peer, sample.crop);
+        return box ? [{ key: "peer:" + sample.uid + ":" + index, box, tone: "peer" }] : [];
+      })
+    ];
   }
   render() {
     if (!this.open) return A;
-    const isCompare = Boolean(this.beforeUrl || this.afterUrl);
+    const sample = this.samples[this._index];
+    if (!sample) return A;
+    const total = this.samples.length;
+    const image = sample.body ?? sample.face;
+    const faceInset = sample.body && sample.face ? sample.face : null;
+    const busy = this.busyUid !== null;
     return b2`
-      <div class="backdrop" @click=${this._close} role="dialog" aria-modal="true" aria-label=${this.alt || "Photo"}>
-        <div class="frame ${isCompare ? "compare" : ""}" @click=${(event) => event.stopPropagation()}>
-          ${isCompare ? b2`
-                <kibble-before-after
-                  .beforeSrc=${this.beforeUrl}
-                  .afterSrc=${this.afterUrl}
-                  .beforeLabel=${this.beforeLabel}
-                  .afterLabel=${this.afterLabel}
-                  .caption=${this.alt}
-                ></kibble-before-after>
-              ` : this.imageUrl ? b2`<img src=${this.imageUrl} alt=${this.alt} />` : A}
-          <button type="button" class="close" aria-label="Close" ${n5(this._closeButtonRef)} @click=${this._close}>
-            ${mdiIcon("close")}
-          </button>
+      <div class="scrim" role="dialog" aria-modal="true" aria-label=${`Photo ${this._index + 1} of ${total}`} @click=${this._requestClose}>
+        <div class="panel" @click=${(e6) => e6.stopPropagation()} @touchstart=${this._onTouchStart} @touchend=${this._onTouchEnd}>
+          <div class="panel-top">
+            <span class="counter">${this._index + 1} / ${total}</span>
+            <button type="button" class="close" ${n5(this._closeRef)} aria-label="Close photo" @click=${this._requestClose}>${mdiIcon("close")}</button>
+          </div>
+          <div class="stage">
+            ${image ? b2`<div class="image-frame"><kibble-image .hass=${this.hass} .asset=${image} .cache=${this.cache} alt="" fit="contain"></kibble-image>${sample.body && this.showBoxes ? b2`<kibble-box-overlay .boxes=${this._photoOverlayBoxes(sample)} .hass=${this.hass} .cache=${this.cache}></kibble-box-overlay>` : A}</div>` : A}
+            ${sample.body && sample.box && sample.crop ? b2`<button type="button" class="box-toggle" aria-pressed=${this.showBoxes} aria-label=${this.showBoxes ? "Hide boxes" : "Show boxes"} @click=${this._requestBoxesVisibility}>${mdiIcon(this.showBoxes ? "eye" : "eyeOff")}</button>` : A}
+            ${faceInset ? b2`<span class="face-inset"><kibble-image .hass=${this.hass} .asset=${faceInset} .cache=${this.cache} alt="" rounded></kibble-image></span>` : A}
+            <button type="button" class="nav prev" aria-label="Previous photo" ?disabled=${this._index === 0} @click=${() => this._go(-1)}>
+              <span class="chevron chevron-left">${mdiIcon("chevronDown")}</span>
+            </button>
+            <button type="button" class="nav next" aria-label="Next photo" ?disabled=${this._index === total - 1} @click=${() => this._go(1)}>
+              <span class="chevron chevron-right">${mdiIcon("chevronDown")}</span>
+            </button>
+          </div>
+          <div class="chip-row" role="group" aria-label="Who is this, in this photo">
+            ${this.cats.map((cat) => this._renderChoice(cat.name, cat, sample, busy))}
+            ${this._renderChoice("not_a_cat", null, sample, busy)}
+            ${this._renderChoice("skip", null, sample, busy)}
+          </div>
+          ${this.error ? b2`<p class="viewer-error">${this.error}</p>` : A}
         </div>
       </div>
     `;
+  }
+  _choiceState(option, sample) {
+    if (option === "skip") return sample.review === "skip" ? "confirmed" : "neutral";
+    if (sample.review !== null) return sample.review === option ? "confirmed" : "neutral";
+    if (sample.label === option) return "suggested";
+    return "neutral";
+  }
+  _renderChoice(option, cat, sample, rowBusy) {
+    const state2 = this._choiceState(option, sample);
+    const pending = rowBusy && this.busyUid === sample.uid && this._pendingOption === option;
+    const justSaved = this._justSavedUid === sample.uid && state2 === "confirmed";
+    const label = cat ? cat.name : option === "skip" ? "Don\u2019t use" : "Not a cat";
+    return b2`
+      <button
+        type="button"
+        class="choice choice-${state2}"
+        aria-pressed=${state2 === "confirmed"}
+        style=${cat ? `--chip-color:${this._catColor(cat.name)}` : ""}
+        ?disabled=${rowBusy}
+        @click=${() => this._choose(option, sample)}
+      >
+        <span class="choice-glyph">
+          ${option === "skip" ? mdiIcon("eyeOff") : cat ? b2`<kibble-avatar .hass=${this.hass} .name=${cat.name} .colorIndex=${cat.color} .asset=${cat.avatar} .cache=${this.cache}></kibble-avatar>` : b2`<kibble-avatar .name=${null}></kibble-avatar>`}
+          ${pending ? b2`<span class="choice-spinner">${mdiIcon("refresh")}</span>` : state2 === "confirmed" ? b2`<span class="choice-check ${justSaved ? "just-saved" : ""}">${mdiIcon("check")}</span>` : A}
+        </span>
+        <span class="choice-label">${label}</span>
+      </button>
+    `;
+  }
+  _choose(option, sample) {
+    const follows = this.event?.identity === "reviewed" && this.event.cat === option;
+    this._pendingOption = option;
+    this.dispatchEvent(
+      new CustomEvent("sample-label-requested", { detail: { sampleUid: sample.uid, label: follows ? "follow" : option }, bubbles: true, composed: true })
+    );
+  }
+  static {
+    this.styles = i`
+    :host {
+      display: contents;
+    }
+    .scrim {
+      position: fixed;
+      inset: 0;
+      z-index: 1100;
+      background: rgba(0, 0, 0, 0.92);
+      display: flex;
+      align-items: stretch;
+      justify-content: center;
+      box-sizing: border-box;
+    }
+    @media (min-width: 600px) {
+      .scrim {
+        align-items: center;
+        padding: 24px;
+      }
+    }
+    .panel {
+      position: relative;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      box-sizing: border-box;
+      background: #000;
+      overflow: hidden;
+    }
+    @media (min-width: 600px) {
+      .panel {
+        width: min(720px, 92vw);
+        max-height: min(760px, 92vh);
+        border-radius: 16px;
+      }
+    }
+    .panel-top {
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: max(12px, env(safe-area-inset-top)) 12px 8px;
+    }
+    .counter {
+      font-size: 13px;
+      font-variant-numeric: tabular-nums;
+      color: rgba(255, 255, 255, 0.75);
+    }
+    .close {
+      flex: none;
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      border: none;
+      background: rgba(255, 255, 255, 0.16);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+    .stage {
+      position: relative;
+      flex: 1 1 auto;
+      min-height: 0;
+      min-width: 0;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 12px;
+    }
+    .stage kibble-image {
+      width: 100%;
+      height: 100%;
+    }
+    .image-frame {
+      position: relative;
+      flex: 0 1 auto;
+      width: min(100%, 62vh);
+      max-height: 100%;
+      aspect-ratio: 1;
+    }
+    .image-frame kibble-image {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+    .box-toggle {
+      all: unset;
+      box-sizing: border-box;
+      position: absolute;
+      z-index: 8;
+      top: 8px;
+      right: 20px;
+      width: 48px;
+      height: 48px;
+      display: grid;
+      place-items: center;
+      border: 1px solid rgba(255, 255, 255, 0.32);
+      border-radius: 50%;
+      background: rgba(0, 0, 0, 0.62);
+      color: #fff;
+      font: inherit;
+      cursor: pointer;
+      backdrop-filter: blur(8px);
+    }
+    .box-toggle svg {
+      width: 22px;
+      height: 22px;
+    }
+    .face-inset {
+      position: absolute;
+      left: 16px;
+      bottom: 16px;
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      overflow: hidden;
+      border: 2px solid rgba(255, 255, 255, 0.85);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+    }
+    .face-inset kibble-image {
+      width: 100%;
+      height: 100%;
+    }
+    .nav {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      border: none;
+      background: rgba(0, 0, 0, 0.45);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 20px;
+    }
+    .nav:disabled {
+      opacity: 0.25;
+      cursor: default;
+    }
+    .nav.prev {
+      left: 12px;
+    }
+    .nav.next {
+      right: 12px;
+    }
+    .chevron-left {
+      display: inline-flex;
+      transform: rotate(90deg);
+    }
+    .chevron-right {
+      display: inline-flex;
+      transform: rotate(-90deg);
+    }
+    /* The chip row is its own solid HA-theme surface, deliberately distinct from the black
+     * photo-viewing chrome above it (image on top, flexing; chips beneath, never overlapping)
+     * -- the theme tokens are what keep the labels legible in both light and dark, exactly like
+     * every other chip in this card set, rather than a fixed light-on-dark scheme that only
+     * worked against a black backdrop. */
+    .chip-row {
+      flex-shrink: 0;
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+      padding: 10px 12px max(10px, env(safe-area-inset-bottom));
+      background: var(--ha-card-background, var(--card-background-color, #fff));
+    }
+    .choice {
+      flex: 1 1 0;
+      min-width: 60px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      padding: 6px 2px;
+      border: 2px solid transparent;
+      border-radius: 12px;
+      background: color-mix(in srgb, var(--primary-text-color) 5%, transparent);
+      color: var(--primary-text-color);
+      font: inherit;
+      font-size: 11px;
+      cursor: pointer;
+      min-height: 44px;
+    }
+    .choice:disabled {
+      cursor: default;
+      opacity: 0.6;
+    }
+    .choice-suggested {
+      border-style: dashed;
+      border-color: var(--chip-color, var(--secondary-text-color));
+      background: none;
+    }
+    .choice-confirmed {
+      border-color: var(--chip-color, var(--secondary-text-color));
+      background: color-mix(in srgb, var(--chip-color, var(--secondary-text-color)) 18%, transparent);
+    }
+    .choice-glyph {
+      position: relative;
+      width: 30px;
+      height: 30px;
+    }
+    .choice-glyph kibble-avatar {
+      --kibble-avatar-size: 30px;
+    }
+    .choice-glyph > svg {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      background: color-mix(in srgb, var(--primary-text-color) 10%, transparent);
+      color: var(--secondary-text-color);
+      padding: 6px;
+      box-sizing: border-box;
+    }
+    .choice-check,
+    .choice-spinner {
+      position: absolute;
+      right: -2px;
+      bottom: -2px;
+      width: 15px;
+      height: 15px;
+      border-radius: 50%;
+      background: var(--kibble-feed, #43a96a);
+      color: var(--kibble-ink-on-feed, #10301d);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      box-shadow: 0 0 0 2px var(--ha-card-background, var(--card-background-color, #fff));
+    }
+    .choice-spinner {
+      background: color-mix(in srgb, var(--primary-text-color) 60%, transparent);
+      color: #fff;
+    }
+    @media (prefers-reduced-motion: no-preference) {
+      .choice-spinner svg {
+        animation: kibble-viewer-spin 0.9s linear infinite;
+      }
+      .choice-check.just-saved {
+        animation: kibble-viewer-pop 400ms ease;
+      }
+    }
+    @keyframes kibble-viewer-spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+    @keyframes kibble-viewer-pop {
+      0% {
+        transform: scale(0.4);
+      }
+      60% {
+        transform: scale(1.25);
+      }
+      100% {
+        transform: scale(1);
+      }
+    }
+    .choice-label {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 100%;
+    }
+    .viewer-error {
+      flex-shrink: 0;
+      margin: 0;
+      padding: 8px 10px;
+      border-radius: 8px;
+      background: rgba(219, 68, 55, 0.25);
+      color: #ffb4ac;
+      font-size: 13px;
+    }
+    .box-toggle:focus-visible,
+    .close:focus-visible,
+    .nav:focus-visible {
+      outline: 2px solid #fff;
+      outline-offset: 2px;
+    }
+    .choice:focus-visible {
+      outline: 2px solid var(--primary-color, #03a9f4);
+      outline-offset: 2px;
+    }
+  `;
+  }
+};
+customElements.define("kibble-photo-viewer", KibblePhotoViewer);
+var FOCUSABLE_SELECTOR2 = [
+  "button:not([disabled])",
+  "[href]",
+  "input:not([disabled])",
+  "select:not([disabled])",
+  "textarea:not([disabled])",
+  '[tabindex]:not([tabindex="-1"])'
+].join(",");
+var CLIP_SIGN_EXPIRES_S = 3600;
+var MEDIA_ASPECT = 1.6;
+var PHOTOS_VISIBLE_CAP = 12;
+var PHOTO_SKELETON_COUNT = 6;
+var LABEL_SAVED_PULSE_MS = 700;
+var BOXES_STORAGE_KEY = "kibble:show-boxes";
+var BOXES_CHANGE_EVENT = "kibble-boxes-visibility-changed";
+function readBoxesVisible() {
+  try {
+    return localStorage.getItem(BOXES_STORAGE_KEY) !== "false";
+  } catch {
+    return true;
+  }
+}
+var KibbleLabelSheet = class extends i4 {
+  constructor() {
+    super();
+    this._pendingLabel = null;
+    this._justSavedLabel = null;
+    this._draft = null;
+    this._photosExpanded = false;
+    this._viewerIndex = null;
+    this._zoom = null;
+    this._lastEventUid = null;
+    this._beforeRef = new AssetRef();
+    this._afterRef = new AssetRef();
+    this._sceneRef = new AssetRef();
+    this._closeButtonRef = e5();
+    this._videoRef = e5();
+    this._clipSrc = null;
+    this._clipError = false;
+    this._clipEventUid = null;
+    this._keydownHandler = (event) => {
+      if (!this.open) return;
+      if (event.key === "Escape" && event.composedPath().some((target) => target instanceof Element && target.matches(".picker"))) return;
+      if (this._viewerIndex !== null) return;
+      if (event.key === "Escape") {
+        event.preventDefault();
+        if (this._zoom) this._zoom = null;
+        else this._close();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const focusable = [...this.renderRoot.querySelectorAll(FOCUSABLE_SELECTOR2)];
+      if (focusable.length === 0) {
+        event.preventDefault();
+        this._closeButtonRef.value?.focus();
+        return;
+      }
+      const active = this.renderRoot.querySelector(":focus");
+      const currentIndex = active ? focusable.indexOf(active) : -1;
+      const nextIndex = event.shiftKey ? currentIndex - 1 : currentIndex + 1;
+      if (currentIndex === -1 || nextIndex < 0 || nextIndex >= focusable.length) {
+        event.preventDefault();
+        (event.shiftKey ? focusable[focusable.length - 1] : focusable[0])?.focus();
+      }
+    };
+    this._onSharedBoxesChange = (event) => {
+      const visible = event.detail?.visible;
+      if (typeof visible === "boolean") this._showBoxes = visible;
+    };
+    this._onStorage = (event) => {
+      if (event.key === BOXES_STORAGE_KEY) this._showBoxes = event.newValue !== "false";
+    };
+    this._toggleBoxes = () => this._setBoxesVisible(!this._showBoxes);
+    this._onSubjectLabelSelected = (request) => {
+      const event = this.summary;
+      if (!event) return;
+      const draft = this._draft ?? draftFrom(this._sessionCatsFor(event), event.identity);
+      this._draft = nameDraftSubject(draft, request.detail.sid, request.detail.label, event.kind === "eat");
+    };
+    this._onBoxesVisibilityRequested = (request) => {
+      const visible = request.detail?.visible;
+      if (typeof visible === "boolean") this._setBoxesVisible(visible);
+    };
+    this._onViewerClose = () => {
+      this._viewerIndex = null;
+    };
+    this._retrySamples = () => {
+      this.dispatchEvent(new CustomEvent("samples-retry-requested", { bubbles: true, composed: true }));
+    };
+    this._close = () => {
+      this.dispatchEvent(new CustomEvent("close-requested", { bubbles: true, composed: true }));
+    };
+    this.open = false;
+    this.cats = [];
+    this.summary = null;
+    this.samples = null;
+    this.samplesFailed = false;
+    this.group = [];
+    this.groupTogether = false;
+    this.busy = false;
+    this.error = null;
+    this.sampleBusyUid = null;
+    this.sceneSubjects = [];
+    this.sessionCats = null;
+    this.multipleCats = false;
+    this._showBoxes = readBoxesVisible();
+  }
+  static {
+    this.properties = {
+      open: { type: Boolean, reflect: true },
+      hass: { attribute: false },
+      entryId: { type: String },
+      cache: { attribute: false },
+      cats: { attribute: false },
+      summary: { attribute: false },
+      samples: { attribute: false },
+      sceneSubjects: { attribute: false },
+      sessionCats: { attribute: false },
+      multipleCats: { type: Boolean },
+      samplesFailed: { type: Boolean },
+      group: { attribute: false },
+      groupTogether: { type: Boolean },
+      busy: { type: Boolean },
+      error: { type: String },
+      sampleBusyUid: { attribute: false },
+      _pendingLabel: { state: true },
+      _justSavedLabel: { state: true },
+      _photosExpanded: { state: true },
+      _viewerIndex: { state: true },
+      _zoom: { state: true },
+      _clipSrc: { state: true },
+      _clipError: { state: true },
+      _showBoxes: { state: true },
+      _draft: { state: true }
+    };
+  }
+  connectedCallback() {
+    super.connectedCallback();
+    window.addEventListener("keydown", this._keydownHandler);
+    window.addEventListener(BOXES_CHANGE_EVENT, this._onSharedBoxesChange);
+    window.addEventListener("storage", this._onStorage);
+  }
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    window.removeEventListener("keydown", this._keydownHandler);
+    window.removeEventListener(BOXES_CHANGE_EVENT, this._onSharedBoxesChange);
+    window.removeEventListener("storage", this._onStorage);
+    this._beforeRef.dispose();
+    this._afterRef.dispose();
+    this._sceneRef.dispose();
+    this._stopClipPlayback();
+    clearTimeout(this._justSavedLabelTimer);
+  }
+  _setBoxesVisible(visible) {
+    this._showBoxes = visible;
+    try {
+      localStorage.setItem(BOXES_STORAGE_KEY, String(visible));
+    } catch {
+    }
+    window.dispatchEvent(new CustomEvent(BOXES_CHANGE_EVENT, { detail: { visible } }));
+  }
+  willUpdate(changed) {
+    if (changed.has("open") && this.open) this._closeButtonRef.value?.focus();
+    const event = this.summary;
+    this._beforeRef.sync(this.hass, this.cache, event?.before, () => this.requestUpdate());
+    this._afterRef.sync(this.hass, this.cache, event?.after, () => this.requestUpdate());
+    this._sceneRef.sync(this.hass, this.cache, event?.scene ?? null, () => this.requestUpdate());
+    const eventUid = event?.uid ?? null;
+    if (eventUid !== this._lastEventUid) {
+      this._lastEventUid = eventUid;
+      this._photosExpanded = false;
+      this._viewerIndex = null;
+      this._zoom = null;
+      this._pendingLabel = null;
+      this._draft = null;
+    }
+    if (changed.has("sessionCats")) {
+      this._draft = null;
+    }
+    if (changed.has("open") && !this.open || eventUid !== this._clipEventUid) {
+      this._clipEventUid = eventUid;
+      this._releaseClip();
+    }
+    if (changed.has("busy")) {
+      const wasBusy = changed.get("busy");
+      if (wasBusy && !this.busy) {
+        if (!this.error && this._pendingLabel) this._flashSavedLabel(this._pendingLabel);
+        this._pendingLabel = null;
+      }
+    }
+  }
+  _flashSavedLabel(label) {
+    clearTimeout(this._justSavedLabelTimer);
+    this._justSavedLabel = label;
+    this._justSavedLabelTimer = setTimeout(() => {
+      this._justSavedLabel = null;
+    }, LABEL_SAVED_PULSE_MS);
+  }
+  render() {
+    const event = this.summary;
+    if (!this.open || !event) return A;
+    const sessionCats = this._sessionCatsFor(event);
+    const draft = this._draft ?? draftFrom(sessionCats, event.identity);
+    const isFeed = event.kind === "feed";
+    const locale = this.hass?.locale?.language ?? this.hass?.language;
+    const ariaTitle = isFeed ? feedTitle(event) : this._draftTitle(event, draft);
+    const stageKind = this._stageKind(event);
+    return b2`
+      <div class="backdrop" @click=${this._close}>
+        <div class="sheet" role="dialog" aria-modal="true" aria-label=${ariaTitle} @click=${(e6) => e6.stopPropagation()}>
+          ${this._renderHeader(event, isFeed, locale, draft)}
+          <div class="scroll">
+            <div class="layout ${stageKind === "none" ? "no-media" : ""}">
+              ${stageKind !== "none" ? b2`
+                    <div class="media-col">
+                      ${stageKind === "media" ? this._renderMediaStage(event) : this._renderCompare()}
+                      ${stageKind === "media" && event.before && event.after ? this._renderCompare() : A}
+                    </div>
+                  ` : A}
+              <div class="info-col">${!isFeed ? b2`${this._renderIdentity(event, sessionCats, draft)}${this._renderPhotos(event, sessionCats)}` : A}</div>
+            </div>
+          </div>
+          ${!isFeed ? this._renderFooter(event, sessionCats, draft) : b2`<footer><button type="button" class="primary-btn" @click=${this._close}>Done</button></footer>`}
+        </div>
+        ${this._zoom ? this._renderZoom() : A}
+      </div>
+      <kibble-photo-viewer
+        ?open=${this._viewerIndex !== null}
+        .hass=${this.hass}
+        .cache=${this.cache}
+        .cats=${this.cats}
+        .samples=${this.samples ?? []}
+        .showBoxes=${this._showBoxes}
+        @boxes-visibility-requested=${this._onBoxesVisibilityRequested}
+        .initialIndex=${this._viewerIndex ?? 0}
+        .event=${event}
+        .busyUid=${this.sampleBusyUid}
+        .error=${this.error}
+        @viewer-close-requested=${this._onViewerClose}
+      ></kibble-photo-viewer>
+    `;
+  }
+  _catColor(name) {
+    const cat = this.cats.find((c5) => c5.name === name);
+    return cat ? catColorAt(cat.color) : fallbackCatColor(name);
+  }
+  _sceneOverlayBoxes() {
+    const drafted = this._draft?.subjects ?? {};
+    return this.sceneSubjects.map((subject, index) => {
+      const labelNow = subject.sid !== null && drafted[subject.sid] !== void 0 ? drafted[subject.sid] : subject.label;
+      const name = labelNow && labelNow !== "not_a_cat" ? labelNow : null;
+      const cat = name ? this.cats.find((candidate) => candidate.name === name) : null;
+      const tone = name ? "cat" : labelNow === "not_a_cat" ? "not-cat" : "unknown";
+      return {
+        key: "scene:" + index,
+        box: subject.box,
+        tone,
+        label: name ?? (tone === "not-cat" ? "Not a cat" : "Who?"),
+        color: name ? this._catColor(name) : void 0,
+        avatar: cat?.avatar ?? null,
+        selectable: subject.sid !== null,
+        subjectSid: subject.sid,
+        subjectLabel: labelNow
+      };
+    });
+  }
+  _renderBoxesToggle() {
+    return b2`<button type="button" class="box-toggle" aria-pressed=${this._showBoxes} aria-label=${this._showBoxes ? "Hide boxes" : "Show boxes"} @click=${(event) => {
+      event.stopPropagation();
+      this._toggleBoxes();
+    }}>${mdiIcon(this._showBoxes ? "eye" : "eyeOff")}</button>`;
+  }
+  _photoOverlayBoxes(sample) {
+    if (!sample.body || !sample.box || !sample.crop) return [];
+    const ownBox = boxInCrop(sample.box, sample.crop);
+    if (!ownBox) return [];
+    const name = sample.label ?? sample.guess;
+    const tone = name === "not_a_cat" ? "not-cat" : name && name !== "skip" ? "cat" : "unknown";
+    const cat = tone === "cat" ? this.cats.find((candidate) => candidate.name === name) : null;
+    return [
+      { key: "sample:" + sample.uid, box: ownBox, tone, color: name && name !== "not_a_cat" && name !== "skip" ? this._catColor(name) : void 0, avatar: cat?.avatar ?? null },
+      ...sample.peers.flatMap((peer, index) => {
+        const box = boxInCrop(peer, sample.crop);
+        return box ? [{ key: "peer:" + sample.uid + ":" + index, box, tone: "peer" }] : [];
+      })
+    ];
+  }
+  // ---- Header + pager ----
+  _draftTitle(event, draft) {
+    return sessionTitle(draft.cats, { identity: draft.notACat ? "not_a_cat" : "auto", open: event.open });
+  }
+  _renderHeader(event, isFeed, locale, draft) {
+    const duration = eventDuration(event);
+    const liveCat = draft.cats.find((cat) => cat.ate)?.cat ?? draft.cats[0]?.cat ?? event.cat;
+    const color = liveCat ? this._catColor(liveCat) : null;
+    const title = isFeed ? feedTitle(event) : this._draftTitle(event, draft);
+    const index = this.group.findIndex((member) => member.uid === event.uid);
+    return b2`
+      <header>
+        ${this.group.length > 1 && !this.groupTogether ? this._renderPager(index) : A}
+        <div class="heading">
+          <span class="title">${title}</span>
+          <span class="meta">
+            ${timeLabel(event.start, locale)}${duration ? b2` \u00b7 ${duration}` : A}
+            ${event.open ? this._renderLiveBadge(color) : A}
+          </span>
+        </div>
+        <button type="button" class="close" ${n5(this._closeButtonRef)} @click=${this._close} aria-label="Close">${mdiIcon("close")}</button>
+      </header>
+    `;
+  }
+  _renderLiveBadge(color) {
+    return b2`
+      <span class="live-badge" style="--dot-color:${color ?? "var(--kibble-live, #e5484d)"}" aria-label="Happening now">
+        <span class="live-core"></span>
+        <span class="live-pulse"></span>
+      </span>
+    `;
+  }
+  _renderPager(index) {
+    const total = this.group.length;
+    return b2`
+      <div class="pager">
+        <button type="button" class="pager-btn" aria-label="Previous event" ?disabled=${index <= 0} @click=${() => this._goToGroupIndex(index - 1)}>
+          <span class="chevron chevron-left">${mdiIcon("chevronDown")}</span>
+        </button>
+        <span class="pager-count">${index + 1} of ${total}</span>
+        <button
+          type="button"
+          class="pager-btn"
+          aria-label="Next event"
+          ?disabled=${index === -1 || index >= total - 1}
+          @click=${() => this._goToGroupIndex(index + 1)}
+        >
+          <span class="chevron chevron-right">${mdiIcon("chevronDown")}</span>
+        </button>
+      </div>
+    `;
+  }
+  _goToGroupIndex(index) {
+    const target = this.group[index];
+    if (!target) return;
+    this.dispatchEvent(new CustomEvent("event-requested", { detail: { uid: target.uid }, bubbles: true, composed: true }));
+  }
+  // ---- Media stage ----
+  /** A clip needs its poster (the scene photo) to be playable in this UI at all -- the two are
+   * always captured together in practice; this just keeps that assumption in one place. */
+  _hasClip(event) {
+    return event.kind === "eat" && Boolean(event.clip) && Boolean(event.scene) && !this._clipError;
+  }
+  _stageKind(event) {
+    if (event.scene || this._hasClip(event)) return "media";
+    if (event.before && event.after) return "compare";
+    return "none";
+  }
+  _renderMediaStage(event) {
+    if (this._clipSrc) {
+      return b2`
+        <div class="stage">
+          <video
+            ${n5(this._videoRef)}
+            class="stage-video"
+            controls
+            playsinline
+            autoplay
+            preload="metadata"
+            poster=${this._sceneRef.url ?? ""}
+            src=${this._clipSrc}
+            @loadedmetadata=${() => this._seekClip(event)}
+            @error=${() => this._onClipError()}
+          ></video>
+        </div>
+      `;
+    }
+    const asset = event.scene;
+    const hasClip = this._hasClip(event);
+    return b2`
+      <div class="stage">
+        ${asset ? b2`
+              <button type="button" class="stage-zoom" aria-label="View photo full screen" @click=${() => {
+      this._zoom = asset;
+    }}>
+                <kibble-image .hass=${this.hass} .asset=${asset} .cache=${this.cache} alt="" fit="contain"></kibble-image>
+              </button>
+              ${hasClip ? b2`
+                    <button type="button" class="clip-play" aria-label="Play video" @click=${(e6) => {
+      e6.stopPropagation();
+      void this._playClip(event);
+    }}>
+                      ${mdiIcon("play")}
+                    </button>
+                  ` : A}
+            ` : A}
+        ${this._showBoxes && this.sceneSubjects.length ? b2`<kibble-box-overlay .boxes=${this._sceneOverlayBoxes()} .hass=${this.hass} .cache=${this.cache} .cats=${this.cats} .busy=${this.busy} @subject-label-requested=${this._onSubjectLabelSelected}></kibble-box-overlay>` : A}
+        ${this.sceneSubjects.length ? this._renderBoxesToggle() : A}
+      </div>
+    `;
+  }
+  /** Signs `/api/kibble/<entry>/clip/<uid>` via HA's own `auth/sign_path` (the same mechanism
+   * every other `requires_auth` view relies on) and swaps the poster/photo for a `<video>` at
+   * that URL -- `docs/39-eating-clips.md`: the browser then streams and seeks it directly, no
+   * headers required. Bails quietly (leaves the photo showing) if signing fails, or if the
+   * sheet moved on to a different event while the WS round trip was still in flight. */
+  async _playClip(event) {
+    const hass = this.hass;
+    const entryId = this.entryId;
+    if (!hass?.callWS || !entryId || !event.clip) return;
+    const path = `/api/kibble/${entryId}/clip/${event.uid}`;
+    try {
+      const result = await hass.callWS({ type: "auth/sign_path", path, expires: CLIP_SIGN_EXPIRES_S });
+      if (this.summary?.uid !== event.uid) return;
+      this._clipError = false;
+      this._clipSrc = result.path;
+    } catch {
+      this._clipError = true;
+    }
+  }
+  /** Seeks a just-loaded `<video>` to this session's own offset into the shared clip
+   * (`lib/clip-offset.ts`) -- fired on `loadedmetadata`, once the browser actually knows the
+   * clip's duration/seekable range. */
+  _seekClip(event) {
+    const video = this._videoRef.value;
+    if (!video || !event.clip) return;
+    video.currentTime = clipSeekOffsetSeconds(event.start, event.clip.start_ms);
+  }
+  /** The `<video>` errored (a 404: the clip aged out of Scrypted's own quota after it was
+   * linked) -- reverts quietly to the photo and hides the play button. */
+  _onClipError() {
+    this._stopClipPlayback();
+    this._clipError = true;
+  }
+  /** Releases the `<video>` element's connection (pause, drop `src`, `load()`) without
+   * touching `_clipError` -- the shared mechanic both a quiet revert-on-error and a full
+   * close/event-change reset (`_releaseClip`) build on. */
+  _stopClipPlayback() {
+    const video = this._videoRef.value;
+    if (video) {
+      video.pause();
+      video.removeAttribute("src");
+      video.load();
+    }
+    this._clipSrc = null;
+  }
+  /** Full reset back to the photo/poster state, error flag included -- sheet close or a switch
+   * to a different event (`willUpdate`), so a later re-open always starts fresh. */
+  _releaseClip() {
+    this._stopClipPlayback();
+    this._clipError = false;
+  }
+  _renderCompare() {
+    return b2`<kibble-before-after class="compare" .beforeSrc=${this._beforeRef.url} .afterSrc=${this._afterRef.url} .aspect=${MEDIA_ASPECT}></kibble-before-after>`;
+  }
+  _renderZoom() {
+    const event = this.summary;
+    return b2`
+      <div class="zoom" @click=${(e6) => {
+      e6.stopPropagation();
+      this._zoom = null;
+    }}>
+        <div class="zoom-scene" @click=${(e6) => e6.stopPropagation()}>
+          <kibble-image .hass=${this.hass} .asset=${this._zoom} .cache=${this.cache} alt="" fit="contain"></kibble-image>
+          ${event && this._showBoxes && this.sceneSubjects.length ? b2`<kibble-box-overlay .boxes=${this._sceneOverlayBoxes()} .hass=${this.hass} .cache=${this.cache} .cats=${this.cats} .busy=${this.busy} @subject-label-requested=${this._onSubjectLabelSelected}></kibble-box-overlay>` : A}
+        </div>
+        ${this.sceneSubjects.length ? this._renderBoxesToggle() : A}
+        <button type="button" class="zoom-close" aria-label="Close photo" @click=${(e6) => {
+      e6.stopPropagation();
+      this._zoom = null;
+    }}>${mdiIcon("close")}</button>
+      </div>
+    `;
+  }
+  // ---- Identity ----
+  _sessionCatsFor(event) {
+    if (this.sessionCats) return this.sessionCats;
+    if (!event.cat) return [];
+    return [{ cat: event.cat, ate: event.kind === "eat", confirmed: event.identity === "reviewed", confidence: event.confidence ?? null, photos: event.sample_count ?? 0 }];
+  }
+  _requestSessionLabel(request, pendingLabel, closeOnSuccess = false) {
+    this._pendingLabel = pendingLabel;
+    this.dispatchEvent(new CustomEvent("session-label-requested", {
+      detail: { ...request, pendingLabel, closeOnSuccess },
+      bubbles: true,
+      composed: true
+    }));
+  }
+  _setDraft(event, update) {
+    if (this.busy) return;
+    this._draft = update(this._draft ?? draftFrom(this._sessionCatsFor(event), event.identity));
+  }
+  _renderIdentity(event, saved, draft) {
+    const isMeal = event.kind === "eat";
+    return b2`
+      <div class="identity">
+        <div class="identity-heading">
+          <span class="identity-title">Who was here?</span>
+          <span class="identity-hint ${this.multipleCats && draft.cats.length < 2 && !draft.notACat ? "identity-hint-multiple" : ""}">${this.multipleCats && draft.cats.length < 2 && !draft.notACat ? "Looks like more than one cat. Tap everyone who was here" : "Tap everyone who was here"}</span>
+        </div>
+        <div class="chip-grid" role="group" aria-label="Who was here?">
+          ${this.cats.map((cat) => this._renderIdentityChip(cat, event, saved, draft))}
+          ${this._renderNotACatChip(event, draft)}
+        </div>
+        ${isMeal && draft.cats.length >= 2 ? b2`<div class="meal-roles" role="group" aria-label="Who ate?">${draft.cats.map((cat) => b2`
+          <div class="meal-role"><span class="meal-cat">${cat.cat}</span><div class="meal-role-options" role="group" aria-label=${cat.cat}>
+            <button type="button" aria-pressed=${cat.ate} ?disabled=${this.busy} @click=${() => this._setDraft(event, (d3) => setDraftAte(d3, cat.cat, true))}>Ate</button>
+            <button type="button" aria-pressed=${!cat.ate} ?disabled=${this.busy} @click=${() => this._setDraft(event, (d3) => setDraftAte(d3, cat.cat, false))}>Came by</button>
+          </div></div>`)}</div>` : A}
+        <button type="button" class="not-sure" aria-pressed=${event.identity === "unknown"} ?disabled=${this.busy || event.identity === "unknown"} @click=${() => this._requestSessionLabel({ uid: event.uid, verdict: "unknown" }, "unknown", true)}>Not sure</button>
+        ${this.error ? b2`<p class="identity-error">${this.error}</p>` : A}
+      </div>
+    `;
+  }
+  _renderIdentityChip(cat, event, saved, draft) {
+    const state2 = draftChipState(draft, saved, cat.name);
+    const ticked = state2 !== "neutral";
+    return b2`
+      <button type="button" class="chip chip-${state2}" aria-pressed=${ticked} style=${`--chip-color:${this._catColor(cat.name)}`} ?disabled=${this.busy} @click=${() => this._setDraft(event, (d3) => toggleDraftCat(d3, cat.name, event.kind === "eat"))}>
+        <span class="chip-avatar">
+          <kibble-avatar .hass=${this.hass} .name=${cat.name} .colorIndex=${cat.color} .asset=${cat.avatar} .cache=${this.cache}></kibble-avatar>
+          ${ticked ? b2`<span class="chip-check">${mdiIcon("check")}</span>` : A}
+        </span>
+        <span class="chip-label">${cat.name}</span>
+      </button>`;
+  }
+  _renderNotACatChip(event, draft) {
+    const state2 = draft.notACat ? "confirmed" : "neutral";
+    return b2`
+      <button type="button" class="chip chip-${state2}" aria-pressed=${draft.notACat} ?disabled=${this.busy} @click=${() => this._setDraft(event, toggleDraftNotACat)}>
+        <span class="chip-avatar">
+          <kibble-avatar .name=${null}></kibble-avatar>
+          ${draft.notACat ? b2`<span class="chip-check">${mdiIcon("check")}</span>` : A}
+        </span>
+        <span class="chip-label">Not a cat</span>
+      </button>`;
+  }
+  // ---- Photos ----
+  _renderPhotos(_event, cats) {
+    if (this.samplesFailed) return b2`<div class="photos"><div class="photos-heading">Photos</div><p class="photos-error"><span>Couldn't load photos.</span> <button type="button" @click=${this._retrySamples}>Retry</button></p></div>`;
+    if (this.samples === null) return b2`<div class="photos"><div class="photos-heading">Photos</div><div class="photos-grid">${Array.from({ length: PHOTO_SKELETON_COUNT }, () => b2`<div class="photo-skeleton"></div>`)}</div></div>`;
+    if (this.samples.length === 0) return A;
+    const sections = groupSessionPhotos(this.samples, cats);
+    if (sections.length === 0) return b2`<div class="photos"><div class="photos-heading"><span>Photos</span><span class="photos-count">${this.samples.length}</span></div>${this._renderPhotoGrid(this.samples)}</div>`;
+    return b2`<div class="photos">${sections.map((section) => b2`
+      <section class="photo-section" aria-label=${section.cat + " photos"}>
+        <div class="photos-heading"><span><span class="photo-section-dot" style=${"--section-color:" + (this._catColor(section.cat) ?? "var(--secondary-text-color)")}></span>${section.cat}</span><span class="photos-count">${section.samples.length}</span></div>
+        ${this._renderPhotoGrid(section.samples)}
+      </section>`)}</div>`;
+  }
+  _renderPhotoGrid(photos) {
+    const expanded = this._photosExpanded || photos.length <= PHOTOS_VISIBLE_CAP;
+    const visible = expanded ? photos : photos.slice(0, PHOTOS_VISIBLE_CAP);
+    const remaining = photos.length - PHOTOS_VISIBLE_CAP;
+    return b2`<div class="photos-grid">
+      ${visible.map((sample) => this._renderPhotoTile(sample, this.samples.findIndex((item) => item.uid === sample.uid)))}
+      ${!expanded ? b2`<button type="button" class="photo-tile photo-more" @click=${() => {
+      this._photosExpanded = true;
+    }}>+${remaining}</button>` : A}
+    </div>`;
+  }
+  _sampleBadge(sample) {
+    if (sample.review === null) return null;
+    if (sample.review === "skip") return { kind: "skip" };
+    if (sample.review === "not_a_cat") return { kind: "not_a_cat" };
+    if (sample.review !== sample.cat) return { kind: "cat", name: sample.review, cat: this.cats.find((cat) => cat.name === sample.review) ?? null };
+    return null;
+  }
+  _renderPhotoTile(sample, index) {
+    const asset = sample.body ?? sample.face;
+    const badge = this._sampleBadge(sample);
+    const dimmed = badge !== null && badge.kind !== "cat";
+    return b2`
+      <button type="button" class="photo-tile ${dimmed ? "dim" : ""}" aria-label=${`Photo ${index + 1} of ${this.samples.length}`} @click=${() => {
+      this._viewerIndex = index;
+    }}>
+        ${asset ? b2`<kibble-image .hass=${this.hass} .asset=${asset} .cache=${this.cache} alt=""></kibble-image>` : b2`<span class="photo-neutral">${catSilhouette()}</span>`}
+        ${badge ? this._renderPhotoBadge(badge) : A}
+        ${this._showBoxes && sample.body && sample.box && sample.crop ? b2`<kibble-box-overlay .boxes=${this._photoOverlayBoxes(sample)} .hass=${this.hass} .cache=${this.cache}></kibble-box-overlay>` : A}
+      </button>`;
+  }
+  _renderPhotoBadge(badge) {
+    if (badge.kind === "cat") return b2`<span class="photo-badge photo-badge-avatar"><kibble-avatar .hass=${this.hass} .name=${badge.name} .colorIndex=${badge.cat?.color ?? null} .asset=${badge.cat?.avatar ?? null} .cache=${this.cache}></kibble-avatar></span>`;
+    return b2`<span class="photo-badge photo-badge-icon">${mdiIcon(badge.kind === "skip" ? "eyeOff" : "close")}</span>`;
+  }
+  // ---- Footer ----
+  _renderFooter(event, saved, draft) {
+    const action = confirmAction(draft, saved, event.identity);
+    const onClick = action.kind === "save" ? () => this._requestSessionLabel({ uid: event.uid, ...action.request }, "confirm", true) : this._close;
+    return b2`<footer><button type="button" class="primary-btn" ?disabled=${this.busy || action.kind === "blocked"} @click=${onClick}>${this.busy && action.kind === "save" ? "Saving" : action.text}</button></footer>`;
   }
   static {
     this.styles = i`
@@ -11621,78 +16953,713 @@ var KibbleLightbox = class extends i4 {
     .backdrop {
       position: fixed;
       inset: 0;
-      background: rgba(0, 0, 0, 0.72);
+      background: rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      z-index: 1000;
+      box-sizing: border-box;
+    }
+    @media (min-width: 600px) {
+      .backdrop {
+        align-items: center;
+        padding: 24px;
+      }
+    }
+    .sheet {
+      width: 100%;
+      max-width: 600px;
+      max-height: 92vh;
+      max-height: 94dvh;
+      overflow: hidden;
+      background: var(--ha-card-background, var(--card-background-color, #fff));
+      border-radius: 16px 16px 0 0;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }
+    @media (min-width: 600px) {
+      .sheet {
+        border-radius: 16px;
+      }
+    }
+    @media (min-width: 900px) {
+      .sheet {
+        max-width: 1040px;
+      }
+    }
+    header {
+      position: relative;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding: 16px 16px 0;
+    }
+    header .close {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+    }
+    .heading {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+      padding-right: 52px;
+    }
+    .title {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--primary-text-color);
+      overflow-wrap: anywhere;
+    }
+    .cat-name {
+      font-weight: 700;
+    }
+    .meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: var(--secondary-text-color);
+      font-variant-numeric: tabular-nums;
+    }
+    .live-badge {
+      position: relative;
+      width: 12px;
+      height: 12px;
+      flex: none;
+    }
+    .live-core {
+      position: absolute;
+      inset: 2px;
+      border-radius: 50%;
+      background: var(--dot-color);
+    }
+    .live-pulse {
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      border: 1.5px solid var(--dot-color);
+      opacity: 0;
+    }
+    @media (prefers-reduced-motion: no-preference) {
+      .live-pulse {
+        animation: kibble-sheet-pulse-ring 1.8s ease-out infinite;
+      }
+    }
+    @keyframes kibble-sheet-pulse-ring {
+      0% {
+        transform: scale(0.7);
+        opacity: 0.7;
+      }
+      100% {
+        transform: scale(2);
+        opacity: 0;
+      }
+    }
+    .close {
+      flex: none;
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      border: none;
+      background: color-mix(in srgb, var(--primary-text-color) 8%, transparent);
+      color: var(--primary-text-color);
       display: flex;
       align-items: center;
       justify-content: center;
-      z-index: 1000;
-      padding: 32px;
-      box-sizing: border-box;
+      cursor: pointer;
     }
-    .frame {
-      position: relative;
-      max-width: min(90vw, 720px);
-      max-height: 90vh;
+    .pager {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      align-self: flex-start;
     }
-    .frame.compare {
-      width: min(90vw, 720px);
-    }
-    img {
-      display: block;
-      max-width: 100%;
-      max-height: 90vh;
-      border-radius: 8px;
-      object-fit: contain;
-    }
-    .close {
-      position: absolute;
-      top: -16px;
-      right: -16px;
-      width: 36px;
-      height: 36px;
+    .pager-btn {
+      flex: none;
+      width: 44px;
+      height: 44px;
       border-radius: 50%;
       border: none;
-      background: #fff;
-      color: #111;
+      background: color-mix(in srgb, var(--primary-text-color) 6%, transparent);
+      color: var(--primary-text-color);
       display: flex;
       align-items: center;
       justify-content: center;
       cursor: pointer;
       font-size: 18px;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
     }
-    .close:focus-visible {
+    .pager-btn:disabled {
+      opacity: 0.35;
+      cursor: default;
+    }
+    .chevron {
+      display: inline-flex;
+    }
+    .chevron-left {
+      transform: rotate(90deg);
+    }
+    .chevron-right {
+      transform: rotate(-90deg);
+    }
+    .pager-count {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--secondary-text-color);
+      font-variant-numeric: tabular-nums;
+    }
+    .close:focus-visible,
+    .pager-btn:focus-visible,
+    .chip:focus-visible,
+    .not-sure:focus-visible,
+    .photo-tile:focus-visible,
+    .primary-btn:focus-visible,
+    .stage-zoom:focus-visible,
+    .box-toggle:focus-visible,
+    .zoom-close:focus-visible,
+    .clip-play:focus-visible,
+    .photos-error button:focus-visible {
       outline: 2px solid var(--primary-color, #03a9f4);
       outline-offset: 2px;
     }
-    @media (prefers-reduced-motion: no-preference) {
-      .backdrop {
-        animation: kibble-lightbox-fade 120ms ease-out;
+    .scroll {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow-y: auto;
+      scrollbar-width: thin;
+      scrollbar-color: var(--divider-color) transparent;
+    }
+    .layout {
+      display: grid;
+      grid-template-columns: 1fr;
+      grid-template-areas: "media" "info";
+      gap: 16px;
+      padding: 14px 16px 16px;
+    }
+    .layout.no-media {
+      grid-template-areas: "info";
+    }
+    @media (min-width: 900px) {
+      .layout {
+        grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+        grid-template-areas: "media info";
+        align-items: start;
+      }
+      .layout.no-media {
+        grid-template-columns: 1fr;
+        grid-template-areas: "info";
+        max-width: 560px;
+        margin: 0 auto;
+        width: 100%;
       }
     }
-    @keyframes kibble-lightbox-fade {
-      from {
-        opacity: 0;
+    .media-col {
+      grid-area: media;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      min-width: 0;
+    }
+    .media-col > * {
+      flex-shrink: 0;
+    }
+    .info-col {
+      grid-area: info;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      min-width: 0;
+    }
+    .info-col > * {
+      flex-shrink: 0;
+    }
+    /* A plain flex sibling of .scroll, never position: sticky -- it sits at the true bottom
+     * of the sheet's own flex column, outside the scrolling region entirely, so it can never
+     * produce a sticky-positioning compositing seam against the rounded/scrolling content
+     * above it. Stays visible whether the sheet's content is short (its natural position) or
+     * tall enough that .scroll takes up the remaining space (still the last thing in flow). */
+    footer {
+      flex-shrink: 0;
+      padding: 10px 16px 16px;
+      background: var(--ha-card-background, var(--card-background-color, #fff));
+    }
+    .primary-btn {
+      width: 100%;
+      min-height: 48px;
+      border: none;
+      border-radius: 12px;
+      background: var(--kibble-feed, #43a96a);
+      color: var(--kibble-ink-on-feed, #10301d);
+      font: inherit;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .primary-btn:disabled {
+      opacity: 0.6;
+      cursor: default;
+    }
+    .stage {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 1.6;
+      border-radius: 12px;
+      overflow: hidden;
+      background: #000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .box-toggle {
+      all: unset;
+      box-sizing: border-box;
+      position: absolute;
+      z-index: 12;
+      top: 8px;
+      right: 8px;
+      width: 48px;
+      height: 48px;
+      display: grid;
+      place-items: center;
+      border: 1px solid rgba(255, 255, 255, 0.32);
+      border-radius: 50%;
+      background: rgba(0, 0, 0, 0.62);
+      color: #fff;
+      font: inherit;
+      cursor: pointer;
+      backdrop-filter: blur(8px);
+    }
+    .box-toggle svg {
+      width: 22px;
+      height: 22px;
+    }
+
+    .stage-zoom {
+      all: unset;
+      box-sizing: border-box;
+      position: relative;
+      display: block;
+      width: 100%;
+      height: 100%;
+      cursor: zoom-in;
+    }
+    .stage-zoom kibble-image {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+    .stage-video {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      background: #000;
+    }
+    .clip-play {
+      all: unset;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 64px;
+      height: 64px;
+      box-sizing: border-box;
+      border-radius: 999px;
+      display: grid;
+      place-items: center;
+      background: rgba(0, 0, 0, 0.55);
+      color: #fff;
+      font-size: 30px;
+      cursor: pointer;
+    }
+    @media (hover: hover) {
+      .clip-play:hover {
+        background: rgba(0, 0, 0, 0.7);
       }
+    }
+    .compare {
+      width: 100%;
+    }
+    .zoom {
+      all: unset;
+      position: fixed;
+      inset: 0;
+      z-index: 1050;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: max(12px, env(safe-area-inset-top)) 12px max(12px, env(safe-area-inset-bottom));
+      box-sizing: border-box;
+      background: rgba(0, 0, 0, 0.92);
+      cursor: zoom-out;
+    }
+    .zoom kibble-image {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+    .zoom {
+      cursor: zoom-out;
+    }
+    .zoom-scene {
+      position: relative;
+      width: min(calc(100vw - 24px), calc((100dvh - 24px) * 1.6));
+      aspect-ratio: 1.6;
+      cursor: default;
+    }
+    .zoom-close {
+      all: unset;
+      box-sizing: border-box;
+      position: absolute;
+      z-index: 12;
+      top: max(12px, env(safe-area-inset-top));
+      left: 12px;
+      width: 48px;
+      height: 48px;
+      display: grid;
+      place-items: center;
+      border: 1px solid rgba(255, 255, 255, 0.32);
+      border-radius: 50%;
+      background: rgba(0, 0, 0, 0.62);
+      color: #fff;
+      cursor: pointer;
+    }
+
+
+    .identity {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .identity-heading {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .identity-title {
+      font-size: var(--kibble-text-body, 14px);
+      font-weight: 600;
+      color: var(--primary-text-color);
+    }
+    .identity-hint {
+      font-size: var(--kibble-text-caption, 12px);
+      color: var(--secondary-text-color);
+    }
+    .identity-hint-multiple {
+      color: var(--warning-color, #f4a452);
+      font-weight: 500;
+    }
+    .chip-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .chip {
+      flex: 1 1 72px;
+      min-width: 72px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      padding: 8px 4px;
+      border: 2px solid transparent;
+      border-radius: 12px;
+      background: color-mix(in srgb, var(--primary-text-color) 5%, transparent);
+      color: var(--primary-text-color);
+      font: inherit;
+      font-size: 12px;
+      cursor: pointer;
+      min-height: 48px;
+    }
+    .chip:disabled {
+      opacity: 0.6;
+      cursor: default;
+    }
+    .chip-suggested {
+      border-style: dashed;
+      border-color: var(--chip-color, var(--secondary-text-color));
+      background: none;
+    }
+    .chip-confirmed {
+      border-color: var(--chip-color, var(--secondary-text-color));
+      background: color-mix(in srgb, var(--chip-color, var(--secondary-text-color)) 18%, transparent);
+    }
+    .chip-avatar {
+      position: relative;
+    }
+    .chip-avatar kibble-avatar {
+      --kibble-avatar-size: 34px;
+    }
+    .chip-check,
+    .chip-spinner {
+      position: absolute;
+      right: -2px;
+      bottom: -2px;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: var(--kibble-feed, #43a96a);
+      color: var(--kibble-ink-on-feed, #10301d);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      box-shadow: 0 0 0 2px var(--ha-card-background, var(--card-background-color, #fff));
+    }
+    .chip-spinner {
+      background: color-mix(in srgb, var(--primary-text-color) 60%, transparent);
+      color: #fff;
+    }
+    @media (prefers-reduced-motion: no-preference) {
+      .chip-spinner svg {
+        animation: kibble-sheet-spin 0.9s linear infinite;
+      }
+      .chip-check.just-saved {
+        animation: kibble-sheet-check-pop 400ms ease;
+      }
+    }
+    @keyframes kibble-sheet-spin {
       to {
+        transform: rotate(360deg);
+      }
+    }
+    @keyframes kibble-sheet-check-pop {
+      0% {
+        transform: scale(0.4);
+      }
+      60% {
+        transform: scale(1.25);
+      }
+      100% {
+        transform: scale(1);
+      }
+    }
+    .chip-label {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 100%;
+    }
+    .not-sure {
+      align-self: center;
+      border: none;
+      background: none;
+      color: var(--secondary-text-color);
+      font: inherit;
+      font-size: 13px;
+      text-decoration: underline;
+      cursor: pointer;
+      min-height: 48px;
+      padding: 0 8px;
+    }
+    .not-sure:disabled {
+      opacity: 0.5;
+      cursor: default;
+    }
+    .meal-roles {
+      display: grid;
+      gap: 6px;
+      padding-top: 4px;
+    }
+    .meal-role {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 8px;
+    }
+    .meal-cat {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .meal-role-options {
+      display: flex;
+      gap: 4px;
+    }
+    .meal-role-options button {
+      min-width: 72px;
+      min-height: 48px;
+      padding: 0 8px;
+      border: 1px solid var(--divider-color);
+      border-radius: 10px;
+      background: transparent;
+      color: var(--primary-text-color);
+      font: inherit;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .meal-role-options button[aria-pressed="true"] {
+      border-color: var(--primary-color);
+      background: color-mix(in srgb, var(--primary-color) 16%, transparent);
+    }
+    .meal-role-options button:disabled {
+      cursor: default;
+    }
+    .identity-error {
+      margin: 0;
+      padding: 8px 10px;
+      border-radius: 8px;
+      background: color-mix(in srgb, var(--error-color, #db4437) 10%, transparent);
+      color: var(--error-color, #db4437);
+      font-size: 13px;
+    }
+    .photos {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .photo-section {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .photo-section-dot {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      margin-right: 6px;
+      border-radius: 50%;
+      background: var(--section-color);
+    }
+    .photos {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .photos-heading {
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--primary-text-color);
+    }
+    .photos-count {
+      font-weight: 500;
+      color: var(--secondary-text-color);
+    }
+    .photos-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+      gap: 8px;
+    }
+    .photo-tile {
+      position: relative;
+      aspect-ratio: 1;
+      padding: 0;
+      border: none;
+      border-radius: 10px;
+      overflow: hidden;
+      background: color-mix(in srgb, var(--primary-text-color) 8%, transparent);
+      cursor: pointer;
+    }
+    .photo-tile kibble-image {
+      width: 100%;
+      height: 100%;
+    }
+    .photo-tile.dim kibble-image {
+      filter: grayscale(1);
+      opacity: 0.55;
+    }
+    .photo-neutral {
+      display: block;
+      width: 56%;
+      height: 56%;
+      margin: 22% auto;
+      color: color-mix(in srgb, var(--primary-text-color) 40%, transparent);
+    }
+    .photo-more {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font: inherit;
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--primary-text-color);
+      background: color-mix(in srgb, var(--primary-text-color) 10%, transparent);
+    }
+    .photo-badge {
+      position: absolute;
+      right: 3px;
+      bottom: 3px;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      pointer-events: none;
+    }
+    .photo-badge-avatar {
+      width: 22px;
+      height: 22px;
+    }
+    .photo-badge-avatar kibble-avatar {
+      --kibble-avatar-size: 22px;
+    }
+    .photo-badge-icon {
+      background: rgba(0, 0, 0, 0.62);
+      color: #fff;
+      box-shadow: 0 0 0 2px var(--ha-card-background, var(--card-background-color, #fff));
+    }
+    .photo-skeleton {
+      aspect-ratio: 1;
+      border-radius: 10px;
+      background: color-mix(in srgb, var(--primary-text-color) 8%, transparent);
+    }
+    @media (prefers-reduced-motion: no-preference) {
+      .photo-skeleton {
+        animation: kibble-sheet-skeleton-pulse 1.2s ease-in-out infinite;
+      }
+    }
+    @keyframes kibble-sheet-skeleton-pulse {
+      0%,
+      100% {
+        opacity: 0.5;
+      }
+      50% {
         opacity: 1;
       }
+    }
+    .photos-error {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 0;
+      font-size: 13px;
+      color: var(--secondary-text-color);
+    }
+    .photos-error button {
+      flex: none;
+      border: 1px solid currentColor;
+      background: none;
+      color: inherit;
+      border-radius: 8px;
+      padding: 4px 10px;
+      font: inherit;
+      font-size: 12px;
+      cursor: pointer;
+      min-height: 32px;
     }
   `;
   }
 };
-customElements.define("kibble-lightbox", KibbleLightbox);
+customElements.define("kibble-label-sheet", KibbleLabelSheet);
 var SCHEMA2 = [
   { name: "device_id", required: true, selector: { device: { filter: { integration: "kibble" } } } },
   { name: "name", selector: { text: {} } },
-  { name: "limit", selector: { number: { min: 1, mode: "box" } } },
-  { name: "show_visits", selector: { boolean: {} } }
+  { name: "limit", selector: { number: { min: 1, mode: "box" } } }
 ];
 var FIELD_LABELS2 = {
   device_id: "Kibble device",
   name: "Name (optional)",
-  limit: "Rows before \u201CShow more\u201D (optional, default 30)",
-  show_visits: "Show bare \u201Ca cat came by\u201D rows (optional, default off)"
+  limit: "Rows before \u201CShow more\u201D (optional, default 30)"
 };
 var KibbleTimelineCardEditor = class extends i4 {
   constructor() {
@@ -11756,14 +17723,6 @@ var KibbleTimelineCardEditor = class extends i4 {
             @change=${(event) => this._updateLimit(event.target.value)}
           />
         </label>
-        <label class="checkbox">
-          <input
-            type="checkbox"
-            .checked=${this._config?.show_visits ?? false}
-            @change=${(event) => this._updateShowVisits(event.target.checked)}
-          />
-          <span>Show bare "a cat came by" rows</span>
-        </label>
       </div>
     `;
   }
@@ -11787,11 +17746,6 @@ var KibbleTimelineCardEditor = class extends i4 {
     this._config = { ...this._config, limit: value && Number.isFinite(parsed) ? parsed : void 0 };
     this._fireConfigChanged();
   }
-  _updateShowVisits(value) {
-    if (!this._config) return;
-    this._config = { ...this._config, show_visits: value ? true : void 0 };
-    this._fireConfigChanged();
-  }
   _fireConfigChanged() {
     this.dispatchEvent(new CustomEvent("config-changed", { detail: { config: this._config }, bubbles: true, composed: true }));
   }
@@ -11811,7 +17765,7 @@ var KibbleTimelineCardEditor = class extends i4 {
       color: var(--primary-text-color);
     }
     select,
-    input:not([type="checkbox"]) {
+    input {
       min-height: 40px;
       border-radius: 8px;
       border: 1px solid var(--divider-color);
@@ -11819,15 +17773,6 @@ var KibbleTimelineCardEditor = class extends i4 {
       color: var(--primary-text-color);
       padding: 0 10px;
       font: inherit;
-    }
-    .checkbox {
-      flex-direction: row;
-      align-items: center;
-      gap: 8px;
-    }
-    .checkbox input {
-      width: 18px;
-      height: 18px;
     }
   `;
   }
@@ -11839,40 +17784,137 @@ var KibbleTimelineCard = class extends i4 {
   constructor() {
     super();
     this._entities = EMPTY_ENTITIES;
-    this._timelineQuery = new WsQuery(() => this.requestUpdate());
+    this._timelineFeed = new TimelineFeed(() => this.requestUpdate());
     this._imageCache = new ImageUrlCache();
-    this._lightboxTrigger = null;
-    this._showMore = () => {
-      this._visibleCount += this._config?.limit ?? DEFAULT_LIMIT;
+    this._catsQuery = new WsQuery(() => this.requestUpdate());
+    this._detailGeneration = 0;
+    this._sheetTrigger = null;
+    this._sentinelRef = e5();
+    this._railRef = e5();
+    this._sentinelObserver = null;
+    this._observedSentinel = null;
+    this._observedSentinelCapped = null;
+    this._newestKnownUid = null;
+    this._animateUids = /* @__PURE__ */ new Set();
+    this._sheetReviewedEvents = /* @__PURE__ */ new Map();
+    this._sheetPhotoUids = /* @__PURE__ */ new Set();
+    this._onRailScroll = () => {
+      this._updateEdges();
+    };
+    this._onEventRequested = (event) => {
+      this._loadEventDetail(event.detail.uid);
+    };
+    this._onSamplesRetryRequested = () => {
+      const uid = this._sheetSummary?.uid;
+      if (uid) this._loadEventDetail(uid);
+    };
+    this._closeSheet = () => {
+      const message = reviewSummaryMessage({ events: [...this._sheetReviewedEvents.values()], photosUpdated: this._sheetPhotoUids.size }, this._locale());
+      this._sheetSummary = null;
+      this._sheetSamples = null;
+      this._sheetSceneSubjects = [];
+      this._sheetSessionCats = null;
+      this._sheetMultipleCats = false;
+      this._sheetSamplesFailed = false;
+      this._sheetSampleBusyUid = null;
+      this._sheetGroup = [];
+      this._sheetTogether = false;
+      this._sheetError = null;
+      this._sheetReviewedEvents = /* @__PURE__ */ new Map();
+      this._sheetPhotoUids = /* @__PURE__ */ new Set();
+      this._sheetTrigger?.focus();
+      this._sheetTrigger = null;
+      if (message) this.dispatchEvent(new CustomEvent("hass-notification", { detail: { message }, bubbles: true, composed: true }));
+    };
+    this._onSessionLabelRequested = (event) => {
+      const entryId = this._entryId;
+      const hass = this.hass;
+      if (!entryId || !hass?.callWS) return;
+      const { uid, cats, verdict, subjects, closeOnSuccess } = event.detail;
+      const request = { uid, ...cats ? { cats } : {}, ...verdict ? { verdict } : {}, ...subjects?.length ? { subjects } : {} };
+      this._sheetBusy = true;
+      this._sheetError = null;
+      labelSession(hass, entryId, request).then((detail) => {
+        this._sheetBusy = false;
+        this._applySheetDetail(detail);
+        this._timelineFeed.refresh(hass, entryId, this._config?.limit ?? DEFAULT_LIMIT);
+        this._refreshCats();
+        for (const key of this._sheetReviewedEvents.keys()) {
+          if (key === detail.event.uid || key.startsWith(detail.event.uid + ":")) this._sheetReviewedEvents.delete(key);
+        }
+        if (request.verdict) {
+          this._sheetReviewedEvents.set(detail.event.uid, { uid: detail.event.uid, event: detail.event, label: request.verdict });
+        } else {
+          for (const cat of request.cats ?? []) {
+            const uid2 = detail.event.uid + ":" + cat.cat;
+            this._sheetReviewedEvents.set(uid2, { uid: uid2, event: { kind: cat.ate ? "eat" : "visit", open: detail.event.open, start: detail.event.start }, label: cat.cat });
+          }
+        }
+        if (closeOnSuccess) this._closeSheet();
+        else this.requestUpdate();
+      }).catch((err) => {
+        this._sheetBusy = false;
+        this._sheetError = err instanceof Error ? err.message : "Couldn't save this label.";
+        this.requestUpdate();
+      });
+    };
+    this._onSampleLabelRequested = (event) => {
+      const entryId = this._entryId;
+      const hass = this.hass;
+      if (!entryId || !hass?.callWS) return;
+      const { sampleUid, label } = event.detail;
+      this._sheetSampleBusyUid = sampleUid;
+      this._sheetError = null;
+      labelSample(hass, entryId, { sampleUid, label }).then((sample) => {
+        this._sheetSampleBusyUid = null;
+        if (this._sheetSamples) this._sheetSamples = this._sheetSamples.map((item) => item.uid === sample.uid ? sample : item);
+        this._sheetPhotoUids.add(sampleUid);
+        const uid = this._sheetSummary?.uid;
+        if (uid) this._loadEventDetail(uid, true);
+        this.requestUpdate();
+      }).catch((err) => {
+        this._sheetSampleBusyUid = null;
+        this._sheetError = err instanceof Error ? err.message : "Couldn't save this label.";
+        this.requestUpdate();
+      });
+    };
+    this._loadOlder = () => {
+      this._timelineFeed.loadMore(this.hass, this._entryId, this._config?.limit ?? DEFAULT_LIMIT);
     };
     this._retryTimeline = () => {
-      const callWS = this.hass?.callWS;
-      if (!callWS || !this._entryId) return;
-      const entryId = this._entryId;
-      const includeVisits = this._config?.show_visits === true;
-      this._timelineQuery.refresh(
-        () => callWS({ type: "kibble/timeline", entry_id: entryId, include_visits: includeVisits }).then((r6) => r6)
-      );
+      this._timelineFeed.refresh(this.hass, this._entryId, this._config?.limit ?? DEFAULT_LIMIT);
     };
-    this._closeLightbox = () => {
-      this._lightboxUrl = null;
-      this._comparePair = null;
-      this._lightboxTrigger?.focus();
-      this._lightboxTrigger = null;
-    };
-    this._visibleCount = DEFAULT_LIMIT;
-    this._lightboxUrl = null;
-    this._lightboxAlt = "";
-    this._comparePair = null;
+    this._sheetSummary = null;
+    this._sheetSamples = null;
+    this._sheetSceneSubjects = [];
+    this._sheetSessionCats = null;
+    this._sheetMultipleCats = false;
+    this._sheetSamplesFailed = false;
+    this._sheetSampleBusyUid = null;
+    this._sheetGroup = [];
+    this._sheetTogether = false;
+    this._sheetBusy = false;
+    this._sheetError = null;
+    this._edgeTop = false;
+    this._edgeBottom = false;
   }
   static {
     this.properties = {
       hass: { attribute: false },
       _config: { state: true },
-      _visibleCount: { state: true },
-      _lightboxUrl: { state: true },
-      _lightboxAlt: { state: true },
-      _comparePair: { state: true }
+      _sheetSummary: { state: true },
+      _sheetSamples: { state: true },
+      _sheetSceneSubjects: { state: true },
+      _sheetSessionCats: { state: true },
+      _sheetMultipleCats: { state: true },
+      _sheetSamplesFailed: { state: true },
+      _sheetSampleBusyUid: { state: true },
+      _sheetGroup: { state: true },
+      _sheetTogether: { state: true },
+      _sheetBusy: { state: true },
+      _sheetError: { state: true },
+      _edgeTop: { state: true },
+      _edgeBottom: { state: true }
     };
   }
   setConfig(config) {
@@ -11880,7 +17922,6 @@ var KibbleTimelineCard = class extends i4 {
       throw new Error("Kibble Timeline card: a device is required. Choose it in the card editor.");
     }
     this._config = config;
-    this._visibleCount = config.limit ?? DEFAULT_LIMIT;
   }
   getCardSize() {
     return 6;
@@ -11895,6 +17936,9 @@ var KibbleTimelineCard = class extends i4 {
   disconnectedCallback() {
     super.disconnectedCallback();
     this._imageCache.dispose();
+    this._timelineFeed.dispose();
+    this._sentinelObserver?.disconnect();
+    this._detailGeneration += 1;
   }
   willUpdate() {
     const deviceId = this._config?.device_id;
@@ -11905,48 +17949,136 @@ var KibbleTimelineCard = class extends i4 {
       this._entities = resolveKibbleEntities(this.hass.entities ?? {}, deviceId);
       this._entryId = resolveEntryId(this.hass.devices ?? {}, deviceId);
     }
+    this._timelineFeed.sync(this.hass, this._entryId, this._config?.limit ?? DEFAULT_LIMIT);
     const callWS = this.hass?.callWS;
-    if (this.hass && this._entryId && callWS) {
+    if (this.hass && this._entryId && callWS && this._entryId !== this._catsEntryId) {
+      this._catsEntryId = this._entryId;
       const entryId = this._entryId;
-      const includeVisits = this._config?.show_visits === true;
-      const key = `${watchKey(this.hass, [this._entities.lastDetection, this._entities.feeding, this._entities.dishAfter])}|visits=${includeVisits}`;
-      this._timelineQuery.sync(
-        key,
-        () => callWS({ type: "kibble/timeline", entry_id: entryId, include_visits: includeVisits }).then((r6) => r6)
-      );
+      this._catsQuery.sync(entryId, () => callWS({ type: "kibble/cats", entry_id: entryId }).then((r6) => r6));
     }
+    this._syncAnimation();
+  }
+  /** Identifies rows to animate: everything newer than the newest uid we knew about last time,
+   * but only once we've actually seen a first list (never animates the initial load). */
+  _syncAnimation() {
+    const items = this._timelineFeed.state.items;
+    if (!items || items.length === 0) return;
+    const newest = items[0].uid;
+    if (newest === this._newestKnownUid) {
+      this._animateUids = /* @__PURE__ */ new Set();
+      return;
+    }
+    const animate = /* @__PURE__ */ new Set();
+    if (this._newestKnownUid !== null) {
+      for (const item of items) {
+        if (item.uid === this._newestKnownUid) break;
+        animate.add(item.uid);
+      }
+    }
+    this._animateUids = animate;
+    this._newestKnownUid = newest;
+  }
+  updated() {
+    this._syncSentinel();
+    this._updateEdges();
+  }
+  /** The load-more sentinel must be observed relative to the rail itself whenever the rail is
+   * the one actually scrolling (the default, bounded layout) -- otherwise the 200px preload
+   * margin is measured against the viewport, which for a rail that scrolls internally is the
+   * wrong box entirely. When `max_height: none` opts back into page scroll, the viewport is
+   * once again the right (and only) root. Recreated whenever the sentinel element or which
+   * mode applies changes, not just the element. */
+  _syncSentinel() {
+    const element = this._sentinelRef.value ?? null;
+    const capped = railStyle(this._config?.max_height) !== "";
+    if (element === this._observedSentinel && capped === this._observedSentinelCapped) return;
+    this._sentinelObserver?.disconnect();
+    this._observedSentinel = element;
+    this._observedSentinelCapped = capped;
+    if (!element) {
+      this._sentinelObserver = null;
+      return;
+    }
+    this._sentinelObserver = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry2) => entry2.isIntersecting)) this._loadOlder();
+      },
+      { root: capped ? this._railRef.value : null, rootMargin: "200px" }
+    );
+    this._sentinelObserver.observe(element);
+  }
+  /** Recomputes whether the rail is scrolled away from its top/bottom edge, re-run after every
+   * update (paging in older rows, a live push, or a config change all resize the scrollable
+   * content) and on every scroll of the rail itself. */
+  _updateEdges() {
+    const el = this._railRef.value;
+    if (!el) {
+      if (this._edgeTop || this._edgeBottom) {
+        this._edgeTop = false;
+        this._edgeBottom = false;
+      }
+      return;
+    }
+    const top = el.scrollTop > 2;
+    const bottom = el.scrollHeight - el.scrollTop - el.clientHeight > 2;
+    if (top !== this._edgeTop) this._edgeTop = top;
+    if (bottom !== this._edgeBottom) this._edgeBottom = bottom;
+  }
+  _locale() {
+    return this.hass?.locale?.language ?? this.hass?.language;
+  }
+  _catColor(name) {
+    if (!name) return null;
+    const cat = this._catsQuery.state.data?.cats.find((c5) => c5.name === name);
+    return cat ? catColorAt(cat.color) : fallbackCatColor(name);
   }
   render() {
     if (!this._config || !this.hass) return A;
-    const timelineState = this._timelineQuery.state;
-    const items = filterVisits(timelineState.data?.items ?? [], this._config.show_visits === true);
-    const visible = items.slice(0, this._visibleCount);
-    const days = groupByDay(visible, /* @__PURE__ */ new Date());
-    const hasMore = items.length > visible.length;
-    const showEmpty = !timelineState.error && !timelineState.loading && timelineState.data !== null && days.length === 0;
-    const compare = this._comparePair;
-    const compareBeforeUrl = compare?.before ? this._imageCache.get(this.hass, kibbleImageUrl(compare.entryId, "event", compare.before), () => this.requestUpdate()) : null;
-    const compareAfterUrl = compare?.after ? this._imageCache.get(this.hass, kibbleImageUrl(compare.entryId, "event", compare.after), () => this.requestUpdate()) : null;
+    const timelineState = this._timelineFeed.state;
+    const groups = groupConsecutive(timelineState.items ?? [], Date.now() / 1e3);
+    const days = groupByDay(groups, /* @__PURE__ */ new Date());
+    const hasMore = timelineState.hasMore;
+    const showEmpty = !timelineState.error && !timelineState.loading && timelineState.items !== null && days.length === 0;
     return b2`
       <ha-card>
         <div class="container">
           ${this._config.name ? b2`<div class="label">${this._config.name}</div>` : A}
-          <div class="rail">
-            ${timelineState.error ? this._renderError(timelineState.error) : A}
-            ${showEmpty ? this._renderEmpty() : A}
-            ${days.map((day) => this._renderDay(day))}
-            ${hasMore ? b2`<button type="button" class="show-more" @click=${this._showMore}>Show more</button>` : A}
+          <div class="rail-wrap">
+            <div class="rail" style=${railStyle(this._config.max_height)} @scroll=${this._onRailScroll} ${n5(this._railRef)}>
+              ${timelineState.error ? this._renderError(timelineState.error) : A}
+              ${showEmpty ? this._renderEmpty() : A}
+              ${days.map((day) => this._renderDay(day))}
+              ${hasMore ? b2`<div class="sentinel" ${n5(this._sentinelRef)}></div>` : A}
+              ${timelineState.loadingMore ? b2`<p class="loading-more">Loading older events…</p>` : A}
+            </div>
+            <div class="edge-fade edge-fade-top ${this._edgeTop ? "visible" : ""}"></div>
+            <div class="edge-fade edge-fade-bottom ${this._edgeBottom ? "visible" : ""}"></div>
           </div>
         </div>
       </ha-card>
-      <kibble-lightbox
-        ?open=${this._lightboxUrl !== null || compare !== null}
-        .imageUrl=${this._lightboxUrl}
-        .beforeUrl=${compareBeforeUrl}
-        .afterUrl=${compareAfterUrl}
-        .alt=${this._lightboxAlt}
-        @close-requested=${this._closeLightbox}
-      ></kibble-lightbox>
+      <kibble-label-sheet
+        ?open=${this._sheetSummary !== null}
+        .hass=${this.hass}
+        .entryId=${this._entryId}
+        .cache=${this._imageCache}
+        .cats=${this._catsQuery.state.data?.cats ?? []}
+        .summary=${this._sheetSummary}
+        .samples=${this._sheetSamples}
+        .sceneSubjects=${this._sheetSceneSubjects}
+        .sessionCats=${this._sheetSessionCats}
+        .multipleCats=${this._sheetMultipleCats}
+        .samplesFailed=${this._sheetSamplesFailed}
+        .group=${this._sheetGroup}
+        .groupTogether=${this._sheetTogether}
+        .busy=${this._sheetBusy}
+        .error=${this._sheetError}
+        .sampleBusyUid=${this._sheetSampleBusyUid}
+        @close-requested=${this._closeSheet}
+        @session-label-requested=${this._onSessionLabelRequested}
+        @sample-label-requested=${this._onSampleLabelRequested}
+        @event-requested=${this._onEventRequested}
+        @samples-retry-requested=${this._onSamplesRetryRequested}
+      ></kibble-label-sheet>
     `;
   }
   _renderEmpty() {
@@ -11964,108 +18096,213 @@ var KibbleTimelineCard = class extends i4 {
     return b2`
       <div class="day">
         <div class="day-label">${day.label}</div>
-        <div class="day-items">${day.items.map((item) => this._renderItem(item))}</div>
+        <div class="day-items">${day.groups.map((group) => this._renderRow(group))}</div>
       </div>
     `;
   }
-  _renderItem(item) {
-    if (item.kind === "identified") return this._renderIdentified(item);
-    if (item.kind === "eat") return this._renderEat(item);
-    if (item.kind === "visit") return this._renderVisit(item);
-    return this._renderFeed(item);
-  }
-  /** The named cat that was actually at the bowl -- no avatar (the name is already the first
-   * word of the sentence) and the *live* image from the paired eat/visit, never a stored
-   * training sample. */
-  _renderIdentified(item) {
-    const time = this._timeLabel(item.ts);
-    const pair = comparePairFor(item);
-    const thumb = resolveThumbnail(item.image, item.image_kind, pair);
-    const alt = `${item.cat}, ${time}`;
+  _renderRow(group) {
+    const event = group.event;
+    const together = group.together === true;
+    const time = timeLabel(group.start ?? event.start, this._locale());
+    const color = together ? "var(--secondary-text-color)" : this._catColor(event.cat) ?? "var(--secondary-text-color)";
+    const animate = group.events.some((member) => this._animateUids.has(member.uid));
     return b2`
-      <div class="row">
-        <span class="time">${time}</span>
-        <span class="row-text">${detectionHeadline(item)}</span>
-        ${thumb && this._entryId ? this._renderThumb(kibbleImageUrl(this._entryId, thumb.kind, thumb.name), alt, pair ? (event) => this._openComparePair(event, pair, alt) : void 0) : A}
+      <div class="row ${animate ? "row-enter" : ""}">
+        <time class="time">${time}</time>
+        <span class="dot-col"><span class="dot" style="--dot-color:${together ? this._togetherDotStyle(group.events) : color}"></span></span>
+        <div class="content">${together ? this._renderTogether(group) : this._renderKnown(group, color)}</div>
+      </div>`;
+  }
+  _renderTogether(group) {
+    const title = togetherTitle(group.events);
+    const duration = group.start != null && group.end != null ? spanDuration(group.start, group.end) : null;
+    return b2`
+      <div class="together-heading">
+        <button type="button" class="together-open" aria-label=${title} @click=${(event) => this._openSheet(group, event.currentTarget)}>
+          <span class="title together-title">${this._renderTogetherTitle(group.events)}</span>
+        </button>
       </div>
+      ${duration ? b2`<span class="meta">for ${duration}</span>` : A}
+      ${this._renderTogetherMedia(group)}`;
+  }
+  _renderTogetherTitle(events) {
+    const lanes = orderTogetherEvents(events);
+    const names = lanes.map((lane) => lane.cat ? b2`<span class="cat-name" style="color:${this._catColor(lane.cat) ?? "var(--secondary-text-color)"}">${lane.cat}</span>` : b2`<span class="together-unknown-name">Who?</span>`);
+    const joinedNames2 = b2`${names.map((name, index) => b2`${index === 0 ? A : index === names.length - 1 ? names.length === 2 ? " and " : ", and " : ", "}${name}`)}`;
+    const first = lanes[0];
+    if (first && first.kind !== "feed" && lanes.every((lane) => lane.kind === first.kind && lane.open === first.open)) {
+      const verb = first.open ? first.kind === "eat" ? "are eating" : "are here" : catVerb(first);
+      return b2`${joinedNames2} ${verb}`;
+    }
+    return b2`${lanes.map((lane, index) => b2`${index ? ", " : A}${names[index]} ${catVerb(lane)}`)}`;
+  }
+  _togetherDotStyle(events) {
+    const lanes = orderTogetherEvents(events);
+    if (lanes.length === 0) return "var(--secondary-text-color)";
+    const segment = 100 / lanes.length;
+    const stops = lanes.map((lane, index) => {
+      const color = lane.cat ? this._catColor(lane.cat) ?? "var(--secondary-text-color)" : "var(--secondary-text-color)";
+      return `${color} ${index * segment}% ${(index + 1) * segment}%`;
+    });
+    return `conic-gradient(${stops.join(", ")})`;
+  }
+  _renderTogetherMedia(group) {
+    const events = group.events;
+    const compareEvent = events.find((event) => event.kind === "eat" && compareAssets(event) !== null);
+    const mediaEvent = events.find((event) => event.kind === "eat" && Boolean(event.clip) && Boolean(event.scene)) ?? events.find((event) => Boolean(event.scene)) ?? events.find((event) => event.kind === "eat" && Boolean(event.clip)) ?? events.find((event) => event.kind === "eat" && Boolean(event.thumb)) ?? events.find((event) => Boolean(event.thumb)) ?? group.event;
+    const poster = events.find((event) => event.scene)?.scene ?? events.find((event) => event.thumb)?.thumb ?? null;
+    const mediaGroup = { ...group, event: mediaEvent };
+    if (compareEvent) {
+      const compare = compareAssets(compareEvent);
+      if (compare) {
+        const compareGroup = { ...group, event: compareEvent };
+        if (!poster) return b2`<div class="media media-eat">${this._renderComparePair(compareGroup, compare, "full")}</div>`;
+        return b2`
+          <div class="media media-eat">
+            ${this._renderPhotoButton(mediaGroup, poster, "photo-tile photo-third")}
+            ${this._renderComparePair(compareGroup, compare, "third")}
+          </div>
+        `;
+      }
+    }
+    return b2`<div class="media">${this._renderPhotoButton(mediaGroup, poster, "photo-tile photo-visit")}</div>`;
+  }
+  _renderKnown(group, color) {
+    const event = group.event;
+    return b2`
+      ${this._renderTitle(group, color)}
+      ${this._renderMeta(event)}
+      ${this._renderMedia(group, event)}`;
+  }
+  _renderTitle(group, color) {
+    const event = group.event;
+    const titleBody = event.kind === "feed" ? b2`${feedTitle(event)}` : event.cat ? b2`<span class="cat-name" style="color:${color}">${event.cat}</span> ${catVerb(event)}` : b2`${event.open ? event.kind === "eat" ? "Someone is eating" : "Someone is here" : "Who was here?"}`;
+    const label = `Review ${eventTitle(event)}, ${timeLabel(event.start, this._locale())}`;
+    return b2`<button type="button" class="title-open" aria-label=${label} @click=${(click) => this._openSheet(group, click.currentTarget)}>
+      <span class="title-line">
+        <span class="title">${titleBody}</span>
+        ${event.open ? this._renderLiveRing(color) : A}
+        ${group.events.length > 1 ? b2`<span class="count-badge">${groupCountLabel(event.kind, group.events.length)}</span>` : A}
+      </span></button>`;
+  }
+  _renderLiveRing(color) {
+    return b2`
+      <span class="live-badge" style="--dot-color:${color}" aria-label="Happening now">
+        <span class="live-core"></span>
+        <span class="live-pulse"></span>
+      </span>
     `;
   }
-  /** An "eat" with nobody identified nearby -- still worth a row (food left the bowl), just
-   * never a guessed name. */
-  _renderEat(item) {
-    const time = this._timeLabel(item.ts);
-    const pair = comparePairFor(item);
-    const thumb = resolveThumbnail(item.image, "event", pair);
-    const alt = `A cat, ${time}`;
-    return b2`
-      <div class="row">
-        <span class="time">${time}</span>
-        <span class="row-text">${detectionHeadline(item)}</span>
-        ${thumb && this._entryId ? this._renderThumb(kibbleImageUrl(this._entryId, thumb.kind, thumb.name), alt, pair ? (event) => this._openComparePair(event, pair, alt) : void 0) : A}
-      </div>
-    `;
+  _renderMeta(event) {
+    if (event.kind === "feed") return A;
+    const duration = eventDuration(event);
+    return duration ? b2`<span class="meta">for ${duration}</span>` : A;
   }
-  /** Only ever rendered when `show_visits` opts back into the noise this card hides by
-   * default -- see `lib/timeline.ts#filterVisits`. */
-  _renderVisit(item) {
-    const time = this._timeLabel(item.ts);
-    return b2`
-      <div class="row">
-        <span class="time">${time}</span>
-        <span class="row-text">${detectionHeadline(item)}</span>
-        ${item.image && this._entryId ? this._renderThumb(kibbleImageUrl(this._entryId, "event", item.image), `A cat, ${time}`) : A}
-      </div>
-    `;
+  _renderMedia(group, event) {
+    const compare = compareAssets(event);
+    if (event.kind === "feed") {
+      return compare ? this._renderComparePair(group, compare, "full") : A;
+    }
+    const thumbAsset = rowThumbAsset(event);
+    if (event.kind === "eat" && compare) {
+      if (!thumbAsset) {
+        return b2`<div class="media media-eat">${this._renderComparePair(group, compare, "full")}</div>`;
+      }
+      return b2`
+        <div class="media media-eat">
+          ${this._renderPhotoButton(group, thumbAsset, "photo-tile photo-third")}
+          ${this._renderComparePair(group, compare, "third")}
+        </div>
+      `;
+    }
+    return b2`<div class="media">${this._renderPhotoButton(group, thumbAsset, "photo-tile photo-visit")}</div>`;
   }
-  _renderFeed(item) {
-    const time = this._timeLabel(item.ts);
-    const entryId = this._entryId;
-    const summary = feedSummary(item);
-    const pair = feedPhotos(item);
-    const beforeUrl = pair?.before && entryId ? this._imageCache.get(this.hass, kibbleImageUrl(entryId, "feed", pair.before), () => this.requestUpdate()) : null;
-    const afterUrl = pair?.after && entryId ? this._imageCache.get(this.hass, kibbleImageUrl(entryId, "feed", pair.after), () => this.requestUpdate()) : null;
+  _renderPhotoButton(group, asset, extraClass) {
+    const event = group.event;
+    const hasClip = event.kind === "eat" && Boolean(event.clip);
+    const label = `View and correct: ${eventTitle(event)}, ${timeLabel(event.start, this._locale())}${hasClip ? ". Has video." : ""}`;
     return b2`
-      <div class="row row-feed">
-        <span class="time">${time}</span>
-        <span class="row-text feed-text">
-          ${summary.headline}${summary.scheduled ? b2` <span class="quiet">(scheduled)</span>` : A}${summary.unconfirmed ? b2` <span class="quiet" title="The feeder dispensed, but its controller never confirmed the amount -- this is the amount that was requested.">(unconfirmed)</span>` : A}
-        </span>
-        ${pair ? b2`<kibble-before-after class="feed-compare" .beforeSrc=${beforeUrl} .afterSrc=${afterUrl} aspect="1.8"></kibble-before-after>` : b2`<span class="feed-no-photo">No photo for this feed</span>`}
-      </div>
-    `;
-  }
-  _renderThumb(path, alt, onOpen) {
-    const url = this._imageCache.get(this.hass, path, () => this.requestUpdate());
-    const label = onOpen ? `Compare before and after: ${alt}` : `View photo: ${alt}`;
-    return b2`
-      <button type="button" class="thumb" ?disabled=${!url} aria-label=${label} @click=${(event) => onOpen ? onOpen(event) : this._openLightbox(event, url, alt)}>
-        ${url ? b2`<img src=${url} alt="" loading="lazy" />` : A}
+      <button type="button" class="${extraClass}" aria-label=${label} @click=${(e6) => this._openSheet(group, e6.currentTarget)}>
+        ${asset ? b2`<kibble-image .hass=${this.hass} .asset=${asset} .cache=${this._imageCache} alt=""></kibble-image>` : b2`<span class="neutral-icon">${catSilhouette()}</span>`}
+        ${hasClip ? b2`<span class="clip-badge">${mdiIcon("play")}</span>` : A}
       </button>
     `;
   }
-  _timeLabel(ts) {
-    return new Date(ts * 1e3).toLocaleTimeString(void 0, { hour: "2-digit", minute: "2-digit" });
+  _renderComparePair(group, compare, size) {
+    const label = `View and correct: ${eventTitle(group.event)}, ${timeLabel(group.event.start, this._locale())}`;
+    return b2`
+      <div class="compare-pair ${size === "full" ? "compare-full" : "compare-third"}">
+        <button type="button" class="compare-tile" aria-label=${`${label}. Before.`} @click=${(e6) => this._openSheet(group, e6.currentTarget)}>
+          ${compare.before ? b2`<kibble-image .hass=${this.hass} .asset=${compare.before} .cache=${this._imageCache} alt=""></kibble-image>` : A}
+          <span class="compare-label">Before</span>
+        </button>
+        <button type="button" class="compare-tile" aria-label=${`${label}. After.`} @click=${(e6) => this._openSheet(group, e6.currentTarget)}>
+          ${compare.after ? b2`<kibble-image .hass=${this.hass} .asset=${compare.after} .cache=${this._imageCache} alt=""></kibble-image>` : A}
+          <span class="compare-label">After</span>
+        </button>
+      </div>
+    `;
   }
-  _openLightbox(event, url, alt) {
-    if (!url) return;
-    this._lightboxTrigger = event.currentTarget;
-    this._lightboxUrl = url;
-    this._lightboxAlt = alt;
+  _refreshCats() {
+    const hass = this.hass;
+    const entryId = this._entryId;
+    const callWS = hass?.callWS;
+    if (!callWS || !entryId) return;
+    this._catsQuery.refresh(() => callWS({ type: "kibble/cats", entry_id: entryId }).then((r6) => r6));
   }
-  /** Opens the same overlay `_openLightbox` uses, but with a before/after compare pair instead
-   * of a single image -- see `kibble-lightbox`'s `beforeUrl`/`afterUrl`. */
-  _openComparePair(event, pair, alt) {
-    if (!this._entryId) return;
-    this._lightboxTrigger = event.currentTarget;
-    this._comparePair = { entryId: this._entryId, before: pair.before, after: pair.after };
-    this._lightboxAlt = alt;
+  _applySheetDetail(detail) {
+    this._sheetSummary = detail.event;
+    this._sheetSamples = detail.samples;
+    this._sheetSceneSubjects = detail.scene_subjects;
+    this._sheetSessionCats = detail.cats;
+    this._sheetMultipleCats = detail.multiple_cats;
+    this._sheetSamplesFailed = false;
+    this.requestUpdate();
+  }
+  /** Resolves any timeline row uid to its complete feeder session for the shared sheet. */
+  _loadEventDetail(uid, keepData = false) {
+    const member = this._sheetGroup.find((candidate) => candidate.uid === uid);
+    if (member) this._sheetSummary = member;
+    if (!keepData) {
+      this._sheetSamples = null;
+      this._sheetSceneSubjects = [];
+      this._sheetSessionCats = null;
+      this._sheetMultipleCats = false;
+      this._sheetSamplesFailed = false;
+    }
+    this._sheetError = null;
+    const generation = ++this._detailGeneration;
+    const callWS = this.hass?.callWS;
+    const entryId = this._entryId;
+    if (!callWS || !entryId) {
+      this._sheetSamplesFailed = !keepData;
+      return;
+    }
+    callWS({ type: "kibble/event", entry_id: entryId, uid }).then((result) => {
+      if (generation !== this._detailGeneration) return;
+      this._applySheetDetail(result);
+    }).catch(() => {
+      if (generation !== this._detailGeneration) return;
+      if (!keepData) this._sheetSamplesFailed = true;
+      this.requestUpdate();
+    });
+  }
+  _openSheet(group, trigger) {
+    this._sheetTrigger = trigger;
+    this._sheetGroup = group.events;
+    this._sheetTogether = group.together === true;
+    this._sheetReviewedEvents = /* @__PURE__ */ new Map();
+    this._sheetPhotoUids = /* @__PURE__ */ new Set();
+    this._sheetSessionCats = null;
+    this._sheetMultipleCats = false;
+    this._loadEventDetail(group.event.uid);
   }
   static {
     this.styles = i`
     :host {
       display: block;
-      --kibble-text-caption: 12px;
-      --kibble-text-body: 14px;
+      --kibble-text-caption: 13px;
+      --kibble-text-body: 15px;
     }
     ha-card {
       overflow: hidden;
@@ -12075,6 +18312,7 @@ var KibbleTimelineCard = class extends i4 {
     }
     .container {
       container-type: inline-size;
+      background: var(--ha-card-background, var(--card-background-color, #fff));
       padding: 4px 0 12px;
     }
     .label {
@@ -12116,121 +18354,398 @@ var KibbleTimelineCard = class extends i4 {
       outline: 2px solid var(--primary-color, #03a9f4);
       outline-offset: 2px;
     }
+    /* The rail scrolls inside itself by default -- railStyle's own inline max-height (a real
+       bounded cap unless a caller opts out with max_height: none) is what actually turns this
+       into a scroll container; overflow/scrollbar rules here just style that container once it
+       is one. */
+    .rail-wrap {
+      position: relative;
+    }
+    .rail {
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      scrollbar-width: thin;
+      scrollbar-color: var(--divider-color) transparent;
+    }
+    .rail::-webkit-scrollbar {
+      width: 6px;
+    }
+    .rail::-webkit-scrollbar-thumb {
+      background: var(--divider-color);
+      border-radius: 3px;
+    }
+    /* A soft hint that there is more above/below than the current scroll position shows --
+       never blocks a tap (pointer-events: none), never fights the sticky day heading for
+       attention (same background colour, so the seam between them is invisible). */
+    .edge-fade {
+      position: absolute;
+      left: 0;
+      right: 0;
+      height: 28px;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.15s ease;
+    }
+    .edge-fade-top {
+      top: 0;
+      background: linear-gradient(to bottom, var(--ha-card-background, var(--card-background-color, #fff)), transparent);
+    }
+    .edge-fade-bottom {
+      bottom: 0;
+      background: linear-gradient(to top, var(--ha-card-background, var(--card-background-color, #fff)), transparent);
+    }
+    .edge-fade.visible {
+      opacity: 1;
+    }
     .day-label {
-      padding: 14px 16px 6px 68px;
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      background: var(--ha-card-background, var(--card-background-color, #fff));
+      padding: 18px 16px 8px 96px;
       font-size: var(--kibble-text-caption);
       font-weight: 600;
       color: var(--secondary-text-color);
     }
     .day-items {
-      margin-left: 60px;
+      position: relative;
+      margin-left: 96px;
       border-left: 2px solid var(--divider-color);
       display: flex;
       flex-direction: column;
+      gap: 16px;
+      padding: 2px 0;
     }
     .row {
       position: relative;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      min-height: 48px;
-      padding: 6px 16px 6px 12px;
+      padding: 0 16px 0 22px;
+    }
+    @media (prefers-reduced-motion: no-preference) {
+      .row-enter {
+        animation: kibble-row-enter 420ms cubic-bezier(0.2, 0.7, 0.3, 1);
+      }
+    }
+    @keyframes kibble-row-enter {
+      from {
+        opacity: 0;
+        transform: translateY(-10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
     }
     .time {
       position: absolute;
-      left: -60px;
-      width: 48px;
+      left: -96px;
+      width: 80px;
+      padding-top: 2px;
       text-align: right;
       font-size: var(--kibble-text-caption);
       font-variant-numeric: tabular-nums;
       color: var(--secondary-text-color);
     }
-    .row-text {
-      flex: 1 1 auto;
+    .dot-col {
+      position: absolute;
+      left: -7px;
+      top: 6px;
+    }
+    .dot {
+      display: block;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--dot-color);
+      box-shadow: 0 0 0 3px var(--ha-card-background, var(--card-background-color, #fff));
+    }
+    .content {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    /* The title and Review chip keep 48 px touch targets, but the negative block margin lets the
+     * visible text sit exactly where a normal row's title does (top-aligned with its time). */
+    .together-heading {
+      display: flex;
+      align-items: center;
+      gap: 8px;
       min-width: 0;
-      font-size: var(--kibble-text-body);
+      margin-block: -14px;
+    }
+    .together-open {
+      display: flex;
+      align-items: center;
+      flex: 1 1 auto;
+      gap: 8px;
+      min-width: 0;
+      min-height: 48px;
+      padding: 0;
+      border: 0;
+      border-radius: 8px;
+      background: transparent;
       color: var(--primary-text-color);
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+      font: inherit;
+      text-align: left;
+      cursor: pointer;
     }
-    .row-feed {
-      min-height: 56px;
+    .title-open {
+      display: block;
+      width: 100%;
+      border: 0;
+      margin: 0;
+      padding: 0;
+      background: none;
+      color: inherit;
+      font: inherit;
+      text-align: left;
+      cursor: pointer;
+      min-height: 48px;
+    }
+    .title-open:focus-visible {
+      outline: 2px solid var(--primary-color);
+      outline-offset: 2px;
+    }
+    .title-line {
+      display: flex;
+      align-items: center;
+      gap: 8px;
       flex-wrap: wrap;
-      align-items: flex-start;
     }
-    .feed-text {
+    .title {
+      font-size: var(--kibble-text-body);
+      font-weight: 600;
+      color: var(--primary-text-color);
+      overflow-wrap: anywhere;
+    }
+    .cat-name {
+      font-weight: 700;
+    }
+    .count-badge {
+      font-size: var(--kibble-text-caption);
       font-weight: 500;
+      color: var(--secondary-text-color);
+      background: color-mix(in srgb, var(--primary-text-color) 7%, transparent);
+      border-radius: 999px;
+      padding: 2px 10px;
     }
-    .feed-compare {
-      flex: 1 1 100%;
-      max-width: 360px;
+    .meta {
+      font-size: var(--kibble-text-caption);
+      color: var(--secondary-text-color);
+      font-variant-numeric: tabular-nums;
     }
-    .feed-no-photo {
-      flex: 1 1 100%;
+    .live-badge {
+      position: relative;
+      width: 12px;
+      height: 12px;
+      flex: none;
+    }
+    .live-core {
+      position: absolute;
+      inset: 2px;
+      border-radius: 50%;
+      background: var(--dot-color);
+    }
+    .live-pulse {
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      border: 1.5px solid var(--dot-color);
+      opacity: 0;
+    }
+    @media (prefers-reduced-motion: no-preference) {
+      .live-pulse {
+        animation: kibble-pulse-ring 1.8s ease-out infinite;
+      }
+    }
+    @keyframes kibble-pulse-ring {
+      0% {
+        transform: scale(0.7);
+        opacity: 0.7;
+      }
+      100% {
+        transform: scale(2);
+        opacity: 0;
+      }
+    }
+    .media {
+      display: flex;
+      gap: 10px;
+      margin-top: 4px;
+      padding-bottom: 14px;
+    }
+    .media-eat {
+      align-items: stretch;
+    }
+    .photo-tile {
+      position: relative;
+      flex: none;
+      padding: 0;
+      border: none;
+      border-radius: 16px;
+      overflow: hidden;
+      background: color-mix(in srgb, var(--primary-text-color) 8%, transparent);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .clip-badge {
+      position: absolute;
+      left: 4px;
+      bottom: 4px;
+      width: 28px;
+      height: 28px;
+      border-radius: 999px;
+      display: grid;
+      place-items: center;
+      background: rgba(0, 0, 0, 0.55);
+      color: #fff;
+      font-size: 14px;
+      pointer-events: none;
+    }
+    span.photo-tile {
+      cursor: default;
+    }
+    .photo-visit {
+      width: 78px;
+      height: 78px;
+    }
+    .photo-third {
+      width: 30%;
+      max-width: 120px;
+      aspect-ratio: 1;
+    }
+    .photo-unknown {
+      width: 100px;
+      height: 100px;
+    }
+    .neutral-icon {
+      width: 60%;
+      height: 60%;
+      color: color-mix(in srgb, var(--primary-text-color) 40%, transparent);
+    }
+    .compare-pair {
+      display: flex;
+      gap: 8px;
+      min-width: 0;
+    }
+    .compare-third {
+      flex: 1 1 auto;
+    }
+    .compare-full {
+      flex: 1 1 auto;
+      width: 100%;
+    }
+    .compare-tile {
+      position: relative;
+      flex: 1 1 0;
+      height: 130px;
+      padding: 0;
+      border: none;
+      border-radius: 16px;
+      overflow: hidden;
+      background: color-mix(in srgb, var(--primary-text-color) 8%, transparent);
+      cursor: pointer;
+    }
+    .compare-full .compare-tile {
+      height: 150px;
+    }
+    .compare-tile kibble-image {
+      width: 100%;
+      height: 100%;
+    }
+    .compare-label {
+      position: absolute;
+      left: 8px;
+      bottom: 8px;
+      padding: 3px 9px;
+      border-radius: 999px;
+      background: rgba(0, 0, 0, 0.55);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .photo-tile:focus-visible,
+    .compare-tile:focus-visible,
+    .chip:focus-visible {
+      outline: 2px solid var(--primary-color, #03a9f4);
+      outline-offset: 2px;
+    }
+    .chip-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 6px;
+      padding-bottom: 14px;
+    }
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      border: none;
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--dot-color, var(--primary-color)) 16%, transparent);
+      color: var(--dot-color, var(--primary-color, #03a9f4));
+      font: inherit;
+      font-size: 14px;
+      font-weight: 600;
+      padding: 7px 16px 7px 10px;
+      min-height: 38px;
+      cursor: pointer;
+    }
+    .chip-dot {
+      width: 11px;
+      height: 11px;
+      border-radius: 50%;
+      background: var(--dot-color);
+      flex: none;
+    }
+    .chip.chip-muted {
+      background: color-mix(in srgb, var(--primary-text-color) 7%, transparent);
+      color: var(--secondary-text-color);
+      font-weight: 500;
+      padding: 7px 16px;
+    }
+    .chip:disabled {
+      opacity: 0.5;
+      cursor: default;
+    }
+    .row-error {
+      display: block;
+      padding-bottom: 12px;
+      font-size: var(--kibble-text-caption);
+      color: var(--error-color, #db4437);
+    }
+    .sentinel {
+      height: 1px;
+      width: 100%;
+    }
+    .loading-more {
+      margin: 0;
+      padding: 10px 16px 2px;
+      text-align: center;
       font-size: var(--kibble-text-caption);
       color: var(--secondary-text-color);
     }
-    .quiet {
-      font-weight: 400;
-      color: var(--secondary-text-color);
-    }
-    .thumb {
-      flex: 0 0 auto;
-      width: 40px;
-      height: 40px;
-      padding: 0;
-      border: none;
-      border-radius: 8px;
-      background: color-mix(in srgb, var(--primary-text-color) 8%, transparent);
-      cursor: pointer;
-      overflow: hidden;
-    }
-    .thumb:disabled {
-      cursor: default;
-    }
-    .thumb:focus-visible {
-      outline: 2px solid var(--primary-color, #03a9f4);
-      outline-offset: 2px;
-    }
-    .thumb img {
-      display: block;
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-    }
-    .show-more {
-      align-self: flex-start;
-      margin: 12px 16px 0 68px;
-      border: none;
-      background: color-mix(in srgb, var(--primary-text-color) 8%, transparent);
-      color: var(--primary-text-color);
-      border-radius: 8px;
-      padding: 8px 14px;
-      font: inherit;
-      font-size: var(--kibble-text-body);
-      font-weight: 500;
-      cursor: pointer;
-      min-height: 40px;
-    }
-    .show-more:focus-visible {
-      outline: 2px solid var(--primary-color, #03a9f4);
-      outline-offset: 2px;
-    }
-    @container (max-width: 360px) {
+    @container (max-width: 380px) {
       .day-label {
-        padding-left: 52px;
+        padding-left: 74px;
       }
       .day-items {
-        margin-left: 44px;
-      }
-      .time {
-        left: -44px;
-        width: 36px;
-        font-size: 11px;
+        margin-left: 74px;
       }
       .row {
-        padding-right: 10px;
+        padding-left: 18px;
+      }
+      .time {
+        left: -74px;
+        width: 60px;
+      }
+      .photo-third {
+        max-width: 92px;
+      }
+      .compare-tile {
+        height: 108px;
       }
     }
   `;
@@ -12241,479 +18756,699 @@ window.customCards = window.customCards || [];
 window.customCards.push({
   type: "kibble-timeline-card",
   name: "Kibble Timeline",
-  description: "Today's feeds and who's been by, one rail, newest first, with day separators and photos.",
+  description: "Today's feeds and who's been by, one calm list, newest first, with real photos.",
   preview: true
 });
-function catLastSeenTs(lastSeen, sightingTimestamps) {
-  const newest = Math.max(lastSeen ?? 0, 0, ...sightingTimestamps);
-  return newest > 0 ? newest : null;
-}
-function chooseSuggestion(crop, confidence, knownCats) {
-  if (crop.guess && crop.guess.score >= confidence && knownCats.has(crop.guess.cat)) {
-    return { cat: crop.guess.cat, source: "classifier" };
+var INITIAL_STATE2 = {
+  items: null,
+  total: 0,
+  pageIndex: 0,
+  hasNext: false,
+  hasPrevious: false,
+  loading: false,
+  error: null
+};
+var PagedFeed = class {
+  constructor(_type, _onChange) {
+    this._type = _type;
+    this._onChange = _onChange;
+    this.state = INITIAL_STATE2;
+    this._cursors = [null];
+    this._key = null;
+    this._generation = 0;
   }
-  if (crop.vendor_cat && knownCats.has(crop.vendor_cat)) {
-    return { cat: crop.vendor_cat, source: "vendor" };
+  /** Resets to page 0 when `key` changes (e.g. the entry, or which cat a training grid shows).
+   * Safe to call on every card update. */
+  sync(hass, key, params, limit) {
+    if (key === this._key) return;
+    this._key = key;
+    this._cursors = [null];
+    if (!hass?.callWS || !key) {
+      this.state = INITIAL_STATE2;
+      return;
+    }
+    void this._load(hass, params, limit, 0, ++this._generation);
   }
-  return null;
+  /** Re-reads the current page in place (e.g. after a label changes what it contains). */
+  refresh(hass, params, limit) {
+    if (!hass?.callWS || !this._key) return;
+    void this._load(hass, params, limit, this.state.pageIndex, ++this._generation);
+  }
+  next(hass, params, limit) {
+    if (!hass?.callWS || this.state.loading || !this.state.hasNext) return;
+    void this._load(hass, params, limit, this.state.pageIndex + 1, this._generation);
+  }
+  previous(hass, params, limit) {
+    if (!hass?.callWS || this.state.loading || this.state.pageIndex === 0) return;
+    void this._load(hass, params, limit, this.state.pageIndex - 1, this._generation);
+  }
+  /** Drops every item matching `predicate` from the current page, decrementing `total` to
+   * match -- used after a review-queue item is labelled and so stops belonging to the queue,
+   * without waiting on a full page refetch. */
+  removeItem(predicate) {
+    const items = this.state.items;
+    if (!items) return;
+    const kept = items.filter((item) => !predicate(item));
+    if (kept.length === items.length) return;
+    this.state = { ...this.state, items: kept, total: Math.max(0, this.state.total - (items.length - kept.length)) };
+    this._onChange();
+  }
+  async _load(hass, params, limit, pageIndex, generation) {
+    this.state = { ...this.state, loading: true, error: null };
+    this._onChange();
+    try {
+      const cursor = this._cursors[pageIndex] ?? null;
+      const message = { type: this._type, limit, ...params, ...cursor ? { cursor } : {} };
+      const result = await hass.callWS(message);
+      if (generation !== this._generation) return;
+      this._cursors[pageIndex + 1] = result.cursor;
+      this.state = {
+        items: result.items,
+        total: result.total,
+        pageIndex,
+        hasNext: result.has_more,
+        hasPrevious: pageIndex > 0,
+        loading: false,
+        error: null
+      };
+    } catch (err) {
+      if (generation !== this._generation) return;
+      this.state = { ...this.state, loading: false, error: describeWsError(err) };
+    }
+    this._onChange();
+  }
+  dispose() {
+    this._generation += 1;
+  }
+};
+async function labelEvents(hass, entryId, request) {
+  if (!hass.callWS) throw new Error("Not connected.");
+  const result = await hass.callWS({
+    type: "kibble/label",
+    entry_id: entryId,
+    uids: request.uids,
+    label: request.label
+  });
+  return result.events;
 }
-var CROP_SIZE_PX = 224;
-var INITIAL_SELECTION_FRACTION = 0.7;
-var MIN_SELECTION_FRACTION = 0.15;
-var KibbleCropDialog = class extends i4 {
+function formatBytes(bytes) {
+  const mb = bytes / (1024 * 1024);
+  if (mb < 1e3) return `${mb < 10 ? mb.toFixed(1) : Math.round(mb)} MB`;
+  const gb = mb / 1024;
+  return `${gb < 10 ? gb.toFixed(1) : Math.round(gb)} GB`;
+}
+function storageSummary(storage) {
+  const days = storage.retention_days === 1 ? "1 day" : `${storage.retention_days} days`;
+  return `Using ${formatBytes(storage.used_bytes)}, keeping ${days}`;
+}
+function spoolSummary(spool) {
+  if (!spool) return null;
+  return `Feeder buffer ${formatBytes(spool.used_bytes)} of ${formatBytes(spool.cap_bytes)}`;
+}
+var RECOGNITION_TRANSLATION_KEY = "cat_recognition";
+var VALID_LEARNING_STATES = { learning: "learning", paused: "paused", learned: "learned" };
+function slugifyCatName(name) {
+  return name.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+}
+function findCatRecognitionEntityId(entities, deviceId, catName) {
+  const suffix = `cat_recognition_${slugifyCatName(catName)}`;
+  for (const entry2 of Object.values(entities)) {
+    if (entry2.device_id !== deviceId || entry2.disabled_by) continue;
+    if (!entry2.entity_id.startsWith("sensor.")) continue;
+    if (entry2.translation_key !== RECOGNITION_TRANSLATION_KEY) continue;
+    if (entry2.unique_id ? entry2.unique_id.endsWith(suffix) : entry2.entity_id.endsWith(`_${suffix}`)) return entry2.entity_id;
+  }
+  return void 0;
+}
+function readCatRecognition(hass, entityId) {
+  if (!entityId) return null;
+  const state2 = hass.states[entityId];
+  if (!state2 || state2.state === "unknown" || state2.state === "unavailable") return null;
+  const percent2 = Number(state2.state);
+  if (!Number.isFinite(percent2)) return null;
+  const learningState = VALID_LEARNING_STATES[String(state2.attributes.learning_state)] ?? "learning";
+  return { percent: Math.max(0, Math.min(100, percent2)), state: learningState };
+}
+var OPPOSITE_CORNER = { nw: "se", ne: "sw", se: "nw", sw: "ne" };
+var CORNER_SIGN = {
+  se: { x: 1, y: 1 },
+  sw: { x: -1, y: 1 },
+  ne: { x: 1, y: -1 },
+  nw: { x: -1, y: -1 }
+};
+var MIN_CROP_FRACTION = MIN_AREA_SIZE;
+function isValidSize(size) {
+  return Number.isFinite(size.width) && Number.isFinite(size.height) && size.width > 0 && size.height > 0;
+}
+function defaultSquareCrop(size) {
+  if (!isValidSize(size)) return [0, 0, 1, 1];
+  const { width, height } = size;
+  if (width === height) return [0, 0, 1, 1];
+  if (width > height) {
+    const half2 = height / width / 2;
+    return [0.5 - half2, 0, 0.5 + half2, 1];
+  }
+  const half = width / height / 2;
+  return [0, 0.5 - half, 1, 0.5 + half];
+}
+function moveSquareCrop(crop, dxFraction, dyFraction) {
+  return moveArea(crop, dxFraction, dyFraction);
+}
+function resizeSquareCrop(crop, corner, point, size, minFraction = MIN_CROP_FRACTION) {
+  if (!isValidSize(size)) return crop;
+  const { width, height } = size;
+  const anchor = handlePoint(crop, OPPOSITE_CORNER[corner]);
+  const sign = CORNER_SIGN[corner];
+  const rawWidthPx = Math.abs(point.x - anchor.x) * width;
+  const rawHeightPx = Math.abs(point.y - anchor.y) * height;
+  const roomXPx = (sign.x > 0 ? 1 - anchor.x : anchor.x) * width;
+  const roomYPx = (sign.y > 0 ? 1 - anchor.y : anchor.y) * height;
+  const minPx = minFraction * Math.min(width, height);
+  const sidePx = Math.min(Math.max(rawWidthPx, rawHeightPx, minPx), roomXPx, roomYPx);
+  const cornerX = clampUnit(anchor.x + sign.x * (sidePx / width));
+  const cornerY = clampUnit(anchor.y + sign.y * (sidePx / height));
+  return normalizedAreaFromPoints(anchor, { x: cornerX, y: cornerY });
+}
+function scaleSquareCrop(crop, factor, size, minFraction = MIN_CROP_FRACTION) {
+  if (!isValidSize(size) || !Number.isFinite(factor) || factor <= 0) return crop;
+  const { width, height } = size;
+  const centerX = (crop[0] + crop[2]) / 2;
+  const centerY = (crop[1] + crop[3]) / 2;
+  const minPx = minFraction * Math.min(width, height);
+  const maxPx = Math.min(width, height);
+  const targetPx = Math.min(maxPx, Math.max(minPx, areaWidth(crop) * width * factor));
+  const halfFracX = targetPx / width / 2;
+  const halfFracY = targetPx / height / 2;
+  const clampedCenterX = Math.min(1 - halfFracX, Math.max(halfFracX, centerX));
+  const clampedCenterY = Math.min(1 - halfFracY, Math.max(halfFracY, centerY));
+  return [clampedCenterX - halfFracX, clampedCenterY - halfFracY, clampedCenterX + halfFracX, clampedCenterY + halfFracY];
+}
+function pinchDistance(a3, b3) {
+  return Math.hypot(a3.x - b3.x, a3.y - b3.y);
+}
+var MAX_EDGE = 1600;
+var JPEG_QUALITY = 0.85;
+var FULL_FRAME = [0, 0, 1, 1];
+function targetDimensions(width, height, maxEdge = MAX_EDGE) {
+  const edge = Math.max(width, height);
+  if (edge <= 0 || edge <= maxEdge) return { width, height };
+  const scale = maxEdge / edge;
+  return { width: Math.max(1, Math.round(width * scale)), height: Math.max(1, Math.round(height * scale)) };
+}
+async function decodeViaBitmap(file) {
+  if (typeof createImageBitmap !== "function") return null;
+  try {
+    return await createImageBitmap(file, { imageOrientation: "from-image" });
+  } catch {
+    return null;
+  }
+}
+async function decodeViaImageElement(file) {
+  if (typeof Image === "undefined" || typeof URL === "undefined") return null;
+  const url = URL.createObjectURL(file);
+  try {
+    return await new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error("decode failed"));
+      img.src = url;
+    });
+  } catch {
+    return null;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+async function imageNaturalSize(file) {
+  const source = await decodeViaBitmap(file) ?? await decodeViaImageElement(file);
+  if (!source) return null;
+  try {
+    const { width, height } = "naturalWidth" in source ? { width: source.naturalWidth, height: source.naturalHeight } : { width: source.width, height: source.height };
+    return width > 0 && height > 0 ? { width, height } : null;
+  } finally {
+    if ("close" in source) source.close();
+  }
+}
+async function prepareUpload(file, crop = FULL_FRAME, maxEdge = MAX_EDGE) {
+  const source = await decodeViaBitmap(file) ?? await decodeViaImageElement(file);
+  if (!source) return file;
+  try {
+    const { width, height } = "naturalWidth" in source ? { width: source.naturalWidth, height: source.naturalHeight } : { width: source.width, height: source.height };
+    if (width <= 0 || height <= 0) return file;
+    const [x1, y1, x2, y22] = crop;
+    const sx = Math.min(width - 1, Math.max(0, Math.round(x1 * width)));
+    const sy = Math.min(height - 1, Math.max(0, Math.round(y1 * height)));
+    const sw = Math.max(1, Math.round((x2 - x1) * width));
+    const sh = Math.max(1, Math.round((y22 - y1) * height));
+    const { width: outWidth, height: outHeight } = targetDimensions(sw, sh, maxEdge);
+    const canvas = document.createElement("canvas");
+    canvas.width = outWidth;
+    canvas.height = outHeight;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return file;
+    ctx.drawImage(source, sx, sy, sw, sh, 0, 0, outWidth, outHeight);
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", JPEG_QUALITY));
+    return blob ?? file;
+  } catch {
+    return file;
+  } finally {
+    if ("close" in source) source.close();
+  }
+}
+function uploadFilename(original, prepared) {
+  if (prepared === original) return original.name;
+  const base = original.name.replace(/\.[^./\\]+$/, "");
+  return `${base || "photo"}.jpg`;
+}
+var DEFAULT_CONCURRENCY = 2;
+var ACTIVE_STATUSES = {
+  queued: true,
+  compressing: true,
+  uploading: true,
+  added: false,
+  duplicate: false,
+  no_cat: false,
+  error: false,
+  canceled: false
+};
+var SETTLED_STATUSES = {
+  queued: false,
+  compressing: false,
+  uploading: false,
+  added: true,
+  duplicate: true,
+  no_cat: true,
+  error: true,
+  canceled: true
+};
+var UploadQueue = class {
+  constructor(_handlers, _onChange, _concurrency = DEFAULT_CONCURRENCY) {
+    this._handlers = _handlers;
+    this._onChange = _onChange;
+    this._concurrency = _concurrency;
+    this._items = /* @__PURE__ */ new Map();
+    this._order = [];
+    this._controllers = /* @__PURE__ */ new Map();
+    this._active = 0;
+    this._disposed = false;
+  }
+  get items() {
+    return this._order.map((id) => this._items.get(id));
+  }
+  get(id) {
+    return this._items.get(id);
+  }
+  /** Adds `ids` in `queued` state. Does not itself start uploading -- call `start()` once the
+   * user commits to the batch ("Add N photos"), so choosing photos never begins a network
+   * request. Safe to call more than once; an id already known is left exactly as it is. */
+  enqueue(ids) {
+    let changed = false;
+    for (const id of ids) {
+      if (this._items.has(id)) continue;
+      this._items.set(id, { id, status: "queued", message: null });
+      this._order.push(id);
+      changed = true;
+    }
+    if (changed) this._onChange();
+  }
+  /** Starts pulling `queued` items into the pool, up to the configured concurrency. Idempotent:
+   * calling it again while already running just tops the pool back up, a no-op if it's full. */
+  start() {
+    this._pump();
+  }
+  /** Moves a settled `error` item back to `queued` and resumes the pool. A no-op for any other
+   * status (already running, or already a terminal non-error outcome). */
+  retry(id) {
+    const item = this._items.get(id);
+    if (!item || item.status !== "error") return;
+    this._items.set(id, { id, status: "queued", message: null });
+    this._onChange();
+    this._pump();
+  }
+  /** Stops the batch: a still-`queued` item never starts (marked `canceled` directly); a
+   * `compressing`/`uploading` item's `AbortSignal` fires, and it settles `canceled` itself once
+   * `_run`'s rejection handler observes the abort. Items already settled are untouched. */
+  cancelPending() {
+    let changed = false;
+    for (const id of this._order) {
+      const item = this._items.get(id);
+      if (!ACTIVE_STATUSES[item.status]) continue;
+      if (item.status === "queued") {
+        this._items.set(id, { id, status: "canceled", message: null });
+        changed = true;
+      } else {
+        this._controllers.get(id)?.abort();
+      }
+    }
+    if (changed) this._onChange();
+  }
+  get allSettled() {
+    return this._order.length > 0 && this._order.every((id) => SETTLED_STATUSES[this._items.get(id).status]);
+  }
+  tally() {
+    const out = { added: 0, duplicate: 0, no_cat: 0, error: 0, canceled: 0 };
+    for (const item of this._items.values()) {
+      if (item.status in out) out[item.status] += 1;
+    }
+    return out;
+  }
+  /** Aborts every in-flight item and stops the pool from starting new work -- call once the
+   * owning component is done with this queue (closing the sheet). */
+  dispose() {
+    this._disposed = true;
+    for (const controller of this._controllers.values()) controller.abort();
+  }
+  _pump() {
+    if (this._disposed) return;
+    while (this._active < this._concurrency) {
+      const next = this._order.find((id) => this._items.get(id)?.status === "queued");
+      if (!next) return;
+      this._run(next);
+    }
+  }
+  _run(id) {
+    const controller = new AbortController();
+    this._controllers.set(id, controller);
+    this._active++;
+    this._set(id, "compressing", null);
+    this._handlers.compress(id, controller.signal).then((blob) => {
+      this._set(id, "uploading", null);
+      return this._handlers.upload(id, blob, controller.signal);
+    }).then((outcome) => {
+      this._set(id, outcome.status, outcome.message ?? null);
+    }).catch((err) => {
+      const aborted = controller.signal.aborted || err instanceof DOMException && err.name === "AbortError";
+      this._set(id, aborted ? "canceled" : "error", aborted ? null : err instanceof Error ? err.message : "Couldn't upload this photo.");
+    }).finally(() => {
+      this._controllers.delete(id);
+      this._active--;
+      this._pump();
+    });
+  }
+  _set(id, status, message) {
+    if (!this._items.has(id)) return;
+    this._items.set(id, { id, status, message });
+    this._onChange();
+  }
+};
+async function authedFetch(hass, path, body, signal) {
+  if (hass.fetchWithAuth) return hass.fetchWithAuth(path, { method: "POST", body, signal });
+  const token = hass.auth?.data.access_token;
+  if (!token || !hass.hassUrl) throw new Error("Not authenticated.");
+  const headers = new Headers({ Authorization: `Bearer ${token}` });
+  return fetch(new URL(path, hass.hassUrl), { method: "POST", body, headers, signal });
+}
+async function uploadTrainingPhoto(hass, entryId, cat, blob, filename, signal) {
+  const body = new FormData();
+  body.append("file", blob, filename);
+  const response = await authedFetch(hass, `/api/kibble/${entryId}/upload/training/${encodeURIComponent(cat)}`, body, signal);
+  try {
+    return await response.json();
+  } catch {
+    throw new Error(`Upload failed (${response.status}).`);
+  }
+}
+async function uploadAvatarPhoto(hass, entryId, cat, blob, filename, signal) {
+  const body = new FormData();
+  body.append("file", blob, filename);
+  const response = await authedFetch(hass, `/api/kibble/${entryId}/upload/avatar/${encodeURIComponent(cat)}`, body, signal);
+  try {
+    return await response.json();
+  } catch {
+    throw new Error(`Upload failed (${response.status}).`);
+  }
+}
+var CORNERS = ["nw", "ne", "se", "sw"];
+var KibbleCropEditor = class extends i4 {
   constructor() {
     super();
-    this._imgRef = e5();
-    this._canvasRef = e5();
-    this._cancelButtonRef = e5();
-    this._objectUrl = null;
-    this._resolvedFile = null;
-    this._naturalWidth = 0;
-    this._naturalHeight = 0;
-    this._selection = null;
-    this._lastBlob = null;
-    this._dragState = null;
-    this._keydownHandler = (event) => {
-      if (event.key === "Escape" && this.open) {
-        event.preventDefault();
-        this._close();
-      }
-    };
-    this._onImageLoad = () => {
-      const img = this._imgRef.value;
-      if (!img) return;
-      this._naturalWidth = img.naturalWidth;
-      this._naturalHeight = img.naturalHeight;
-      const size = Math.min(this._naturalWidth, this._naturalHeight) * INITIAL_SELECTION_FRACTION;
-      this._selection = { x: (this._naturalWidth - size) / 2, y: (this._naturalHeight - size) / 2, size };
-      this.requestUpdate();
-      this._drawPreview();
-    };
-    this._onPointerMove = (event) => {
-      const drag = this._dragState;
-      if (!drag || drag.pointerId !== event.pointerId || drag.scale === 0) return;
-      event.preventDefault();
-      const dx = (event.clientX - drag.startClientX) / drag.scale;
-      const dy = (event.clientY - drag.startClientY) / drag.scale;
-      if (drag.mode === "move") {
-        this._selection = this._clamp({ ...drag.startSelection, x: drag.startSelection.x + dx, y: drag.startSelection.y + dy });
-      } else {
-        const delta = Math.max(dx, dy);
-        this._selection = this._clamp({ ...drag.startSelection, size: drag.startSelection.size + delta });
-      }
-      this.requestUpdate();
-      this._drawPreview();
-    };
-    this._endDrag = (event) => {
-      if (this._dragState?.pointerId === event.pointerId) this._dragState = null;
-    };
-    this._onSelectionKeydown = (event) => {
-      if (!this._selection || this._naturalWidth === 0) return;
-      const step = Math.max(2, Math.round(Math.min(this._naturalWidth, this._naturalHeight) * 0.02));
-      const sel = { ...this._selection };
-      switch (event.key) {
-        case "ArrowLeft":
-          sel.x -= step;
-          break;
-        case "ArrowRight":
-          sel.x += step;
-          break;
-        case "ArrowUp":
-          sel.y -= step;
-          break;
-        case "ArrowDown":
-          sel.y += step;
-          break;
-        case "+":
-        case "=":
-          sel.x -= step / 2;
-          sel.y -= step / 2;
-          sel.size += step;
-          break;
-        case "-":
-        case "_":
-          sel.x += step / 2;
-          sel.y += step / 2;
-          sel.size -= step;
-          break;
-        default:
-          return;
-      }
-      event.preventDefault();
-      this._selection = this._clamp(sel);
-      this.requestUpdate();
-      this._drawPreview();
-    };
-    this._useCrop = () => {
-      const canvas = this._canvasRef.value;
-      if (!canvas || !this._selection) return;
-      canvas.toBlob(
-        (blob) => {
-          if (!blob) return;
-          this._lastBlob = blob;
-          this.dispatchEvent(new CustomEvent("use-crop", { detail: { blob }, bubbles: true, composed: true }));
-        },
-        "image/jpeg",
-        0.9
-      );
-    };
-    this._retry = () => {
-      if (!this._lastBlob) return;
-      this.dispatchEvent(new CustomEvent("use-crop", { detail: { blob: this._lastBlob }, bubbles: true, composed: true }));
-    };
-    this._close = () => {
-      this.dispatchEvent(new CustomEvent("close-requested", { bubbles: true, composed: true }));
-    };
-    this.open = false;
-    this.file = null;
-    this.catName = null;
-    this.queueIndex = 0;
-    this.queueTotal = 1;
-    this.busy = false;
-    this.error = null;
+    this._stageRef = e5();
+    this._pointers = /* @__PURE__ */ new Map();
+    this._dragCorner = null;
+    this._dragMoveStart = null;
+    this._pinchStart = null;
+    this._resizeObserver = null;
+    this.imageUrl = "";
+    this.naturalWidth = 0;
+    this.naturalHeight = 0;
+    this.crop = [0, 0, 1, 1];
+    this.circleGuide = false;
+    this.interactive = true;
+    this.fitParent = false;
   }
   static {
     this.properties = {
-      open: { type: Boolean, reflect: true },
-      file: { attribute: false },
-      catName: { type: String, attribute: "cat-name" },
-      queueIndex: { type: Number, attribute: "queue-index" },
-      queueTotal: { type: Number, attribute: "queue-total" },
-      busy: { type: Boolean },
-      error: { type: String }
+      imageUrl: { type: String },
+      naturalWidth: { type: Number },
+      naturalHeight: { type: Number },
+      crop: { attribute: false },
+      circleGuide: { type: Boolean },
+      interactive: { type: Boolean },
+      fitParent: { type: Boolean }
     };
   }
   connectedCallback() {
     super.connectedCallback();
-    window.addEventListener("keydown", this._keydownHandler);
+    if (this.fitParent && this.parentElement && typeof ResizeObserver !== "undefined") {
+      this._resizeObserver = new ResizeObserver(() => this._applyParentFit());
+      this._resizeObserver.observe(this.parentElement);
+    }
   }
   disconnectedCallback() {
     super.disconnectedCallback();
-    window.removeEventListener("keydown", this._keydownHandler);
-    if (this._objectUrl) URL.revokeObjectURL(this._objectUrl);
-  }
-  willUpdate() {
-    if (this.file !== this._resolvedFile) {
-      this._resolvedFile = this.file;
-      if (this._objectUrl) URL.revokeObjectURL(this._objectUrl);
-      this._objectUrl = this.file ? URL.createObjectURL(this.file) : null;
-      this._naturalWidth = 0;
-      this._naturalHeight = 0;
-      this._selection = null;
-      this._lastBlob = null;
-    }
+    this._resizeObserver?.disconnect();
+    this._resizeObserver = null;
   }
   updated(changed) {
-    if (changed.has("open") && this.open) {
-      this._cancelButtonRef.value?.focus();
+    if (this.fitParent && (changed.has("naturalWidth") || changed.has("naturalHeight"))) this._applyParentFit();
+  }
+  /** Sets this element's own inline pixel size to the largest box that fits within the parent's
+   * current content box while preserving the photo's aspect ratio -- plain containment
+   * arithmetic, computed here instead of leaned on CSS because the parent's resolved size (not
+   * just its CSS declaration) is the only thing that can never be ambiguous. */
+  _applyParentFit() {
+    const parent = this.parentElement;
+    if (!parent || this.naturalWidth <= 0 || this.naturalHeight <= 0) return;
+    const boxWidth = parent.clientWidth;
+    const boxHeight = parent.clientHeight;
+    if (boxWidth <= 0 || boxHeight <= 0) return;
+    const scale = Math.min(boxWidth / this.naturalWidth, boxHeight / this.naturalHeight);
+    this.style.width = `${Math.max(1, this.naturalWidth * scale)}px`;
+    this.style.height = `${Math.max(1, this.naturalHeight * scale)}px`;
+  }
+  _pointToNormalized(clientX, clientY) {
+    const rect = this._stageRef.value?.getBoundingClientRect();
+    return rect ? clientPointToNormalized(clientX, clientY, rect) : null;
+  }
+  _emitChange(next) {
+    this.crop = next;
+    this.dispatchEvent(new CustomEvent("crop-changed", { detail: { crop: next }, bubbles: true, composed: true }));
+  }
+  _beginPinch() {
+    this._dragCorner = null;
+    this._dragMoveStart = null;
+    const points = [...this._pointers.values()];
+    if (points.length < 2) return;
+    this._pinchStart = { distance: pinchDistance(points[0], points[1]), crop: this.crop };
+  }
+  _capture(event) {
+    this._stageRef.value?.setPointerCapture(event.pointerId);
+    const point = this._pointToNormalized(event.clientX, event.clientY);
+    if (point) this._pointers.set(event.pointerId, point);
+  }
+  _onHandlePointerDown(corner, event) {
+    event.preventDefault();
+    event.stopPropagation();
+    this._capture(event);
+    if (this._pointers.size >= 2) this._beginPinch();
+    else this._dragCorner = corner;
+  }
+  _onBodyPointerDown(event) {
+    if (!this.interactive) return;
+    event.preventDefault();
+    this._capture(event);
+    if (this._pointers.size >= 2) {
+      this._beginPinch();
+      return;
+    }
+    const point = this._pointToNormalized(event.clientX, event.clientY);
+    if (point) this._dragMoveStart = { point, crop: this.crop };
+  }
+  _onPointerMove(event) {
+    if (!this._pointers.has(event.pointerId)) return;
+    const point = this._pointToNormalized(event.clientX, event.clientY);
+    if (!point) return;
+    this._pointers.set(event.pointerId, point);
+    const size = { width: this.naturalWidth, height: this.naturalHeight };
+    if (this._pinchStart && this._pointers.size >= 2) {
+      const points = [...this._pointers.values()];
+      const distance = pinchDistance(points[0], points[1]);
+      if (this._pinchStart.distance > 0) this._emitChange(scaleSquareCrop(this._pinchStart.crop, distance / this._pinchStart.distance, size));
+      return;
+    }
+    if (this._dragCorner) {
+      this._emitChange(resizeSquareCrop(this.crop, this._dragCorner, point, size));
+      return;
+    }
+    if (this._dragMoveStart) {
+      this._emitChange(moveSquareCrop(this._dragMoveStart.crop, point.x - this._dragMoveStart.point.x, point.y - this._dragMoveStart.point.y));
+    }
+  }
+  _onPointerUp(event) {
+    this._pointers.delete(event.pointerId);
+    if (this._pointers.size < 2) this._pinchStart = null;
+    if (this._pointers.size === 0) {
+      this._dragCorner = null;
+      this._dragMoveStart = null;
     }
   }
   render() {
-    if (!this.open) return A;
-    const showQueue = this.queueTotal > 1;
-    const isLast = this.queueIndex >= this.queueTotal - 1;
+    const [x1, y1, x2, y22] = this.crop;
+    const frameStyle = `left:${x1 * 100}%;top:${y1 * 100}%;width:${(x2 - x1) * 100}%;height:${(y22 - y1) * 100}%;`;
+    const aspect = this.naturalWidth > 0 && this.naturalHeight > 0 ? `${this.naturalWidth} / ${this.naturalHeight}` : "1 / 1";
     return b2`
-      <div class="backdrop" @click=${this._close} role="dialog" aria-modal="true" aria-label=${`Crop a photo of ${this.catName ?? "this cat"}`}>
-        <div class="sheet" @click=${(event) => event.stopPropagation()}>
-          <div class="heading">
-            <span>Add a photo of ${this.catName ?? "this cat"}</span>
-            ${showQueue ? b2`<span class="queue">Photo ${this.queueIndex + 1} of ${this.queueTotal}</span>` : A}
-          </div>
-          <div class="stage">
-            ${this._objectUrl ? b2`<img ${n5(this._imgRef)} src=${this._objectUrl} alt="" @load=${this._onImageLoad} />` : A}
-            ${this._selection ? this._renderSelection() : A}
-          </div>
-          <div class="preview-row">
-            <canvas ${n5(this._canvasRef)} class="preview" width=${CROP_SIZE_PX} height=${CROP_SIZE_PX} aria-hidden="true"></canvas>
-            <p class="hint">
-              Drag the square to cover the cat's face, drag its corner to resize. This becomes the training photo
-              -- ${CROP_SIZE_PX}\u00d7${CROP_SIZE_PX}.
-            </p>
-          </div>
-          ${this.error ? b2`
-                <div class="error">
-                  <span>${this.error}</span>
-                  <button type="button" @click=${this._retry}>Try again</button>
-                </div>
-              ` : A}
-          <div class="actions">
-            <button type="button" class="cancel" ${n5(this._cancelButtonRef)} ?disabled=${this.busy} @click=${this._close}>
-              ${showQueue && !isLast ? "Skip" : "Cancel"}
-            </button>
-            <button type="button" class="use" ?disabled=${this.busy || !this._selection} @click=${this._useCrop}>
-              ${this.busy ? "Uploading\u2026" : "Use this crop"}
-            </button>
-          </div>
+      <div
+        class="stage"
+        style="aspect-ratio:${aspect};cursor:${this.interactive ? "move" : "default"}"
+        ${n5(this._stageRef)}
+        @pointerdown=${(e6) => this._onBodyPointerDown(e6)}
+        @pointermove=${(e6) => this._onPointerMove(e6)}
+        @pointerup=${(e6) => this._onPointerUp(e6)}
+        @pointercancel=${(e6) => this._onPointerUp(e6)}
+      >
+        ${this.imageUrl ? b2`<img src=${this.imageUrl} alt="" draggable="false" />` : A}
+        <div class="frame" style=${frameStyle}>
+          ${this.circleGuide ? b2`<div class="circle-guide"></div>` : A}
+          ${this.interactive ? CORNERS.map((corner) => b2`<button type="button" class="handle handle-${corner}" aria-label="Resize crop" @pointerdown=${(e6) => this._onHandlePointerDown(corner, e6)}></button>`) : A}
         </div>
       </div>
     `;
   }
-  _renderSelection() {
-    const img = this._imgRef.value;
-    const sel = this._selection;
-    if (!img || !sel || this._naturalWidth === 0) return A;
-    const imgRect = img.getBoundingClientRect();
-    const stageRect = img.parentElement.getBoundingClientRect();
-    const scale = imgRect.width / this._naturalWidth;
-    const left = imgRect.left - stageRect.left + sel.x * scale;
-    const top = imgRect.top - stageRect.top + sel.y * scale;
-    const size = sel.size * scale;
-    return b2`
-      <div
-        class="selection"
-        tabindex="0"
-        role="group"
-        aria-label="Face crop area"
-        style="left: ${left}px; top: ${top}px; width: ${size}px; height: ${size}px;"
-        @pointerdown=${(event) => this._beginDrag(event, "move")}
-        @pointermove=${this._onPointerMove}
-        @pointerup=${this._endDrag}
-        @pointercancel=${this._endDrag}
-        @keydown=${this._onSelectionKeydown}
-      >
-        <div
-          class="handle"
-          @pointerdown=${(event) => this._beginDrag(event, "resize")}
-          @pointermove=${this._onPointerMove}
-          @pointerup=${this._endDrag}
-          @pointercancel=${this._endDrag}
-        ></div>
-      </div>
-    `;
-  }
-  _beginDrag(event, mode) {
-    if (mode === "resize") event.stopPropagation();
-    const img = this._imgRef.value;
-    if (!img || !this._selection || this._naturalWidth === 0) return;
-    event.preventDefault();
-    event.currentTarget.setPointerCapture(event.pointerId);
-    this._dragState = {
-      mode,
-      pointerId: event.pointerId,
-      startClientX: event.clientX,
-      startClientY: event.clientY,
-      startSelection: { ...this._selection },
-      scale: img.getBoundingClientRect().width / this._naturalWidth
-    };
-  }
-  _clamp(sel) {
-    const maxSize = Math.min(this._naturalWidth, this._naturalHeight);
-    const minSize = Math.max(8, maxSize * MIN_SELECTION_FRACTION);
-    const size = Math.min(Math.max(sel.size, minSize), maxSize);
-    const x2 = Math.min(Math.max(sel.x, 0), this._naturalWidth - size);
-    const y3 = Math.min(Math.max(sel.y, 0), this._naturalHeight - size);
-    return { x: x2, y: y3, size };
-  }
-  _drawPreview() {
-    const canvas = this._canvasRef.value;
-    const img = this._imgRef.value;
-    const sel = this._selection;
-    if (!canvas || !img || !sel) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    ctx.clearRect(0, 0, CROP_SIZE_PX, CROP_SIZE_PX);
-    ctx.drawImage(img, sel.x, sel.y, sel.size, sel.size, 0, 0, CROP_SIZE_PX, CROP_SIZE_PX);
-  }
   static {
     this.styles = i`
     :host {
-      display: contents;
-    }
-    .backdrop {
-      position: fixed;
-      inset: 0;
-      background: rgba(0, 0, 0, 0.6);
-      display: flex;
-      align-items: flex-end;
-      justify-content: center;
-      z-index: 1000;
-      box-sizing: border-box;
-    }
-    @media (min-width: 480px) {
-      .backdrop {
-        align-items: center;
-        padding: 24px;
-      }
-    }
-    .sheet {
-      width: 100%;
-      max-width: 420px;
-      max-height: 92vh;
-      overflow-y: auto;
-      background: var(--ha-card-background, var(--card-background-color, #fff));
-      border-radius: 16px 16px 0 0;
-      padding: 16px;
-      box-sizing: border-box;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
-    @media (min-width: 480px) {
-      .sheet {
-        border-radius: 16px;
-      }
-    }
-    .heading {
-      display: flex;
-      align-items: baseline;
-      justify-content: space-between;
-      gap: 8px;
-      font-size: 16px;
-      font-weight: 600;
-      color: var(--primary-text-color);
-    }
-    .queue {
-      font-size: 12px;
-      font-weight: 400;
-      color: var(--secondary-text-color);
-      white-space: nowrap;
+      display: block;
+      max-width: 100%;
+      max-height: 100%;
     }
     .stage {
       position: relative;
+      width: 100%;
       overflow: hidden;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      touch-action: none;
       background: #000;
       border-radius: 8px;
-      max-height: 50vh;
     }
     .stage img {
-      display: block;
-      max-width: 100%;
-      max-height: 50vh;
-      user-select: none;
-      -webkit-user-drag: none;
-    }
-    .selection {
       position: absolute;
-      box-sizing: border-box;
-      border: 2px solid #fff;
-      box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.55);
-      cursor: move;
-      touch-action: none;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: fill;
+      pointer-events: none;
+      user-select: none;
     }
-    .selection:focus-visible {
-      outline: 2px solid var(--primary-color, #03a9f4);
-      outline-offset: 2px;
+    .frame {
+      position: absolute;
+      box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.55);
+      border: 2px solid #fff;
+      box-sizing: border-box;
+    }
+    .circle-guide {
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      border: 1px dashed rgba(255, 255, 255, 0.85);
+      pointer-events: none;
     }
     .handle {
       position: absolute;
-      right: -9px;
-      bottom: -9px;
-      width: 20px;
-      height: 20px;
+      width: 28px;
+      height: 28px;
+      margin: -14px;
+      padding: 0;
+      border: none;
+      background: none;
+      touch-action: none;
+      cursor: pointer;
+    }
+    .handle::after {
+      content: "";
+      position: absolute;
+      inset: 8px;
       border-radius: 50%;
       background: #fff;
-      border: 2px solid var(--primary-color, #03a9f4);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+    }
+    .handle-nw {
+      left: 0;
+      top: 0;
       cursor: nwse-resize;
-      touch-action: none;
     }
-    .preview-row {
-      display: flex;
-      align-items: center;
-      gap: 12px;
+    .handle-ne {
+      right: 0;
+      top: 0;
+      left: auto;
+      cursor: nesw-resize;
     }
-    .preview {
-      flex: 0 0 auto;
-      width: 72px;
-      height: 72px;
-      border-radius: 8px;
-      background: color-mix(in srgb, var(--primary-text-color) 8%, transparent);
+    .handle-se {
+      right: 0;
+      bottom: 0;
+      left: auto;
+      cursor: nwse-resize;
     }
-    .hint {
-      margin: 0;
-      font-size: 12px;
-      color: var(--secondary-text-color);
-    }
-    .error {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      padding: 10px 12px;
-      border-radius: 8px;
-      background: color-mix(in srgb, var(--error-color, #db4437) 10%, transparent);
-      color: var(--error-color, #db4437);
-      font-size: 13px;
-    }
-    .error button {
-      flex: 0 0 auto;
-      border: 1px solid currentColor;
-      background: none;
-      color: inherit;
-      border-radius: 8px;
-      padding: 6px 10px;
-      font: inherit;
-      cursor: pointer;
-      min-height: 36px;
-    }
-    .actions {
-      display: flex;
-      gap: 8px;
-      justify-content: flex-end;
-    }
-    .actions button {
-      min-height: 44px;
-      border-radius: 8px;
-      border: none;
-      font: inherit;
-      font-weight: 600;
-      cursor: pointer;
-      padding: 0 16px;
-    }
-    .cancel {
-      background: color-mix(in srgb, var(--primary-text-color) 8%, transparent);
-      color: var(--primary-text-color);
-    }
-    .use {
-      background: color-mix(in srgb, var(--primary-color, #03a9f4) 14%, transparent);
-      color: var(--primary-color, #03a9f4);
-    }
-    .actions button:disabled {
-      opacity: 0.5;
-      cursor: default;
-    }
-    .actions button:focus-visible {
-      outline: 2px solid var(--primary-color, #03a9f4);
-      outline-offset: 2px;
+    .handle-sw {
+      left: 0;
+      bottom: 0;
+      cursor: nesw-resize;
     }
   `;
   }
 };
-customElements.define("kibble-crop-dialog", KibbleCropDialog);
-var KibbleFacePicker = class extends i4 {
+customElements.define("kibble-crop-editor", KibbleCropEditor);
+var FOCUSABLE_SELECTOR3 = ["button:not([disabled])", '[tabindex]:not([tabindex="-1"])'].join(",");
+var KibbleAddPhotosSheet = class extends i4 {
   constructor() {
     super();
-    this._firstButtonRef = e5();
-    this._cache = new ImageUrlCache();
-    this._imageUrl = null;
-    this._resolvedPath = null;
+    this._queue = null;
+    this._tileGeneration = 0;
+    this._loadedFiles = null;
+    this._closeButtonRef = e5();
     this._keydownHandler = (event) => {
-      if (event.key !== "Escape" || !this.open) return;
-      event.preventDefault();
-      if (this._zoomed) {
-        this._zoomed = false;
+      if (!this.open) return;
+      if (event.key === "Escape") {
+        event.preventDefault();
+        if (this._adjustingId) this._adjustingId = null;
+        else this._requestClose();
         return;
       }
-      this._close();
-    };
-    this._close = () => {
-      this.dispatchEvent(new CustomEvent("close-requested", { bubbles: true, composed: true }));
+      if (event.key !== "Tab") return;
+      const focusable = [...this.renderRoot.querySelectorAll(FOCUSABLE_SELECTOR3)];
+      if (focusable.length === 0) return;
+      const active = this.renderRoot.querySelector(":focus");
+      const currentIndex = active ? focusable.indexOf(active) : -1;
+      const nextIndex = event.shiftKey ? currentIndex - 1 : currentIndex + 1;
+      if (currentIndex === -1 || nextIndex < 0 || nextIndex >= focusable.length) {
+        event.preventDefault();
+        (event.shiftKey ? focusable[focusable.length - 1] : focusable[0])?.focus();
+      }
     };
     this.open = false;
-    this.cats = [];
-    this.crop = null;
-    this._zoomed = false;
+    this.files = [];
+    this._tiles = [];
+    this._adjustingId = null;
+    this._queueTick = 0;
   }
   static {
     this.properties = {
       open: { type: Boolean, reflect: true },
       hass: { attribute: false },
-      cats: { attribute: false },
       entryId: { type: String },
-      crop: { attribute: false },
-      _zoomed: { state: true }
+      cat: { type: String },
+      files: { attribute: false },
+      _tiles: { state: true },
+      _adjustingId: { state: true },
+      _queueTick: { state: true }
     };
   }
   connectedCallback() {
@@ -12723,205 +19458,823 @@ var KibbleFacePicker = class extends i4 {
   disconnectedCallback() {
     super.disconnectedCallback();
     window.removeEventListener("keydown", this._keydownHandler);
-    this._cache.dispose();
+    this._disposeTiles();
+    this._queue?.dispose();
   }
-  updated(changed) {
-    if (changed.has("open") && this.open) {
-      this._firstButtonRef.value?.focus();
+  willUpdate(changed) {
+    if (changed.has("open") && this.open) this._closeButtonRef.value?.focus();
+    if (this.open && this.files !== this._loadedFiles) {
+      this._loadedFiles = this.files;
+      this._resetForFiles(this.files);
     }
   }
-  /** Resolves `crop`'s pending-image URL through the shared authenticated-fetch cache, the
-   * same pattern `kibble-avatar` uses -- callers just hand this a crop, never plumbing
-   * fetch/object-URL bookkeeping themselves. Also resets `_zoomed`: a freshly opened crop
-   * should never inherit the previous one's zoom state. */
-  willUpdate() {
-    const path = this.entryId && this.crop ? kibbleImageUrl(this.entryId, "pending", this.crop.name) : null;
-    if (path === this._resolvedPath) return;
-    this._resolvedPath = path;
-    this._imageUrl = null;
-    this._zoomed = false;
-    if (!path || !this.hass) return;
-    this._imageUrl = this._cache.get(this.hass, path, (url) => {
-      if (this._resolvedPath !== path) return;
-      this._imageUrl = url;
-      this.requestUpdate();
-    });
+  _disposeTiles() {
+    for (const tile of this._tiles) URL.revokeObjectURL(tile.objectUrl);
+  }
+  _resetForFiles(files) {
+    this._queue?.dispose();
+    this._queue = null;
+    this._disposeTiles();
+    this._adjustingId = null;
+    const generation = ++this._tileGeneration;
+    this._tiles = files.map((file, index) => ({ id: `f${index}`, file, objectUrl: URL.createObjectURL(file), naturalSize: null, crop: [0, 0, 1, 1] }));
+    for (const tile of this._tiles) {
+      void imageNaturalSize(tile.file).then((size) => {
+        if (generation !== this._tileGeneration || !size) return;
+        tile.naturalSize = size;
+        tile.crop = defaultSquareCrop(size);
+        this.requestUpdate();
+      });
+    }
+  }
+  _removeTile(id) {
+    const tile = this._tiles.find((t5) => t5.id === id);
+    if (tile) URL.revokeObjectURL(tile.objectUrl);
+    this._tiles = this._tiles.filter((t5) => t5.id !== id);
+  }
+  _onCropChanged(id, crop) {
+    const tile = this._tiles.find((t5) => t5.id === id);
+    if (tile) tile.crop = crop;
+    this.requestUpdate();
+  }
+  _startUpload() {
+    const hass = this.hass;
+    const entryId = this.entryId;
+    const cat = this.cat;
+    if (!hass || !entryId || !cat || this._tiles.length === 0 || this._queue) return;
+    const tiles = this._tiles;
+    const queue = new UploadQueue(
+      {
+        compress: (id) => prepareUpload(tiles.find((t5) => t5.id === id).file, tiles.find((t5) => t5.id === id).crop),
+        upload: async (id, blob, signal) => {
+          const tile = tiles.find((t5) => t5.id === id);
+          const result = await uploadTrainingPhoto(hass, entryId, cat, blob, uploadFilename(tile.file, blob), signal);
+          return { status: result.status, message: result.message };
+        }
+      },
+      () => {
+        this._queueTick++;
+      },
+      2
+    );
+    queue.enqueue(tiles.map((tile) => tile.id));
+    queue.start();
+    this._queue = queue;
+    this._queueTick++;
+  }
+  _requestClose() {
+    this._queue?.cancelPending();
+    this.dispatchEvent(new CustomEvent("close-requested", { bubbles: true, composed: true }));
   }
   render() {
     if (!this.open) return A;
-    const crop = this.crop;
-    const alt = crop ? `Captured ${new Date(crop.ts * 1e3).toLocaleString()}` : "";
+    const adjusting = this._adjustingId ? this._tiles.find((t5) => t5.id === this._adjustingId) : void 0;
     return b2`
-      <div class="backdrop" @click=${this._close} role="dialog" aria-modal="true" aria-label="Choose a cat">
-        <div class="sheet" @click=${(event) => event.stopPropagation()}>
-          <div class="heading">Choose a cat</div>
-          ${crop ? b2`
-                <button
-                  type="button"
-                  class="preview"
-                  ?disabled=${!this._imageUrl}
-                  aria-label=${`View full size. ${alt}`}
-                  @click=${() => this._zoomed = true}
-                >
-                  ${this._imageUrl ? b2`<img src=${this._imageUrl} alt="" loading="lazy" />` : A}
-                </button>
-              ` : A}
-          <div class="rows">
-            ${this.cats.map(
-      (cat, index) => b2`
-                <button type="button" class="row" ${index === 0 ? n5(this._firstButtonRef) : A} @click=${() => this._choose(cat.name)}>
-                  <kibble-avatar
-                    .hass=${this.hass}
-                    .name=${cat.name}
-                    .colorIndex=${cat.color_index}
-                    .entryId=${this.entryId}
-                    .sampleName=${cat.avatar}
-                  ></kibble-avatar>
-                  <span>${cat.name}</span>
-                </button>
-              `
-    )}
-            <button type="button" class="row" ${this.cats.length === 0 ? n5(this._firstButtonRef) : A} @click=${() => this._choose("not_a_cat")}>
-              <kibble-avatar .name=${null}></kibble-avatar>
-              <span>Not a cat</span>
-            </button>
-            <button type="button" class="row" @click=${() => this._choose("other")}>
-              <kibble-avatar .name=${null}></kibble-avatar>
-              <span>Skip</span>
-            </button>
-          </div>
-          <button type="button" class="cancel" @click=${this._close}>Cancel</button>
+      <div class="backdrop" role="dialog" aria-modal="true" aria-label="Add photos">
+        <div class="sheet">
+          <header>
+            <span class="title">Add photos${this.cat ? b2` of ${this.cat}` : A}</span>
+            <button type="button" class="close" ${n5(this._closeButtonRef)} @click=${() => this._requestClose()} aria-label="Close">${mdiIcon("close")}</button>
+          </header>
+          ${this._tiles.length === 0 ? b2`<p class="empty">No photos chosen.</p>` : b2`<div class="grid">${this._tiles.map((tile) => this._renderTile(tile))}</div>`}
+          ${this._renderFooter()}
         </div>
+        ${adjusting ? this._renderAdjust(adjusting) : A}
       </div>
-      <kibble-lightbox ?open=${this._zoomed} .imageUrl=${this._imageUrl} .alt=${alt} @close-requested=${() => this._zoomed = false}></kibble-lightbox>
     `;
   }
-  _choose(cat) {
-    this.dispatchEvent(new CustomEvent("choice", { detail: { cat }, bubbles: true, composed: true }));
+  _renderTile(tile) {
+    const status = this._queue?.get(tile.id)?.status;
+    const message = this._queue?.get(tile.id)?.message ?? null;
+    return b2`
+      <div class="tile">
+        <button type="button" class="tile-photo" aria-label="Adjust crop" ?disabled=${Boolean(this._queue)} @click=${() => {
+      this._adjustingId = tile.id;
+    }}>
+          <kibble-crop-editor .imageUrl=${tile.objectUrl} .naturalWidth=${tile.naturalSize?.width ?? 0} .naturalHeight=${tile.naturalSize?.height ?? 0} .crop=${tile.crop} .interactive=${false}></kibble-crop-editor>
+        </button>
+        ${!this._queue ? b2`<button type="button" class="remove" aria-label="Remove this photo" @click=${() => this._removeTile(tile.id)}>${"\xD7"}</button>` : A}
+        ${status ? this._renderTileStatus(tile.id, status, message) : A}
+      </div>
+    `;
+  }
+  _renderTileStatus(id, status, message) {
+    if (status === "queued") return A;
+    if (status === "compressing" || status === "uploading") return b2`<span class="tile-badge busy" aria-label="Uploading">${mdiIcon("refresh")}</span>`;
+    if (status === "added") return b2`<span class="tile-badge added" aria-label="Added">${mdiIcon("check")}</span>`;
+    if (status === "duplicate") return b2`<span class="tile-badge muted">Duplicate</span>`;
+    if (status === "no_cat") return b2`<span class="tile-badge muted">Not a cat</span>`;
+    if (status === "canceled") return b2`<span class="tile-badge muted">Canceled</span>`;
+    return b2`
+      <span class="tile-badge error" title=${message ?? "Couldn't upload this photo."}>
+        Failed
+        <button type="button" @click=${() => this._queue?.retry(id)}>Retry</button>
+      </span>
+    `;
+  }
+  _renderFooter() {
+    const queue = this._queue;
+    if (queue && queue.allSettled) {
+      return b2`
+        <div class="footer">
+          <p class="tally">${this._tallyPhrase(queue.tally())}</p>
+          <button type="button" class="primary" @click=${() => this._requestClose()}>Done</button>
+        </div>
+      `;
+    }
+    if (queue) {
+      const settled = this._tiles.filter((tile) => queue.get(tile.id)?.status !== "queued" && queue.get(tile.id)?.status !== "compressing" && queue.get(tile.id)?.status !== "uploading").length;
+      return b2`<div class="footer"><p class="progress">Adding ${settled} of ${this._tiles.length}\u2026</p></div>`;
+    }
+    return b2`
+      <div class="footer">
+        <button type="button" class="primary" ?disabled=${this._tiles.length === 0} @click=${() => this._startUpload()}>Add ${this._tiles.length} photo${this._tiles.length === 1 ? "" : "s"}</button>
+      </div>
+    `;
+  }
+  _tallyPhrase(tally) {
+    const parts = [];
+    if (tally.added) parts.push(`${tally.added} added`);
+    if (tally.duplicate) parts.push(`${tally.duplicate} duplicate${tally.duplicate === 1 ? "" : "s"}`);
+    if (tally.no_cat) parts.push(`${tally.no_cat} not a cat`);
+    if (tally.error) parts.push(`${tally.error} failed`);
+    if (tally.canceled) parts.push(`${tally.canceled} canceled`);
+    return parts.length > 0 ? parts.join(" \xB7 ") : "Nothing added.";
+  }
+  _renderAdjust(tile) {
+    return b2`
+      <div class="adjust">
+        <div class="adjust-stage">
+          <kibble-crop-editor
+            .imageUrl=${tile.objectUrl}
+            .naturalWidth=${tile.naturalSize?.width ?? 0}
+            .naturalHeight=${tile.naturalSize?.height ?? 0}
+            .crop=${tile.crop}
+            .fitParent=${true}
+            @crop-changed=${(e6) => this._onCropChanged(tile.id, e6.detail.crop)}
+          ></kibble-crop-editor>
+        </div>
+        <button type="button" class="adjust-done" @click=${() => {
+      this._adjustingId = null;
+    }}>Done</button>
+      </div>
+    `;
   }
   static {
     this.styles = i`
     :host {
-      display: contents;
+      display: block;
+      --kibble-text-caption: 12px;
+      --kibble-text-body: 14px;
+      --kibble-text-title: 16px;
     }
     .backdrop {
       position: fixed;
       inset: 0;
-      background: rgba(0, 0, 0, 0.5);
+      z-index: 20;
       display: flex;
       align-items: flex-end;
       justify-content: center;
-      z-index: 1000;
-    }
-    @media (min-width: 480px) {
-      .backdrop {
-        align-items: center;
-      }
+      background: rgba(0, 0, 0, 0.5);
     }
     .sheet {
       width: 100%;
-      max-width: 360px;
-      max-height: 80vh;
-      overflow-y: auto;
-      background: var(--ha-card-background, var(--card-background-color, #fff));
-      border-radius: 16px 16px 0 0;
-      padding: 16px;
-      box-sizing: border-box;
-    }
-    @media (min-width: 480px) {
-      .sheet {
-        border-radius: 16px;
-      }
-    }
-    .heading {
-      font-size: 16px;
-      font-weight: 600;
-      color: var(--primary-text-color);
-      padding-bottom: 8px;
-    }
-    .preview {
-      display: block;
-      width: 100%;
-      aspect-ratio: 1;
-      margin-bottom: 8px;
-      border: none;
-      border-radius: 8px;
-      background: color-mix(in srgb, var(--primary-text-color) 8%, transparent);
-      padding: 0;
-      cursor: pointer;
-      overflow: hidden;
-    }
-    .preview:disabled {
-      cursor: default;
-    }
-    .preview:focus-visible {
-      outline: 2px solid var(--primary-color, #03a9f4);
-      outline-offset: 2px;
-    }
-    .preview img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      display: block;
-      /* Same reasoning as the cats card's crop/sample grids: a real photo, smooth upscale,
-       * never "pixelated". */
-      image-rendering: auto;
-    }
-    .rows {
+      max-width: 560px;
+      max-height: min(88vh, 780px);
       display: flex;
       flex-direction: column;
+      gap: 14px;
+      padding: 16px;
+      padding-bottom: max(16px, env(safe-area-inset-bottom));
+      box-sizing: border-box;
+      border-radius: 16px 16px 0 0;
+      background: var(--ha-card-background, var(--card-background-color, #fff));
+      color: var(--primary-text-color);
+      overflow-y: auto;
     }
-    .row {
+    header {
       display: flex;
       align-items: center;
+      justify-content: space-between;
       gap: 12px;
-      padding: 10px 4px;
+    }
+    .title {
+      font-size: var(--kibble-text-title);
+      font-weight: 600;
+    }
+    .close {
+      flex: none;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
       border: none;
-      background: none;
-      color: var(--primary-text-color);
-      font: inherit;
-      font-size: 15px;
-      text-align: left;
-      cursor: pointer;
-      min-height: 48px;
-      border-radius: 8px;
-    }
-    .row:hover {
-      background: color-mix(in srgb, var(--primary-text-color) 6%, transparent);
-    }
-    .row:focus-visible,
-    .cancel:focus-visible {
-      outline: 2px solid var(--primary-color, #03a9f4);
-      outline-offset: 2px;
-    }
-    kibble-avatar {
-      --kibble-avatar-size: 32px;
-    }
-    .cancel {
-      width: 100%;
-      margin-top: 8px;
-      min-height: 44px;
-      border: none;
-      border-radius: 8px;
       background: color-mix(in srgb, var(--primary-text-color) 8%, transparent);
       color: var(--primary-text-color);
-      font: inherit;
-      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       cursor: pointer;
+    }
+    .empty {
+      margin: 0;
+      color: var(--secondary-text-color);
+      font-size: var(--kibble-text-body);
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+      gap: 10px;
+    }
+    .tile {
+      position: relative;
+    }
+    .tile-photo {
+      display: block;
+      width: 100%;
+      padding: 0;
+      border: none;
+      background: none;
+      border-radius: 10px;
+      overflow: hidden;
+      cursor: pointer;
+    }
+    .tile-photo:disabled {
+      cursor: default;
+    }
+    .remove {
+      position: absolute;
+      top: -6px;
+      right: -6px;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      border: none;
+      background: #222;
+      color: #fff;
+      font-size: 13px;
+      line-height: 1;
+      cursor: pointer;
+    }
+    .tile-badge {
+      position: absolute;
+      left: 6px;
+      bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 600;
+      background: rgba(0, 0, 0, 0.6);
+      color: #fff;
+    }
+    .tile-badge.added {
+      background: var(--kibble-feed, #43a96a);
+    }
+    .tile-badge.error {
+      background: var(--error-color, #db4437);
+      gap: 6px;
+    }
+    .tile-badge.error button {
+      border: none;
+      background: rgba(255, 255, 255, 0.25);
+      color: #fff;
+      border-radius: 999px;
+      padding: 1px 8px;
+      font: inherit;
+      font-size: 10px;
+      cursor: pointer;
+    }
+    @media (prefers-reduced-motion: no-preference) {
+      .tile-badge.busy svg {
+        animation: kibble-add-photos-spin 0.9s linear infinite;
+      }
+    }
+    @keyframes kibble-add-photos-spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+    .footer {
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 8px;
+      border-top: 1px solid var(--divider-color);
+      padding-top: 12px;
+    }
+    .primary {
+      min-height: 44px;
+      border-radius: 10px;
+      border: none;
+      background: var(--kibble-feed, #43a96a);
+      color: var(--kibble-ink-on-feed, #10301d);
+      font: inherit;
+      font-weight: 700;
+      font-size: var(--kibble-text-body);
+      cursor: pointer;
+    }
+    .primary:disabled {
+      opacity: 0.5;
+      cursor: default;
+    }
+    .progress,
+    .tally {
+      margin: 0;
+      text-align: center;
+      font-size: var(--kibble-text-caption);
+      color: var(--secondary-text-color);
+    }
+    .adjust {
+      position: fixed;
+      inset: 0;
+      z-index: 30;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
+      box-sizing: border-box;
+      background: rgba(0, 0, 0, 0.94);
+    }
+    .adjust-stage {
+      flex: 1 1 auto;
+      min-height: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+    .adjust-stage kibble-crop-editor {
+      max-width: 100%;
+      max-height: 100%;
+    }
+    .adjust-done {
+      align-self: center;
+      min-height: 44px;
+      padding: 0 28px;
+      border-radius: 999px;
+      border: none;
+      background: #fff;
+      color: #111;
+      font: inherit;
+      font-weight: 700;
+      font-size: var(--kibble-text-body);
+      cursor: pointer;
+    }
+    .close:focus-visible,
+    .tile-photo:focus-visible,
+    .remove:focus-visible,
+    .primary:focus-visible,
+    .adjust-done:focus-visible {
+      outline: 2px solid var(--primary-color, #03a9f4);
+      outline-offset: 2px;
     }
   `;
   }
 };
-customElements.define("kibble-face-picker", KibbleFacePicker);
+customElements.define("kibble-add-photos-sheet", KibbleAddPhotosSheet);
+var TRAINING_LIMIT = 24;
+var FOCUSABLE_SELECTOR4 = ["button:not([disabled])", '[tabindex]:not([tabindex="-1"])'].join(",");
+var KibbleAvatarPicker = class extends i4 {
+  constructor() {
+    super();
+    this._trainingFeed = new PagedFeed("kibble/training", () => this.requestUpdate());
+    this._uploadObjectUrl = "";
+    this._uploadGeneration = 0;
+    this._closeButtonRef = e5();
+    this._fileInputRef = e5();
+    this._keydownHandler = (event) => {
+      if (!this.open) return;
+      if (event.key === "Escape") {
+        event.preventDefault();
+        if (this._uploadFile) this._cancelUpload();
+        else this._requestClose();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const focusable = [...this.renderRoot.querySelectorAll(FOCUSABLE_SELECTOR4)];
+      if (focusable.length === 0) return;
+      const active = this.renderRoot.querySelector(":focus");
+      const currentIndex = active ? focusable.indexOf(active) : -1;
+      const nextIndex = event.shiftKey ? currentIndex - 1 : currentIndex + 1;
+      if (currentIndex === -1 || nextIndex < 0 || nextIndex >= focusable.length) {
+        event.preventDefault();
+        (event.shiftKey ? focusable[focusable.length - 1] : focusable[0])?.focus();
+      }
+    };
+    this.open = false;
+    this.cat = null;
+    this._uploadFile = null;
+    this._uploadNaturalSize = null;
+    this._uploadCrop = [0, 0, 1, 1];
+    this._busy = false;
+    this._error = null;
+  }
+  static {
+    this.properties = {
+      open: { type: Boolean, reflect: true },
+      hass: { attribute: false },
+      entryId: { type: String },
+      cache: { attribute: false },
+      cat: { attribute: false },
+      _uploadFile: { state: true },
+      _uploadNaturalSize: { state: true },
+      _uploadCrop: { attribute: false },
+      _busy: { state: true },
+      _error: { state: true }
+    };
+  }
+  connectedCallback() {
+    super.connectedCallback();
+    window.addEventListener("keydown", this._keydownHandler);
+  }
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    window.removeEventListener("keydown", this._keydownHandler);
+    this._trainingFeed.dispose();
+    this._cancelUpload();
+  }
+  willUpdate(changed) {
+    if (changed.has("open") && this.open) this._closeButtonRef.value?.focus();
+    if (changed.has("open") && !this.open) {
+      this._cancelUpload();
+      this._error = null;
+    }
+    const hass = this.hass;
+    const entryId = this.entryId;
+    const cat = this.cat;
+    if (this.open && hass?.callWS && entryId && cat) {
+      this._trainingFeed.sync(hass, `${entryId}:${cat.name}`, this._feedParams(), TRAINING_LIMIT);
+    }
+  }
+  _feedParams() {
+    return { entry_id: this.entryId, cat: this.cat?.name };
+  }
+  _requestClose() {
+    this.dispatchEvent(new CustomEvent("close-requested", { bubbles: true, composed: true }));
+  }
+  _emitChanged(avatar, avatarCustom) {
+    const cat = this.cat;
+    if (!cat) return;
+    this.dispatchEvent(new CustomEvent("avatar-changed", { detail: { cat: cat.name, avatar, avatarCustom }, bubbles: true, composed: true }));
+  }
+  async _chooseExisting(asset) {
+    const hass = this.hass;
+    const entryId = this.entryId;
+    const cat = this.cat;
+    if (!hass?.callWS || !entryId || !cat || !asset || this._busy) return;
+    this._busy = true;
+    this._error = null;
+    try {
+      const result = await hass.callWS({ type: "kibble/cats/avatar/set", entry_id: entryId, cat: cat.name, asset_id: asset.id });
+      this._emitChanged(result.avatar, true);
+      this._requestClose();
+    } catch (err) {
+      this._error = describeWsError(err);
+    } finally {
+      this._busy = false;
+    }
+  }
+  async _onReset() {
+    const hass = this.hass;
+    const entryId = this.entryId;
+    const cat = this.cat;
+    if (!hass?.callWS || !entryId || !cat || this._busy) return;
+    this._busy = true;
+    this._error = null;
+    try {
+      const result = await hass.callWS({ type: "kibble/cats/avatar/clear", entry_id: entryId, cat: cat.name });
+      this._emitChanged(result.avatar, false);
+      this._requestClose();
+    } catch (err) {
+      this._error = describeWsError(err);
+    } finally {
+      this._busy = false;
+    }
+  }
+  _onFileChosen(event) {
+    const input = event.target;
+    const file = input.files?.[0] ?? null;
+    input.value = "";
+    if (!file) return;
+    this._uploadFile = file;
+    this._uploadObjectUrl = URL.createObjectURL(file);
+    this._uploadNaturalSize = null;
+    this._uploadCrop = [0, 0, 1, 1];
+    const generation = ++this._uploadGeneration;
+    void imageNaturalSize(file).then((size) => {
+      if (generation !== this._uploadGeneration || !size) return;
+      this._uploadNaturalSize = size;
+      this._uploadCrop = defaultSquareCrop(size);
+    });
+  }
+  _cancelUpload() {
+    if (this._uploadObjectUrl) URL.revokeObjectURL(this._uploadObjectUrl);
+    this._uploadObjectUrl = "";
+    this._uploadFile = null;
+    this._uploadNaturalSize = null;
+  }
+  async _confirmUpload() {
+    const hass = this.hass;
+    const entryId = this.entryId;
+    const cat = this.cat;
+    const file = this._uploadFile;
+    if (!hass || !entryId || !cat || !file || this._busy) return;
+    this._busy = true;
+    this._error = null;
+    try {
+      const blob = await prepareUpload(file, this._uploadCrop);
+      const result = await uploadAvatarPhoto(hass, entryId, cat.name, blob, uploadFilename(file, blob), new AbortController().signal);
+      if (result.error || !result.avatar) {
+        this._error = result.error ?? "Couldn't save that photo.";
+        return;
+      }
+      this._emitChanged(result.avatar, true);
+      this._requestClose();
+    } catch (err) {
+      this._error = err instanceof Error ? err.message : "Couldn't save that photo.";
+    } finally {
+      this._busy = false;
+    }
+  }
+  render() {
+    const cat = this.cat;
+    if (!this.open || !cat) return A;
+    return b2`
+      <div class="backdrop" role="dialog" aria-modal="true" aria-label=${`Change ${cat.name}'s picture`}>
+        <div class="sheet">
+          <header>
+            <span class="title">Change picture</span>
+            <button type="button" class="close" ${n5(this._closeButtonRef)} @click=${() => this._requestClose()} aria-label="Close">${mdiIcon("close")}</button>
+          </header>
+          ${this._uploadFile ? this._renderUploadAdjust() : this._renderGrid(cat)}
+          ${this._error ? b2`<p class="error">${this._error}</p>` : A}
+        </div>
+      </div>
+    `;
+  }
+  _renderGrid(cat) {
+    const state2 = this._trainingFeed.state;
+    return b2`
+      <input type="file" accept="image/*" hidden ${n5(this._fileInputRef)} @change=${(e6) => this._onFileChosen(e6)} />
+      <div class="grid">
+        <button type="button" class="tile upload-tile" ?disabled=${this._busy} @click=${() => this._fileInputRef.value?.click()}>Upload</button>
+        ${(state2.items ?? []).map((sample) => this._renderSampleTile(cat, sample))}
+      </div>
+      ${state2.error ? b2`<p class="error">${state2.error}</p>` : A}
+      ${state2.items && state2.items.length === 0 ? b2`<p class="empty">No training photos yet -- upload one instead.</p>` : A}
+      ${this._renderPager(state2)}
+      ${cat.avatar_custom ? b2`<button type="button" class="reset" ?disabled=${this._busy} @click=${() => this._onReset()}>Reset to automatic</button>` : A}
+    `;
+  }
+  _renderSampleTile(cat, sample) {
+    const asset = sample.body ?? sample.face;
+    const isCurrent = Boolean(asset && cat.avatar?.id === asset.id);
+    return b2`
+      <button type="button" class="tile photo-tile ${isCurrent ? "current" : ""}" ?disabled=${this._busy || !asset} aria-label="Use this photo" @click=${() => this._chooseExisting(asset)}>
+        ${asset ? b2`<kibble-image .hass=${this.hass} .asset=${asset} .cache=${this.cache} alt=""></kibble-image>` : A}
+      </button>
+    `;
+  }
+  _renderPager(state2) {
+    if (state2.items === null || !state2.hasNext && !state2.hasPrevious) return A;
+    return b2`
+      <div class="pager">
+        <button type="button" ?disabled=${!state2.hasPrevious || state2.loading} @click=${() => this._trainingFeed.previous(this.hass, this._feedParams(), TRAINING_LIMIT)}>Previous</button>
+        <button type="button" ?disabled=${!state2.hasNext || state2.loading} @click=${() => this._trainingFeed.next(this.hass, this._feedParams(), TRAINING_LIMIT)}>Next</button>
+      </div>
+    `;
+  }
+  _renderUploadAdjust() {
+    const size = this._uploadNaturalSize;
+    return b2`
+      <div class="adjust">
+        <div class="adjust-stage">
+          <kibble-crop-editor
+            .imageUrl=${this._uploadObjectUrl}
+            .naturalWidth=${size?.width ?? 0}
+            .naturalHeight=${size?.height ?? 0}
+            .crop=${this._uploadCrop}
+            .circleGuide=${true}
+            .fitParent=${true}
+            @crop-changed=${(e6) => {
+      this._uploadCrop = e6.detail.crop;
+    }}
+          ></kibble-crop-editor>
+        </div>
+        <div class="adjust-actions">
+          <button type="button" class="secondary" ?disabled=${this._busy} @click=${() => this._cancelUpload()}>Back</button>
+          <button type="button" class="primary" ?disabled=${this._busy} @click=${() => this._confirmUpload()}>Use this photo</button>
+        </div>
+      </div>
+    `;
+  }
+  static {
+    this.styles = i`
+    :host {
+      display: block;
+      --kibble-text-caption: 12px;
+      --kibble-text-body: 14px;
+      --kibble-text-title: 16px;
+    }
+    .backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 20;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      background: rgba(0, 0, 0, 0.5);
+    }
+    .sheet {
+      width: 100%;
+      max-width: 560px;
+      max-height: min(88vh, 780px);
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      padding: 16px;
+      padding-bottom: max(16px, env(safe-area-inset-bottom));
+      box-sizing: border-box;
+      border-radius: 16px 16px 0 0;
+      background: var(--ha-card-background, var(--card-background-color, #fff));
+      color: var(--primary-text-color);
+      overflow-y: auto;
+    }
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .title {
+      font-size: var(--kibble-text-title);
+      font-weight: 600;
+    }
+    .close {
+      flex: none;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      border: none;
+      background: color-mix(in srgb, var(--primary-text-color) 8%, transparent);
+      color: var(--primary-text-color);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+      gap: 10px;
+    }
+    .tile {
+      aspect-ratio: 1;
+      padding: 0;
+      border: none;
+      border-radius: 10px;
+      overflow: hidden;
+      cursor: pointer;
+    }
+    .tile:disabled {
+      cursor: default;
+      opacity: 0.6;
+    }
+    .photo-tile {
+      background: color-mix(in srgb, var(--primary-text-color) 8%, transparent);
+      box-sizing: border-box;
+      border: 2px solid transparent;
+    }
+    .photo-tile.current {
+      border-color: var(--kibble-feed, #43a96a);
+    }
+    .upload-tile {
+      border: 2px dashed var(--divider-color);
+      background: none;
+      color: var(--primary-color, #03a9f4);
+      font: inherit;
+      font-size: var(--kibble-text-caption);
+      font-weight: 600;
+    }
+    .empty {
+      margin: 0;
+      color: var(--secondary-text-color);
+      font-size: var(--kibble-text-body);
+    }
+    .pager {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+    }
+    .pager button {
+      border: none;
+      background: color-mix(in srgb, var(--primary-text-color) 8%, transparent);
+      color: var(--primary-text-color);
+      border-radius: 8px;
+      padding: 0 14px;
+      min-height: 36px;
+      font: inherit;
+      font-size: var(--kibble-text-caption);
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .pager button:disabled {
+      opacity: 0.4;
+      cursor: default;
+    }
+    .reset {
+      align-self: center;
+      border: none;
+      background: none;
+      color: var(--secondary-text-color);
+      font: inherit;
+      font-size: var(--kibble-text-caption);
+      text-decoration: underline;
+      cursor: pointer;
+      min-height: 32px;
+    }
+    .reset:disabled {
+      opacity: 0.5;
+      cursor: default;
+    }
+    .error {
+      margin: 0;
+      padding: 8px 10px;
+      border-radius: 8px;
+      background: color-mix(in srgb, var(--error-color, #db4437) 10%, transparent);
+      color: var(--error-color, #db4437);
+      font-size: var(--kibble-text-caption);
+    }
+    .adjust {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      height: min(70vh, 420px);
+    }
+    .adjust-stage {
+      flex: 1 1 auto;
+      min-height: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+    .adjust-stage kibble-crop-editor {
+      max-width: 320px;
+      max-height: 100%;
+    }
+    .adjust-actions {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+    }
+    .primary,
+    .secondary {
+      min-height: 44px;
+      padding: 0 22px;
+      border-radius: 10px;
+      border: none;
+      font: inherit;
+      font-weight: 700;
+      font-size: var(--kibble-text-body);
+      cursor: pointer;
+    }
+    .primary {
+      background: var(--kibble-feed, #43a96a);
+      color: var(--kibble-ink-on-feed, #10301d);
+    }
+    .secondary {
+      background: color-mix(in srgb, var(--primary-text-color) 8%, transparent);
+      color: var(--primary-text-color);
+    }
+    .primary:disabled,
+    .secondary:disabled {
+      opacity: 0.5;
+      cursor: default;
+    }
+    .close:focus-visible,
+    .tile:focus-visible,
+    .reset:focus-visible,
+    .pager button:focus-visible,
+    .primary:focus-visible,
+    .secondary:focus-visible {
+      outline: 2px solid var(--primary-color, #03a9f4);
+      outline-offset: 2px;
+    }
+  `;
+  }
+};
+customElements.define("kibble-avatar-picker", KibbleAvatarPicker);
 var SCHEMA3 = [
   { name: "device_id", required: true, selector: { device: { filter: { integration: "kibble" } } } },
-  { name: "name", selector: { text: {} } },
-  { name: "confidence", selector: { number: { min: 0, max: 1, step: 0.05, mode: "box" } } }
+  { name: "name", selector: { text: {} } }
 ];
 var FIELD_LABELS3 = {
   device_id: "Kibble device",
-  name: "Name (optional)",
-  confidence: "Classifier confidence needed to suggest it (optional, default 0.7)"
+  name: "Name (optional)"
 };
 var KibbleCatsCardEditor = class extends i4 {
   constructor() {
@@ -12976,17 +20329,6 @@ var KibbleCatsCardEditor = class extends i4 {
             @change=${(event) => this._updateName(event.target.value)}
           />
         </label>
-        <label>
-          <span>Classifier confidence needed to suggest it (optional, default 0.7)</span>
-          <input
-            type="number"
-            min="0"
-            max="1"
-            step="0.05"
-            .value=${this._config?.confidence != null ? String(this._config.confidence) : ""}
-            @change=${(event) => this._updateConfidence(event.target.value)}
-          />
-        </label>
       </div>
     `;
   }
@@ -13002,12 +20344,6 @@ var KibbleCatsCardEditor = class extends i4 {
   _updateName(value) {
     if (!this._config) return;
     this._config = { ...this._config, name: value || void 0 };
-    this._fireConfigChanged();
-  }
-  _updateConfidence(value) {
-    if (!this._config) return;
-    const parsed = Number(value);
-    this._config = { ...this._config, confidence: value && Number.isFinite(parsed) ? parsed : void 0 };
     this._fireConfigChanged();
   }
   _fireConfigChanged() {
@@ -13043,39 +20379,22 @@ var KibbleCatsCardEditor = class extends i4 {
 };
 customElements.define("kibble-cats-card-editor", KibbleCatsCardEditor);
 var EMPTY_ENTITIES2 = { deviceId: "", catPresence: [] };
-function catSectionId(name) {
-  return `cat-${name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
-}
-function catFromHash(hash) {
-  const match = /^#cat=(.+)$/.exec(hash);
-  if (!match) return null;
-  try {
-    return decodeURIComponent(match[1]);
-  } catch {
-    return null;
-  }
-}
-var DEFAULT_CONFIDENCE = 0.7;
-var UNDO_WINDOW_MS = 5e3;
+var REVIEW_LIMIT = 24;
+var TRAINING_LIMIT2 = 24;
 var DELETE_CONFIRM_WINDOW_MS = 3e3;
+var LEARNING_LABEL = { learning: "Learning", paused: "Paused", learned: "Learned" };
 var KibbleCatsCard = class extends i4 {
   constructor() {
     super();
     this._entities = EMPTY_ENTITIES2;
     this._catsQuery = new WsQuery(() => this.requestUpdate());
-    this._pendingQuery = new WsQuery(() => this.requestUpdate());
-    this._sampleQueries = /* @__PURE__ */ new Map();
-    this._timelineQuery = new WsQuery(() => this.requestUpdate());
+    this._reviewFeed = new PagedFeed("kibble/review", () => this.requestUpdate());
+    this._trainingFeeds = /* @__PURE__ */ new Map();
     this._imageCache = new ImageUrlCache();
-    this._lastPendingData = null;
-    this._pickerTrigger = null;
-    this._fileInputRef = e5();
-    this._lightboxTrigger = null;
-    this._scrolledTo = null;
-    this._onLocationChanged = () => {
-      this._scrolledTo = null;
-      this.requestUpdate();
-    };
+    this._detailGeneration = 0;
+    this._sheetTrigger = null;
+    this._sheetReviewedEvents = /* @__PURE__ */ new Map();
+    this._sheetPhotoUids = /* @__PURE__ */ new Set();
     this._onCatMenuFocusOut = (event) => {
       const container = event.currentTarget;
       const next = event.relatedTarget;
@@ -13087,91 +20406,149 @@ var KibbleCatsCard = class extends i4 {
       this._closeCatMenu();
       trigger?.focus();
     };
-    this._onFilesChosen = (event) => {
-      const input = event.target;
-      const files = input.files ? Array.from(input.files).filter((file) => file.type.startsWith("image/")) : [];
-      input.value = "";
-      if (files.length === 0) return;
-      this._uploadQueue = files;
-      this._uploadQueueTotal = files.length;
-      this._uploadError = null;
+    this._onAvatarChanged = (event) => {
+      const { cat, avatar, avatarCustom } = event.detail;
+      this._catsQuery.patch((data) => ({ ...data, cats: data.cats.map((c5) => c5.name === cat ? { ...c5, avatar, avatar_custom: avatarCustom } : c5) }));
     };
-    this._onUseCrop = (event) => {
-      const cat = this._uploadCat;
-      if (!cat) return;
-      this._uploadBusy = true;
-      this._uploadError = null;
-      this._blobToBase64(event.detail.blob).then((jpegB64) => {
-        const request = this._callWS("kibble/faces/upload", { cat, jpeg_b64: jpegB64 });
-        if (!request) throw new Error("Not connected.");
-        return request;
-      }).then((result) => {
-        this._uploadBusy = false;
-        if (result.low_quality) this._uploadNotice = "The model isn't confident this is a face.";
-        this._advanceUploadQueue();
-        this._refreshAll();
+    this._toggleSelectMode = () => {
+      this._reviewSelectMode = !this._reviewSelectMode;
+      this._reviewSelected = /* @__PURE__ */ new Set();
+    };
+    this._onEventRequested = (event) => {
+      this._loadEventDetail(event.detail.uid);
+    };
+    this._onSamplesRetryRequested = () => {
+      const uid = this._sheetSummary?.uid;
+      if (uid) this._loadEventDetail(uid);
+    };
+    this._closeSheet = () => {
+      const locale = this.hass?.locale?.language ?? this.hass?.language;
+      const message = reviewSummaryMessage({ events: [...this._sheetReviewedEvents.values()], photosUpdated: this._sheetPhotoUids.size }, locale);
+      this._sheetSummary = null;
+      this._sheetGroup = [];
+      this._sheetSamples = null;
+      this._sheetSceneSubjects = [];
+      this._sheetSessionCats = null;
+      this._sheetMultipleCats = false;
+      this._sheetSamplesFailed = false;
+      this._sheetSampleBusyUid = null;
+      this._sheetError = null;
+      this._sheetReviewedEvents = /* @__PURE__ */ new Map();
+      this._sheetPhotoUids = /* @__PURE__ */ new Set();
+      this._sheetTrigger?.focus();
+      this._sheetTrigger = null;
+      if (message) this.dispatchEvent(new CustomEvent("hass-notification", { detail: { message }, bubbles: true, composed: true }));
+    };
+    this._onSessionLabelRequested = (event) => {
+      const entryId = this._entryId;
+      const hass = this.hass;
+      if (!entryId || !hass?.callWS) return;
+      const { uid, cats, verdict, subjects, closeOnSuccess } = event.detail;
+      const request = { uid, ...cats ? { cats } : {}, ...verdict ? { verdict } : {}, ...subjects?.length ? { subjects } : {} };
+      this._sheetBusy = true;
+      this._sheetError = null;
+      labelSession(hass, entryId, request).then((detail) => {
+        this._sheetBusy = false;
+        this._sheetSummary = detail.event;
+        this._sheetSamples = detail.samples;
+        this._sheetSceneSubjects = detail.scene_subjects;
+        this._sheetSessionCats = detail.cats;
+        this._sheetMultipleCats = detail.multiple_cats;
+        this._sheetSamplesFailed = false;
+        this._reviewFeed.removeItem((item) => item.uid === request.uid || item.uid === detail.event.uid);
+        for (const key of this._sheetReviewedEvents.keys()) {
+          if (key === detail.event.uid || key.startsWith(detail.event.uid + ":")) this._sheetReviewedEvents.delete(key);
+        }
+        if (request.verdict) {
+          this._sheetReviewedEvents.set(detail.event.uid, { uid: detail.event.uid, event: detail.event, label: request.verdict });
+        } else {
+          for (const cat of request.cats ?? []) {
+            const uid2 = detail.event.uid + ":" + cat.cat;
+            this._sheetReviewedEvents.set(uid2, { uid: uid2, event: { kind: cat.ate ? "eat" : "visit", open: detail.event.open, start: detail.event.start }, label: cat.cat });
+          }
+        }
+        this._refreshCats();
+        if (closeOnSuccess) this._closeSheet();
+        else this.requestUpdate();
       }).catch((err) => {
-        this._uploadBusy = false;
-        this._uploadError = describeWsError(err);
+        this._sheetBusy = false;
+        this._sheetError = err instanceof Error ? err.message : "Couldn't save this label.";
+        this.requestUpdate();
       });
     };
-    this._onCropDialogClosed = () => {
-      this._advanceUploadQueue();
+    this._onSampleLabelRequested = (event) => {
+      const entryId = this._entryId;
+      const hass = this.hass;
+      if (!entryId || !hass?.callWS) return;
+      const { sampleUid, label } = event.detail;
+      this._sheetSampleBusyUid = sampleUid;
+      this._sheetError = null;
+      labelSample(hass, entryId, { sampleUid, label }).then((sample) => {
+        this._sheetSampleBusyUid = null;
+        if (this._sheetSamples) this._sheetSamples = this._sheetSamples.map((item) => item.uid === sample.uid ? sample : item);
+        this._sheetPhotoUids.add(sampleUid);
+        const uid = this._sheetSummary?.uid;
+        if (uid) this._loadEventDetail(uid, true);
+        this.requestUpdate();
+      }).catch((err) => {
+        this._sheetSampleBusyUid = null;
+        this._sheetError = err instanceof Error ? err.message : "Couldn't save this label.";
+        this.requestUpdate();
+      });
     };
-    this._closePicker = () => {
-      this._pickerCrop = null;
-      this._pickerTrigger?.focus();
-      this._pickerTrigger = null;
-    };
-    this._onPickerChoice = (event) => {
-      const crop = this._pickerCrop;
-      this._pickerCrop = null;
-      if (crop) this._confirm(crop, event.detail.cat);
-    };
-    this._closeLightbox = () => {
-      this._lightboxUrl = null;
-      this._lightboxTrigger?.focus();
-      this._lightboxTrigger = null;
-    };
-    this._hiddenCrops = /* @__PURE__ */ new Set();
-    this._pickerCrop = null;
-    this._undo = null;
     this._addName = "";
     this._addBusy = false;
     this._addError = null;
     this._actionError = null;
     this._openMenuFor = null;
     this._deleteConfirmFor = null;
-    this._uploadQueue = [];
-    this._uploadQueueTotal = 0;
-    this._uploadCat = null;
-    this._uploadBusy = false;
-    this._uploadError = null;
-    this._uploadNotice = null;
-    this._lightboxUrl = null;
-    this._lightboxAlt = "";
+    this._expandedTraining = null;
+    this._reviewSelectMode = false;
+    this._reviewSelected = /* @__PURE__ */ new Set();
+    this._bulkBusy = false;
+    this._sheetSummary = null;
+    this._sheetGroup = [];
+    this._sheetSamples = null;
+    this._sheetSamplesFailed = false;
+    this._sheetSampleBusyUid = null;
+    this._sheetSceneSubjects = [];
+    this._sheetSessionCats = null;
+    this._sheetMultipleCats = false;
+    this._sheetBusy = false;
+    this._sheetError = null;
+    this._addPhotosOpen = false;
+    this._addPhotosCat = null;
+    this._addPhotosFiles = [];
+    this._avatarPickerCat = null;
   }
   static {
     this.properties = {
       hass: { attribute: false },
       _config: { state: true },
-      _hiddenCrops: { state: true },
-      _pickerCrop: { state: true },
-      _undo: { state: true },
       _addName: { state: true },
       _addBusy: { state: true },
       _addError: { state: true },
       _actionError: { state: true },
       _openMenuFor: { state: true },
       _deleteConfirmFor: { state: true },
-      _uploadQueue: { state: true },
-      _uploadQueueTotal: { state: true },
-      _uploadCat: { state: true },
-      _uploadBusy: { state: true },
-      _uploadError: { state: true },
-      _uploadNotice: { state: true },
-      _lightboxUrl: { state: true },
-      _lightboxAlt: { state: true }
+      _expandedTraining: { state: true },
+      _reviewSelectMode: { state: true },
+      _reviewSelected: { state: true },
+      _bulkBusy: { state: true },
+      _sheetSummary: { state: true },
+      _sheetGroup: { state: true },
+      _sheetSamples: { state: true },
+      _sheetSamplesFailed: { state: true },
+      _sheetSampleBusyUid: { state: true },
+      _sheetBusy: { state: true },
+      _sheetError: { state: true },
+      _sheetSceneSubjects: { state: true },
+      _sheetSessionCats: { state: true },
+      _sheetMultipleCats: { state: true },
+      _addPhotosOpen: { state: true },
+      _addPhotosCat: { state: true },
+      _addPhotosFiles: { state: true },
+      _avatarPickerCat: { state: true }
     };
   }
   setConfig(config) {
@@ -13190,31 +20567,12 @@ var KibbleCatsCard = class extends i4 {
   static getConfigElement() {
     return document.createElement("kibble-cats-card-editor");
   }
-  connectedCallback() {
-    super.connectedCallback();
-    window.addEventListener("location-changed", this._onLocationChanged);
-    window.addEventListener("hashchange", this._onLocationChanged);
-  }
   disconnectedCallback() {
     super.disconnectedCallback();
-    window.removeEventListener("location-changed", this._onLocationChanged);
-    window.removeEventListener("hashchange", this._onLocationChanged);
     this._imageCache.dispose();
-    clearTimeout(this._undoTimer);
+    this._reviewFeed.dispose();
+    for (const feed of this._trainingFeeds.values()) feed.dispose();
     clearTimeout(this._deleteConfirmTimer);
-  }
-  _confidence() {
-    return this._config?.confidence ?? DEFAULT_CONFIDENCE;
-  }
-  updated() {
-    const target = catFromHash(window.location.hash);
-    if (!target || this._scrolledTo === target) return;
-    const section = this.renderRoot.querySelector(`#${CSS.escape(catSectionId(target))}`);
-    if (!section) return;
-    this._scrolledTo = target;
-    section.scrollIntoView({ behavior: "smooth", block: "start" });
-    section.classList.add("lit");
-    setTimeout(() => section.classList.remove("lit"), 2400);
   }
   willUpdate() {
     const deviceId = this._config?.device_id;
@@ -13226,123 +20584,206 @@ var KibbleCatsCard = class extends i4 {
       this._entryId = resolveEntryId(this.hass.devices ?? {}, deviceId);
     }
     const callWS = this.hass?.callWS;
-    if (this.hass && this._entryId && callWS) {
-      const entryId = this._entryId;
-      const key = watchKey(this.hass, [this._entities.pendingFace, this._entities.lastSeenPet]);
-      this._catsQuery.sync(key, () => callWS({ type: "kibble/cats", entry_id: entryId }).then((r6) => r6));
-      this._pendingQuery.sync(key, () => callWS({ type: "kibble/faces/pending", entry_id: entryId }).then((r6) => r6));
-      this._timelineQuery.sync(key, () => callWS({ type: "kibble/timeline", entry_id: entryId, include_visits: false }).then((r6) => r6));
-      for (const cat of this._catsQuery.state.data?.cats ?? []) {
-        if (this._sampleQueries.has(cat.name)) continue;
-        const query = new WsQuery(() => this.requestUpdate());
-        this._sampleQueries.set(cat.name, query);
-      }
-      const samplesKey = watchKey(this.hass, [this._entities.pendingFace]);
-      for (const [name, query] of this._sampleQueries) {
-        query.sync(samplesKey, () => callWS({ type: "kibble/faces/samples", entry_id: entryId, cat: name }).then((r6) => r6));
+    const entryId = this._entryId;
+    if (this.hass && entryId && callWS) {
+      this._catsQuery.sync(entryId, () => callWS({ type: "kibble/cats", entry_id: entryId }).then((r6) => r6));
+      this._reviewFeed.sync(this.hass, entryId, { entry_id: entryId }, REVIEW_LIMIT);
+      if (this._expandedTraining) {
+        const cat = this._expandedTraining;
+        this._trainingFeed(cat).sync(this.hass, `${entryId}:${cat}`, { entry_id: entryId, cat }, TRAINING_LIMIT2);
       }
     }
-    if (this._pendingQuery.state.data !== this._lastPendingData) {
-      this._lastPendingData = this._pendingQuery.state.data;
-      this._hiddenCrops = /* @__PURE__ */ new Set();
+  }
+  _trainingFeed(catName) {
+    let feed = this._trainingFeeds.get(catName);
+    if (!feed) {
+      feed = new PagedFeed("kibble/training", () => this.requestUpdate());
+      this._trainingFeeds.set(catName, feed);
     }
+    return feed;
   }
   render() {
     if (!this._config || !this.hass) return A;
     const cats = this._catsQuery.state.data?.cats ?? [];
-    const allCrops = this._pendingQuery.state.data?.crops ?? [];
-    const crops = allCrops.filter((crop) => !this._hiddenCrops.has(crop.name));
-    const catNames = new Set(cats.map((cat) => cat.name));
-    const presentNames = new Set(
-      this._entities.catPresence.filter((p3) => this.hass.states[p3.entityId]?.state === "on").map((p3) => p3.name)
-    );
-    const uploadFile = this._uploadQueue[0] ?? null;
-    const uploadIndex = this._uploadQueueTotal - this._uploadQueue.length;
+    const storage = this._catsQuery.state.data?.storage ?? null;
+    const spoolLine = storage ? spoolSummary(storage.device_spool) : null;
     return b2`
       <ha-card>
         <div class="container">
           ${this._config.name ? b2`<div class="label">${this._config.name}</div>` : A}
           ${this._actionError ? this._renderActionError() : A}
-          ${this._uploadNotice ? this._renderUploadNotice() : A}
-          <section class="header">
-            ${cats.length === 0 ? b2`<p class="empty">No cats yet. Add one to start training.</p>` : b2`<div class="cat-list">${cats.map((cat) => this._renderCatHeader(cat, presentNames.has(cat.name)))}</div>`}
+          <section class="roster">
+            ${cats.length === 0 ? b2`<p class="empty">No cats yet. Add one to start training.</p>` : b2`<div class="cat-list">${cats.map((cat) => this._renderCatTile(cat))}</div>`}
             ${this._renderAddCat()}
           </section>
-          <section class="inbox">
-            <div class="inbox-heading">
-              <span>${crops.length === 1 ? "1 to review" : `${crops.length} to review`}</span>
-            </div>
-            ${this._pendingQuery.state.error ? this._renderPendingError() : A}
-            ${crops.length === 0 && !this._pendingQuery.state.error ? b2`<p class="empty">Nothing to review. New crops arrive when the feeder identifies a cat in view.</p>` : b2`<div class="crop-grid" @keydown=${this._onGridKeydown}>${crops.map((crop) => this._renderCrop(crop, catNames))}</div>`}
-          </section>
-          ${cats.map((cat) => this._renderGallery(cat))}
+          ${this._expandedTraining ? this._renderTrainingPanel(this._expandedTraining) : A}
+          ${this._renderReview()}
+          ${storage ? b2`
+                <p class="storage-line">
+                  <span>${storageSummary(storage)}</span>
+                  ${spoolLine ? b2`<span class="quiet">${spoolLine}</span>` : A}
+                </p>
+              ` : A}
         </div>
       </ha-card>
-      ${this._undo ? this._renderUndo(this._undo) : A}
-      <kibble-face-picker
-        ?open=${this._pickerCrop !== null}
+      <kibble-label-sheet
+        ?open=${this._sheetSummary !== null}
         .hass=${this.hass}
-        .cats=${cats}
         .entryId=${this._entryId}
-        .crop=${this._pickerCrop}
-        @choice=${this._onPickerChoice}
-        @close-requested=${this._closePicker}
-      ></kibble-face-picker>
-      <input type="file" accept="image/*" multiple class="visually-hidden" ${n5(this._fileInputRef)} @change=${this._onFilesChosen} />
-      <kibble-crop-dialog
-        ?open=${uploadFile !== null}
-        .file=${uploadFile}
-        .catName=${this._uploadCat}
-        .queueIndex=${uploadIndex}
-        .queueTotal=${this._uploadQueueTotal}
-        .busy=${this._uploadBusy}
-        .error=${this._uploadError}
-        @use-crop=${this._onUseCrop}
-        @close-requested=${this._onCropDialogClosed}
-      ></kibble-crop-dialog>
-      <kibble-lightbox
-        ?open=${this._lightboxUrl !== null}
-        .imageUrl=${this._lightboxUrl}
-        .alt=${this._lightboxAlt}
-        @close-requested=${this._closeLightbox}
-      ></kibble-lightbox>
+        .cache=${this._imageCache}
+        .cats=${cats}
+        .summary=${this._sheetSummary}
+        .samples=${this._sheetSamples}
+        .sceneSubjects=${this._sheetSceneSubjects}
+        .sessionCats=${this._sheetSessionCats}
+        .multipleCats=${this._sheetMultipleCats}
+        .samplesFailed=${this._sheetSamplesFailed}
+        .group=${this._sheetGroup}
+        .busy=${this._sheetBusy}
+        .error=${this._sheetError}
+        .sampleBusyUid=${this._sheetSampleBusyUid}
+        @close-requested=${this._closeSheet}
+        @session-label-requested=${this._onSessionLabelRequested}
+        @sample-label-requested=${this._onSampleLabelRequested}
+        @event-requested=${this._onEventRequested}
+        @samples-retry-requested=${this._onSamplesRetryRequested}
+      ></kibble-label-sheet>
+      <input type="file" class="add-photos-file-input" multiple accept="image/*" hidden @change=${(e6) => this._onAddPhotosChosen(e6)} />
+      <kibble-add-photos-sheet
+        ?open=${this._addPhotosOpen}
+        .hass=${this.hass}
+        .entryId=${this._entryId}
+        .cat=${this._addPhotosCat ?? void 0}
+        .files=${this._addPhotosFiles}
+        @close-requested=${() => this._closeAddPhotos()}
+      ></kibble-add-photos-sheet>
+      <kibble-avatar-picker
+        ?open=${this._avatarPickerCat !== null}
+        .hass=${this.hass}
+        .entryId=${this._entryId}
+        .cache=${this._imageCache}
+        .cat=${cats.find((c5) => c5.name === this._avatarPickerCat) ?? null}
+        @close-requested=${() => this._closeAvatarPicker()}
+        @avatar-changed=${this._onAvatarChanged}
+      ></kibble-avatar-picker>
     `;
   }
-  _renderCatHeader(cat, present) {
-    const lastSeenTs = catLastSeenTs(
-      cat.last_seen,
-      (this._timelineQuery.state.data?.items ?? []).filter((item) => item.kind === "identified" && item.cat === cat.name).map((item) => item.ts)
-    );
-    const seen = lastSeenTs !== null ? `seen ${relativeTimeSentence(new Date(lastSeenTs * 1e3), /* @__PURE__ */ new Date())}` : "not seen yet";
+  _renderActionError() {
+    const error = this._actionError;
+    if (!error) return A;
     return b2`
-      <div class="cat">
-        <kibble-avatar
-          class=${present ? "present" : ""}
-          .hass=${this.hass}
-          .name=${cat.name}
-          .colorIndex=${cat.color_index}
-          .entryId=${this._entryId}
-          .sampleName=${cat.avatar}
-        ></kibble-avatar>
+      <div class="error">
+        <span>${error.message}</span>
+        <button
+          type="button"
+          @click=${() => {
+      this._actionError = null;
+      error.retry();
+    }}
+        >
+          Try again
+        </button>
+      </div>
+    `;
+  }
+  _renderCatTile(cat) {
+    const now = /* @__PURE__ */ new Date();
+    const seen = cat.last_seen != null ? `Seen ${relativeTimeSentence(new Date(cat.last_seen * 1e3), now)}` : "Not seen yet";
+    const meals = `${cat.meals_today} ${cat.meals_today === 1 ? "meal" : "meals"} today`;
+    const trained = cat.training.total === 0 ? "Not trained yet" : `${cat.training.total} ${cat.training.total === 1 ? "photo" : "photos"} trained`;
+    const deviceId = this._config?.device_id;
+    const recognitionEntityId = this.hass && deviceId ? findCatRecognitionEntityId(this.hass.entities ?? {}, deviceId, cat.name) : void 0;
+    const recognition = this.hass ? readCatRecognition(this.hass, recognitionEntityId) : null;
+    return b2`
+      <div class="cat-tile">
+        <kibble-avatar class=${cat.present ? "present" : ""} .hass=${this.hass} .name=${cat.name} .colorIndex=${cat.color} .asset=${cat.avatar} .cache=${this._imageCache}></kibble-avatar>
         <div class="cat-text">
           <span class="cat-name">${cat.name}</span>
-          <span class="cat-meta">${cat.samples === 1 ? "1 sample" : `${cat.samples} samples`}, ${seen}</span>
+          <span class="cat-meta">${seen}, ${meals}</span>
+          <span class="cat-meta quiet">${trained}</span>
+          ${recognition ? b2`
+                <div class="learning-row" aria-label=${`${recognition.percent}% recognized, ${LEARNING_LABEL[recognition.state]}`}>
+                  <span class="learning-track"><span class="learning-fill" style="width:${recognition.percent}%"></span></span>
+                  <span class="learning-percent">${recognition.percent}%</span>
+                </div>
+                <span class="learning-state">${LEARNING_LABEL[recognition.state]}</span>
+              ` : A}
         </div>
         <div class="cat-menu" @focusout=${this._onCatMenuFocusOut} @keydown=${this._onCatMenuKeydown}>
           <button
             type="button"
             class="cat-menu-trigger"
             aria-haspopup="menu"
-            aria-expanded=${this._openMenuFor === cat.name}
             aria-label=${`Options for ${cat.name}`}
             @click=${() => this._toggleCatMenu(cat.name)}
           >
-            &#8942;
+            ${mdiIcon("dotsVertical")}
           </button>
           ${this._openMenuFor === cat.name ? this._renderCatMenu(cat) : A}
         </div>
       </div>
     `;
+  }
+  _renderCatMenu(cat) {
+    const confirming = this._deleteConfirmFor === cat.name;
+    const expanded = this._expandedTraining === cat.name;
+    return b2`
+      <div class="menu" role="menu">
+        <button type="button" role="menuitem" @click=${() => this._openAvatarPicker(cat.name)}>Change picture</button>
+        <button type="button" role="menuitem" @click=${() => this._toggleTraining(cat.name)}>${expanded ? "Hide training photos" : `View training (${cat.training.total})`}</button>
+        <button type="button" role="menuitem" class="danger ${confirming ? "confirming" : ""}" @click=${() => this._onDeleteCatClick(cat.name)}>
+          ${confirming ? "Tap again to delete" : "Delete cat\u2026"}
+        </button>
+      </div>
+    `;
+  }
+  _toggleCatMenu(name) {
+    this._openMenuFor = this._openMenuFor === name ? null : name;
+  }
+  _closeCatMenu() {
+    this._openMenuFor = null;
+    clearTimeout(this._deleteConfirmTimer);
+    this._deleteConfirmFor = null;
+  }
+  _toggleTraining(name) {
+    this._openMenuFor = null;
+    this._expandedTraining = this._expandedTraining === name ? null : name;
+  }
+  _openAvatarPicker(name) {
+    this._openMenuFor = null;
+    this._avatarPickerCat = name;
+  }
+  _closeAvatarPicker() {
+    this._avatarPickerCat = null;
+    this._refreshCats();
+  }
+  /** Tap-twice confirm, the same window/pattern `kibble-settings-dialog`'s cloud toggle uses --
+   * deleting a cat is destructive (drops every labelled sample and the classifier model) so it
+   * needs a second, deliberate tap rather than a single accidental one. */
+  _onDeleteCatClick(name) {
+    if (this._deleteConfirmFor === name) {
+      clearTimeout(this._deleteConfirmTimer);
+      this._deleteConfirmFor = null;
+      this._openMenuFor = null;
+      this._deleteCat(name);
+      return;
+    }
+    this._deleteConfirmFor = name;
+    this._deleteConfirmTimer = setTimeout(() => {
+      this._deleteConfirmFor = null;
+      this.requestUpdate();
+    }, DELETE_CONFIRM_WINDOW_MS);
+  }
+  _deleteCat(name) {
+    const request = this._callWS("kibble/cats/delete", { name });
+    if (!request) return;
+    request.then(() => {
+      this._trainingFeeds.delete(name);
+      if (this._expandedTraining === name) this._expandedTraining = null;
+      this._refreshCats();
+    }).catch((err) => {
+      this._actionError = { message: `Couldn't delete ${name}. ${describeWsError(err)}`, retry: () => this._deleteCat(name) };
+    });
   }
   _renderAddCat() {
     return b2`
@@ -13365,11 +20806,12 @@ var KibbleCatsCard = class extends i4 {
   async _onAddCatSubmit(event) {
     event.preventDefault();
     const name = this._addName.trim();
-    if (!name || !this._entities.deviceId) return;
+    const request = name ? this._callWS("kibble/cats/add", { name }) : null;
+    if (!request) return;
     this._addBusy = true;
     this._addError = null;
     try {
-      await this.hass.callService("kibble", "add_cat", { device_id: this._entities.deviceId, name });
+      await request;
       this._addName = "";
       this._refreshCats();
     } catch (err) {
@@ -13378,332 +20820,230 @@ var KibbleCatsCard = class extends i4 {
       this._addBusy = false;
     }
   }
-  _renderCatMenu(cat) {
-    const confirming = this._deleteConfirmFor === cat.name;
+  _renderTrainingPanel(catName) {
+    const feed = this._trainingFeed(catName);
+    const state2 = feed.state;
     return b2`
-      <div class="menu" role="menu">
-        <button type="button" role="menuitem" @click=${() => this._startAddPhotos(cat.name)}>Add photos</button>
-        <button type="button" role="menuitem" class="danger ${confirming ? "confirming" : ""}" @click=${() => this._onDeleteCatClick(cat.name)}>
-          ${confirming ? "Tap again to delete" : "Delete cat\u2026"}
+      <section class="training">
+        <div class="training-heading">
+          <span>${catName}\u2019s training photos${state2.items !== null ? ` (${state2.total})` : ""}</span>
+          <button type="button" class="icon-button" aria-label="Close training photos" @click=${() => this._toggleTraining(catName)}>${mdiIcon("close")}</button>
+        </div>
+        <div class="training-actions">
+          <button type="button" class="add-photos-button" @click=${() => this._openAddPhotos(catName)}>Add photos</button>
+        </div>
+        ${state2.error ? this._renderPagedError(state2.error, () => feed.refresh(this.hass, { entry_id: this._entryId, cat: catName }, TRAINING_LIMIT2)) : A}
+        ${state2.items && state2.items.length === 0 ? b2`<p class="empty">No training photos yet.</p>` : A}
+        <div class="training-grid">${(state2.items ?? []).map((sample) => this._renderTrainingTile(catName, sample))}</div>
+        ${this._renderPager(state2, TRAINING_LIMIT2, () => feed.previous(this.hass, { entry_id: this._entryId, cat: catName }, TRAINING_LIMIT2), () => feed.next(this.hass, { entry_id: this._entryId, cat: catName }, TRAINING_LIMIT2))}
+      </section>
+    `;
+  }
+  _renderTrainingTile(catName, sample) {
+    const captured = new Date(sample.created * 1e3).toLocaleDateString();
+    return b2`
+      <div class="training-tile">
+        <span class="training-crops">
+          ${sample.body ? b2`<kibble-image .hass=${this.hass} .asset=${sample.body} .cache=${this._imageCache} alt=""></kibble-image>` : A}
+          ${sample.face ? b2`<kibble-image .hass=${this.hass} .asset=${sample.face} .cache=${this._imageCache} alt=""></kibble-image>` : A}
+        </span>
+        <button type="button" class="remove" aria-label=${`Remove this training photo of ${catName}, added ${captured}`} @click=${() => this._removeTraining(catName, sample.uid)}>
+          ${"\xD7"}
         </button>
       </div>
     `;
   }
-  _toggleCatMenu(name) {
-    this._openMenuFor = this._openMenuFor === name ? null : name;
-  }
-  _closeCatMenu() {
-    this._openMenuFor = null;
-    clearTimeout(this._deleteConfirmTimer);
-    this._deleteConfirmFor = null;
-  }
-  /** Tap-twice confirm, the same window/pattern `kibble-settings-dialog`'s cloud toggle uses --
-   * deleting a cat is destructive (it drops every labelled sample and the classifier model) so
-   * it needs a second, deliberate tap rather than a single accidental one. */
-  _onDeleteCatClick(name) {
-    if (this._deleteConfirmFor === name) {
-      clearTimeout(this._deleteConfirmTimer);
-      this._deleteConfirmFor = null;
-      this._openMenuFor = null;
-      this._deleteCat(name);
-      return;
-    }
-    this._deleteConfirmFor = name;
-    this._deleteConfirmTimer = setTimeout(() => {
-      this._deleteConfirmFor = null;
-      this.requestUpdate();
-    }, DELETE_CONFIRM_WINDOW_MS);
-  }
-  _deleteCat(name) {
-    const request = this._callWS("kibble/cats/delete", { name });
+  _removeTraining(catName, uid) {
+    const request = this._callWS("kibble/training/remove", { uids: [uid] });
     if (!request) return;
     request.then(() => {
-      this._sampleQueries.delete(name);
+      this._trainingFeed(catName).refresh(this.hass, { entry_id: this._entryId, cat: catName }, TRAINING_LIMIT2);
       this._refreshCats();
     }).catch((err) => {
-      this._actionError = { message: `Couldn't delete ${name}. ${describeWsError(err)}`, retry: () => this._deleteCat(name) };
+      this._actionError = { message: `Couldn't remove this photo. ${describeWsError(err)}`, retry: () => this._removeTraining(catName, uid) };
     });
   }
-  _startAddPhotos(name) {
-    this._openMenuFor = null;
-    this._uploadCat = name;
-    this._fileInputRef.value?.click();
+  _openAddPhotos(catName) {
+    this._addPhotosCat = catName;
+    this.renderRoot.querySelector(".add-photos-file-input")?.click();
   }
-  _advanceUploadQueue() {
-    this._uploadQueue = this._uploadQueue.slice(1);
-    this._uploadError = null;
-    if (this._uploadQueue.length === 0) {
-      this._uploadCat = null;
-      this._uploadQueueTotal = 0;
+  _onAddPhotosChosen(event) {
+    const input = event.target;
+    const files = input.files ? [...input.files] : [];
+    input.value = "";
+    if (files.length === 0) return;
+    this._addPhotosFiles = files;
+    this._addPhotosOpen = true;
+  }
+  _closeAddPhotos() {
+    this._addPhotosOpen = false;
+    const catName = this._addPhotosCat;
+    this._refreshCats();
+    if (catName && this._expandedTraining === catName) {
+      this._trainingFeed(catName).refresh(this.hass, { entry_id: this._entryId, cat: catName }, TRAINING_LIMIT2);
     }
   }
-  /** Pure base64, no `data:` URL prefix -- the integration base64-decodes this straight into
-   * the raw JPEG bytes `POST /faces/upload` expects. */
-  _blobToBase64(blob) {
-    return blob.arrayBuffer().then((buffer) => {
-      const bytes = new Uint8Array(buffer);
-      let binary = "";
-      for (let i6 = 0; i6 < bytes.length; i6++) binary += String.fromCharCode(bytes[i6]);
-      return btoa(binary);
+  _renderReview() {
+    const state2 = this._reviewFeed.state;
+    const cats = this._catsQuery.state.data?.cats ?? [];
+    const count = state2.items !== null ? state2.total : null;
+    return b2`
+      <section class="review">
+        <div class="review-heading">
+          <span>${count === null ? "To review" : count === 0 ? "Nothing to review" : count === 1 ? "1 to review" : `${count} to review`}</span>
+          ${state2.items && state2.items.length > 0 ? b2`<button type="button" class="select-toggle" @click=${this._toggleSelectMode}>${this._reviewSelectMode ? "Cancel" : "Select"}</button>` : A}
+        </div>
+        ${this._reviewSelectMode && this._reviewSelected.size > 0 ? this._renderBulkBar(cats) : A}
+        ${state2.error ? this._renderPagedError(state2.error, () => this._reviewFeed.refresh(this.hass, { entry_id: this._entryId }, REVIEW_LIMIT)) : A}
+        ${state2.items && state2.items.length === 0 && !state2.error ? b2`<p class="empty">Nothing to review. New crops arrive when the feeder sees a cat it can't yet name.</p>` : b2`<div class="review-grid" @keydown=${this._onReviewGridKeydown}>${(state2.items ?? []).map((event) => this._renderReviewTile(event))}</div>`}
+        ${this._renderPager(state2, REVIEW_LIMIT, () => this._reviewFeed.previous(this.hass, { entry_id: this._entryId }, REVIEW_LIMIT), () => this._reviewFeed.next(this.hass, { entry_id: this._entryId }, REVIEW_LIMIT))}
+      </section>
+    `;
+  }
+  _renderReviewTile(event) {
+    const thumbAsset = rowThumbAsset(event);
+    const selected = this._reviewSelected.has(event.uid);
+    const when = timeLabel(event.start);
+    const label = this._reviewSelectMode ? `${selected ? "Deselect" : "Select"}, captured ${when}` : `Review this one, captured ${when}`;
+    return b2`
+      <div class="review-tile">
+        <button type="button" class="review-thumb" aria-pressed=${this._reviewSelectMode ? selected : A} aria-label=${label} @click=${(e6) => this._onReviewTileClick(event, e6.currentTarget)}>
+          ${thumbAsset ? b2`<kibble-image .hass=${this.hass} .asset=${thumbAsset} .cache=${this._imageCache} alt=""></kibble-image>` : b2`<span class="neutral-icon">${catSilhouette()}</span>`}
+          ${this._reviewSelectMode && selected ? b2`<span class="review-check">${mdiIcon("check")}</span>` : A}
+        </button>
+        <span class="review-caption">${when}</span>
+      </div>
+    `;
+  }
+  _onReviewGridKeydown(event) {
+    if (!["ArrowRight", "ArrowLeft", "ArrowDown", "ArrowUp"].includes(event.key)) return;
+    const grid = event.currentTarget;
+    const buttons = [...grid.querySelectorAll(".review-thumb")];
+    const focused = this.renderRoot.querySelector(":focus");
+    const currentIndex = focused ? buttons.indexOf(focused) : -1;
+    if (currentIndex === -1) return;
+    event.preventDefault();
+    const delta = event.key === "ArrowRight" || event.key === "ArrowDown" ? 1 : -1;
+    buttons[(currentIndex + delta + buttons.length) % buttons.length]?.focus();
+  }
+  _onReviewTileClick(event, trigger) {
+    if (this._reviewSelectMode) {
+      const next = new Set(this._reviewSelected);
+      if (next.has(event.uid)) next.delete(event.uid);
+      else next.add(event.uid);
+      this._reviewSelected = next;
+      return;
+    }
+    this._openSheet(event, trigger);
+  }
+  _renderBulkBar(cats) {
+    return b2`
+      <div class="bulk-bar">
+        <span>${this._reviewSelected.size} selected</span>
+        <div class="bulk-actions">
+          ${cats.map((cat) => b2`<button type="button" class="chip" ?disabled=${this._bulkBusy} @click=${() => this._bulkLabel(cat.name)}>${cat.name}</button>`)}
+          <button type="button" class="chip chip-muted" ?disabled=${this._bulkBusy} @click=${() => this._bulkLabel("not_a_cat")}>Not a cat</button>
+        </div>
+      </div>
+    `;
+  }
+  _bulkLabel(label) {
+    const hass = this.hass;
+    const entryId = this._entryId;
+    if (!hass?.callWS || !entryId || this._reviewSelected.size === 0) return;
+    const uids = [...this._reviewSelected];
+    this._bulkBusy = true;
+    labelEvents(hass, entryId, { uids, label }).then(() => {
+      this._bulkBusy = false;
+      const uidSet = new Set(uids);
+      this._reviewFeed.removeItem((item) => uidSet.has(item.uid));
+      this._reviewSelected = /* @__PURE__ */ new Set();
+      this._reviewSelectMode = false;
+      this._refreshCats();
+    }).catch((err) => {
+      this._bulkBusy = false;
+      this._actionError = { message: `Couldn't label those. ${describeWsError(err)}`, retry: () => this._bulkLabel(label) };
+      this.requestUpdate();
     });
   }
-  /** Shared `entry_id`-injecting wrapper for the three cat-management commands this card calls
-   * over WS directly (delete cat, upload a sample, delete an uploaded sample) -- `null` when
-   * the connection or entry isn't resolved yet, the same guard every WS call site here already
-   * repeats individually. */
+  _renderPager(state2, limit, onPrevious, onNext) {
+    if (state2.items === null || !state2.hasNext && !state2.hasPrevious) return A;
+    const start = state2.pageIndex * limit + 1;
+    const end = state2.pageIndex * limit + state2.items.length;
+    return b2`
+      <div class="pager">
+        <button type="button" ?disabled=${!state2.hasPrevious || state2.loading} @click=${onPrevious}>Previous</button>
+        <span>${start}\u2013${end} of ${state2.total}</span>
+        <button type="button" ?disabled=${!state2.hasNext || state2.loading} @click=${onNext}>Next</button>
+      </div>
+    `;
+  }
+  _renderPagedError(message, retry) {
+    return b2`
+      <div class="error">
+        <span>${message}</span>
+        <button type="button" @click=${retry}>Try again</button>
+      </div>
+    `;
+  }
+  /** Resolves any event row uid to its complete feeder session for the shared sheet. */
+  _loadEventDetail(uid, keepData = false) {
+    const member = this._sheetGroup.find((candidate) => candidate.uid === uid);
+    if (member) this._sheetSummary = member;
+    if (!keepData) {
+      this._sheetSamples = null;
+      this._sheetSceneSubjects = [];
+      this._sheetSessionCats = null;
+      this._sheetMultipleCats = false;
+      this._sheetSamplesFailed = false;
+    }
+    this._sheetError = null;
+    const generation = ++this._detailGeneration;
+    const callWS = this.hass?.callWS;
+    const entryId = this._entryId;
+    if (!callWS || !entryId) {
+      this._sheetSamplesFailed = !keepData;
+      return;
+    }
+    callWS({ type: "kibble/event", entry_id: entryId, uid }).then((result) => {
+      if (generation !== this._detailGeneration) return;
+      const detail = result;
+      this._sheetSummary = detail.event;
+      this._sheetSamples = detail.samples;
+      this._sheetSceneSubjects = detail.scene_subjects;
+      this._sheetSessionCats = detail.cats;
+      this._sheetMultipleCats = detail.multiple_cats;
+      this._sheetSamplesFailed = false;
+      this.requestUpdate();
+    }).catch(() => {
+      if (generation !== this._detailGeneration) return;
+      if (!keepData) this._sheetSamplesFailed = true;
+      this.requestUpdate();
+    });
+  }
+  _openSheet(event, trigger) {
+    this._sheetTrigger = trigger;
+    this._sheetGroup = [event];
+    this._sheetReviewedEvents = /* @__PURE__ */ new Map();
+    this._sheetPhotoUids = /* @__PURE__ */ new Set();
+    this._sheetSessionCats = null;
+    this._sheetMultipleCats = false;
+    this._loadEventDetail(event.uid);
+  }
+  _refreshCats() {
+    const callWS = this.hass?.callWS;
+    const entryId = this._entryId;
+    if (!callWS || !entryId) return;
+    this._catsQuery.refresh(() => callWS({ type: "kibble/cats", entry_id: entryId }).then((r6) => r6));
+  }
+  /** Shared `entry_id`-injecting wrapper for the WS commands this card calls directly (delete
+   * cat, add cat, remove a training sample) -- `null` when the connection or entry isn't
+   * resolved yet, the same guard every WS call site here already repeats individually. */
   _callWS(type, payload) {
     const callWS = this.hass?.callWS;
     const entryId = this._entryId;
     if (!callWS || !entryId) return null;
     return callWS({ type, entry_id: entryId, ...payload }).then((r6) => r6);
-  }
-  _renderUploadNotice() {
-    return b2`
-      <div class="notice">
-        <span>${this._uploadNotice}</span>
-        <button
-          type="button"
-          aria-label="Dismiss"
-          @click=${() => {
-      this._uploadNotice = null;
-    }}
-        >
-          &times;
-        </button>
-      </div>
-    `;
-  }
-  _renderCrop(crop, catNames) {
-    const suggestion = chooseSuggestion(crop, this._confidence(), catNames);
-    const path = this._entryId ? kibbleImageUrl(this._entryId, "pending", crop.name) : null;
-    const url = path ? this._imageCache.get(this.hass, path, () => this.requestUpdate()) : null;
-    return b2`
-      <div class="crop">
-        <button
-          type="button"
-          class="crop-thumb"
-          ?disabled=${!url}
-          aria-label=${suggestion ? `Confirm ${suggestion.cat}` : "Choose a cat for this crop"}
-          @click=${() => this._onCropTap(crop, suggestion)}
-        >
-          ${url ? b2`<img src=${url} alt="" loading="lazy" />` : A}
-        </button>
-        <button type="button" class="chooser" aria-label="Choose a cat for this crop" @click=${(e6) => this._openPicker(crop, e6)}>&#8942;</button>
-        <div class="chip ${suggestion ? `chip-${suggestion.source}` : "chip-empty"}">
-          ${suggestion ? b2`${suggestion.cat}<span class="mark">${suggestion.source === "classifier" ? "AI" : "ID"}</span>` : "Tap to choose"}
-        </div>
-      </div>
-    `;
-  }
-  _onGridKeydown(event) {
-    if (!["ArrowRight", "ArrowLeft", "ArrowDown", "ArrowUp"].includes(event.key)) return;
-    const grid = event.currentTarget;
-    const buttons = [...grid.querySelectorAll(".crop-thumb")];
-    const currentIndex = buttons.indexOf(document.activeElement);
-    if (currentIndex === -1) return;
-    event.preventDefault();
-    const delta = event.key === "ArrowRight" || event.key === "ArrowDown" ? 1 : -1;
-    const next = buttons[(currentIndex + delta + buttons.length) % buttons.length];
-    next?.focus();
-  }
-  _onCropTap(crop, suggestion) {
-    if (!suggestion) {
-      this._pickerCrop = crop;
-      return;
-    }
-    this._confirm(crop, suggestion.cat);
-  }
-  _openPicker(crop, event) {
-    this._pickerTrigger = event.currentTarget;
-    this._pickerCrop = crop;
-  }
-  /** Opens the same full-viewport overlay `kibble-timeline-card` uses, for a sighting or
-   * training-photo thumbnail tapped out of `_renderSighting`/`_renderSample` -- the grids stay
-   * small enough to scan at a glance, this is the "let me actually look at that one" escape
-   * valve. */
-  _openLightbox(event, url, alt) {
-    if (!url) return;
-    this._lightboxTrigger = event.currentTarget;
-    this._lightboxUrl = url;
-    this._lightboxAlt = alt;
-  }
-  _confirm(crop, cat) {
-    if (!this._entities.deviceId) return;
-    const deviceId = this._entities.deviceId;
-    this._hiddenCrops = new Set(this._hiddenCrops).add(crop.name);
-    const displayCat = cat === "not_a_cat" ? "Not a cat" : cat === "other" ? "Skip" : cat;
-    this.hass.callService("kibble", "label_face", { device_id: deviceId, crop_id: crop.name, cat }).then(() => {
-      this._refreshAll();
-      this._setUndo({
-        message: `Labelled as ${displayCat}. `,
-        run: () => {
-          this.hass.callService("kibble", "unlabel_face", { device_id: deviceId, cat, name: crop.name }).then(() => this._refreshAll());
-        }
-      });
-    }).catch((err) => {
-      const next = new Set(this._hiddenCrops);
-      next.delete(crop.name);
-      this._hiddenCrops = next;
-      this._actionError = { message: `Couldn't label this crop. ${describeWsError(err)}`, retry: () => this._confirm(crop, cat) };
-    });
-  }
-  _setUndo(action) {
-    clearTimeout(this._undoTimer);
-    this._undo = action;
-    this._undoTimer = setTimeout(() => {
-      this._undo = null;
-    }, UNDO_WINDOW_MS);
-  }
-  _renderUndo(action) {
-    return b2`
-      <div class="undo-bar" role="status">
-        <span>${action.message}</span>
-        <button
-          type="button"
-          @click=${() => {
-      clearTimeout(this._undoTimer);
-      this._undo = null;
-      action.run();
-    }}
-        >
-          Undo
-        </button>
-      </div>
-    `;
-  }
-  _renderActionError() {
-    const error = this._actionError;
-    if (!error) return A;
-    return b2`
-      <div class="error">
-        <span>${error.message}</span>
-        <button
-          type="button"
-          @click=${() => {
-      this._actionError = null;
-      error.retry();
-    }}
-        >
-          Try again
-        </button>
-      </div>
-    `;
-  }
-  _renderPendingError() {
-    const message = this._pendingQuery.state.error;
-    if (!message) return A;
-    return b2`
-      <div class="error">
-        <span>Couldn't load the review queue. ${message}</span>
-        <button type="button" @click=${() => this._refreshPending()}>Try again</button>
-      </div>
-    `;
-  }
-  /** Per cat: the feeder's own captures first ("Sightings", newest first, each with when it
-   * happened -- this is exactly what the "last here" on the feeder view counts, so tapping that
-   * tile lands here and finds the same evidence), then the reference photos someone uploaded. */
-  _renderGallery(cat) {
-    const query = this._sampleQueries.get(cat.name);
-    const samples = (query?.state.data?.samples ?? []).slice().sort((a3, b3) => b3.ts - a3.ts);
-    const sightings = (this._timelineQuery.state.data?.items ?? []).filter(
-      (item) => item.kind === "identified" && item.cat === cat.name
-    );
-    if (samples.length === 0 && cat.samples === 0 && sightings.length === 0) return A;
-    const now = /* @__PURE__ */ new Date();
-    const lastSeenTs = catLastSeenTs(cat.last_seen, sightings.map((item) => item.ts));
-    const relativeSeen = lastSeenTs !== null ? relativeTimeSentence(new Date(lastSeenTs * 1e3), now) : null;
-    const sightingsSummary = sightings.length > 0 ? `${sightings.length === 1 ? "1 sighting" : `${sightings.length} sightings`}${relativeSeen ? `, seen ${relativeSeen}` : ""}` : relativeSeen ? `Seen ${relativeSeen}` : "Not seen yet";
-    return b2`
-      <section class="gallery" id=${catSectionId(cat.name)}>
-        <div class="gallery-header">
-          <kibble-avatar .hass=${this.hass} .name=${cat.name} .colorIndex=${cat.color_index} .entryId=${this._entryId} .sampleName=${cat.avatar}></kibble-avatar>
-          <span class="gallery-name">${cat.name}</span>
-          <span class="gallery-sub">${sightingsSummary}</span>
-        </div>
-        ${sightings.length > 0 ? b2`<div class="gallery-grid">${sightings.map((item) => this._renderSighting(item, now))}</div>` : A}
-        ${samples.length > 0 ? b2`<div class="gallery-sub">${samples.length === 1 ? "1 training photo" : `${samples.length} training photos`}</div>
-              <div class="gallery-grid">${samples.map((sample) => this._renderSample(cat.name, sample, null))}</div>` : A}
-      </section>
-    `;
-  }
-  /** One identified visit, with the live image from that moment when the feeder kept one
-   * (a vendor `track` pairs with the nearest visit/eat frame; a labelled face crop is its own
-   * image) -- the same picture the timeline row shows. Large enough in the grid to actually
-   * judge, and tap opens the same full-size overlay every photo in this card uses. */
-  _renderSighting(item, now) {
-    const when = relativeTimeSentence(new Date(item.ts * 1e3), now);
-    const path = item.image && this._entryId ? kibbleImageUrl(this._entryId, item.image_kind, item.image) : null;
-    const url = path ? this._imageCache.get(this.hass, path, () => this.requestUpdate()) : null;
-    const title = `${detectionHeadline(item)}, ${new Date(item.ts * 1e3).toLocaleString()}`;
-    return b2`
-      <div class="sample sighting">
-        ${url ? b2`<button type="button" class="sample-photo" aria-label=${`View full size: ${title}`} @click=${(event) => this._openLightbox(event, url, title)}>
-              <img src=${url} alt="" loading="lazy" title=${title} />
-            </button>` : b2`<kibble-avatar .hass=${this.hass} .name=${null} .colorIndex=${null} .entryId=${this._entryId} .sampleName=${null}></kibble-avatar>`}
-        <span class="caption">${item.paired_class === "eat" ? "ate \xB7 " : ""}${when}</span>
-      </div>
-    `;
-  }
-  _renderSample(catName, sample, caption) {
-    const path = this._entryId ? kibbleImageUrl(this._entryId, `sample/${catName}`, sample.name) : null;
-    const url = path ? this._imageCache.get(this.hass, path, () => this.requestUpdate()) : null;
-    const title = new Date(sample.ts * 1e3).toLocaleString();
-    return b2`
-      <div class="sample">
-        ${url ? b2`<button type="button" class="sample-photo" aria-label=${`View full size, captured ${title}`} @click=${(event) => this._openLightbox(event, url, title)}>
-              <img src=${url} alt="" loading="lazy" title=${title} />
-            </button>` : A}
-        <button type="button" class="remove" aria-label=${`Remove this sample of ${catName}`} @click=${() => this._removeSample(catName, sample)}>
-          ${"\xD7"}
-        </button>
-        ${caption ? b2`<span class="caption">${caption}</span>` : A}
-      </div>
-    `;
-  }
-  /** `upload-*` samples came in through `kibble/faces/upload`, never through the pending-crop
-   * inbox -- unlabelling would try to move a name `GET /faces/pending` never produced, so
-   * removing one goes through the dedicated `kibble/faces/delete_sample` command instead. */
-  _removeSample(cat, sample) {
-    if (sample.name.startsWith("upload-")) {
-      const request = this._callWS("kibble/faces/delete_sample", { cat, name: sample.name });
-      if (!request) return;
-      request.then(() => this._refreshAll()).catch((err) => {
-        this._actionError = { message: `Couldn't remove this sample. ${describeWsError(err)}`, retry: () => this._removeSample(cat, sample) };
-      });
-      return;
-    }
-    if (!this._entities.deviceId) return;
-    const deviceId = this._entities.deviceId;
-    this.hass.callService("kibble", "unlabel_face", { device_id: deviceId, cat, name: sample.name }).then(() => this._refreshAll()).catch((err) => {
-      this._actionError = { message: `Couldn't remove this sample. ${describeWsError(err)}`, retry: () => this._removeSample(cat, sample) };
-    });
-  }
-  _refreshCats() {
-    const callWS = this.hass?.callWS;
-    if (!callWS || !this._entryId) return;
-    const entryId = this._entryId;
-    this._catsQuery.refresh(() => callWS({ type: "kibble/cats", entry_id: entryId }).then((r6) => r6));
-  }
-  _refreshPending() {
-    const callWS = this.hass?.callWS;
-    if (!callWS || !this._entryId) return;
-    const entryId = this._entryId;
-    this._pendingQuery.refresh(() => callWS({ type: "kibble/faces/pending", entry_id: entryId }).then((r6) => r6));
-  }
-  _refreshAll() {
-    this._refreshCats();
-    this._refreshPending();
-    if (this.hass?.callWS && this._entryId) {
-      const callWS2 = this.hass.callWS;
-      const entryId2 = this._entryId;
-      this._timelineQuery.refresh(() => callWS2({ type: "kibble/timeline", entry_id: entryId2, include_visits: false }).then((r6) => r6));
-    }
-    const callWS = this.hass?.callWS;
-    if (!callWS || !this._entryId) return;
-    const entryId = this._entryId;
-    for (const [name, query] of this._sampleQueries) {
-      query.refresh(() => callWS({ type: "kibble/faces/samples", entry_id: entryId, cat: name }).then((r6) => r6));
-    }
   }
   static {
     this.styles = i`
@@ -13761,40 +21101,7 @@ var KibbleCatsCard = class extends i4 {
       cursor: pointer;
       min-height: 36px;
     }
-    .notice {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      padding: 10px 12px;
-      border-radius: 8px;
-      background: color-mix(in srgb, var(--primary-text-color) 6%, transparent);
-      color: var(--secondary-text-color);
-      font-size: var(--kibble-text-caption);
-    }
-    .notice button {
-      flex: 0 0 auto;
-      border: none;
-      background: none;
-      color: inherit;
-      font-size: 16px;
-      line-height: 1;
-      cursor: pointer;
-      min-width: 32px;
-      min-height: 32px;
-    }
-    .visually-hidden {
-      position: absolute;
-      width: 1px;
-      height: 1px;
-      padding: 0;
-      margin: -1px;
-      overflow: hidden;
-      clip: rect(0, 0, 0, 0);
-      white-space: nowrap;
-      border: 0;
-    }
-    .header {
+    .roster {
       display: flex;
       flex-direction: column;
       gap: 12px;
@@ -13804,13 +21111,13 @@ var KibbleCatsCard = class extends i4 {
       flex-wrap: wrap;
       gap: 16px;
     }
-    .cat {
+    .cat-tile {
       display: flex;
       align-items: center;
       gap: 10px;
     }
     kibble-avatar {
-      --kibble-avatar-size: 40px;
+      --kibble-avatar-size: 44px;
     }
     kibble-avatar.present {
       border-radius: 50%;
@@ -13819,7 +21126,7 @@ var KibbleCatsCard = class extends i4 {
     .cat-text {
       display: flex;
       flex-direction: column;
-      line-height: 1.3;
+      line-height: 1.35;
     }
     .cat-name {
       font-size: var(--kibble-text-title);
@@ -13828,6 +21135,40 @@ var KibbleCatsCard = class extends i4 {
     }
     .cat-meta {
       font-size: var(--kibble-text-caption);
+      color: var(--secondary-text-color);
+    }
+    .cat-meta.quiet {
+      opacity: 0.85;
+    }
+    .learning-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 2px;
+    }
+    .learning-track {
+      flex: 1 1 auto;
+      max-width: 96px;
+      height: 4px;
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--primary-text-color) 12%, transparent);
+      overflow: hidden;
+    }
+    .learning-fill {
+      display: block;
+      height: 100%;
+      border-radius: inherit;
+      background: var(--kibble-feed, #43a96a);
+    }
+    .learning-percent {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--secondary-text-color);
+      white-space: nowrap;
+    }
+    .learning-state {
+      font-size: 11px;
+      font-weight: 600;
       color: var(--secondary-text-color);
     }
     .cat-menu {
@@ -13854,7 +21195,7 @@ var KibbleCatsCard = class extends i4 {
       right: 0;
       z-index: 5;
       margin-top: 4px;
-      min-width: 160px;
+      min-width: 180px;
       display: flex;
       flex-direction: column;
       padding: 6px;
@@ -13884,9 +21225,18 @@ var KibbleCatsCard = class extends i4 {
       background: color-mix(in srgb, var(--error-color, #db4437) 12%, transparent);
     }
     .cat-menu-trigger:focus-visible,
-    .menu button:focus-visible {
+    .menu button:focus-visible,
+    .icon-button:focus-visible,
+    .select-toggle:focus-visible,
+    .review-thumb:focus-visible,
+    .chip:focus-visible,
+    .pager button:focus-visible,
+    .remove:focus-visible,
+    .add-photos-button:focus-visible,
+    .add-cat button:focus-visible,
+    .add-cat input:focus-visible {
       outline: 2px solid var(--primary-color, #03a9f4);
-      outline-offset: -2px;
+      outline-offset: 2px;
     }
     .add-cat {
       display: flex;
@@ -13922,213 +21272,65 @@ var KibbleCatsCard = class extends i4 {
     .inline-error {
       color: var(--error-color, #db4437);
     }
-    .inbox {
+    .training {
       display: flex;
       flex-direction: column;
       gap: 10px;
+      padding-top: 4px;
+      border-top: 1px solid var(--divider-color);
     }
-    .inbox-heading {
+    .training-heading,
+    .review-heading {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
       font-size: var(--kibble-text-title);
       font-weight: 600;
       color: var(--primary-text-color);
     }
-    .crop-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-      gap: 10px;
-    }
-    .crop {
-      position: relative;
+    .training-actions {
       display: flex;
-      flex-direction: column;
-      gap: 4px;
     }
-    .crop-thumb {
-      width: 100%;
-      aspect-ratio: 1;
-      border: none;
+    .add-photos-button {
+      min-height: 40px;
+      padding: 0 16px;
       border-radius: 8px;
-      background: color-mix(in srgb, var(--primary-text-color) 8%, transparent);
-      padding: 0;
+      border: none;
+      background: color-mix(in srgb, var(--primary-color, #03a9f4) 14%, transparent);
+      color: var(--primary-color, #03a9f4);
+      font: inherit;
+      font-size: var(--kibble-text-caption);
+      font-weight: 600;
       cursor: pointer;
-      overflow: hidden;
     }
-    .crop-thumb img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      display: block;
-      /* These are real photos (224x224 JPEGs), not pixel art -- smooth interpolation reads
-       * as a slightly soft photo; "pixelated" would read as a blocky one. Explicit because
-       * "auto" is also the browser default, and a future "these look blurry, sharpen them"
-       * pass should see this comment before reaching for that value. */
-      image-rendering: auto;
-    }
-    .crop-thumb:focus-visible,
-    .sample-photo:focus-visible,
-    .chooser:focus-visible,
-    .remove:focus-visible,
-    .add-cat button:focus-visible,
-    .add-cat input:focus-visible,
-    .undo-bar button:focus-visible {
-      outline: 2px solid var(--primary-color, #03a9f4);
-      outline-offset: 2px;
-    }
-    .chooser {
-      position: absolute;
-      top: 2px;
-      right: 2px;
-      width: 24px;
-      height: 24px;
+    .icon-button {
+      width: 32px;
+      height: 32px;
       border-radius: 50%;
       border: none;
-      background: rgba(0, 0, 0, 0.5);
-      color: #fff;
-      cursor: pointer;
-      line-height: 1;
-      font-size: 14px;
-    }
-    .chip {
-      font-size: 11px;
-      text-align: center;
-      color: var(--secondary-text-color);
+      background: color-mix(in srgb, var(--primary-text-color) 8%, transparent);
+      color: var(--primary-text-color);
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 4px;
-    }
-    .chip-classifier {
-      color: var(--primary-color, #03a9f4);
-      font-weight: 600;
-    }
-    .chip-vendor {
-      color: var(--primary-text-color);
-      font-weight: 500;
-    }
-    .mark {
-      font-size: 9px;
-      font-weight: 700;
-      padding: 0 4px;
-      border-radius: 4px;
-      background: color-mix(in srgb, currentColor 16%, transparent);
-    }
-    .undo-bar {
-      position: fixed;
-      left: 50%;
-      bottom: 16px;
-      transform: translateX(-50%);
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 10px 16px;
-      border-radius: 999px;
-      background: #222;
-      color: #fff;
-      font-size: var(--kibble-text-body);
-      z-index: 10;
-      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
-    }
-    .undo-bar button {
-      border: none;
-      background: none;
-      color: #8ecbff;
-      font: inherit;
-      font-weight: 700;
       cursor: pointer;
     }
-    @media (prefers-reduced-motion: no-preference) {
-      .undo-bar {
-        animation: kibble-undo-in 150ms ease-out;
-      }
-    }
-    @keyframes kibble-undo-in {
-      from {
-        opacity: 0;
-        transform: translate(-50%, 8px);
-      }
-      to {
-        opacity: 1;
-        transform: translate(-50%, 0);
-      }
-    }
-    .gallery {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      padding-top: 12px;
-      border-top: 1px solid var(--divider-color);
-      scroll-margin-top: 16px;
-    }
-    .gallery-header {
-      display: flex;
-      align-items: center;
+    .training-grid,
+    .review-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
       gap: 10px;
-      border-radius: 8px;
-      outline: 2px solid transparent;
-      outline-offset: 4px;
-      transition: outline-color 600ms ease;
     }
-    .gallery.lit .gallery-header {
-      outline-color: var(--kibble-amber, #f2a33c);
-    }
-    .gallery-name {
-      font-size: var(--kibble-text-body);
-      font-weight: 600;
-      color: var(--primary-text-color);
-    }
-    .gallery-sub {
-      font-size: var(--kibble-text-caption, 12px);
-      color: var(--secondary-text-color);
-    }
-    .sample.sighting kibble-avatar {
-      display: block;
-      width: 100%;
-      height: 100%;
-      --kibble-avatar-size: 96px;
-    }
-    .sample-photo {
-      display: block;
-      width: 100%;
-      height: 100%;
-      padding: 0;
-      border: none;
-      background: none;
-      cursor: pointer;
-    }
-    .sample .caption {
-      position: absolute;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      padding: 1px 3px;
-      font-size: 10px;
-      line-height: 1.2;
-      color: #fff;
-      background: rgba(0, 0, 0, 0.55);
-      text-align: center;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      border-radius: 0 0 8px 8px;
-    }
-    .gallery-grid {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-    }
-    .sample {
+    .training-tile {
       position: relative;
-      width: 96px;
-      height: 96px;
     }
-    .sample img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
+    .training-crops {
+      display: flex;
+      gap: 2px;
+      aspect-ratio: 1;
       border-radius: 8px;
-      display: block;
-      /* Same reasoning as .crop-thumb img: real photos, smooth upscale, never "pixelated". */
-      image-rendering: auto;
+      overflow: hidden;
+      background: color-mix(in srgb, var(--primary-text-color) 8%, transparent);
     }
     .remove {
       position: absolute;
@@ -14144,9 +21346,143 @@ var KibbleCatsCard = class extends i4 {
       line-height: 1;
       cursor: pointer;
     }
+    .review {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .select-toggle {
+      border: none;
+      background: color-mix(in srgb, var(--primary-text-color) 8%, transparent);
+      color: var(--primary-text-color);
+      border-radius: 999px;
+      padding: 0 14px;
+      min-height: 32px;
+      font: inherit;
+      font-size: var(--kibble-text-caption);
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .bulk-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      padding: 8px 10px;
+      border-radius: 10px;
+      background: color-mix(in srgb, var(--primary-color, #03a9f4) 10%, transparent);
+      font-size: var(--kibble-text-caption);
+      color: var(--primary-text-color);
+    }
+    .bulk-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .chip {
+      border: none;
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--primary-color, #03a9f4) 14%, transparent);
+      color: var(--primary-color, #03a9f4);
+      font: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      padding: 0 14px;
+      min-height: 32px;
+      cursor: pointer;
+    }
+    .chip.chip-muted {
+      background: color-mix(in srgb, var(--primary-text-color) 8%, transparent);
+      color: var(--secondary-text-color);
+      font-weight: 500;
+    }
+    .chip:disabled {
+      opacity: 0.5;
+      cursor: default;
+    }
+    .review-tile {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .review-thumb {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 1;
+      border: none;
+      border-radius: 10px;
+      background: color-mix(in srgb, var(--primary-text-color) 8%, transparent);
+      padding: 0;
+      cursor: pointer;
+      overflow: hidden;
+    }
+    .neutral-icon {
+      display: block;
+      width: 62%;
+      height: 62%;
+      margin: 19% auto;
+      color: color-mix(in srgb, var(--primary-text-color) 40%, transparent);
+    }
+    .review-check {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: var(--kibble-feed, #43a96a);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+    }
+    .review-caption {
+      font-size: 11px;
+      color: var(--secondary-text-color);
+      text-align: center;
+    }
+    .pager {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      font-size: var(--kibble-text-caption);
+      color: var(--secondary-text-color);
+    }
+    .pager button {
+      border: none;
+      background: color-mix(in srgb, var(--primary-text-color) 8%, transparent);
+      color: var(--primary-text-color);
+      border-radius: 8px;
+      padding: 0 14px;
+      min-height: 36px;
+      font: inherit;
+      font-size: var(--kibble-text-caption);
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .pager button:disabled {
+      opacity: 0.4;
+      cursor: default;
+    }
+    .storage-line {
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      font-size: var(--kibble-text-caption);
+      color: var(--secondary-text-color);
+      border-top: 1px solid var(--divider-color);
+      padding-top: 12px;
+    }
+    .storage-line .quiet {
+      opacity: 0.75;
+    }
     @container (max-width: 360px) {
-      .crop-grid {
-        grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+      .training-grid,
+      .review-grid {
+        grid-template-columns: repeat(auto-fill, minmax(68px, 1fr));
       }
     }
   `;
@@ -14157,20 +21493,21 @@ window.customCards = window.customCards || [];
 window.customCards.push({
   type: "kibble-cats-card",
   name: "Kibble Cats",
-  description: "Enrolled cats -- delete or add training photos -- plus a one-tap inbox for the feeder's own face crops.",
+  description: "Enrolled cats, presence, and the review queue for whatever the feeder couldn't name.",
   preview: true
 });
 var EMPTY_ENTITIES3 = { deviceId: "", catPresence: [] };
 var PORTION_OPTIONS = [1, 2, 3, 4, 5];
+var PORTION_SEGMENT_OPTIONS = PORTION_OPTIONS.map((n6) => ({ value: String(n6), label: String(n6) }));
 var FEED_ROW_STYLES = `
-  .bubble-button-card-container { background: var(--kibble-amber, #f2a33c) !important; height: 56px !important; }
+  .bubble-button-card-container { background: var(--kibble-feed, #43a96a) !important; height: 56px !important; }
   .bubble-name { font-size: 17px; font-weight: 600; }
   .bubble-name, .bubble-icon { color: var(--kibble-ink-on-amber, #241a07) !important; }
   .bubble-icon-container { background: color-mix(in srgb, var(--kibble-ink-on-amber, #241a07) 12%, transparent) !important; }
 `;
 function portionStyles(selected, disabled) {
   return `
-  .bubble-button-card-container { height: var(--kibble-touch-target, 48px) !important; ${selected ? "background: var(--kibble-amber, #f2a33c) !important;" : ""} ${disabled ? "opacity: 0.5;" : ""} }
+  .bubble-button-card-container { height: var(--kibble-touch-target, 48px) !important; ${selected ? "background: var(--kibble-feed, #43a96a) !important;" : ""} ${disabled ? "opacity: 0.5;" : ""} }
   .bubble-button-card { padding: 0 !important; }
   .bubble-name-container { margin: 0 !important; width: 100%; justify-content: center; }
   .bubble-name { width: 100%; justify-content: center; text-align: center; font-size: 17px; font-weight: 600; ${selected ? "color: var(--kibble-ink-on-amber, #241a07) !important;" : ""} }
@@ -14185,9 +21522,16 @@ var KibbleCard = class extends i4 {
   constructor() {
     super();
     this._entities = EMPTY_ENTITIES3;
+    this._wasFeedingForRequest = false;
+    this._timelineGeneration = 0;
+    this._timelineQuery = new WsQuery(() => this.requestUpdate());
+    this._imageCache = new ImageUrlCache();
     this._catsQuery = new WsQuery(() => this.requestUpdate());
     this._calibrationQuery = new WsQuery(() => this.requestUpdate());
     this._calibrationGeneration = 0;
+    this._calibrationOpen = false;
+    this._detectionAreasOpen = false;
+    this._hopperSheetOpen = false;
     this._onBubbleAction = (event) => {
       const detail = event.detail;
       const action = detail?.config?.[`${detail.action}_action`];
@@ -14199,18 +21543,48 @@ var KibbleCard = class extends i4 {
         this._onFeedActivate();
       } else if (action.kibble === "cancel") {
         this._onCancelActivate();
+      } else if (action.kibble === "calibrate") {
+        this._calibrationOpen = true;
       }
     };
-    this._onFeedActivate = () => {
-      if (!this._entities.deviceId) return;
-      const amount = this._numberState(this._entities.feedAmount) ?? 1;
-      this.hass.callService("kibble", "feed", { device_id: this._entities.deviceId, hopper: "both", amount });
+    this._onHopper1PortionSelected = (event) => {
+      this._setHopperPortion(this._entities.feedAmountHopper1, event);
+    };
+    this._onHopper2PortionSelected = (event) => {
+      this._setHopperPortion(this._entities.feedAmountHopper2, event);
+    };
+    this._onFeedActivate = async () => {
+      if (!this._entities.deviceId || this._feedRequest.phase === "requesting") return;
+      const single = this._singleHopper();
+      const plan = single ? { hopper: "both", amount: this._numberState(this._entities.feedAmount) ?? 1 } : dualFeedPlan(this._numberState(this._entities.feedAmountHopper1) ?? 0, this._numberState(this._entities.feedAmountHopper2) ?? 0);
+      if (!plan) return;
+      this._clearFeedRequestTimeoutTimer();
+      this._clearFeedErrorTimer();
+      this._feedError = null;
+      this._feedRequest = feedRequestSubmitted();
+      this._armFeedRequestTimeout();
+      this._pourSource = plan.hopper;
+      try {
+        await this.hass.callService("kibble", "feed", {
+          device_id: this._entities.deviceId,
+          hopper: plan.hopper,
+          amount: plan.amount,
+          ...plan.amount2 !== void 0 ? { amount2: plan.amount2 } : {}
+        });
+      } catch {
+        this._clearFeedRequestTimeoutTimer();
+        this._feedRequest = feedRequestReset();
+        this._pourSource = null;
+        this._feedError = "Try hold again";
+        this._resetFeedErrorAfter(5e3);
+      }
     };
     this._onCancelActivate = () => {
       if (!this._entities.deviceId) return;
       this.hass.callService("kibble", "cancel_feed", { device_id: this._entities.deviceId });
     };
     this._openSettings = () => {
+      this._notifyHeroActivity();
       const hash = this._config?.settings_hash;
       if (hash) {
         history.pushState(null, "", hash);
@@ -14219,8 +21593,41 @@ var KibbleCard = class extends i4 {
       }
       this._settingsOpen = true;
     };
+    this._notifyHeroActivity = () => {
+      this.renderRoot.querySelector("kibble-live-hero")?.notifyActivity();
+    };
+    this._onHeroOverlayIdleChanged = (e6) => {
+      this._heroControlsVisible = e6.detail.visible;
+    };
+    this._onMediaAspectChanged = (e6) => {
+      const ratio = e6.detail?.ratio;
+      if (!Number.isFinite(ratio) || ratio <= 0) return;
+      this.renderRoot.querySelector(".hero")?.style.setProperty("--kibble-hero-aspect", String(ratio));
+    };
     this._closeSettings = () => {
       this._settingsOpen = false;
+    };
+    this._onHashChange = () => {
+      const popup = popupForHash(window.location.hash, this._config);
+      if (popup === "calibrate") this._calibrationOpen = true;
+      if (popup === "detection-areas") this._detectionAreasOpen = true;
+    };
+    this._closeCalibration = (event) => {
+      event.stopPropagation();
+      this._calibrationOpen = false;
+      this._clearPopupHash();
+    };
+    this._closeDetectionAreas = (event) => {
+      event.stopPropagation();
+      this._detectionAreasOpen = false;
+      this._clearPopupHash();
+    };
+    this._openHopperSheet = () => {
+      this._hopperSheetOpen = true;
+    };
+    this._closeHopperSheet = (event) => {
+      event.stopPropagation();
+      this._hopperSheetOpen = false;
     };
     this._onCalibrationChanged = () => {
       this._calibrationGeneration += 1;
@@ -14228,6 +21635,10 @@ var KibbleCard = class extends i4 {
     };
     this._settingsOpen = false;
     this._bubble = false;
+    this._feedRequest = FEED_REQUEST_IDLE;
+    this._feedError = null;
+    this._pourSource = null;
+    this._heroControlsVisible = true;
     void bubbleCardAvailable().then((ok) => {
       this._bubble = ok;
     });
@@ -14237,7 +21648,14 @@ var KibbleCard = class extends i4 {
       hass: { attribute: false },
       _config: { state: true },
       _settingsOpen: { state: true },
-      _bubble: { state: true }
+      _calibrationOpen: { state: true },
+      _detectionAreasOpen: { state: true },
+      _hopperSheetOpen: { state: true },
+      _bubble: { state: true },
+      _feedRequest: { state: true },
+      _feedError: { state: true },
+      _pourSource: { state: true },
+      _heroControlsVisible: { state: true }
     };
   }
   setConfig(config) {
@@ -14258,6 +21676,9 @@ var KibbleCard = class extends i4 {
   }
   connectedCallback() {
     super.connectedCallback();
+    window.addEventListener("hashchange", this._onHashChange);
+    window.addEventListener("location-changed", this._onHashChange);
+    this._onHashChange();
     this._resizeObserver = new ResizeObserver((entries) => {
       const rect = entries[0]?.contentRect;
       const height = rect?.height ?? this.getBoundingClientRect().height;
@@ -14268,11 +21689,17 @@ var KibbleCard = class extends i4 {
     this._resizeObserver.observe(this);
   }
   disconnectedCallback() {
+    window.removeEventListener("hashchange", this._onHashChange);
+    window.removeEventListener("location-changed", this._onHashChange);
+    this._clearFeedRequestTimeoutTimer();
+    this._clearFeedErrorTimer();
     super.disconnectedCallback();
     this._resizeObserver?.disconnect();
+    this._imageCache.dispose();
   }
   willUpdate() {
     const deviceId = this._config?.device_id;
+    this.classList.toggle("dual-hopper", this.hass ? !this._singleHopper() : false);
     if (this.hass && deviceId && (this.hass.entities !== this._resolvedEntities || this.hass.devices !== this._resolvedDevices || deviceId !== this._resolvedDeviceId)) {
       this._resolvedEntities = this.hass.entities;
       this._resolvedDevices = this.hass.devices;
@@ -14295,6 +21722,27 @@ var KibbleCard = class extends i4 {
         () => callWS({ type: "kibble/calibration", entry_id: entryId }).then((result) => result)
       );
     }
+    if (this.hass && this._entities.feeding) {
+      const feedingNow = this.hass.states[this._entities.feeding]?.state === "on";
+      if (feedingNow !== this._wasFeedingForRequest) {
+        this._wasFeedingForRequest = feedingNow;
+        this._feedRequest = feedRequestFeedingChanged(this._feedRequest, feedingNow);
+        if (feedingNow) {
+          this._clearFeedRequestTimeoutTimer();
+          this._feedError = null;
+        } else {
+          this._pourSource = null;
+        }
+        this._timelineGeneration += 1;
+      }
+    }
+    if (this.hass && this._entryId && callWS) {
+      const entryId = this._entryId;
+      this._timelineQuery.sync(
+        `${entryId}:${this._timelineGeneration}`,
+        () => callWS({ type: "kibble/timeline", entry_id: entryId, limit: 5 }).then((result) => result)
+      );
+    }
   }
   render() {
     if (!this._config || !this.hass) return A;
@@ -14305,12 +21753,28 @@ var KibbleCard = class extends i4 {
     const status = deriveFeederStatus(coreStates, feedingState);
     const feeding = feedingState === "on";
     const bowlFill = this._numberState(e6.bowlFill);
+    const fillSource = e6.bowlFill ? this.hass.states[e6.bowlFill]?.attributes?.source ?? null : null;
     const calibrationHopper = displayCalibrationHopper(this._calibrationQuery.state.data);
     const hopperLevel1 = parseHopperLevel(e6.hopperLevel1 && this.hass.states[e6.hopperLevel1]?.state);
     const hopperLevel2 = parseHopperLevel(e6.hopperLevel2 && this.hass.states[e6.hopperLevel2]?.state);
+    const hopperRemaining1 = e6.hopperRemaining1 ? parseHopperRemaining(this.hass.states[e6.hopperRemaining1]) : null;
+    const hopperRemaining2 = e6.hopperRemaining2 ? parseHopperRemaining(this.hass.states[e6.hopperRemaining2]) : null;
+    const singleHopper = this._singleHopper();
+    const food1 = e6.hopperFood1 ? hopperFoodName(this.hass.states[e6.hopperFood1]) : null;
+    const food2 = e6.hopperFood2 ? hopperFoodName(this.hass.states[e6.hopperFood2]) : null;
     const scheduleEntries = this._scheduleEntries();
     const feedAmount = this._numberState(e6.feedAmount) ?? 1;
+    const hopperAmount1 = this._numberState(e6.feedAmountHopper1) ?? 0;
+    const hopperAmount2 = this._numberState(e6.feedAmountHopper2) ?? 0;
+    const totalPortions = singleHopper ? feedAmount : hopperAmount1 + hopperAmount2;
     const overlay = this._heroOverlay(status);
+    const feedRequestLabel = this._feedError ?? (this._feedRequest.phase === "requesting" ? "Requesting\u2026" : "Hold to feed");
+    const feedControlLabel = feeding ? "Feeding" : feedRequestLabel;
+    const dualFeedIsEmpty = !singleHopper && hopperAmount1 === 0 && hopperAmount2 === 0;
+    const feedControlDisabled = status === "unreachable" || !feeding && this._feedRequest.phase === "requesting" || dualFeedIsEmpty;
+    const feedControlPending = !feeding && this._feedRequest.phase === "requesting";
+    const darkMode = this.hass.themes?.darkMode === true;
+    const bowlMix = deriveBowlMix(this._timelineQuery.state.data?.items ?? [], singleHopper);
     return b2`
       <ha-card>
         <div class="container">
@@ -14319,10 +21783,16 @@ var KibbleCard = class extends i4 {
               <div class="hero-media">
                 <kibble-live-hero
                   .hass=${this.hass}
+                  .cats=${this._catsQuery.state.data?.cats ?? []}
+                  .cache=${this._imageCache}
                   .cameraEntity=${e6.camera}
                   .scryptedId=${this._config.scrypted_id}
                   .entryId=${this._entryId}
                   .overlayEntity=${e6.detectionOverlaySwitch}
+                  .callCatsEntity=${e6.callCatsButton}
+                  .externalPin=${this._settingsOpen}
+                  @overlay-idle-changed=${this._onHeroOverlayIdleChanged}
+                  @media-aspect-changed=${this._onMediaAspectChanged}
                 ></kibble-live-hero>
               </div>
               <div class="hero-status">
@@ -14331,34 +21801,57 @@ var KibbleCard = class extends i4 {
                       .hass=${this.hass}
                       .name=${overlay.catName}
                       .colorIndex=${overlay.colorIndex}
-                      .entryId=${this._entryId}
-                      .sampleName=${overlay.avatarSample}
+                      .asset=${overlay.avatarAsset}
+                      .cache=${this._imageCache}
                     ></kibble-avatar>` : A}
                 <span class="hero-status-text" data-tone=${overlay.tone}>${overlay.text}</span>
               </div>
-              <button class="gear-button" aria-label="Settings" @click=${this._openSettings}>${mdiIcon("cog")}</button>
+              <button
+                class="gear-button ${this._heroControlsVisible ? "" : "idle-hidden"}"
+                aria-label="Settings"
+                @click=${this._openSettings}
+                @focus=${this._notifyHeroActivity}
+              >
+                ${mdiIcon("cog")}
+              </button>
               ${this._config.name ? b2`<div class="name-chip">${this._config.name}</div>` : A}
             </div>
             <div class="side">
+            <div class="panel">
             <kibble-bowl
-              class="bowl-block"
+              class="bowl-art"
               .fill=${bowlFill}
+              .fillSource=${fillSource}
               .calibration=${calibrationHopper}
               .hopperLevel1=${hopperLevel1}
               .hopperLevel2=${hopperLevel2}
+              .hopperRemaining1=${hopperRemaining1}
+              .hopperRemaining2=${hopperRemaining2}
+              .singleHopper=${singleHopper}
+              .food1=${food1}
+              .food2=${food2}
               .feeding=${feeding}
+              .portions=${totalPortions}
+              .darkMode=${darkMode}
+              .bowlMix=${bowlMix}
+              .pourSource=${this._pourSource}
+              @hopper-detail-requested=${this._openHopperSheet}
             ></kibble-bowl>
-            <div class="feed-controls" @hass-action=${this._onBubbleAction}>
-              ${this._bubble ? b2`<div class="portions">
-                      ${this._portionConfigs(feedAmount, status === "unreachable" || feeding).map(
-      (config) => b2`<kibble-bubble-row .hass=${this.hass} .config=${config}></kibble-bubble-row>`
-    )}
-                    </div>
-                    <kibble-bubble-row .hass=${this.hass} .config=${this._feedRowConfig(feeding, status === "unreachable")}></kibble-bubble-row>` : b2`<kibble-segmented-picker
+            <div class="controls" @hass-action=${this._onBubbleAction}>
+              <!-- Always this card's own controls, never a Bubble Card row.
+                   Delegating the feed action to Bubble looked native on a Bubble dashboard
+                   and behaved badly everywhere it mattered: no hold animation (Bubble has
+                   none to drive), and on Android a long press raised the OS text-selection
+                   magnifier because that row suppresses neither selection nor the callout.
+                   A press-and-hold control has to own its own pointer handling. -->
+              ${singleHopper ? b2`
+                    <kibble-segmented-picker
                       class="picker-full"
-                      .value=${feedAmount}
+                      .value=${String(feedAmount)}
+                      .options=${PORTION_SEGMENT_OPTIONS}
+                      group-label="Feed amount, portions"
                       ?disabled=${status === "unreachable" || feeding}
-                      @portion-selected=${this._onPortionSelected}
+                      @option-selected=${this._onPortionSelected}
                     ></kibble-segmented-picker>
                     <kibble-stepper
                       class="picker-compact"
@@ -14366,18 +21859,48 @@ var KibbleCard = class extends i4 {
                       ?disabled=${status === "unreachable" || feeding}
                       @value-selected=${this._onPortionSelected}
                     ></kibble-stepper>
-                    <kibble-hold-button
-                      .label=${feeding ? "Cancel" : "Hold to feed"}
-                      .variant=${feeding ? "cancel" : "feed"}
-                      ?disabled=${status === "unreachable"}
-                      @activate=${feeding ? this._onCancelActivate : this._onFeedActivate}
-                    ></kibble-hold-button>`}
+                  ` : b2`
+                    <div class="hopper-row">
+                      <span class="hopper-row-label">${food1 ?? "Hopper 1"}</span>
+                      <kibble-stepper
+                        .value=${hopperAmount1}
+                        .min=${0}
+                        .max=${5}
+                        aria-label="${food1 ?? "Hopper 1"} portions"
+                        ?disabled=${status === "unreachable" || feeding}
+                        @value-selected=${this._onHopper1PortionSelected}
+                      ></kibble-stepper>
+                    </div>
+                    <div class="hopper-row">
+                      <span class="hopper-row-label">${food2 ?? "Hopper 2"}</span>
+                      <kibble-stepper
+                        .value=${hopperAmount2}
+                        .min=${0}
+                        .max=${5}
+                        aria-label="${food2 ?? "Hopper 2"} portions"
+                        ?disabled=${status === "unreachable" || feeding}
+                        @value-selected=${this._onHopper2PortionSelected}
+                      ></kibble-stepper>
+                    </div>
+                  `}
+              <kibble-hold-button
+                .label=${feedControlLabel}
+                .variant=${feeding ? "cancel" : "feed"}
+                ?disabled=${feedControlDisabled}
+                ?pending=${feedControlPending}
+                @activate=${feeding ? this._onCancelActivate : this._onFeedActivate}
+              ></kibble-hold-button>
+            </div>
             </div>
             ${this._config.schedule_hash ? A : b2`<kibble-schedule-summary
                   class="schedule-row"
                   .hass=${this.hass}
                   .entries=${scheduleEntries}
                   .scheduleCardStateEntity=${e6.scheduleCardState}
+                  .singleHopper=${singleHopper}
+                  .deviceId=${e6.deviceId}
+                  .food1=${food1}
+                  .food2=${food2}
                 ></kibble-schedule-summary>`}
             </div>
           </div>
@@ -14387,10 +21910,43 @@ var KibbleCard = class extends i4 {
         .hass=${this.hass}
         .entities=${e6}
         .entryId=${this._entryId}
+        .singleHopper=${singleHopper}
+        .food1=${food1}
+        .food2=${food2}
         ?open=${this._settingsOpen}
         @close-requested=${this._closeSettings}
         @calibration-changed=${this._onCalibrationChanged}
       ></kibble-settings-dialog>
+      <kibble-hopper-sheet
+        .hass=${this.hass}
+        .entities=${e6}
+        ?open=${this._hopperSheetOpen}
+        .hopperLevel1=${hopperLevel1}
+        .hopperLevel2=${hopperLevel2}
+        .hopperRemaining1=${hopperRemaining1}
+        .hopperRemaining2=${hopperRemaining2}
+        .singleHopper=${singleHopper}
+        .food1=${food1}
+        .food2=${food2}
+        @close-requested=${this._closeHopperSheet}
+      ></kibble-hopper-sheet>
+      <kibble-calibration-dialog
+        .hass=${this.hass}
+        .entryId=${this._entryId}
+        .singleHopper=${singleHopper}
+        .food1=${food1}
+        .food2=${food2}
+        ?open=${this._calibrationOpen}
+        @close-requested=${this._closeCalibration}
+        @calibration-changed=${this._onCalibrationChanged}
+      ></kibble-calibration-dialog>
+      <kibble-detection-areas-dialog
+        .hass=${this.hass}
+        .cameraEntity=${e6.camera}
+        .entryId=${this._entryId}
+        ?open=${this._detectionAreasOpen}
+        @close-requested=${this._closeDetectionAreas}
+      ></kibble-detection-areas-dialog>
     `;
   }
   _numberState(entityId) {
@@ -14407,16 +21963,16 @@ var KibbleCard = class extends i4 {
     const cameraState = cameraId ? this.hass.states[cameraId] : void 0;
     const live = cameraState !== void 0 && cameraState.state !== "unavailable";
     if (status === "unreachable") {
-      return { text: statusText(status, null), tone: "error", live, catName: null, colorIndex: null, avatarSample: null };
+      return { text: statusText(status, null), tone: "error", live, catName: null, colorIndex: null, avatarAsset: null };
     }
     if (status === "dispensing") {
-      return { text: statusText(status, null), tone: "amber", live, catName: null, colorIndex: null, avatarSample: null };
+      return { text: statusText(status, null), tone: "amber", live, catName: null, colorIndex: null, avatarAsset: null };
     }
     const seen = this._catSeen();
     const eatingId = this._entities.eating;
     const eating = eatingId !== void 0 && this.hass.states[eatingId]?.state === "on";
     if (!seen) {
-      return { text: eating ? "Eating now" : "Ready to feed", tone: "normal", live, catName: null, colorIndex: null, avatarSample: null };
+      return { text: eating ? "Eating now" : "Ready to feed", tone: "normal", live, catName: null, colorIndex: null, avatarAsset: null };
     }
     const roster = this._catsQuery.state.data?.cats.find((cat) => cat.name === seen.name) ?? null;
     return {
@@ -14424,8 +21980,8 @@ var KibbleCard = class extends i4 {
       tone: "normal",
       live,
       catName: seen.name,
-      colorIndex: roster?.color_index ?? null,
-      avatarSample: roster?.avatar ?? null
+      colorIndex: roster?.color ?? null,
+      avatarAsset: roster?.avatar ?? null
     };
   }
   /** Who was last seen and how long ago. The time comes from the sensor's own
@@ -14495,9 +22051,65 @@ var KibbleCard = class extends i4 {
       button_action: actions
     };
   }
+  /** Shared by the single-mode portion segmented-picker's `option-selected` (string values) and
+   * the compact stepper's `value-selected` (numeric) -- both just want `feedAmount` set. */
   _onPortionSelected(event) {
-    if (!this._entities.feedAmount) return;
-    this.hass.callService("number", "set_value", { value: event.detail.value }, { entity_id: this._entities.feedAmount });
+    this._setHopperPortion(this._entities.feedAmount, event);
+  }
+  /** Writes one number entity from a picker's `option-selected`/stepper's `value-selected` --
+   * shared by the single-mode shared control and each of dual mode's two per-hopper rows, none
+   * of which need anything beyond "set this entity to this value". */
+  _setHopperPortion(entityId, event) {
+    if (!entityId) return;
+    const value = Number(event.detail.value);
+    if (!Number.isFinite(value)) return;
+    this.hass.callService("number", "set_value", { value }, { entity_id: entityId });
+  }
+  /** The hopper divider switch reads off: the feeder is running as one undivided hopper. */
+  _singleHopper() {
+    const entityId = this._entities.hopperDivider;
+    return entityId != null && this.hass.states[entityId]?.state === "off";
+  }
+  /** Gives the feeder `DEFAULT_FEED_REQUEST_CONFIG.timeoutMs` to confirm dispensing has started
+   * before the pill gives up honestly rather than reading "Requesting…" forever. A single timer
+   * for the whole wait (rather than a repeating tick) is enough: `feedRequestTick` settles to
+   * the same clamped `timeout` phase whether it is fed one big step or many small ones. */
+  _armFeedRequestTimeout() {
+    this._clearFeedRequestTimeoutTimer();
+    this._feedRequestTimeoutTimer = setTimeout(() => {
+      this._feedRequestTimeoutTimer = void 0;
+      if (this._feedRequest.phase !== "requesting") return;
+      this._feedRequest = feedRequestTick(this._feedRequest, DEFAULT_FEED_REQUEST_CONFIG.timeoutMs, DEFAULT_FEED_REQUEST_CONFIG);
+      this._pourSource = null;
+      this._feedError = "No response from the feeder";
+      this._resetFeedErrorAfter(5e3);
+    }, DEFAULT_FEED_REQUEST_CONFIG.timeoutMs);
+  }
+  _clearFeedRequestTimeoutTimer() {
+    if (this._feedRequestTimeoutTimer !== void 0) clearTimeout(this._feedRequestTimeoutTimer);
+    this._feedRequestTimeoutTimer = void 0;
+  }
+  /** Clears a shown error/timeout message after its own display window, returning the machine
+   * to rest so a fresh hold starts clean. Shared by both failure modes -- the wording differs,
+   * the reset behaviour does not. */
+  _resetFeedErrorAfter(delay) {
+    this._clearFeedErrorTimer();
+    this._feedErrorTimer = setTimeout(() => {
+      this._feedErrorTimer = void 0;
+      this._feedError = null;
+      this._feedRequest = feedRequestReset();
+    }, delay);
+  }
+  _clearFeedErrorTimer() {
+    if (this._feedErrorTimer !== void 0) clearTimeout(this._feedErrorTimer);
+    this._feedErrorTimer = void 0;
+  }
+  /** Clears the popup hash the dialog was opened from, so the next `location-changed`
+   * (any navigation anywhere on the dashboard re-fires it) cannot silently reopen a dialog
+   * the operator just dismissed. */
+  _clearPopupHash() {
+    if (popupForHash(window.location.hash, this._config) === null) return;
+    history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
   }
   static {
     this.styles = i`
@@ -14506,6 +22118,10 @@ var KibbleCard = class extends i4 {
       height: 100%;
       --kibble-amber: ${r(KIBBLE_AMBER)};
       --kibble-amber-dark: ${r(KIBBLE_AMBER_DARK)};
+      /* The feed action, deliberately not the food's amber -- see the token's own doc. */
+      --kibble-feed: ${r(KIBBLE_FEED)};
+      --kibble-feed-dark: ${r(KIBBLE_FEED_DARK)};
+      --kibble-ink-on-feed: ${r(KIBBLE_INK_ON_FEED)};
       --kibble-ink-on-amber: ${r(KIBBLE_INK_ON_AMBER)};
       --kibble-live: ${r(KIBBLE_LIVE)};
       --kibble-touch-target: 48px;
@@ -14515,6 +22131,11 @@ var KibbleCard = class extends i4 {
       --kibble-status-size: 22px;
       --kibble-segment-size: 16px;
       --kibble-schedule-size: 14px;
+      /* The one vertical rhythm every gap and every section's own top padding is built from --
+       * the art, the chips, the choice row, the stepper, and the pill all breathe by the same
+       * amount, so nothing in the hero reads as an accident of whichever element happened to
+       * need a number. */
+      --kibble-rhythm: 14px;
     }
     :host(.kiosk) {
       --kibble-touch-target: 60px;
@@ -14537,37 +22158,52 @@ var KibbleCard = class extends i4 {
       container-type: inline-size;
       height: 100%;
     }
+    /* One column: the card is exactly as tall as its content, never a scroll box inside the
+     * dashboard's own scroll. The two-column layout below boxes itself to the video instead.
+     * Zero row gap on purpose: the video and the panel below it are one continuous card
+     * surface, not two stacked tiles -- the hero's own square bottom corners (below) are what
+     * make that continuity read as intentional rather than a seam. Every panel/schedule gets
+     * its own top padding instead, off the same --kibble-rhythm scale. */
     .root {
       display: grid;
-      height: 100%;
-      overflow-y: auto;
-      gap: 10px;
-      padding-bottom: 10px;
+      gap: 0;
       grid-template-columns: 1fr;
-      grid-template-areas: "hero" "bowl" "feed" "schedule";
+      grid-template-areas: "hero" "panel" "schedule";
     }
-    /* The feeder's streams are 16:10 (1152x720 sub, 1728x1080 main): the hero keeps that ratio
-     * so the fisheye frame is never cropped or stretched to fit a layout guess. */
+    /* .side only exists as a grid area at >= 960px container width -- display: contents
+     * unwraps it entirely below that so .panel/.schedule-row place directly into .root's own
+     * "panel"/"schedule" areas, exactly as if .side were never in the markup at all. The
+     * @container (min-width: 960px) block below turns it back into a real grid container once
+     * there is a second column for it to own. */
     .side {
       display: contents;
     }
+    /* Always the stream's true aspect ratio -- --kibble-hero-aspect starts at the sane 16/9
+     * default every real feeder stream actually is (main 1920x1080, sub 1280x720) and is
+     * overwritten by _onMediaAspectChanged the moment kibble-live-hero reports the real
+     * media size, so the box never guesses a ratio the video itself does not have. */
     .hero {
       grid-area: hero;
       position: relative;
       overflow: hidden;
-      aspect-ratio: 16 / 10;
+      aspect-ratio: var(--kibble-hero-aspect, 16 / 9);
       background: #1c1c1c;
+      /* Square where the panel continues directly below -- rounded only at the top, so the
+       * video and the card's own surface read as one shape, not two abutted rectangles. */
       border-radius: var(--ha-card-border-radius, 12px) var(--ha-card-border-radius, 12px) 0 0;
     }
     .hero-media {
       position: absolute;
       inset: 0;
     }
+    /* Fills .hero exactly; kibble-live-hero never crops beyond this box on its own (it
+     * object-fit: contains the actual video/image internally), so there is no object-fit to
+     * set here -- it would do nothing anyway, since this child is a custom element, never a
+     * replaced one. */
     .hero-media > * {
       display: block;
       width: 100%;
       height: 100%;
-      object-fit: cover;
     }
     .hero-placeholder {
       display: flex;
@@ -14635,6 +22271,19 @@ var KibbleCard = class extends i4 {
       font-size: 22px;
       cursor: pointer;
     }
+    /* Mirrors <kibble-live-hero>'s own controls/topbar fade (overlay-idle-changed, forwarded by
+       _onHeroOverlayIdleChanged) since this button overlaps the hero's video from outside its
+       shadow DOM and shares none of its CSS. No transition property outside the no-preference
+       query, so a reduced-motion user's browser snaps the opacity instantly. */
+    @media (prefers-reduced-motion: no-preference) {
+      .gear-button {
+        transition: opacity 200ms ease;
+      }
+    }
+    .gear-button.idle-hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
     .name-chip {
       position: absolute;
       left: 12px;
@@ -14646,48 +22295,76 @@ var KibbleCard = class extends i4 {
       font-size: 13px;
       font-weight: 600;
     }
-    .bowl-block {
-      grid-area: bowl;
-      padding: 8px 14px 0;
-      --kibble-bowl-max-width: 300px;
-    }
-    .feed-controls {
-      grid-area: feed;
-      padding: 0 14px;
+    /* The one calm panel: the art, the chips (drawn inside kibble-bowl itself), the hopper
+     * choice, the portion stepper, and the pill -- one shared content width and one left edge,
+     * so the art's own centre lines up with the pill's. Never touched by the container queries
+     * below: the same rule places it under the video on a narrow card and beside it on a wide
+     * one, capped and centred either way so it never grows into a giant balloon on a big
+     * screen. kibble-bowl is the one child allowed to shrink (flex: 1 1 auto) when the wide
+     * layout's own height budget is tight; the controls beneath it never do. */
+    .panel {
+      grid-area: panel;
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      min-height: 0;
+      gap: var(--kibble-rhythm);
+      width: 100%;
+      max-width: 340px;
+      margin: 0 auto;
+      box-sizing: border-box;
+      padding: var(--kibble-rhythm) 16px calc(var(--kibble-rhythm) + 2px);
     }
-    .portions {
-      display: grid;
-      grid-template-columns: repeat(5, 1fr);
-      gap: 8px;
+    .bowl-art {
+      flex: 1 1 auto;
+      min-height: 0;
     }
-    .portions > * {
-      min-width: 0;
+    .controls {
+      flex: none;
+      display: flex;
+      flex-direction: column;
+      gap: var(--kibble-rhythm);
+      width: 100%;
       container-type: inline-size;
       container-name: feed-controls;
     }
-    .feed-controls .picker-full {
+    .controls .picker-full {
       display: none;
     }
-    .feed-controls .picker-compact {
+    .controls .picker-compact {
       display: block;
     }
     @container feed-controls (min-width: 280px) {
-      .feed-controls .picker-full {
+      .controls .picker-full {
         display: block;
       }
-      .feed-controls .picker-compact {
+      .controls .picker-compact {
         display: none;
       }
     }
+    /* One dual-hopper row: the hopper's label left, its stepper right. Both rows share one
+     * column edge, so the steppers line up whatever the food names' lengths, and each row is
+     * one control tall, so two rows plus the Hold button never grow the hero. */
+    .hopper-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      column-gap: 12px;
+    }
+    .hopper-row-label {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: var(--kibble-segment-size);
+      font-weight: 500;
+      color: var(--primary-text-color);
+    }
     .schedule-row {
       grid-area: schedule;
-      padding: 0 10px 6px;
+      padding: var(--kibble-rhythm) 16px 6px;
     }
-    :host(.compact) .root {
-      gap: 6px;
+    :host(.compact) {
+      --kibble-rhythm: 8px;
     }
     :host(.compact) .hero {
       aspect-ratio: auto;
@@ -14696,76 +22373,146 @@ var KibbleCard = class extends i4 {
     :host(.compact) .hero-status-text {
       font-size: 12px;
     }
-    :host(.compact) .bowl-block {
-      padding-top: 2px;
-      --kibble-bowl-max-width: 260px;
-    }
 
-    /* >=640px: two columns, camera left, silo/feed/schedule stacked right. The camera is 60%
-     * of the card at 16:10, so the row is exactly 0.6 * 10/16 = 37.5% of the card width tall;
-     * the right column is boxed to that same height so it can never outgrow the video. */
-    @container (min-width: 640px) {
-      .root {
-        grid-template-columns: 60% 1fr;
-        grid-template-rows: auto;
+    /* 560-959px (dual-hopper: 560-1279px, see the two @container blocks below -- two stepper
+     * rows plus the hold button need more height at the same video width, so dual mode keeps
+     * this layout until there is room): the video is full width above ONE row -- the bowl art
+     * and the feed controls side by side, vertically centred. .root itself stays the
+     * single-column stacked grid (only .panel's own internal direction changes) since the
+     * video still spans the whole card width in this tier, exactly like the narrower stacked
+     * layout above it. Unconditional -- both hopper modes want a row here, only where they
+     * leave it differs. */
+    @container (min-width: 560px) {
+      .panel {
+        flex-direction: row;
+        align-items: center;
+        max-width: 640px;
+      }
+      .bowl-art {
+        flex: 0 1 220px;
+        max-width: 220px;
+      }
+      .controls {
+        flex: 1 1 0%;
+        width: auto;
+        min-width: 0;
+      }
+    }
+    /* >=1100px, single-hopper only (:host(.dual-hopper) gets the same rules at a higher
+     * threshold, below): two real columns, video left, panel/schedule stacked right -- .panel
+     * reverts to the vertical layout the narrower tiers use (undoing the 560px row above),
+     * since it now has its own dedicated column instead of sitting below a full-width video.
+     * The video column is ~63% of the card width at its own true ratio (.hero's aspect-ratio,
+     * set above): that fixed width plus the aspect ratio gives it a definite, intrinsic
+     * height, which is what actually sets the row's height -- align-self: start (rather than
+     * the default stretch) keeps the box at exactly that height instead of being stretched to
+     * match .side if the panel ever needs more room than the video does. .side keeps the
+     * default stretch and matches whatever height that turns out to be; .bowl-art's own
+     * flex: 1 1 auto; min-height: 0 (unchanged from the base rule below) is what actually
+     * absorbs the difference, since it is the one flexible child in that column -- and
+     * kibble-bowl.ts's own .art{min-height:0} is what lets it genuinely shrink that far
+     * without kibble-bowl's non-shrinking .calibrated/.chips ever losing their own space.
+     * 1100px, not 960px: below it the shrunk art drops under ~70px (measured ~22px at 960,
+     * ~45px at 1024) -- legible chips are not enough on their own if the illustration above
+     * them has shrunk to a speck, so single mode stays in the 560px row tier (where bowl-art
+     * is sized from its own width, never height-squeezed) until there is room for both.
+     * .panel's overflow-y: auto and .bowl-art's overflow: hidden are a last-resort safety net
+     * for a combination this tight and single mode alone should essentially never reach. */
+    @container (min-width: 1100px) {
+      :host(:not(.dual-hopper)) .root {
+        grid-template-columns: 63% 1fr;
+        grid-template-rows: calc(100cqw * 0.63 / var(--kibble-hero-aspect, 1.7778));
         grid-template-areas: "hero side";
-        gap: 4px;
-        padding-bottom: 0;
         height: auto;
         overflow: visible;
       }
-      .hero {
+      :host(:not(.dual-hopper)) .hero {
         grid-area: hero;
         align-self: start;
         border-radius: var(--ha-card-border-radius, 12px) 0 0 var(--ha-card-border-radius, 12px);
       }
-      .side {
+      :host(:not(.dual-hopper)) .side {
         grid-area: side;
         display: grid;
-        grid-template-rows: minmax(0, 1fr) auto auto;
-        height: calc(100cqw * 0.6 * 10 / 16);
-        min-height: 0;
+        grid-template-rows: minmax(0, 1fr) auto;
       }
-      .bowl-block,
-      .feed-controls {
+      :host(:not(.dual-hopper)) .panel {
+        flex-direction: column;
+        max-width: 340px;
+        overflow-y: auto;
+      }
+      :host(:not(.dual-hopper)) .bowl-art {
+        flex: 1 1 auto;
+        max-width: none;
+        overflow: hidden;
+      }
+      :host(:not(.dual-hopper)) .controls {
+        flex: none;
+        width: 100%;
+      }
+      :host(:not(.dual-hopper)) .panel,
+      :host(:not(.dual-hopper)) .schedule-row {
         grid-area: unset;
+      }
+      :host(:not(.dual-hopper)) .schedule-row {
         align-self: start;
-        justify-self: stretch;
-        z-index: 0;
-        margin: 0;
-        width: auto;
-        background: none;
-        border-radius: 0;
       }
-      .bowl-block {
+    }
+    /* >=1440px, dual-hopper only: identical layout to the single-hopper >=1100px tier above,
+     * just a later threshold, for the same ~70px-minimum-art reason. Measured, not guessed: at
+     * a true 16:9 video and 63% width, two stepper rows plus the hold button plus kibble-bowl's
+     * own non-shrinking hopper-status chips (and, once calibration exists, its
+     * calibrated-percent line) leave art around 183px at 960-1200px (comfortable) but the
+     * SAME numbers only apply while dual stays in the row tier below -- once forced into this
+     * column tier, dual needs noticeably more width than single before art clears ~70px again
+     * (measured ~78px right at 1440, well under 70 at 1280) since it is negotiating for space
+     * against a taller controls block (two stepper rows, not one). Below this threshold dual
+     * mode stays in the 560px row tier above instead, where bowl-art is sized from its own
+     * width and never height-squeezed at all. */
+    @container (min-width: 1440px) {
+      :host(.dual-hopper) .root {
+        grid-template-columns: 63% 1fr;
+        grid-template-rows: calc(100cqw * 0.63 / var(--kibble-hero-aspect, 1.7778));
+        grid-template-areas: "hero side";
+        height: auto;
+        overflow: visible;
+      }
+      :host(.dual-hopper) .hero {
+        grid-area: hero;
+        align-self: start;
+        border-radius: var(--ha-card-border-radius, 12px) 0 0 var(--ha-card-border-radius, 12px);
+      }
+      :host(.dual-hopper) .side {
+        grid-area: side;
+        display: grid;
+        grid-template-rows: minmax(0, 1fr) auto;
+      }
+      :host(.dual-hopper) .panel {
+        flex-direction: column;
+        max-width: 340px;
+        overflow-y: auto;
+      }
+      :host(.dual-hopper) .bowl-art {
+        flex: 1 1 auto;
+        max-width: none;
+        overflow: hidden;
+      }
+      :host(.dual-hopper) .controls {
+        flex: none;
+        width: 100%;
+      }
+      :host(.dual-hopper) .panel,
+      :host(.dual-hopper) .schedule-row {
         grid-area: unset;
-        align-self: stretch;
-        min-height: 0;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: 4px 16px 0;
-        --kibble-bowl-max-width: 300px;
       }
-      .bowl-block > * {
-        height: 100%;
-        max-height: 100%;
-      }
-      .feed-controls {
-        grid-area: unset;
-        padding: 6px 16px 12px;
-        --kibble-touch-target: 48px;
-        --kibble-segment-size: 16px;
-      }
-      .schedule-row {
-        grid-area: unset;
-        padding: 2px 16px 10px;
+      :host(.dual-hopper) .schedule-row {
         align-self: start;
       }
     }
   `;
   }
 };
+console.info(`%c KIBBLE-CARD %c ${version} `, "background:#43A96A;color:#10301D;font-weight:700", "background:#10301D;color:#fff");
 customElements.define("kibble-card", KibbleCard);
 window.customCards = window.customCards || [];
 window.customCards.push({
@@ -14782,6 +22529,14 @@ var RULES2 = {
   bowlFill: { domain: "sensor", translationKeys: ["bowl_fill", "bowl_fill_1"], idSuffixes: ["_bowl_fill", "_bowl_fill_1", "_bowl_fill_hopper_1"] },
   hopperLevel1: { domain: "sensor", translationKeys: ["hopper_1_level"], idSuffixes: ["_hopper_1_level"] },
   hopperLevel2: { domain: "sensor", translationKeys: ["hopper_2_level"], idSuffixes: ["_hopper_2_level"] },
+  hopperRemaining1: { domain: "sensor", translationKeys: ["hopper_1_remaining"], idSuffixes: ["_hopper_1_remaining"] },
+  hopperRemaining2: { domain: "sensor", translationKeys: ["hopper_2_remaining"], idSuffixes: ["_hopper_2_remaining"] },
+  markFullHopper1: { domain: "button", translationKeys: ["hopper_1_full"], idSuffixes: ["_hopper_1_full"] },
+  markFullHopper2: { domain: "button", translationKeys: ["hopper_2_full"], idSuffixes: ["_hopper_2_full"] },
+  markFullBoth: { domain: "button", translationKeys: ["hopper_full"], idSuffixes: ["_hopper_full"] },
+  hopperDivider: { domain: "switch", translationKeys: ["hopper_divider"], idSuffixes: ["_hopper_divider"] },
+  hopperFood1: { domain: "text", translationKeys: ["hopper_1_food"], idSuffixes: ["_hopper_1_food"] },
+  hopperFood2: { domain: "text", translationKeys: ["hopper_2_food"], idSuffixes: ["_hopper_2_food"] },
   desiccantDays: { domain: "sensor", translationKeys: ["desiccant_days", "desiccant_left"], idSuffixes: ["_desiccant_days", "_desiccant_left"] },
   schedule: { domain: "sensor", translationKeys: ["schedule"], idSuffixes: ["_schedule"] },
   scheduleCardState: { domain: "sensor", translationKeys: ["schedule_card_state"], idSuffixes: ["_schedule_card_state"] },
@@ -14789,6 +22544,7 @@ var RULES2 = {
   feedButtonHopper1: { domain: "button", translationKeys: ["feed_hopper_1"], idSuffixes: ["_feed_hopper_1"] },
   feedButtonHopper2: { domain: "button", translationKeys: ["feed_hopper_2"], idSuffixes: ["_feed_hopper_2"] },
   cancelFeedButton: { domain: "button", translationKeys: ["cancel_feed"], idSuffixes: ["_cancel_feed"] },
+  callCatsButton: { domain: "button", translationKeys: ["call_cats"], idSuffixes: ["_call_cats"] },
   feedAmount: { domain: "number", translationKeys: ["feed_amount"], idSuffixes: ["_feed_amount"] },
   feedAmountHopper1: { domain: "number", translationKeys: ["feed_amount_hopper_1"], idSuffixes: ["_feed_amount_hopper_1"] },
   feedAmountHopper2: { domain: "number", translationKeys: ["feed_amount_hopper_2"], idSuffixes: ["_feed_amount_hopper_2"] },
@@ -14805,8 +22561,7 @@ var RULES2 = {
   lastDetection: { domain: "sensor", translationKeys: ["last_detection"], idSuffixes: ["_last_detection"] },
   detectionsToday: { domain: "sensor", translationKeys: ["detections_today"], idSuffixes: ["_detections_today"] },
   lastDetectionImage: { domain: "image", translationKeys: ["last_detection"], idSuffixes: ["_last_detection"] },
-  detectionOverlaySwitch: { domain: "switch", translationKeys: ["detection_overlay"], idSuffixes: ["_detection_overlay"] },
-  pendingFace: { domain: "image", translationKeys: ["pending_face"], idSuffixes: ["_pending_face"] }
+  detectionOverlaySwitch: { domain: "switch", translationKeys: ["detection_overlay"], idSuffixes: ["_detection_overlay"] }
 };
 function domainOf2(entityId) {
   return entityId.slice(0, entityId.indexOf("."));
@@ -14870,6 +22625,7 @@ function resolveKibbleEntities2(entities, deviceId) {
 // dev/fixtures.ts
 var DEVICE_ID = "kibble-device-1";
 var ENTRY_ID = "kibble-entry-1";
+var CAMERA_ENTITY_ID = "camera.plant_room_cat_feeder";
 function entry(entityId, translationKey) {
   return { entity_id: entityId, device_id: DEVICE_ID, platform: "kibble", translation_key: translationKey, disabled_by: null };
 }
@@ -14877,11 +22633,17 @@ function state(entityId, value, attributes = {}, lastChanged) {
   const changed = lastChanged ?? (/* @__PURE__ */ new Date()).toISOString();
   return { entity_id: entityId, state: value, attributes, last_changed: changed, last_updated: changed };
 }
-var SCHEDULE_ENTRIES = [
-  { id: "a1", time: "07:30", amount_l: 5, amount_r: 5, enabled: true },
-  { id: "a2", time: "12:00", amount_l: 3, amount_r: 3, enabled: true },
-  { id: "a3", time: "18:00", amount_l: 5, amount_r: 5, enabled: false }
-];
+var SCHEDULE_FIXTURES = {
+  divider: [
+    { id: "d1", time: "00:00", amount_l: 0, amount_r: 3, enabled: true },
+    { id: "d2", time: "12:00", amount_l: 0, amount_r: 3, enabled: true }
+  ],
+  mixed: [
+    { id: "a1", time: "07:30", amount_l: 2, amount_r: 1, enabled: true },
+    { id: "a3", time: "18:00", amount_l: 5, amount_r: 5, enabled: false },
+    { id: "a2", time: "12:00", amount_l: 0, amount_r: 3, enabled: true }
+  ]
+};
 function minutesAgo(minutes) {
   return new Date(Date.now() - minutes * 6e4).toISOString();
 }
@@ -14894,10 +22656,20 @@ var DEVICE = {
   config_entries: [ENTRY_ID]
 };
 var ENTITY_IDS = {
-  camera: "camera.plant_room_cat_feeder",
+  camera: CAMERA_ENTITY_ID,
   feeding: "binary_sensor.plant_room_cat_feeder_feeding",
   bowlFill1: "sensor.plant_room_cat_feeder_bowl_fill_1",
   bowlFill2: "sensor.plant_room_cat_feeder_bowl_fill_2",
+  hopperLevel1: "sensor.plant_room_cat_feeder_hopper_1_level",
+  hopperLevel2: "sensor.plant_room_cat_feeder_hopper_2_level",
+  hopperRemaining1: "sensor.plant_room_cat_feeder_hopper_1_remaining",
+  hopperRemaining2: "sensor.plant_room_cat_feeder_hopper_2_remaining",
+  markFullHopper1: "button.plant_room_cat_feeder_hopper_1_full",
+  markFullHopper2: "button.plant_room_cat_feeder_hopper_2_full",
+  markFullBoth: "button.plant_room_cat_feeder_hopper_full",
+  hopperDivider: "switch.plant_room_cat_feeder_hopper_divider",
+  hopperFood1: "text.plant_room_cat_feeder_hopper_1_food",
+  hopperFood2: "text.plant_room_cat_feeder_hopper_2_food",
   desiccantDays: "sensor.plant_room_cat_feeder_desiccant_days",
   schedule: "sensor.plant_room_cat_feeder_schedule",
   feedButton: "button.plant_room_cat_feeder_feed",
@@ -14929,6 +22701,16 @@ function registryFor(includeWifi) {
     [ENTITY_IDS.feeding]: entry(ENTITY_IDS.feeding, "feeding"),
     [ENTITY_IDS.bowlFill1]: entry(ENTITY_IDS.bowlFill1, "bowl_fill_1"),
     [ENTITY_IDS.bowlFill2]: entry(ENTITY_IDS.bowlFill2, "bowl_fill_2"),
+    [ENTITY_IDS.hopperLevel1]: entry(ENTITY_IDS.hopperLevel1, "hopper_1_level"),
+    [ENTITY_IDS.hopperLevel2]: entry(ENTITY_IDS.hopperLevel2, "hopper_2_level"),
+    [ENTITY_IDS.hopperRemaining1]: entry(ENTITY_IDS.hopperRemaining1, "hopper_1_remaining"),
+    [ENTITY_IDS.hopperRemaining2]: entry(ENTITY_IDS.hopperRemaining2, "hopper_2_remaining"),
+    [ENTITY_IDS.markFullHopper1]: entry(ENTITY_IDS.markFullHopper1, "hopper_1_full"),
+    [ENTITY_IDS.markFullHopper2]: entry(ENTITY_IDS.markFullHopper2, "hopper_2_full"),
+    [ENTITY_IDS.markFullBoth]: entry(ENTITY_IDS.markFullBoth, "hopper_full"),
+    [ENTITY_IDS.hopperDivider]: entry(ENTITY_IDS.hopperDivider, "hopper_divider"),
+    [ENTITY_IDS.hopperFood1]: entry(ENTITY_IDS.hopperFood1, "hopper_1_food"),
+    [ENTITY_IDS.hopperFood2]: entry(ENTITY_IDS.hopperFood2, "hopper_2_food"),
     [ENTITY_IDS.desiccantDays]: entry(ENTITY_IDS.desiccantDays, "desiccant_days"),
     [ENTITY_IDS.schedule]: entry(ENTITY_IDS.schedule, "schedule"),
     [ENTITY_IDS.feedButton]: entry(ENTITY_IDS.feedButton, "feed"),
@@ -14956,12 +22738,15 @@ function registryFor(includeWifi) {
   if (includeWifi) {
     registry[ENTITY_IDS.wifiNetwork] = entry(ENTITY_IDS.wifiNetwork, "wifi_network");
   }
+  for (const name of Object.keys(CAT_RECOGNITION)) {
+    registry[catRecognitionEntityId(name)] = catRecognitionEntry(name);
+  }
   return registry;
 }
-function scheduleState() {
-  const enabledCount = SCHEDULE_ENTRIES.filter((e6) => e6.enabled).length;
-  return state(ENTITY_IDS.schedule, String(SCHEDULE_ENTRIES.length), {
-    entries: SCHEDULE_ENTRIES,
+function scheduleState(entries = SCHEDULE_FIXTURES.divider) {
+  const enabledCount = entries.filter((e6) => e6.enabled).length;
+  return state(ENTITY_IDS.schedule, String(entries.length), {
+    entries,
     last_modified: minutesAgo(180),
     friendly_name: `${enabledCount} scheduled`
   });
@@ -14972,11 +22757,31 @@ function buildIdle() {
     [ENTITY_IDS.feeding]: state(ENTITY_IDS.feeding, "off", {}, minutesAgo(126)),
     [ENTITY_IDS.bowlFill1]: state(ENTITY_IDS.bowlFill1, "62", { unit_of_measurement: "%" }),
     [ENTITY_IDS.bowlFill2]: state(ENTITY_IDS.bowlFill2, "65", { unit_of_measurement: "%" }),
+    // Hopper 1: capacity learned a while back, comfortably stocked -- exercises the richest
+    // "About N left" display. Hopper 2: marked full recently but capacity not learned yet --
+    // exercises the "Filled Nd ago" display, both alongside the plain point sensor.
+    [ENTITY_IDS.hopperLevel1]: state(ENTITY_IDS.hopperLevel1, "ok"),
+    [ENTITY_IDS.hopperLevel2]: state(ENTITY_IDS.hopperLevel2, "ok"),
+    [ENTITY_IDS.hopperRemaining1]: state(ENTITY_IDS.hopperRemaining1, "14", {
+      full_at: minutesAgo(5 * 24 * 60),
+      portions_since_full: 26,
+      full_to_low: 40
+    }),
+    [ENTITY_IDS.hopperRemaining2]: state(ENTITY_IDS.hopperRemaining2, "unknown", {
+      full_at: minutesAgo(2 * 24 * 60),
+      portions_since_full: 9,
+      full_to_low: null
+    }),
+    // Divider fitted: dual mode, each side named -- the common case a screenshot session
+    // should land on by default.
+    [ENTITY_IDS.hopperDivider]: state(ENTITY_IDS.hopperDivider, "on"),
+    [ENTITY_IDS.hopperFood1]: state(ENTITY_IDS.hopperFood1, "Freeze-dried"),
+    [ENTITY_IDS.hopperFood2]: state(ENTITY_IDS.hopperFood2, "Kibble"),
     [ENTITY_IDS.desiccantDays]: state(ENTITY_IDS.desiccantDays, "12", { unit_of_measurement: "d" }),
     [ENTITY_IDS.schedule]: scheduleState(),
     [ENTITY_IDS.feedAmount]: state(ENTITY_IDS.feedAmount, "3", { min: 1, max: 20, step: 1 }),
-    [ENTITY_IDS.feedAmountHopper1]: state(ENTITY_IDS.feedAmountHopper1, "2", { min: 1, max: 20, step: 1 }),
-    [ENTITY_IDS.feedAmountHopper2]: state(ENTITY_IDS.feedAmountHopper2, "2", { min: 1, max: 20, step: 1 }),
+    [ENTITY_IDS.feedAmountHopper1]: state(ENTITY_IDS.feedAmountHopper1, "2", { min: 0, max: 20, step: 1 }),
+    [ENTITY_IDS.feedAmountHopper2]: state(ENTITY_IDS.feedAmountHopper2, "2", { min: 0, max: 20, step: 1 }),
     [ENTITY_IDS.cloudSwitch]: state(ENTITY_IDS.cloudSwitch, "on"),
     [ENTITY_IDS.cloudConnection]: state(ENTITY_IDS.cloudConnection, "connected"),
     [ENTITY_IDS.nightVisionSwitch]: state(ENTITY_IDS.nightVisionSwitch, "off"),
@@ -14999,6 +22804,9 @@ function buildIdle() {
     [ENTITY_IDS.dishAfter]: state(ENTITY_IDS.dishAfter, minutesAgo(390), { entity_picture: "./dish-after.svg" }),
     [ENTITY_IDS.pendingFace]: state(ENTITY_IDS.pendingFace, minutesAgo(6), { status: "pending" })
   };
+  for (const name of Object.keys(CAT_RECOGNITION)) {
+    states[catRecognitionEntityId(name)] = catRecognitionState(name);
+  }
   return { device: DEVICE, entities: registryFor(false), states };
 }
 function buildDispensing() {
@@ -15007,11 +22815,31 @@ function buildDispensing() {
     [ENTITY_IDS.feeding]: state(ENTITY_IDS.feeding, "on", {}, minutesAgo(0)),
     [ENTITY_IDS.bowlFill1]: state(ENTITY_IDS.bowlFill1, "40", { unit_of_measurement: "%" }),
     [ENTITY_IDS.bowlFill2]: state(ENTITY_IDS.bowlFill2, "71", { unit_of_measurement: "%" }),
+    // Hopper 1: the point sensor has since tripped to "low", right around when capacity would
+    // have been learned -- exercises "the real sensor always wins" against a fresh estimate.
+    // Hopper 2: just topped off, almost nothing dispensed since.
+    [ENTITY_IDS.hopperLevel1]: state(ENTITY_IDS.hopperLevel1, "low"),
+    [ENTITY_IDS.hopperLevel2]: state(ENTITY_IDS.hopperLevel2, "ok"),
+    [ENTITY_IDS.hopperRemaining1]: state(ENTITY_IDS.hopperRemaining1, "unknown", {
+      full_at: minutesAgo(6 * 60),
+      portions_since_full: 22,
+      full_to_low: 24
+    }),
+    [ENTITY_IDS.hopperRemaining2]: state(ENTITY_IDS.hopperRemaining2, "38", {
+      full_at: minutesAgo(60),
+      portions_since_full: 2,
+      full_to_low: 40
+    }),
+    // Divider fitted, but nobody has named either side yet -- exercises the "Hopper N"
+    // fallback everywhere the idle scenario instead shows a food name.
+    [ENTITY_IDS.hopperDivider]: state(ENTITY_IDS.hopperDivider, "on"),
+    [ENTITY_IDS.hopperFood1]: state(ENTITY_IDS.hopperFood1, ""),
+    [ENTITY_IDS.hopperFood2]: state(ENTITY_IDS.hopperFood2, ""),
     [ENTITY_IDS.desiccantDays]: state(ENTITY_IDS.desiccantDays, "3", { unit_of_measurement: "d" }),
     [ENTITY_IDS.schedule]: scheduleState(),
     [ENTITY_IDS.feedAmount]: state(ENTITY_IDS.feedAmount, "5", { min: 1, max: 20, step: 1 }),
-    [ENTITY_IDS.feedAmountHopper1]: state(ENTITY_IDS.feedAmountHopper1, "3", { min: 1, max: 20, step: 1 }),
-    [ENTITY_IDS.feedAmountHopper2]: state(ENTITY_IDS.feedAmountHopper2, "3", { min: 1, max: 20, step: 1 }),
+    [ENTITY_IDS.feedAmountHopper1]: state(ENTITY_IDS.feedAmountHopper1, "3", { min: 0, max: 20, step: 1 }),
+    [ENTITY_IDS.feedAmountHopper2]: state(ENTITY_IDS.feedAmountHopper2, "3", { min: 0, max: 20, step: 1 }),
     [ENTITY_IDS.cloudSwitch]: state(ENTITY_IDS.cloudSwitch, "off"),
     [ENTITY_IDS.cloudConnection]: state(ENTITY_IDS.cloudConnection, "blocked"),
     [ENTITY_IDS.nightVisionSwitch]: state(ENTITY_IDS.nightVisionSwitch, "off"),
@@ -15034,6 +22862,9 @@ function buildDispensing() {
     [ENTITY_IDS.pendingFace]: state(ENTITY_IDS.pendingFace, minutesAgo(1), { status: "pending" }),
     [ENTITY_IDS.wifiNetwork]: state(ENTITY_IDS.wifiNetwork, "Good (-52 dBm)")
   };
+  for (const name of Object.keys(CAT_RECOGNITION)) {
+    states[catRecognitionEntityId(name)] = catRecognitionState(name);
+  }
   return { device: DEVICE, entities: registryFor(true), states };
 }
 function buildUnreachable() {
@@ -15042,12 +22873,19 @@ function buildUnreachable() {
     [ENTITY_IDS.feeding]: state(ENTITY_IDS.feeding, "unavailable", {}),
     [ENTITY_IDS.bowlFill1]: state(ENTITY_IDS.bowlFill1, "unavailable", {}),
     [ENTITY_IDS.bowlFill2]: state(ENTITY_IDS.bowlFill2, "unavailable", {}),
+    [ENTITY_IDS.hopperLevel1]: state(ENTITY_IDS.hopperLevel1, "unavailable", {}),
+    [ENTITY_IDS.hopperLevel2]: state(ENTITY_IDS.hopperLevel2, "unavailable", {}),
+    [ENTITY_IDS.hopperRemaining1]: state(ENTITY_IDS.hopperRemaining1, "unavailable", {}),
+    [ENTITY_IDS.hopperRemaining2]: state(ENTITY_IDS.hopperRemaining2, "unavailable", {}),
+    [ENTITY_IDS.hopperDivider]: state(ENTITY_IDS.hopperDivider, "unavailable", {}),
+    [ENTITY_IDS.hopperFood1]: state(ENTITY_IDS.hopperFood1, "unavailable", {}),
+    [ENTITY_IDS.hopperFood2]: state(ENTITY_IDS.hopperFood2, "unavailable", {}),
     [ENTITY_IDS.desiccantDays]: state(ENTITY_IDS.desiccantDays, "unavailable", {}),
     [ENTITY_IDS.schedule]: state(ENTITY_IDS.schedule, "unavailable", {}),
     // HA-local (RestoreEntity) state, not device-backed — stays available per number.py.
     [ENTITY_IDS.feedAmount]: state(ENTITY_IDS.feedAmount, "3", { min: 1, max: 20, step: 1 }),
-    [ENTITY_IDS.feedAmountHopper1]: state(ENTITY_IDS.feedAmountHopper1, "2", { min: 1, max: 20, step: 1 }),
-    [ENTITY_IDS.feedAmountHopper2]: state(ENTITY_IDS.feedAmountHopper2, "2", { min: 1, max: 20, step: 1 }),
+    [ENTITY_IDS.feedAmountHopper1]: state(ENTITY_IDS.feedAmountHopper1, "2", { min: 0, max: 20, step: 1 }),
+    [ENTITY_IDS.feedAmountHopper2]: state(ENTITY_IDS.feedAmountHopper2, "2", { min: 0, max: 20, step: 1 }),
     [ENTITY_IDS.cloudSwitch]: state(ENTITY_IDS.cloudSwitch, "unavailable", {}),
     [ENTITY_IDS.cloudConnection]: state(ENTITY_IDS.cloudConnection, "unavailable", {}),
     [ENTITY_IDS.nightVisionSwitch]: state(ENTITY_IDS.nightVisionSwitch, "unavailable", {}),
@@ -15063,6 +22901,9 @@ function buildUnreachable() {
     [ENTITY_IDS.dishAfter]: state(ENTITY_IDS.dishAfter, "unavailable", {}),
     [ENTITY_IDS.pendingFace]: state(ENTITY_IDS.pendingFace, "unavailable", {})
   };
+  for (const name of Object.keys(CAT_RECOGNITION)) {
+    states[catRecognitionEntityId(name)] = catRecognitionState(name);
+  }
   return { device: DEVICE, entities: registryFor(false), states };
 }
 function buildFixture(scenario) {
@@ -15079,105 +22920,320 @@ function localTime(hour, minute, daysAgo = 0) {
   d3.setHours(hour, minute, 0, 0);
   return Math.floor(d3.getTime() / 1e3);
 }
-var CATS = [
-  { name: "Kitty", samples: 12, last_seen: secondsAgo(126), avatar: "1789500000-kitty.jpg", vendor_pet_id: 101321480, color_index: 0 },
-  { name: "Pancake", samples: 11, last_seen: secondsAgo(1), avatar: "1789500600-pancake.jpg", vendor_pet_id: 101321488, color_index: 1 },
-  // Deliberately carries no "identified" timeline rows at all (unlike Kitty/Pancake below) --
-  // exercises the real bug this fixture set never caught: `last_seen` keeps moving (a
-  // detection updated it 20 minutes ago) while this cat's own sightings list in the timeline
-  // stays empty, so the gallery must say "Seen 20 min ago", never the false "No sightings
-  // yet" that implies the cat has never been seen at all.
-  { name: "Whiskers", samples: 3, last_seen: secondsAgo(20), avatar: "1789580000-whiskers.jpg", vendor_pet_id: 101321499, color_index: 2 }
-];
-var PENDING_CROPS = [
-  { name: `${secondsAgo(340)}-101321480.jpg`, ts: secondsAgo(340), vendor_pet_id: 101321480, vendor_cat: "Kitty", guess: { cat: "Kitty", score: 0.91 } },
-  { name: `${secondsAgo(325)}-101321488.jpg`, ts: secondsAgo(325), vendor_pet_id: 101321488, vendor_cat: "Pancake", guess: { cat: "Pancake", score: 0.85 } },
-  { name: `${secondsAgo(310)}-101321480.jpg`, ts: secondsAgo(310), vendor_pet_id: 101321480, vendor_cat: "Kitty", guess: { cat: "Kitty", score: 0.88 } },
-  // Disagreement: the classifier isn't confident, and the feeder's own vendor id says Kitty --
-  // the suggestion chip should defer to the vendor id here, not the low-confidence guess.
-  { name: `${secondsAgo(295)}-101321480.jpg`, ts: secondsAgo(295), vendor_pet_id: 101321480, vendor_cat: "Kitty", guess: { cat: "Pancake", score: 0.45 } },
-  { name: `${secondsAgo(280)}-101321488.jpg`, ts: secondsAgo(280), vendor_pet_id: 101321488, vendor_cat: "Pancake", guess: null },
-  { name: `${secondsAgo(265)}-101321480.jpg`, ts: secondsAgo(265), vendor_pet_id: 101321480, vendor_cat: "Kitty", guess: null },
-  // No classifier guess and no vendor match at all -- tapping this one has nothing to confirm.
-  { name: `${secondsAgo(250)}-unknown.jpg`, ts: secondsAgo(250), vendor_pet_id: null, vendor_cat: null, guess: null },
-  { name: `${secondsAgo(235)}-101321480.jpg`, ts: secondsAgo(235), vendor_pet_id: 101321480, vendor_cat: "Kitty", guess: { cat: "Kitty", score: 0.73 } },
-  // Below the confidence bar with no vendor match to fall back to: also no suggestion.
-  { name: `${secondsAgo(220)}-101321480.jpg`, ts: secondsAgo(220), vendor_pet_id: 101321480, vendor_cat: null, guess: { cat: "Kitty", score: 0.3 } },
-  { name: `${secondsAgo(205)}-101321488.jpg`, ts: secondsAgo(205), vendor_pet_id: 101321488, vendor_cat: "Pancake", guess: { cat: "Pancake", score: 0.95 } },
-  { name: `${secondsAgo(190)}-unknown.jpg`, ts: secondsAgo(190), vendor_pet_id: null, vendor_cat: null, guess: null },
-  // Exactly at the default confidence threshold -- still counts as confident.
-  { name: `${secondsAgo(175)}-101321480.jpg`, ts: secondsAgo(175), vendor_pet_id: 101321480, vendor_cat: null, guess: { cat: "Kitty", score: 0.7 } },
-  { name: `${secondsAgo(160)}-101321480.jpg`, ts: secondsAgo(160), vendor_pet_id: 101321480, vendor_cat: "Kitty", guess: null },
-  // Just below threshold with no vendor match either.
-  { name: `${secondsAgo(6)}-101321488.jpg`, ts: secondsAgo(6), vendor_pet_id: 101321488, vendor_cat: null, guess: { cat: "Pancake", score: 0.68 } }
-];
-function samplesFor(catName, count, startMinutesAgo) {
+function assetFor(id) {
+  return { id, url: `/api/kibble/${ENTRY_ID}/media/${id}` };
+}
+function makeSamples(uidPrefix, start, count, opts = {}) {
+  const faceEvery = opts.faceEvery ?? 1;
   return Array.from({ length: count }, (_2, i6) => {
-    const ts = secondsAgo(startMinutesAgo + i6 * 720);
-    return { name: `${ts}-${catName.toLowerCase()}.jpg`, ts };
+    const sUid = `${uidPrefix}-s${i6 + 1}`;
+    return {
+      uid: sUid,
+      t: start + i6 * 20,
+      body: assetFor(`${sUid}-body`),
+      face: (i6 + 1) % faceEvery === 0 ? assetFor(`${sUid}-face`) : null,
+      guess: opts.guess ?? null,
+      guess_confidence: opts.guess ? 0.55 + i6 % 4 * 0.08 : null,
+      review: null,
+      cat: null,
+      sid: null,
+      box: null,
+      crop: null,
+      peers: [],
+      label: null
+    };
   });
 }
-function uploadSamplesFor(catName, count, startMinutesAgo) {
-  return Array.from({ length: count }, (_2, i6) => {
-    const ts = secondsAgo(startMinutesAgo + i6 * 20);
-    return { name: `upload-${ts}000.jpg`, ts };
-  });
+function visitOrEat(kind, uidSuffix, start, opts = {}) {
+  const uidStr = `${ENTRY_ID}-${uidSuffix}`;
+  const open = opts.open ?? false;
+  const sampleCount = opts.noEvidence ? 0 : opts.sampleCount ?? 3;
+  const samples = sampleCount > 0 ? makeSamples(uidStr, start, sampleCount, { faceEvery: opts.faceEvery, guess: opts.guess }) : [];
+  const compare = opts.compare ?? false;
+  const end = open ? null : opts.end ?? start;
+  const event = {
+    uid: uidStr,
+    kind,
+    start,
+    end,
+    open,
+    cat: opts.cat ?? null,
+    identity: opts.identity ?? (opts.cat ? "auto" : "unknown"),
+    confidence: opts.confidence ?? (opts.cat ? 0.88 : null),
+    thumb: samples[0]?.body ?? null,
+    scene: opts.noEvidence ? null : assetFor(`${uidStr}-scene`),
+    before: compare ? assetFor(`${uidStr}-before`) : null,
+    after: compare ? assetFor(`${uidStr}-after`) : null,
+    sample_count: sampleCount,
+    clip: opts.clip && end !== null ? { start_ms: (start - 10) * 1e3, end_ms: (end + 15) * 1e3 } : null,
+    session: null
+  };
+  return { event, samples };
 }
-var SAMPLES_BY_CAT = {
-  Kitty: samplesFor("Kitty", 12, 200),
-  Pancake: [...samplesFor("Pancake", 9, 400), ...uploadSamplesFor("Pancake", 2, 15)],
-  Whiskers: samplesFor("Whiskers", 3, 300)
+function feedEvent(uidSuffix, start, opts) {
+  const uidStr = `${ENTRY_ID}-${uidSuffix}`;
+  const compare = opts.compare ?? true;
+  const event = {
+    uid: uidStr,
+    kind: "feed",
+    start,
+    end: start,
+    open: false,
+    cat: null,
+    identity: null,
+    confidence: null,
+    thumb: null,
+    scene: null,
+    before: compare ? assetFor(`${uidStr}-before`) : null,
+    after: compare ? assetFor(`${uidStr}-after`) : null,
+    sample_count: 0,
+    session: null,
+    feed: { portions: opts.portions, scheduled: opts.scheduled, confirmed: opts.confirmed ?? true, single: opts.single, sides: opts.sides ?? [] }
+  };
+  return { event, samples: [] };
+}
+var FIXTURES = [
+  visitOrEat("eat", "e1210", localTime(19, 58), { open: true, cat: "Pancake", confidence: 0.79, sampleCount: 2, faceEvery: 3 }),
+  // 14 samples, some with face crops (faceEvery 3) -- the sheet's photo grid pages behind a
+  // "+N" tile past 12, and the clip poster/play swap both exercise a real multi-sample event.
+  visitOrEat("eat", "e1209", localTime(19, 20), { end: localTime(19, 26), cat: "Kitty", confidence: 0.95, sampleCount: 14, faceEvery: 3, compare: true, guess: "Kitty", clip: true }),
+  // Already confirmed (Kitty); mock-hass.ts overrides two of its samples to Pancake and skips
+  // one, so the sheet's photo grid shows real exception badges, not just followers.
+  visitOrEat("eat", "e1208", localTime(12, 10), { end: localTime(12, 16), cat: "Kitty", identity: "reviewed", confidence: null, sampleCount: 8 }),
+  // Three consecutive Whiskers meals, each a few minutes apart -- collapses into one grouped
+  // timeline row with a "3 meals" badge, so the sheet's own header pager has something real to
+  // page through.
+  visitOrEat("eat", "e1194", localTime(18, 40), { end: localTime(18, 41), cat: "Whiskers", confidence: 0.72, sampleCount: 3, faceEvery: 2 }),
+  visitOrEat("eat", "e1193", localTime(18, 38), { end: localTime(18, 39), cat: "Whiskers", confidence: 0.69, sampleCount: 2 }),
+  visitOrEat("eat", "e1192", localTime(18, 36), { end: localTime(18, 37), cat: "Whiskers", confidence: 0.75, sampleCount: 2, faceEvery: 2 }),
+  // Like the real e1494: a closed eat with a before/after pair but no scene frame and no
+  // samples at all (spool pressure dropped everything else) -- the sheet's media stage has to
+  // fall back to the compare tile itself, never a grey placeholder.
+  visitOrEat("eat", "e1494", localTime(6, 50), { end: localTime(6, 58), cat: "Pancake", confidence: 0.62, noEvidence: true, compare: true }),
+  visitOrEat("visit", "e1207", localTime(9, 45), { cat: "Kitty", confidence: 0.86, sampleCount: 2 }),
+  visitOrEat("visit", "e1206", localTime(15, 50), { cat: "Pancake", confidence: 0.77, sampleCount: 2, faceEvery: 4 }),
+  visitOrEat("visit", "e1205", localTime(15, 47), { cat: "Pancake", confidence: 0.74, sampleCount: 2, faceEvery: 4 }),
+  visitOrEat("eat", "e1204", localTime(17, 22), { sampleCount: 3, faceEvery: 3, guess: "Pancake" }),
+  visitOrEat("visit", "e1203", localTime(7, 10), { noEvidence: true }),
+  visitOrEat("visit", "e1202", localTime(8, 5), { cat: "Whiskers", confidence: 0.68, sampleCount: 2 }),
+  // Dual, both sides fired, both named -- "Fed 1 kibble and 2 freeze-dried".
+  feedEvent("f1201", localTime(12, 0), {
+    portions: 3,
+    single: false,
+    sides: [
+      { hopper: 1, portions: 1, food: "kibble" },
+      { hopper: 2, portions: 2, food: "freeze-dried" }
+    ],
+    scheduled: false
+  }),
+  // Dual, one side only, named -- "Fed 5 portions of kibble".
+  feedEvent("f1200", localTime(7, 30), { portions: 5, single: false, sides: [{ hopper: 1, portions: 5, food: "kibble" }], scheduled: true }),
+  visitOrEat("eat", "e1199", localTime(19, 10, 1), { end: localTime(19, 16, 1), cat: "Pancake", confidence: 0.81, sampleCount: 3, compare: true }),
+  // Dual, both sides fired, neither named -- "Fed 2 from hopper 1 and 1 from hopper 2".
+  feedEvent("f1196", localTime(16, 30), {
+    portions: 3,
+    single: false,
+    sides: [
+      { hopper: 1, portions: 2, food: null },
+      { hopper: 2, portions: 1, food: null }
+    ],
+    scheduled: false
+  }),
+  // Single bin (divider out) -- "Fed 5 portions", never a hopper word.
+  feedEvent("f1198", localTime(7, 30, 1), { portions: 5, single: true, scheduled: true }),
+  visitOrEat("visit", "e1197", localTime(7, 10, 1), { sampleCount: 2 })
+];
+var TIMELINE_EVENTS = FIXTURES.map((f4) => f4.event);
+function importEvent(index) {
+  const uidStr = `${ENTRY_ID}-i${2e3 + index}`;
+  const start = secondsAgo(4e3 + index * 12);
+  const sUid = `${uidStr}-s1`;
+  const guess = index % 5 === 0 ? "Kitty" : index % 5 === 1 ? "Pancake" : null;
+  const sample = {
+    uid: sUid,
+    t: start,
+    body: null,
+    face: assetFor(`${sUid}-face`),
+    guess,
+    guess_confidence: guess ? 0.4 + index % 6 * 0.07 : null,
+    review: null,
+    cat: null,
+    sid: null,
+    box: null,
+    crop: null,
+    peers: [],
+    label: null
+  };
+  const event = {
+    uid: uidStr,
+    kind: "import",
+    start,
+    end: start,
+    open: false,
+    cat: null,
+    identity: "unknown",
+    confidence: null,
+    thumb: sample.face,
+    scene: null,
+    before: null,
+    after: null,
+    sample_count: 1,
+    session: null
+  };
+  return { event, samples: [sample] };
+}
+var IMPORT_FIXTURES = Array.from({ length: 26 }, (_2, i6) => importEvent(i6));
+var REVIEW_EVENTS = [
+  ...FIXTURES.filter((f4) => f4.event.kind !== "feed" && f4.event.cat === null).map((f4) => f4.event),
+  ...IMPORT_FIXTURES.map((f4) => f4.event)
+];
+var EVENT_SAMPLES = Object.fromEntries([...FIXTURES, ...IMPORT_FIXTURES].map((f4) => [f4.event.uid, f4.samples]));
+var MULTICAT_SCENE = assetFor("e1713-scene-1");
+var KITTY_BOX = [0.24, 0.09, 0.36, 0.5];
+var PANCAKE_BOX = [0.36, 0.12, 0.48, 0.5];
+var KITTY_CROP = [0.14583333333333334, 0.04722222222222222, 0.4548611111111111, 0.5416666666666666];
+var PANCAKE_CROP = [0.2760416666666667, 0.08055555555555556, 0.5625, 0.5388888888888889];
+function multiCatEvent(uidSuffix, session, cat, sid, box, peer, crop, start, end) {
+  const uid = `${ENTRY_ID}-${uidSuffix}`;
+  const samples = [1, 2].map((index) => {
+    const sampleUid = `${uid}-s${index}`;
+    return {
+      uid: sampleUid,
+      t: start + index * 20,
+      body: assetFor(`${sampleUid}-body`),
+      face: null,
+      guess: cat,
+      guess_confidence: cat ? 0.91 : null,
+      review: null,
+      cat: null,
+      sid,
+      box: [...box],
+      crop: [...crop],
+      peers: [[...peer]],
+      label: null
+    };
+  });
+  return {
+    event: {
+      uid,
+      kind: "eat",
+      start,
+      end,
+      open: false,
+      cat,
+      identity: cat ? "auto" : "unknown",
+      confidence: cat ? 0.91 : null,
+      thumb: samples[0].body,
+      scene: MULTICAT_SCENE,
+      before: null,
+      after: null,
+      sample_count: samples.length,
+      clip: null,
+      session
+    },
+    samples
+  };
+}
+var knownSession = `${ENTRY_ID}-session-e1713`;
+var unknownSession = `${ENTRY_ID}-session-e1712`;
+var kittyStart = secondsAgo(12);
+var pancakeStart = secondsAgo(11);
+var kitty = multiCatEvent("e1713-kitty", knownSession, "Kitty", 1, KITTY_BOX, PANCAKE_BOX, KITTY_CROP, kittyStart, secondsAgo(6));
+var pancake = multiCatEvent("e1713-pancake", knownSession, "Pancake", 2, PANCAKE_BOX, KITTY_BOX, PANCAKE_CROP, pancakeStart, secondsAgo(5));
+var unknownKitty = multiCatEvent("e1712-kitty", unknownSession, "Kitty", 1, KITTY_BOX, PANCAKE_BOX, KITTY_CROP, secondsAgo(30), secondsAgo(25));
+var unknownLane = multiCatEvent("e1712-unknown", unknownSession, null, 2, PANCAKE_BOX, KITTY_BOX, PANCAKE_CROP, secondsAgo(29), secondsAgo(24));
+var knownSubjects = [
+  { box: KITTY_BOX, sid: 1, label: "Kitty", reviewed: false },
+  { box: PANCAKE_BOX, sid: 2, label: "Pancake", reviewed: false }
+];
+var e2060Uid = ENTRY_ID + "-e2060";
+var E2060_KITTY_BOX = [0.16171876, 0.1875, 0.3875, 0.58194447];
+var E2060_JUNK_BOX = [0.13359375, 0.39305556, 0.21484375, 0.5152778];
+var e2060Event = { ...unknownKitty.event, uid: e2060Uid, start: secondsAgo(220), end: secondsAgo(10), session: ENTRY_ID + "-e2060-session", kind: "eat", sample_count: 42, scene: assetFor("e2060-scene-1"), cat: "Kitty", identity: "auto", confidence: 0.7 };
+var e2060Samples = Array.from({ length: 42 }, (_2, index) => {
+  const original = unknownKitty.samples[index % unknownKitty.samples.length];
+  const uid = e2060Uid + "-s" + (index + 1);
+  return { ...original, uid, t: e2060Event.start + index * 4, body: assetFor(uid + "-body"), sid: 1, box: E2060_KITTY_BOX, cat: "Kitty" };
+});
+var e2060Subjects = [
+  { box: E2060_KITTY_BOX, sid: 1, label: "Kitty", reviewed: false },
+  { box: E2060_JUNK_BOX, sid: 2, label: null, reviewed: false }
+];
+var singleUid = ENTRY_ID + "-single-kitty";
+var singleEvent = { ...unknownKitty.event, uid: singleUid, start: secondsAgo(80), end: secondsAgo(5), session: ENTRY_ID + "-single-session", sample_count: 3 };
+var singleSamples = [0, 1, 2].map((index) => ({ ...unknownKitty.samples[index % 2], uid: singleUid + "-s" + (index + 1), t: secondsAgo(80) + index * 8, cat: null }));
+var knownCats = [{ cat: "Kitty", ate: true, confirmed: true, confidence: null, photos: 2 }, { cat: "Pancake", ate: false, confirmed: true, confidence: null, photos: 2 }];
+pancake.event.kind = "visit";
+var MULTICAT_FIXTURES = {
+  "multicat-a": { events: [e2060Event], samples: { [e2060Uid]: e2060Samples }, details: { [e2060Uid]: { scene_subjects: e2060Subjects, cats: [{ cat: "Kitty", ate: true, confirmed: false, confidence: 0.7, photos: 42 }] } }, sceneId: "e2060-scene-1" },
+  "multicat-b": { events: [kitty.event, pancake.event], samples: { [kitty.event.uid]: kitty.samples, [pancake.event.uid]: pancake.samples }, details: { [kitty.event.uid]: { scene_subjects: knownSubjects, cats: knownCats }, [pancake.event.uid]: { scene_subjects: knownSubjects, cats: knownCats } }, sceneId: "multicat-scene" },
+  "multicat-c": { events: [singleEvent], samples: { [singleUid]: singleSamples }, details: { [singleUid]: { scene_subjects: [{ box: KITTY_BOX, sid: 1, label: "Kitty", reviewed: false }], cats: [{ cat: "Kitty", ate: true, confirmed: false, confidence: 0.7, photos: 3 }] } }, sceneId: "multicat-scene" }
 };
-var TIMELINE_ITEMS = [
-  {
-    kind: "identified",
-    ts: localTime(19, 20),
-    cat: "Kitty",
-    paired_class: "eat",
-    image: null,
-    image_kind: "event",
-    image_before: `${localTime(19, 20)}-eat-before.jpg`,
-    image_after: `${localTime(19, 20)}-eat-after.jpg`
-  },
-  { kind: "identified", ts: localTime(18, 4), cat: "Pancake", paired_class: "eat", image: `${localTime(18, 4)}-event.jpg`, image_kind: "track" },
-  { kind: "identified", ts: localTime(17, 22), cat: "Pancake", paired_class: "face", image: `${localTime(17, 22)}-event.jpg`, image_kind: "event" },
-  { kind: "visit", ts: localTime(15, 50), image: `${localTime(15, 50)}-event.jpg` },
-  { kind: "identified", ts: localTime(12, 10), cat: "Kitty", paired_class: "eat", image: `${localTime(12, 10)}-event.jpg`, image_kind: "track" },
-  {
-    kind: "feed",
-    ts: localTime(12, 0),
-    amount: 3,
-    hopper: "both",
-    manual: true,
-    before: `${localTime(12, 0)}-before.jpg`,
-    after: `${localTime(12, 0)}-after.jpg`
-  },
-  { kind: "identified", ts: localTime(9, 45), cat: "Kitty", paired_class: null, image: null, image_kind: "track" },
-  { kind: "eat", ts: localTime(8, 5), image: `${localTime(8, 5)}-event.jpg` },
-  {
-    kind: "feed",
-    ts: localTime(7, 30),
-    amount: 5,
-    hopper: "both",
-    manual: false,
-    before: `${localTime(7, 30)}-before.jpg`,
-    after: `${localTime(7, 30)}-after.jpg`
-  },
-  { kind: "identified", ts: localTime(7, 28), cat: "Kitty", paired_class: "eat", image: `${localTime(7, 28)}-event.jpg`, image_kind: "track" },
-  { kind: "identified", ts: localTime(19, 10, 1), cat: "Pancake", paired_class: "eat", image: `${localTime(19, 10, 1)}-event.jpg`, image_kind: "track" },
-  {
-    kind: "feed",
-    ts: localTime(18, 0, 1),
-    amount: 5,
-    hopper: "1",
-    manual: true,
-    before: `${localTime(18, 0, 1)}-before.jpg`,
-    after: `${localTime(18, 0, 1)}-after.jpg`
-  },
-  { kind: "eat", ts: localTime(12, 15, 1), image: `${localTime(12, 15, 1)}-event.jpg` },
-  { kind: "feed", ts: localTime(7, 30, 1), amount: null, hopper: null, manual: false, before: null, after: null },
-  { kind: "visit", ts: localTime(7, 10, 1), image: null }
+var MULTICAT_LIVE_DETECTIONS = [
+  { x1: 0.24, y1: 0.09, x2: 0.36, y2: 0.5, score: 0.96, admitted: true, sid: 1, cat: "Kitty" },
+  { x1: 0.36, y1: 0.12, x2: 0.48, y2: 0.5, score: 0.94, admitted: true, sid: 2, cat: "Pancake" },
+  { x1: 0.68, y1: 0.2, x2: 0.88, y2: 0.7, score: 0.82, admitted: true, sid: 3, cat: null },
+  { x1: 0.8, y1: 0.72, x2: 0.96, y2: 0.96, score: 0.41, admitted: false, sid: null }
 ];
+var CATS = [
+  { name: "Kitty", color: 0, avatar: assetFor("kitty-avatar"), avatar_custom: true, training: { total: 152, face: 138, body: 14 }, accuracy: 0.96, last_seen: localTime(19, 20), last_meal: localTime(19, 20), meals_today: 2, present: false },
+  { name: "Pancake", color: 1, avatar: assetFor("pancake-avatar"), avatar_custom: false, training: { total: 24, face: 6, body: 18 }, accuracy: 0.81, last_seen: localTime(19, 58), last_meal: localTime(19, 58), meals_today: 1, present: true },
+  // No trained accuracy yet (under 5 samples) and no avatar photo -- training is what makes the
+  // face appear, per DESIGN.md.
+  { name: "Whiskers", color: 2, avatar: null, avatar_custom: false, training: { total: 3, face: 3, body: 0 }, accuracy: null, last_seen: localTime(8, 5), last_meal: null, meals_today: 0, present: false }
+];
+var CAT_RECOGNITION = {
+  Kitty: { percent: 94, learningState: "learned", uploads: 3 },
+  Pancake: { percent: 68, learningState: "learning", uploads: 9 },
+  Whiskers: { percent: 35, learningState: "paused", uploads: 0 }
+};
+function catRecognitionEntityId(catName) {
+  return `sensor.plant_room_cat_feeder_${catName.toLowerCase()}_recognition`;
+}
+function catRecognitionEntry(catName) {
+  return {
+    entity_id: catRecognitionEntityId(catName),
+    device_id: DEVICE_ID,
+    platform: "kibble",
+    translation_key: "cat_recognition",
+    unique_id: `demo-serial_cat_recognition_${catName.toLowerCase()}`,
+    disabled_by: null
+  };
+}
+function catRecognitionState(catName) {
+  const info = CAT_RECOGNITION[catName];
+  const roster = CATS.find((cat) => cat.name === catName);
+  return state(catRecognitionEntityId(catName), String(info.percent), {
+    training_samples: roster?.training.total ?? 0,
+    uploads: info.uploads,
+    basis: roster?.accuracy != null ? "reviews" : "estimate",
+    learning_state: info.learningState
+  });
+}
+function trainingSample(cat, index, faceEvery) {
+  const id = `${cat.toLowerCase()}-t${index}`;
+  return {
+    uid: id,
+    cat,
+    created: secondsAgo(5e3 + index * 35),
+    source: index < 6 ? "import" : "label",
+    body: assetFor(`${id}-body`),
+    face: (index + 1) % faceEvery === 0 ? assetFor(`${id}-face`) : null
+  };
+}
+var TRAINING_BY_CAT = {
+  Kitty: Array.from({ length: 152 }, (_2, i6) => trainingSample("Kitty", i6, 1)),
+  // Pancake is black -- her face rarely detects, so most of her training photos are body-only.
+  Pancake: Array.from({ length: 24 }, (_2, i6) => trainingSample("Pancake", i6, 5)),
+  Whiskers: Array.from({ length: 3 }, (_2, i6) => trainingSample("Whiskers", i6, 1))
+};
+var STORAGE_FIXTURE = {
+  used_bytes: Math.round(184.3 * 1024 * 1024),
+  events: TIMELINE_EVENTS.length + IMPORT_FIXTURES.length + 380,
+  retention_days: 14,
+  oldest: secondsAgo(60 * 24 * 14),
+  device_spool: { used_bytes: Math.round(2.1 * 1024 * 1024), cap_bytes: 8 * 1024 * 1024 }
+};
 var INITIAL_CALIBRATION = {
   hoppers: [
     null,
@@ -15205,28 +23261,179 @@ function cloneCalibration(state2) {
 function mockBowlScore(portions) {
   return Math.min(0.95, 0.03 + portions * 0.18);
 }
-function createMockHass(scenario, onChange) {
+var TRAINING_UPLOAD_OUTCOMES = ["added", "added", "duplicate", "no_cat", "added", "error", "added", "added"];
+function jsonResponse(data, status = 200) {
+  return new Response(JSON.stringify(data), { status, headers: { "content-type": "application/json" } });
+}
+function createMockHass(scenario, onChange, harnessFixture = "default") {
   const fixture = buildFixture(scenario);
+  const activeMultiFixture = harnessFixture === "default" ? null : MULTICAT_FIXTURES[harnessFixture];
   const states = { ...fixture.states };
+  if (activeMultiFixture) {
+    const camera = states[CAMERA_ENTITY_ID];
+    states[CAMERA_ENTITY_ID] = { ...camera, attributes: { ...camera.attributes, entity_picture: `./${activeMultiFixture.sceneId}.jpg` } };
+  }
   const resolved = resolveKibbleEntities2(fixture.entities, fixture.device.id);
   const cats = CATS.map((cat) => ({ ...cat }));
-  const pending = [...PENDING_CROPS];
-  const samplesByCat = Object.fromEntries(
-    Object.entries(SAMPLES_BY_CAT).map(([cat, samples]) => [cat, [...samples]])
-  );
-  const timelineItems = [...TIMELINE_ITEMS];
+  const timelineEvents = activeMultiFixture?.events ?? TIMELINE_EVENTS;
+  const events = [...timelineEvents, ...REVIEW_EVENTS.filter((event) => event.kind === "import")].map((event) => ({ ...event }));
+  const sampleFixtures = { ...EVENT_SAMPLES, ...activeMultiFixture?.samples ?? {} };
+  const eventSamples = Object.fromEntries(Object.entries(sampleFixtures).map(([uid, samples]) => [uid, samples.map((sample) => ({ ...sample }))]));
+  const trainingByCat = Object.fromEntries(Object.entries(TRAINING_BY_CAT).map(([cat, samples]) => [cat, [...samples]]));
+  const sampleReview = {
+    [`${ENTRY_ID}-e1208-s1`]: "Pancake",
+    [`${ENTRY_ID}-e1208-s2`]: "Pancake",
+    [`${ENTRY_ID}-e1208-s3`]: "skip"
+  };
+  const subjectReviewSources = /* @__PURE__ */ new Set();
+  const sampleTrainedAs = {
+    [`${ENTRY_ID}-e1208-s1`]: "Pancake",
+    [`${ENTRY_ID}-e1208-s2`]: "Pancake",
+    [`${ENTRY_ID}-e1208-s4`]: "Kitty",
+    [`${ENTRY_ID}-e1208-s5`]: "Kitty",
+    [`${ENTRY_ID}-e1208-s6`]: "Kitty",
+    [`${ENTRY_ID}-e1208-s7`]: "Kitty",
+    [`${ENTRY_ID}-e1208-s8`]: "Kitty"
+  };
+  const storage = { ...STORAGE_FIXTURE };
   const calibration = cloneCalibration(INITIAL_CALIBRATION);
+  let trainingUploadCalls = 0;
+  let avatarUploadCalls = 0;
+  function findEvent(uid) {
+    return events.find((event) => event.uid === uid) ?? events.find((event) => event.session === uid);
+  }
+  function sampleLabelOf(uid) {
+    const review = sampleReview[uid] ?? null;
+    return review === "skip" ? "skip" : sampleTrainedAs[uid] ?? null;
+  }
+  function withSampleState(sample) {
+    return { ...sample, review: sampleReview[sample.uid] ?? null, label: sampleLabelOf(sample.uid) };
+  }
+  function bumpTrainingCount(cat, sample, delta) {
+    const rosterEntry = cats.find((c5) => c5.name === cat);
+    if (!rosterEntry) return;
+    rosterEntry.training = {
+      total: Math.max(0, rosterEntry.training.total + delta),
+      face: Math.max(0, rosterEntry.training.face + (sample.face ? delta : 0)),
+      body: Math.max(0, rosterEntry.training.body + (sample.body ? delta : 0))
+    };
+  }
+  function addToGallery(cat, sample) {
+    const gallery = trainingByCat[cat] ?? (trainingByCat[cat] = []);
+    gallery.push({ uid: `${sample.uid}-train`, cat, created: sample.t, source: "label", body: sample.body, face: sample.face });
+    bumpTrainingCount(cat, sample, 1);
+  }
+  function removeFromGallery(cat, sampleUid) {
+    const gallery = trainingByCat[cat];
+    if (!gallery) return;
+    const index = gallery.findIndex((row) => row.uid === `${sampleUid}-train`);
+    if (index === -1) return;
+    const [removed] = gallery.splice(index, 1);
+    bumpTrainingCount(cat, removed, -1);
+  }
+  function addUploadTraining(cat, callIndex) {
+    const assetId = `${ENTRY_ID}-upload-${callIndex}-body`;
+    const sample = {
+      uid: `${ENTRY_ID}-upload-${callIndex}`,
+      cat,
+      created: Math.floor(Date.now() / 1e3),
+      source: "upload",
+      body: { id: assetId, url: `/api/kibble/${ENTRY_ID}/media/${assetId}` },
+      face: null
+    };
+    const gallery = trainingByCat[cat] ?? (trainingByCat[cat] = []);
+    gallery.push(sample);
+    bumpTrainingCount(cat, sample, 1);
+    return sample;
+  }
+  function autoPickAvatar(cat) {
+    const gallery = trainingByCat[cat] ?? [];
+    const newest = gallery.reduce((best, row) => !best || row.created > best.created ? row : best, null);
+    return newest ? newest.body ?? newest.face : null;
+  }
+  function setTrained(sample, cat) {
+    const previous = sampleTrainedAs[sample.uid] ?? null;
+    if (previous === cat) return;
+    if (previous) removeFromGallery(previous, sample.uid);
+    if (cat) addToGallery(cat, sample);
+    if (cat) sampleTrainedAs[sample.uid] = cat;
+    else delete sampleTrainedAs[sample.uid];
+  }
+  function eventTrainingTarget(event) {
+    if (!event) return null;
+    if (event.identity === "reviewed" && event.cat) return event.cat;
+    if (event.identity === "not_a_cat") return "not_a_cat";
+    return null;
+  }
+  function applyLabel(uids, label) {
+    const updated = [];
+    for (const uid of uids) {
+      const event = findEvent(uid);
+      if (!event) continue;
+      const cat = label === "not_a_cat" || label === "unknown" ? null : label;
+      event.cat = cat;
+      event.identity = label === "not_a_cat" ? "not_a_cat" : label === "unknown" ? "unknown" : "reviewed";
+      event.confidence = null;
+      updated.push(event);
+      if (label === "unknown") continue;
+      for (const sample of eventSamples[uid] ?? []) {
+        const review = sampleReview[sample.uid] ?? null;
+        if (review === "skip") setTrained(sample, null);
+        else if (review === null) setTrained(sample, label);
+      }
+    }
+    return updated;
+  }
+  function paginate(items, limit, cursor) {
+    const offset = typeof cursor === "string" ? Number(cursor) || 0 : 0;
+    const page = items.slice(offset, offset + limit);
+    const nextOffset = offset + page.length;
+    return { items: page, cursor: nextOffset < items.length ? String(nextOffset) : null, has_more: nextOffset < items.length };
+  }
   function notify() {
     hass.states = { ...states };
     onChange?.();
   }
-  function touchPendingFace() {
-    const id = resolved.pendingFace;
-    const current = id ? states[id] : void 0;
-    if (!id || !current) return;
-    const now = (/* @__PURE__ */ new Date()).toISOString();
-    states[id] = { ...current, state: now, last_changed: now, last_updated: now };
+  function markHopperFull(index) {
+    const levelId = index === 0 ? resolved.hopperLevel1 : resolved.hopperLevel2;
+    const remainingId = index === 0 ? resolved.hopperRemaining1 : resolved.hopperRemaining2;
+    if (levelId && states[levelId]) {
+      states[levelId] = { ...states[levelId], state: "ok" };
+    }
+    if (remainingId && states[remainingId]) {
+      const fullToLow = states[remainingId].attributes.full_to_low;
+      const learned = typeof fullToLow === "number" ? fullToLow : null;
+      states[remainingId] = {
+        ...states[remainingId],
+        state: learned != null ? String(learned) : "unknown",
+        attributes: { ...states[remainingId].attributes, full_at: (/* @__PURE__ */ new Date()).toISOString(), portions_since_full: 0 }
+      };
+    }
   }
+  function applyScheduleService(service, data) {
+    const id = resolved.schedule;
+    if (!id || !states[id]) return;
+    const current = states[id].attributes.entries ?? [];
+    const fromData = (row, rowId) => ({
+      id: rowId,
+      time: String(row.time ?? "00:00:00").slice(0, 5),
+      amount_l: Number(row.hopper1_g ?? 0),
+      amount_r: Number(row.hopper2_g ?? 0),
+      enabled: row.enabled !== false
+    });
+    let next = null;
+    if (service === "schedule_add") next = [...current, fromData(data, `m${++scheduleIdCounter}`)];
+    if (service === "schedule_remove") next = current.filter((row) => row.id !== data.entry_id);
+    if (service === "schedule_set_enabled") next = current.map((row) => row.id === data.entry_id ? { ...row, enabled: data.enabled === true } : row);
+    if (service === "schedule_set") {
+      const rows = data.entries ?? [];
+      next = rows.map((row) => fromData(row, typeof row.entry_id === "string" ? row.entry_id : `m${++scheduleIdCounter}`));
+    }
+    if (!next) return;
+    states[id] = { ...states[id], state: String(next.length), attributes: { ...states[id].attributes, entries: next } };
+    notify();
+  }
+  let scheduleIdCounter = 0;
   const hass = {
     states,
     entities: fixture.entities,
@@ -15235,8 +23442,14 @@ function createMockHass(scenario, onChange) {
     language: "en",
     callService: async (domain, service, data, target) => {
       console.log("[mock hass] callService", { domain, service, data, target });
+      (window.__kibbleCalls ??= []).push({ domain, service, data: structuredClone(data ?? {}), target });
+      if (domain === "kibble" && service.startsWith("schedule_")) applyScheduleService(service, data ?? {});
       const entityId = target?.entity_id ?? void 0;
       if (domain === "number" && service === "set_value" && entityId && states[entityId]) {
+        states[entityId] = { ...states[entityId], state: String(data?.value ?? "") };
+        notify();
+      }
+      if (domain === "text" && service === "set_value" && entityId && states[entityId]) {
         states[entityId] = { ...states[entityId], state: String(data?.value ?? "") };
         notify();
       }
@@ -15245,57 +23458,203 @@ function createMockHass(scenario, onChange) {
         states[entityId] = { ...states[entityId], state: next };
         notify();
       }
-      if (domain === "kibble" && service === "label_face") {
-        const cropId = data?.crop_id;
-        const cat = data?.cat;
-        const index = cropId ? pending.findIndex((crop) => crop.name === cropId) : -1;
-        if (index !== -1 && cat) {
-          const [crop] = pending.splice(index, 1);
-          if (crop && cat !== "not_a_cat" && cat !== "other") {
-            const gallery = samplesByCat[cat] ?? (samplesByCat[cat] = []);
-            gallery.push({ name: crop.name, ts: crop.ts });
-            const rosterEntry = cats.find((c5) => c5.name === cat);
-            if (rosterEntry) {
-              rosterEntry.samples = gallery.length;
-              rosterEntry.last_seen = Math.max(rosterEntry.last_seen ?? 0, crop.ts);
-            }
-          }
-          touchPendingFace();
-          notify();
-        }
-      }
-      if (domain === "kibble" && service === "unlabel_face") {
-        const cat = data?.cat;
-        const name = data?.name;
-        const gallery = cat ? samplesByCat[cat] : void 0;
-        const index = gallery && name ? gallery.findIndex((sample) => sample.name === name) : -1;
-        if (gallery && index !== -1) {
-          const [sample] = gallery.splice(index, 1);
-          const rosterEntry = cats.find((c5) => c5.name === cat);
-          if (rosterEntry) rosterEntry.samples = gallery.length;
-          if (sample) pending.push({ name: sample.name, ts: sample.ts, vendor_pet_id: null, vendor_cat: null, guess: null });
-          touchPendingFace();
-          notify();
-        }
-      }
-      if (domain === "kibble" && service === "add_cat") {
-        const name = data?.name;
-        if (name && !cats.some((c5) => c5.name === name)) {
-          cats.push({ name, samples: 0, last_seen: null, avatar: null, vendor_pet_id: null, color_index: cats.length });
-          notify();
-        }
+      if (domain === "button" && service === "press" && entityId) {
+        if (entityId === resolved.markFullHopper1 || entityId === resolved.markFullBoth) markHopperFull(0);
+        if (entityId === resolved.markFullHopper2 || entityId === resolved.markFullBoth) markHopperFull(1);
+        notify();
       }
       return void 0;
     },
     callWS: async (msg) => {
       const type = msg.type;
+      if (type === "auth/sign_path") {
+        const path = msg.path;
+        return { path: path?.includes("/clip/") ? "/clip-fixture.mp4" : path };
+      }
       if (type === "kibble/timeline") {
-        const includeVisits = msg.include_visits === true;
-        const items = includeVisits ? timelineItems : timelineItems.filter((item) => item.kind !== "visit");
-        return { items: [...items] };
+        const pool = events.filter((event) => event.kind !== "import").slice().sort((a3, b3) => b3.start - a3.start);
+        return paginate(pool, Math.max(1, Number(msg.limit) || 25), msg.cursor);
+      }
+      if (type === "kibble/event") {
+        const uid = msg.uid;
+        const event = uid ? findEvent(uid) : void 0;
+        if (!event) throw { code: "not_found", message: `Unknown event ${String(uid)}` };
+        const sessionEvents = event.session ? events.filter((member) => member.session === event.session) : [event];
+        const sessionStarts = sessionEvents.map((member) => member.start);
+        const sessionEnds = sessionEvents.map((member) => member.end).filter((end) => end !== null);
+        const samples = sessionEvents.flatMap((member) => (member ? eventSamples[member.uid] ?? [] : []).map((sample) => ({ ...withSampleState(sample), cat: sample.cat ?? member.cat })));
+        const details = activeMultiFixture?.details[event.uid];
+        const cats2 = details?.cats ?? (event.cat ? [{ cat: event.cat, ate: event.kind === "eat", confirmed: event.identity === "reviewed", confidence: event.identity === "auto" ? event.confidence : null, photos: samples.filter((sample) => sample.cat === event.cat).length }] : []);
+        const open = sessionEvents.some((member) => member.open);
+        const detailEvent = {
+          ...event,
+          uid: event.session ?? event.uid,
+          start: Math.min(...sessionStarts),
+          end: open || sessionEnds.length === 0 ? null : Math.max(...sessionEnds),
+          open,
+          kind: sessionEvents.some((member) => member.kind === "eat") ? "eat" : "visit",
+          cat: cats2.length === 1 ? cats2[0].cat : null,
+          identity: cats2.length > 0 ? cats2.every((cat) => cat.confirmed) ? "reviewed" : "auto" : event.identity,
+          confidence: cats2.length === 1 ? cats2[0].confidence : null,
+          sample_count: samples.length
+        };
+        return { event: detailEvent, samples, scene_subjects: details?.scene_subjects.map((subject) => ({ ...subject, box: [...subject.box] })) ?? [], cats: cats2.map((cat) => ({ ...cat })), multiple_cats: (details?.scene_subjects.length ?? 0) >= 2 };
+      }
+      if (type === "kibble/session/label") {
+        const uid = msg.uid;
+        const event = uid ? findEvent(uid) : void 0;
+        if (!event) throw { code: "not_found", message: `Unknown event ${String(uid)}` };
+        const details = activeMultiFixture?.details[event.uid];
+        const sessionEvents = event.session ? events.filter((member) => member.session === event.session) : [event];
+        const sessionSamples = sessionEvents.flatMap((member) => eventSamples[member.uid] ?? []);
+        const verdict = msg.verdict;
+        const requestedCats = Array.isArray(msg.cats) ? msg.cats : null;
+        if (verdict === "not_a_cat" || verdict === "unknown") {
+          applyLabel(sessionEvents.map((member) => member.uid), verdict);
+          for (const sample of sessionSamples) {
+            if (sampleReview[sample.uid] == null) sample.cat = null;
+          }
+          if (details) {
+            details.cats.splice(0);
+            for (const subject of details.scene_subjects) {
+              subject.label = verdict === "not_a_cat" ? "not_a_cat" : null;
+              subject.reviewed = verdict === "not_a_cat";
+            }
+          }
+        } else if (requestedCats?.length) {
+          for (const member of sessionEvents) {
+            const selected = requestedCats.find((cat) => cat.cat === member.cat) ?? (requestedCats.length === 1 ? requestedCats[0] : void 0);
+            if (selected) {
+              member.cat = selected.cat;
+              member.kind = selected.ate ? "eat" : "visit";
+            } else if (requestedCats.length > 1 && member.cat && !requestedCats.some((cat) => cat.cat === member.cat)) {
+              member.cat = null;
+              member.kind = "visit";
+            }
+            member.identity = "reviewed";
+            member.confidence = null;
+          }
+          for (const sample of sessionSamples) {
+            if (sampleReview[sample.uid] != null) continue;
+            if (requestedCats.length === 1) sample.cat = requestedCats[0].cat;
+            else if (sample.cat && !requestedCats.some((cat) => cat.cat === sample.cat)) sample.cat = null;
+          }
+          if (details) details.cats.splice(0, details.cats.length, ...requestedCats.map((cat) => ({ ...cat, confirmed: true, confidence: null, photos: sessionSamples.filter((sample) => sample.cat === cat.cat).length })));
+        } else {
+          throw { code: "agent_rejected", message: "Nothing to label" };
+        }
+        notify();
+        return await hass.callWS({ type: "kibble/event", uid });
+      }
+      if (type === "kibble/session/subject") {
+        const uid = msg.uid;
+        const sid = msg.sid;
+        const label = msg.label;
+        const event = uid ? findEvent(uid) : void 0;
+        if (!event || sid == null || !label) throw { code: "agent_rejected", message: "Nothing to label" };
+        const details = activeMultiFixture?.details[event.uid];
+        const sessionEvents = event.session ? events.filter((member) => member.session === event.session) : [event];
+        const sessionSamples = sessionEvents.flatMap((member) => eventSamples[member.uid] ?? []);
+        const subject = details?.scene_subjects.find((candidate) => candidate.sid === sid);
+        const oldLabel = subject?.label ?? null;
+        if (subject) {
+          subject.label = label === "follow" ? null : label;
+          subject.reviewed = label !== "follow";
+        }
+        const subjectSamples = sessionSamples.flatMap((sample) => sample.sid === sid ? [{ sample, member: sessionEvents.find((member) => (eventSamples[member.uid] ?? []).includes(sample)) ?? event }] : []);
+        for (const { sample, member } of subjectSamples) {
+          if (sampleReview[sample.uid] != null && !subjectReviewSources.has(sample.uid)) continue;
+          if (label === "follow") {
+            delete sampleReview[sample.uid];
+            subjectReviewSources.delete(sample.uid);
+            sample.cat = member.cat;
+            setTrained(sample, eventTrainingTarget(member));
+          } else {
+            sampleReview[sample.uid] = label;
+            subjectReviewSources.add(sample.uid);
+            sample.cat = label === "not_a_cat" ? null : label;
+            setTrained(sample, label === "not_a_cat" ? null : label);
+          }
+        }
+        if (details) {
+          if (label !== "follow" && oldLabel && oldLabel !== "not_a_cat" && !details.scene_subjects.some((candidate) => candidate.label === oldLabel)) {
+            details.cats.splice(0, details.cats.length, ...details.cats.filter((cat) => cat.cat !== oldLabel));
+          }
+          if (label !== "not_a_cat" && label !== "follow") {
+            const current = details.cats.find((cat) => cat.cat === label);
+            const photos = sessionSamples.filter((sample) => sample.cat === label).length;
+            if (current) {
+              current.confirmed = true;
+              current.confidence = null;
+              current.photos = photos;
+            } else details.cats.push({ cat: label, ate: sessionEvents.some((member) => member.kind === "eat"), confirmed: true, confidence: null, photos });
+          }
+          for (const cat of details.cats) cat.photos = sessionSamples.filter((sample) => sample.cat === cat.cat).length;
+        }
+        notify();
+        return await hass.callWS({ type: "kibble/event", uid });
+      }
+      if (type === "kibble/label") {
+        const uids = Array.isArray(msg.uids) ? msg.uids : [];
+        const label = msg.label;
+        if (!label || uids.length === 0) throw { code: "agent_rejected", message: "Nothing to label" };
+        const updated = applyLabel(uids, label);
+        notify();
+        return { events: updated.map((event) => ({ ...event })) };
+      }
+      if (type === "kibble/sample/label") {
+        const sampleUid = msg.sample_uid;
+        const label = msg.label;
+        if (!sampleUid || !label) throw { code: "agent_rejected", message: "Nothing to label" };
+        const owner = Object.entries(eventSamples).find(([, list2]) => list2.some((sample2) => sample2.uid === sampleUid));
+        if (!owner) throw { code: "not_found", message: `Unknown sample ${sampleUid}` };
+        const [eventUid, list] = owner;
+        const sample = list.find((item) => item.uid === sampleUid);
+        if (!sample) throw { code: "not_found", message: `Unknown sample ${sampleUid}` };
+        if (label !== "not_a_cat" && label !== "skip" && label !== "follow" && !cats.some((cat) => cat.name === label)) {
+          throw { code: "agent_rejected", message: `Unknown cat ${label}` };
+        }
+        const oldCat = sample.cat;
+        const event = findEvent(eventUid);
+        const sessionEvents = event?.session ? events.filter((member) => member.session === event.session) : event ? [event] : [];
+        const sessionSamples = sessionEvents.flatMap((member) => eventSamples[member.uid] ?? []);
+        if (label === "follow") {
+          delete sampleReview[sampleUid];
+          subjectReviewSources.delete(sampleUid);
+          sample.cat = event?.cat ?? null;
+          setTrained(sample, eventTrainingTarget(event));
+        } else if (label === "skip") {
+          sampleReview[sampleUid] = "skip";
+          subjectReviewSources.delete(sampleUid);
+          sample.cat = null;
+          setTrained(sample, null);
+        } else {
+          sampleReview[sampleUid] = label;
+          subjectReviewSources.delete(sampleUid);
+          sample.cat = label === "not_a_cat" ? null : label;
+          setTrained(sample, label);
+        }
+        const details = event ? activeMultiFixture?.details[event.uid] : void 0;
+        if (details) {
+          if (oldCat && oldCat !== sample.cat && !sessionSamples.some((item) => item !== sample && item.cat === oldCat) && !details.scene_subjects.some((subject) => subject.label === oldCat)) {
+            details.cats.splice(0, details.cats.length, ...details.cats.filter((cat) => cat.cat !== oldCat));
+          }
+          if (sample.cat && sample.cat !== "not_a_cat") {
+            const current = details.cats.find((cat) => cat.cat === sample.cat);
+            const photos = sessionSamples.filter((item) => item.cat === sample.cat).length;
+            if (current) {
+              current.confirmed = true;
+              current.confidence = null;
+              current.photos = photos;
+            } else details.cats.push({ cat: sample.cat, ate: sessionEvents.some((member) => member.kind === "eat"), confirmed: true, confidence: null, photos });
+          }
+          for (const cat of details.cats) cat.photos = sessionSamples.filter((item) => item.cat === cat.cat).length;
+        }
+        notify();
+        return { sample: withSampleState(sample) };
       }
       if (type === "kibble/cats") {
-        return { cats: cats.map((cat) => ({ ...cat })) };
+        return { cats: cats.map((cat) => ({ ...cat })), storage: { ...storage } };
       }
       if (type === "kibble/vision/last") {
         return {
@@ -15304,58 +23663,76 @@ function createMockHass(scenario, onChange) {
             wall_unix: Math.floor(Date.now() / 1e3),
             w: 1280,
             h: 720,
-            detections: [
+            detections: activeMultiFixture ? MULTICAT_LIVE_DETECTIONS : [
               { x1: 0.0875, y1: 0, x2: 0.6586, y2: 0.5014, score: 0.968, admitted: true },
               { x1: 0.78, y1: 0.62, x2: 0.97, y2: 0.95, score: 0.41, admitted: false }
             ],
             verified: true,
-            cat: "Pancake",
-            cat_score: 0.71,
             overlay: true
           }
         };
+      }
+      if (type === "kibble/cats/add") {
+        const name = msg.name;
+        if (name && !cats.some((cat) => cat.name === name)) {
+          cats.push({ name, color: cats.length, avatar: null, avatar_custom: false, training: { total: 0, face: 0, body: 0 }, accuracy: null, last_seen: null, last_meal: null, meals_today: 0, present: false });
+          notify();
+        }
+        return {};
       }
       if (type === "kibble/cats/delete") {
         const name = msg.name;
         const index = name ? cats.findIndex((cat) => cat.name === name) : -1;
         if (!name || index === -1) throw { code: "not_found", message: `Unknown cat ${String(name)}` };
         cats.splice(index, 1);
-        delete samplesByCat[name];
+        delete trainingByCat[name];
         notify();
         return {};
       }
-      if (type === "kibble/faces/pending") {
-        return { crops: [...pending] };
-      }
-      if (type === "kibble/faces/samples") {
-        const cat = msg.cat;
-        return { samples: cat ? [...samplesByCat[cat] ?? []] : [] };
-      }
-      if (type === "kibble/faces/upload") {
-        const cat = msg.cat;
-        const rosterEntry = cat ? cats.find((c5) => c5.name === cat) : void 0;
-        if (!cat || !rosterEntry) throw { code: "not_found", message: `Unknown cat ${String(cat)}` };
-        const gallery = samplesByCat[cat] ?? (samplesByCat[cat] = []);
-        const ts = Math.floor(Date.now() / 1e3);
-        const name = `upload-${Date.now()}.jpg`;
-        gallery.push({ name, ts });
-        rosterEntry.samples = gallery.length;
-        rosterEntry.last_seen = Math.max(rosterEntry.last_seen ?? 0, ts);
+      if (type === "kibble/cats/avatar/set") {
+        const name = msg.cat;
+        const assetId = msg.asset_id;
+        const rosterEntry = name ? cats.find((cat) => cat.name === name) : void 0;
+        if (!rosterEntry || !assetId) throw { code: "not_found", message: "Unknown cat or photo" };
+        rosterEntry.avatar = { id: assetId, url: `/api/kibble/${ENTRY_ID}/media/${assetId}` };
+        rosterEntry.avatar_custom = true;
         notify();
-        const lowQuality = gallery.length % 3 === 0;
-        return lowQuality ? { name, samples: gallery.length, low_quality: true } : { name, samples: gallery.length };
+        return { avatar: rosterEntry.avatar };
       }
-      if (type === "kibble/faces/delete_sample") {
-        const cat = msg.cat;
-        const name = msg.name;
-        const gallery = cat ? samplesByCat[cat] : void 0;
-        const index = gallery && name ? gallery.findIndex((sample) => sample.name === name) : -1;
-        if (!gallery || index === -1) throw { code: "not_found", message: "Unknown sample" };
-        gallery.splice(index, 1);
-        const rosterEntry = cats.find((c5) => c5.name === cat);
-        if (rosterEntry) rosterEntry.samples = gallery.length;
+      if (type === "kibble/cats/avatar/clear") {
+        const name = msg.cat;
+        const rosterEntry = name ? cats.find((cat) => cat.name === name) : void 0;
+        if (!rosterEntry) throw { code: "not_found", message: "Unknown cat" };
+        rosterEntry.avatar = autoPickAvatar(rosterEntry.name);
+        rosterEntry.avatar_custom = false;
         notify();
-        return {};
+        return { avatar: rosterEntry.avatar };
+      }
+      if (type === "kibble/review") {
+        const pool = events.filter((event) => event.identity === "unknown" && event.cat === null).slice().sort((a3, b3) => b3.start - a3.start);
+        const page = paginate(pool, Math.max(1, Number(msg.limit) || 24), msg.cursor);
+        return { ...page, total: pool.length };
+      }
+      if (type === "kibble/training") {
+        const cat = msg.cat;
+        const pool = (cat ? trainingByCat[cat] ?? [] : []).slice().sort((a3, b3) => b3.created - a3.created);
+        const page = paginate(pool, Math.max(1, Number(msg.limit) || 24), msg.cursor);
+        return { ...page, total: pool.length };
+      }
+      if (type === "kibble/training/remove") {
+        const uids = Array.isArray(msg.uids) ? msg.uids : [];
+        let removed = 0;
+        for (const [cat, gallery] of Object.entries(trainingByCat)) {
+          const kept = gallery.filter((sample) => !uids.includes(sample.uid));
+          const delta = gallery.length - kept.length;
+          if (delta === 0) continue;
+          trainingByCat[cat] = kept;
+          removed += delta;
+          const rosterEntry = cats.find((c5) => c5.name === cat);
+          if (rosterEntry) rosterEntry.training = { ...rosterEntry.training, total: Math.max(0, rosterEntry.training.total - delta) };
+        }
+        notify();
+        return { removed };
       }
       if (type === "kibble/calibration") {
         return cloneCalibration(calibration);
@@ -15414,12 +23791,47 @@ function createMockHass(scenario, onChange) {
       }
       throw { code: "unknown_command", message: `Unknown command: ${String(type)}` };
     },
-    fetchWithAuth: async (input) => {
+    fetchWithAuth: async (input, init) => {
       const path = typeof input === "string" ? input : "";
+      const method = (init?.method ?? "GET").toUpperCase();
+      const trainingMatch = method === "POST" ? /\/upload\/training\/([^/?]+)$/.exec(path) : null;
+      if (trainingMatch) {
+        const cat = decodeURIComponent(trainingMatch[1]);
+        if (!cats.some((c5) => c5.name === cat)) {
+          return jsonResponse({ status: "error", reason: "not_found", message: "Unknown cat." }, 404);
+        }
+        const callIndex = trainingUploadCalls++;
+        const outcome = TRAINING_UPLOAD_OUTCOMES[callIndex % TRAINING_UPLOAD_OUTCOMES.length];
+        if (outcome === "duplicate") return jsonResponse({ status: "duplicate", message: "This looks like a photo already in training." });
+        if (outcome === "no_cat") return jsonResponse({ status: "no_cat", message: "No cat found in this photo." });
+        if (outcome === "error") return jsonResponse({ status: "error", reason: "bad_image", message: "That file couldn't be read." }, 400);
+        const sample = addUploadTraining(cat, callIndex);
+        notify();
+        return jsonResponse({ status: "added", message: "Added.", sample });
+      }
+      const avatarMatch = method === "POST" ? /\/upload\/avatar\/([^/?]+)$/.exec(path) : null;
+      if (avatarMatch) {
+        const cat = decodeURIComponent(avatarMatch[1]);
+        const rosterEntry = cats.find((c5) => c5.name === cat);
+        if (!rosterEntry) return jsonResponse({ error: "Unknown cat." }, 404);
+        const assetId = `${ENTRY_ID}-avatar-upload-${avatarUploadCalls++}-avatar`;
+        rosterEntry.avatar = { id: assetId, url: `/api/kibble/${ENTRY_ID}/media/${assetId}` };
+        rosterEntry.avatar_custom = true;
+        notify();
+        return jsonResponse({ avatar: rosterEntry.avatar });
+      }
       if (path.startsWith("/api/kibble/")) {
-        if (/before/i.test(path)) return fetch("./dish-before.svg");
-        if (/after/i.test(path)) return fetch("./dish-after.svg");
-        return fetch("./face-crop.svg");
+        const id = path.slice(path.lastIndexOf("/") + 1);
+        if (id === "e2060-scene-1") return fetch("./e2060-scene-1.jpg");
+        if (id === "e1713-scene-1") return fetch("./multicat-scene.jpg");
+        if (id.includes("-e2060-")) return fetch("./multicat-kitty-body.jpg");
+        if (id.includes("-e1713-kitty-") || id.includes("-e1712-kitty-")) return fetch("./multicat-kitty-body.jpg");
+        if (id.includes("-e1713-pancake-") || id.includes("-e1712-unknown-")) return fetch("./multicat-pancake-body.jpg");
+        if (id.endsWith("-before")) return fetch("./dish-before.svg");
+        if (id.endsWith("-after")) return fetch("./dish-after.svg");
+        if (id.endsWith("-face") || id.endsWith("-avatar")) return fetch("./face-crop.svg");
+        if (id.endsWith("-scene")) return fetch("./camera-frame.svg");
+        return fetch("./body-crop.svg");
       }
       return new Response(null, { status: 404 });
     }
@@ -15439,15 +23851,11 @@ function configFor(card, params, name) {
     if (name) config2.name = name;
     const limit = params.get("limit");
     if (limit) config2.limit = Number(limit);
-    const showVisits = params.get("show_visits");
-    if (showVisits) config2.show_visits = showVisits === "true";
     return config2;
   }
   if (card === "cats") {
     const config2 = { type: "custom:kibble-cats-card", device_id: DEVICE_ID };
     if (name) config2.name = name;
-    const confidence = params.get("confidence");
-    if (confidence) config2.confidence = Number(confidence);
     return config2;
   }
   const config = { type: "custom:kibble-card", device_id: DEVICE_ID };
@@ -15458,10 +23866,69 @@ function configFor(card, params, name) {
   if (scheduleHash) config.schedule_hash = scheduleHash;
   return config;
 }
+function applyHopperOverrides(hass, params) {
+  const resolved = resolveKibbleEntities2(hass.entities, DEVICE_ID);
+  const levelOverrides = [
+    [resolved.hopperLevel1, params.get("hopper1")],
+    [resolved.hopperLevel2, params.get("hopper2")]
+  ];
+  for (const [entityId, requested] of levelOverrides) {
+    if (!entityId || !requested || !hass.states[entityId]) continue;
+    const value = requested === "unknown" ? "unavailable" : requested;
+    hass.states[entityId] = { ...hass.states[entityId], state: value };
+  }
+  const single = params.get("single");
+  if (single !== null && resolved.hopperDivider && hass.states[resolved.hopperDivider]) {
+    const isSingle = single === "1" || single === "true";
+    hass.states[resolved.hopperDivider] = { ...hass.states[resolved.hopperDivider], state: isSingle ? "off" : "on" };
+  }
+  const foodOverrides = [
+    [resolved.hopperFood1, params.get("food1")],
+    [resolved.hopperFood2, params.get("food2")]
+  ];
+  for (const [entityId, requested] of foodOverrides) {
+    if (!entityId || requested === null || !hass.states[entityId]) continue;
+    hass.states[entityId] = { ...hass.states[entityId], state: requested };
+  }
+  const schedule = params.get("schedule");
+  if (resolved.schedule && hass.states[resolved.schedule] && (schedule === "divider" || schedule === "mixed")) {
+    const name = schedule;
+    hass.states[resolved.schedule] = { ...scheduleState(SCHEDULE_FIXTURES[name]), entity_id: resolved.schedule };
+  }
+}
+function setupToastListener() {
+  let toastEl = null;
+  window.addEventListener("hass-notification", (event) => {
+    const message = event.detail.message;
+    if (!toastEl) {
+      toastEl = document.createElement("div");
+      toastEl.id = "kibble-harness-toast";
+      toastEl.style.cssText = [
+        "position:fixed",
+        "left:50%",
+        "bottom:24px",
+        "transform:translateX(-50%)",
+        "max-width:92vw",
+        "padding:12px 20px",
+        "border-radius:10px",
+        "background:#212121",
+        "color:#fff",
+        "font:500 14px/1.4 system-ui,sans-serif",
+        "box-shadow:0 4px 16px rgba(0,0,0,0.35)",
+        "z-index:5000",
+        "text-align:center"
+      ].join(";");
+      document.body.appendChild(toastEl);
+    }
+    toastEl.textContent = message;
+  });
+}
 async function main() {
   const params = new URLSearchParams(location.search);
   const card = params.get("card") ?? "hero";
   const scenario = params.get("scenario") ?? "idle";
+  const fixtureParam = params.get("fixture");
+  const harnessFixture = fixtureParam === "multicat-a" || fixtureParam === "multicat-b" || fixtureParam === "multicat-c" ? fixtureParam : "default";
   const theme = params.get("theme") ?? "light";
   const width = Number(params.get("width") ?? "400");
   const heightParam = params.get("height");
@@ -15469,6 +23936,7 @@ async function main() {
   const name = params.get("name") ?? void 0;
   const settingsOpen = params.get("settings_open") === "true";
   document.documentElement.classList.toggle("dark", theme === "dark");
+  setupToastListener();
   const container = document.getElementById("container");
   if (!container) throw new Error("missing #container");
   container.style.width = `${width}px`;
@@ -15479,7 +23947,18 @@ async function main() {
   element.setConfig(configFor(card, params, name));
   const hass = createMockHass(scenario, () => {
     element.hass = { ...hass };
-  });
+  }, harnessFixture);
+  applyHopperOverrides(hass, params);
+  if (params.get("schedule_fail") === "1") {
+    const callService = hass.callService;
+    hass.callService = async (domain, service, data, target) => {
+      if (domain === "kibble" && service.startsWith("schedule_")) {
+        (window.__kibbleCalls ??= []).push({ domain, service, data: structuredClone(data ?? {}), target });
+        throw { code: "service_validation_error", message: "Schedule writes are turned off in the Kibble integration options" };
+      }
+      return callService(domain, service, data, target);
+    };
+  }
   element.hass = hass;
   container.appendChild(element);
   await element.updateComplete;

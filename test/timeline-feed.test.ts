@@ -1,103 +1,130 @@
 import { describe, expect, test } from "bun:test";
 import { TimelineFeed, type SubscribeCapableHass } from "../src/lib/timeline-feed";
-import type { TimelineItem } from "../src/types";
+import type { TimelineEvent } from "../src/types";
 
-const row = (ts: number): TimelineItem => ({ kind: "feed", ts, amount: 1, hopper: "1", before: null, after: null, manual: true, confirmed: true }) as unknown as TimelineItem;
+function row(uid: string, start: number): TimelineEvent {
+  return { uid, kind: "feed", start, end: start, open: false, cat: null, identity: null, confidence: null, thumb: null, scene: null, before: null, after: null, sample_count: 0, session: null, feed: { portions: 1, scheduled: false, confirmed: true, single: false, sides: [{ hopper: 1, portions: 1, food: null }] } };
+}
 
-function fakeHass(options: { subscribe?: boolean; failSubscribe?: boolean; oneShot?: TimelineItem[] } = {}) {
+interface TimelinePage {
+  items: TimelineEvent[];
+  cursor: string | null;
+  has_more: boolean;
+}
+
+function fakeHass(pages: TimelinePage[]) {
   const calls: Record<string, unknown>[] = [];
-  // One entry per subscription, so a test can push to an OLD one after resubscribing --
-  // which is the only way to check that a superseded subscription's frames are ignored.
-  const pushes: ((message: { items?: TimelineItem[] }) => void)[] = [];
-  let unsubscribed = 0;
   const hass: SubscribeCapableHass = {
     callWS: async (message) => {
       calls.push(message);
-      return { items: options.oneShot ?? [] };
+      return pages.shift() ?? { items: [], cursor: null, has_more: false };
     },
   };
-  if (options.subscribe !== false) {
-    hass.connection = {
-      subscribeMessage: async (callback, message) => {
-        calls.push(message);
-        if (options.failSubscribe) throw new Error("unknown_command");
-        pushes.push(callback);
-        return () => {
-          unsubscribed += 1;
-        };
-      },
-    };
-  }
-  return {
-    hass,
-    calls,
-    emit: (items: TimelineItem[], index = pushes.length - 1) => pushes[index]?.({ items }),
-    unsubscribes: () => unsubscribed,
-  };
+  return { hass, calls };
 }
 
-const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
+/** Flushes the microtask queue plus one macrotask tick: `TimelineFeed.sync`/`loadMore` are
+ * fire-and-forget by design (matching how a Lit component calls them from `willUpdate`, no
+ * promise to await), so there is no signal to await directly here. A 0ms timer is not a guessed
+ * duration -- macrotasks are spec-guaranteed to run only once the microtask queue drains, which
+ * is exactly "every pending `.then()` from the mock's async `callWS` has settled" -- so this is
+ * deterministic, not a race, and more robust than hand-counting `await` hops. */
+function settle(): Promise<void> {
+  const { promise, resolve } = Promise.withResolvers<void>();
+  setTimeout(resolve, 0);
+  return promise;
+}
 
 describe("TimelineFeed", () => {
-  test("rows pushed by the subscription land without anything asking for them", async () => {
-    const { hass, emit } = fakeHass();
+  test("requests one bounded newest page for stable card updates", async () => {
+    const { hass, calls } = fakeHass([{ items: [row("1", 100)], cursor: "next", has_more: true }]);
     const feed = new TimelineFeed(() => {});
-    feed.sync(hass, "entry", false);
+    for (let i = 0; i < 5; i += 1) feed.sync(hass, "entry", 25);
     await settle();
-    emit([row(100)]);
-    expect(feed.state.items?.map((i) => i.ts)).toEqual([100]);
-    // The case the old watch-key approach missed entirely: a second frame for the same rows
-    // gaining their photos, with no entity state change to trigger a re-fetch.
-    emit([row(100), row(200)]);
-    expect(feed.state.items?.map((i) => i.ts)).toEqual([100, 200]);
-    expect(feed.state.loading).toBe(false);
+    expect(calls).toEqual([{ type: "kibble/timeline", entry_id: "entry", limit: 25 }]);
+    expect(feed.state).toMatchObject({ items: [row("1", 100)], cursor: "next", hasMore: true, loading: false });
   });
 
-  test("identical parameters never resubscribe", async () => {
-    const { hass, calls } = fakeHass();
+  test("appends the next page only after an explicit load-older action", async () => {
+    const { hass, calls } = fakeHass([
+      { items: [row("3", 300)], cursor: "older-than-300", has_more: true },
+      { items: [row("2", 200), row("1", 100)], cursor: null, has_more: false },
+    ]);
     const feed = new TimelineFeed(() => {});
-    for (let i = 0; i < 5; i += 1) feed.sync(hass, "entry", false);
+    feed.sync(hass, "entry", 25);
     await settle();
-    expect(calls.length).toBe(1);
-    // A changed option is a different subscription, though.
-    feed.sync(hass, "entry", true);
+    feed.loadMore(hass, "entry", 25);
     await settle();
-    expect(calls.length).toBe(2);
+    expect(calls[1]).toEqual({ type: "kibble/timeline", entry_id: "entry", limit: 25, cursor: "older-than-300" });
+    expect(feed.state).toMatchObject({ items: [row("3", 300), row("2", 200), row("1", 100)], cursor: null, hasMore: false, loadingMore: false });
   });
 
-  test("an integration without the subscription still shows a timeline", async () => {
-    // An older integration answers `unknown_command`. A card frozen on "loading" would be a
-    // worse regression than the staleness the subscription replaces.
-    const { hass, calls } = fakeHass({ failSubscribe: true, oneShot: [row(7)] });
+  test("ignores a superseded page response", async () => {
+    let resolveFirst: ((page: TimelinePage) => void) | undefined;
+    const hass: SubscribeCapableHass = {
+      callWS: async (message) => {
+        if (message.limit !== 10) return { items: [row("2", 200)], cursor: null, has_more: false };
+        const { promise, resolve } = Promise.withResolvers<TimelinePage>();
+        resolveFirst = resolve;
+        return promise;
+      },
+    };
     const feed = new TimelineFeed(() => {});
-    feed.sync(hass, "entry", false);
+    feed.sync(hass, "entry", 10);
+    feed.sync(hass, "entry", 25);
     await settle();
+    resolveFirst?.({ items: [row("1", 100)], cursor: null, has_more: false });
     await settle();
-    expect(feed.state.items?.map((i) => i.ts)).toEqual([7]);
-    expect(calls.some((c) => c.type === "kibble/timeline")).toBe(true);
+    expect(feed.state.items).toEqual([row("2", 200)]);
   });
 
-  test("disposal unsubscribes, so a dead card stops costing the integration work", async () => {
-    const { hass, unsubscribes } = fakeHass();
+  test("loadMore does nothing while a request is already outstanding or history is exhausted", async () => {
+    const { hass, calls } = fakeHass([{ items: [row("1", 100)], cursor: null, has_more: false }]);
     const feed = new TimelineFeed(() => {});
-    feed.sync(hass, "entry", false);
+    feed.sync(hass, "entry", 25);
+    feed.loadMore(hass, "entry", 25); // exhausted (has_more still false from initial state) -- no-op
     await settle();
-    feed.dispose();
-    expect(unsubscribes()).toBe(1);
+    feed.loadMore(hass, "entry", 25); // now settled with has_more: false -- still a no-op
+    await settle();
+    expect(calls).toHaveLength(1);
+  });
+});
+
+describe("TimelineFeed item mutation", () => {
+  function seeded(): TimelineFeed {
+    const feed = new TimelineFeed(() => {});
+    feed.state = { items: [row("2", 200), row("1", 100)], loading: false, loadingMore: false, cursor: null, hasMore: false, error: null };
+    return feed;
+  }
+
+  test("replaceItem swaps a matching uid in place, leaving order and other rows untouched", () => {
+    const feed = seeded();
+    const updated = row("1", 100);
+    updated.cat = "Kitty";
+    feed.replaceItem("1", updated);
+    expect(feed.state.items).toEqual([row("2", 200), updated]);
   });
 
-  test("a superseded subscription cannot overwrite the current one's rows", async () => {
-    // Two syncs in flight (entry resolved, then the visits option flipped): the first one's
-    // late frames must not repaint rows for parameters nobody is showing any more.
-    const { hass, emit } = fakeHass();
-    const feed = new TimelineFeed(() => {});
-    feed.sync(hass, "entry", false);
-    await settle();
-    feed.sync(hass, "entry", true);
-    await settle();
-    emit([row(999)]);
-    expect(feed.state.items?.map((i) => i.ts)).toEqual([999]);
-    emit([row(1)], 0); // the first subscription, now superseded
-    expect(feed.state.items?.map((i) => i.ts)).toEqual([999]);
+  test("replaceItem is a no-op for a uid that isn't loaded", () => {
+    const feed = seeded();
+    const before = feed.state.items;
+    feed.replaceItem("missing", row("missing", 50));
+    expect(feed.state.items).toBe(before);
+  });
+
+  test("removeItem drops exactly the matching uid", () => {
+    const feed = seeded();
+    feed.removeItem("2");
+    expect(feed.state.items).toEqual([row("1", 100)]);
+  });
+
+  test("restoreItems replaces the whole list wholesale, for optimistic rollback", () => {
+    const feed = seeded();
+    const snapshot = feed.state.items;
+    feed.removeItem("1");
+    feed.removeItem("2");
+    expect(feed.state.items).toEqual([]);
+    feed.restoreItems(snapshot);
+    expect(feed.state.items).toEqual(snapshot);
   });
 });

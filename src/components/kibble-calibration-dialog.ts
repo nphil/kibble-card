@@ -60,6 +60,9 @@ export class KibbleCalibrationDialog extends LitElement {
     hass: { attribute: false },
     entryId: { attribute: false },
     open: { type: Boolean, reflect: true },
+    singleHopper: { type: Boolean },
+    food1: { type: String },
+    food2: { type: String },
     _step: { state: true },
     _hopper: { state: true },
     _calibration: { state: true },
@@ -78,6 +81,11 @@ export class KibbleCalibrationDialog extends LitElement {
   declare hass: HomeAssistant;
   declare entryId: string | undefined;
   declare open: boolean;
+  /** The hopper divider is out: the wizard offers hopper 0 only, plainly named "Hopper", and
+   * never offers to copy its curve to a second side that doesn't exist right now. */
+  declare singleHopper: boolean;
+  declare food1: string | null;
+  declare food2: string | null;
   declare _step: CalibrationStep;
   declare _hopper: 0 | 1 | null;
   declare _calibration: CalibrationState | null;
@@ -104,6 +112,9 @@ export class KibbleCalibrationDialog extends LitElement {
   constructor() {
     super();
     this.open = false;
+    this.singleHopper = false;
+    this.food1 = null;
+    this.food2 = null;
     this.entryId = undefined;
     this._resetWizard();
   }
@@ -245,7 +256,9 @@ export class KibbleCalibrationDialog extends LitElement {
     const portions = this._markFullPortions;
     this._runAction({ action: "full", hopper, portions }, this._confirmMarkFull, (state) => {
       this._calibration = state;
-      this._step = nextCalibrationStep(this._step, "full-marked");
+      // Single mode has no second hopper to offer copying the curve onto -- go straight to
+      // done rather than asking about a side that doesn't physically exist right now.
+      this._step = this.singleHopper ? "done" : nextCalibrationStep(this._step, "full-marked");
     });
   };
 
@@ -340,6 +353,21 @@ export class KibbleCalibrationDialog extends LitElement {
     }
   }
 
+  /** "Hopper" (single mode -- there is only one physical side to calibrate) or "Hopper N"
+   * (dual). Every instructional string in the wizard names the physical side this way. */
+  private _hopperLabel(index: 0 | 1): string {
+    return this.singleHopper ? "Hopper" : `Hopper ${index + 1}`;
+  }
+
+  /** The choose-hopper picker row's own label -- the one screen where naming the food (not
+   * just the side) actually helps pick the right one, e.g. "Hopper 1 \u00b7 Kibble". */
+  private _hopperRowLabel(index: 0 | 1): string {
+    const base = this._hopperLabel(index);
+    if (this.singleHopper) return base;
+    const food = (index === 0 ? this.food1 : this.food2)?.trim();
+    return food ? `${base} \u00b7 ${food}` : base;
+  }
+
   private _renderChooseHopper() {
     if (this._loading) return html`<p class="hint">Loading calibration\u2026</p>`;
     if (this._loadError) {
@@ -350,9 +378,14 @@ export class KibbleCalibrationDialog extends LitElement {
         </div>
       `;
     }
+    const indices = this.singleHopper ? ([0] as const) : ([0, 1] as const);
     return html`
-      <p class="hint">Pick a hopper. Each side keeps its own curve, since the two hoppers can hold different food.</p>
-      <div class="hopper-rows">${([0, 1] as const).map((index) => this._renderHopperRow(index))}</div>
+      <p class="hint">
+        ${this.singleHopper
+          ? "Dispensing known portions into an empty bowl builds the curve your fill reading is interpreted against."
+          : "Pick a hopper. Each side keeps its own curve, since the two hoppers can hold different food."}
+      </p>
+      <div class="hopper-rows">${indices.map((index) => this._renderHopperRow(index))}</div>
       ${this._hopper !== null ? this._renderHopperActions(this._hopper) : nothing}
     `;
   }
@@ -361,7 +394,7 @@ export class KibbleCalibrationDialog extends LitElement {
     const status = calibrationStatus(this._hopperData(index));
     return html`
       <button type="button" class="hopper-row ${this._hopper === index ? "selected" : ""}" @click=${() => this._selectHopper(index)}>
-        <span class="hopper-row-label">Hopper ${index + 1}</span>
+        <span class="hopper-row-label">${this._hopperRowLabel(index)}</span>
         <span class="hopper-row-status">${this._statusLine(status)}</span>
         ${status.note ? html`<span class="hopper-row-note">${status.note}</span>` : nothing}
       </button>
@@ -380,16 +413,16 @@ export class KibbleCalibrationDialog extends LitElement {
 
   private _renderHopperActions(index: 0 | 1) {
     const status = calibrationStatus(this._hopperData(index));
-    const label = index + 1;
+    const label = this._hopperLabel(index);
     if (status.kind === "never") {
-      return html`<button type="button" class="primary" @click=${() => this._beginRequested()}>Calibrate Hopper ${label}</button>`;
+      return html`<button type="button" class="primary" @click=${() => this._beginRequested()}>Calibrate ${label}</button>`;
     }
     return html`
       <div class="hopper-actions">
         <button type="button" class="danger ${this._clearConfirmArmed ? "confirming" : ""}" ?disabled=${this._busy} @click=${() => this._clearRequested()}>
           ${this._clearConfirmArmed ? "Tap again to clear" : "Clear calibration"}
         </button>
-        <button type="button" class="primary" @click=${() => this._beginRequested()}>Recalibrate Hopper ${label}</button>
+        <button type="button" class="primary" @click=${() => this._beginRequested()}>Recalibrate ${label}</button>
       </div>
       ${this._renderError()}
     `;
@@ -398,11 +431,11 @@ export class KibbleCalibrationDialog extends LitElement {
   private _renderConfirmEmpty() {
     const index = this._hopper;
     if (index === null) return nothing;
-    const label = index + 1;
+    const label = this._hopperLabel(index);
     const alreadyCalibrated = calibrationStatus(this._hopperData(index)).kind !== "never";
     return html`
-      <p class="hint">Make sure Hopper ${label}'s side of the bowl is completely empty, then start.</p>
-      ${alreadyCalibrated ? html`<div class="warning">Starting discards Hopper ${label}'s existing calibration.</div>` : nothing}
+      <p class="hint">Make sure ${label}'s side of the bowl is completely empty, then start.</p>
+      ${alreadyCalibrated ? html`<div class="warning">Starting discards ${label}'s existing calibration.</div>` : nothing}
       <label class="field">
         <span>What food is this? (optional)</span>
         <input
@@ -417,7 +450,7 @@ export class KibbleCalibrationDialog extends LitElement {
       ${this._waitingForBowl ? this._renderWaitingForBowl() : nothing}
       ${this._renderError()}
       <div class="actions">
-        <button type="button" class="primary" ?disabled=${this._busy} @click=${this._confirmEmpty}>${this._busy ? "Starting\u2026" : "Bowl is empty \u2014 start"}</button>
+        <button type="button" class="primary" ?disabled=${this._busy} @click=${this._confirmEmpty}>${this._busy ? "Starting\u2026" : "Bowl is empty, start"}</button>
       </div>
     `;
   }
@@ -427,11 +460,11 @@ export class KibbleCalibrationDialog extends LitElement {
     if (index === null) return nothing;
     const points = this._hopperData(index)?.points ?? [];
     return html`
-      <p class="hint">Dispense one portion into Hopper ${index + 1}'s side yourself, then capture the reading.</p>
+      <p class="hint">Dispense one portion into ${this._hopperLabel(index)}'s side yourself, then capture the reading.</p>
       ${this._renderCurve(points)}
       ${this._regression
         ? html`<div class="warning">
-            This step's score (${formatScore(this._regression.newScore)}) is lower than the previous step's (${formatScore(this._regression.previousScore)}) \u2014 a
+            This step's score (${formatScore(this._regression.newScore)}) is lower than the previous step's (${formatScore(this._regression.previousScore)}). A
             curve that dips can't be interpolated. Recapture this step before continuing.
           </div>`
         : nothing}
@@ -495,15 +528,15 @@ export class KibbleCalibrationDialog extends LitElement {
     const to = from === 0 ? 1 : 0;
     const otherHasData = calibrationStatus(this._hopperData(to)).kind !== "never";
     return html`
-      <p class="hint">Hopper ${from + 1} is calibrated.</p>
+      <p class="hint">${this._hopperLabel(from)} is calibrated.</p>
       <p class="hint">
-        Copy this curve to Hopper ${to + 1}? Only do this if it's the same food in both hoppers \u2014 this is a shortcut for
-        "same food," not a second measurement.${otherHasData ? html` This replaces Hopper ${to + 1}'s existing calibration.` : nothing}
+        Copy this curve to ${this._hopperLabel(to)}? Only do this if it's the same food in both hoppers. This is a shortcut for
+        "same food," not a second measurement.${otherHasData ? html` This replaces ${this._hopperLabel(to)}'s existing calibration.` : nothing}
       </p>
       ${this._renderError()}
       <div class="actions">
         <button type="button" ?disabled=${this._busy} @click=${() => this._declineInherit()}>Not now</button>
-        <button type="button" class="primary" ?disabled=${this._busy} @click=${this._acceptInherit}>${this._busy ? "Copying\u2026" : `Copy to Hopper ${to + 1}`}</button>
+        <button type="button" class="primary" ?disabled=${this._busy} @click=${this._acceptInherit}>${this._busy ? "Copying\u2026" : `Copy to ${this._hopperLabel(to)}`}</button>
       </div>
     `;
   }
@@ -512,9 +545,9 @@ export class KibbleCalibrationDialog extends LitElement {
     const index = this._hopper;
     if (index === null) return nothing;
     return html`
-      <p class="hint">Hopper ${index + 1} is calibrated.${this._inheritedTo !== null ? html` Copied to Hopper ${this._inheritedTo + 1} too.` : nothing}</p>
+      <p class="hint">${this._hopperLabel(index)} is calibrated.${this._inheritedTo !== null ? html` Copied to ${this._hopperLabel(this._inheritedTo)} too.` : nothing}</p>
       <div class="actions">
-        <button type="button" @click=${() => this._restart()}>Calibrate the other hopper</button>
+        ${this.singleHopper ? nothing : html`<button type="button" @click=${() => this._restart()}>Calibrate the other hopper</button>`}
         <button type="button" class="primary" @click=${this._close}>Done</button>
       </div>
     `;
@@ -524,7 +557,7 @@ export class KibbleCalibrationDialog extends LitElement {
     const retry = this._step === "collecting" ? this._capturePoint : this._confirmEmpty;
     return html`
       <div class="warning">
-        <span>No clear bowl reading right now \u2014 something may be in the way, or the feeder hasn't reported one yet. Try again in a moment.</span>
+        <span>No clear bowl reading right now. Something may be in the way, or the feeder hasn't reported one yet. Try again in a moment.</span>
         <button
           type="button"
           @click=${() => {

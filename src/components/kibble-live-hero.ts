@@ -46,14 +46,18 @@
  * was never opened, or loop `_start()` forever against a `scryptedId` that was never configured.
  */
 
-import { LitElement, css, html, nothing } from "lit";
-import type { HomeAssistant, VisionDetection, VisionFrame } from "../types";
+import { LitElement, css, html, nothing, type PropertyValues } from "lit";
+import type { CatSummary, HomeAssistant, VisionDetection, VisionFrame } from "../types";
 import { ScryptedLive, findScryptedToken } from "../lib/scrypted-live";
 import { pickVideoSource, type VideoSource } from "../lib/video-source";
 import { mdiIcon } from "../lib/mdi-icons";
 import { RECONNECT_BASE_MS, nextReconnectDelay } from "../lib/reconnect";
 import { WsQuery } from "../lib/ws-query";
-import { catLabelText, detectionRect, labelFlipsInside, largestAdmittedDetection } from "../lib/vision-overlay";
+import { fallbackCatColor } from "../lib/cat-colors";
+import { catColorAt } from "../styles/tokens";
+import type { OverlayBox } from "../lib/boxes";
+import type { ImageUrlCache } from "../lib/image-cache";
+import { HIDDEN, IDLE_MS, VISIBLE, onIdleTimeout, revealOnFirstTap, shouldArmTimer, type OverlayIdleState } from "../lib/overlay-idle";
 
 /** No `timeupdate` for this long while `_playing` counts as a dead stream. */
 const STALL_MS = 8000;
@@ -67,14 +71,34 @@ const HIDDEN_PAUSE_MS = 60000;
  * stays close enough to feel live without adding a second live-push channel just for a
  * diagnostic overlay. */
 const VISION_POLL_MS = 1000;
+/** Mirrors librefeedd's `speaker::CALL_COOLDOWN` exactly (`librefeed/daemon/src/speaker.rs`) --
+ * how long the button stays disabled after a press, matching the daemon's own authoritative
+ * per-call debounce so the UI is never re-enabled before a repeat press would actually work. */
+const CALL_COOLDOWN_MS = 10000;
+/** Roughly the feed cue's own playback length (`speaker::FEED_CUE_WAV`'s ~1.02s asset) -- purely
+ * for the button's brief sound-wave pulse; the daemon remains the one authority on whether the
+ * cue actually played. */
+const CALL_CUE_PULSE_MS = 1100;
+/** `.hero`'s box always keeps the real stream's aspect ratio (see `_reportMediaAspect`), but
+ * clamped to this range -- wide enough for any plausible camera (16:9, a letterboxed 4:3, even
+ * a doorbell's tall 3:4) without ever letting a corrupt metadata read squash the hero to a
+ * sliver or inflate it into a near-square block that eats the whole card. */
+const MIN_HERO_ASPECT = 1.0;
+const MAX_HERO_ASPECT = 2.4;
+/** Top inset reserved for the card's overlaid status chip and settings control. */
+const LIVE_HERO_CHROME_SAFE_TOP = 8 + 48 + 8;
 
 export class KibbleLiveHero extends LitElement {
   static properties = {
     hass: { attribute: false },
     cameraEntity: { attribute: false },
+    cats: { attribute: false },
+    cache: { attribute: false },
     scryptedId: { attribute: false },
     entryId: { attribute: false },
     overlayEntity: { attribute: false },
+    callCatsEntity: { attribute: false },
+    externalPin: { attribute: false },
     _playing: { state: true },
     _talking: { state: true },
     _muted: { state: true },
@@ -82,8 +106,11 @@ export class KibbleLiveHero extends LitElement {
     _expanded: { state: true },
     _fullscreen: { state: true },
     _tick: { state: true },
+    _callingCats: { state: true },
+    _pulsingCue: { state: true },
+    _overlayIdle: { state: true },
+    _controlsFocusVisible: { state: true },
   };
-
   private _starting = false;
   /** Pending backoff timer between a torn-down session and the next `_start()` attempt. */
   private _reconnectTimer: number | undefined;
@@ -95,6 +122,13 @@ export class KibbleLiveHero extends LitElement {
   private _lastProgress = 0;
   private _stallCheckInterval: number | undefined;
   private _hiddenTimer: number | undefined;
+  /** Clears `_callingCats` (the button's full cooldown window). */
+  private _cooldownTimer: number | undefined;
+  /** Clears `_pulsingCue` (the brief sound-wave animation, shorter than the cooldown itself). */
+  private _pulseTimer: number | undefined;
+  /** Fades the overlay controls back out after `IDLE_MS` of no activity; cleared/re-armed by
+   * `_armIdleTimer`, never allowed to run while `_idlePinned()`. */
+  private _idleTimer: number | undefined;
   /** Set once a long-hidden tab has stopped the stream, so the tab coming visible again knows
    * to restart from scratch (backoff reset) instead of treating it as a stall recovery. */
   private _hiddenPaused = false;
@@ -103,15 +137,33 @@ export class KibbleLiveHero extends LitElement {
    * its own `requestUpdate` on change, exactly like `kibble-card.ts`'s `_catsQuery`. */
   private _visionQuery = new WsQuery<{ frame: VisionFrame | null }>(() => this.requestUpdate());
   private _visionTimer: number | undefined;
+  /** Last aspect ratio (width/height) reported via `media-aspect-changed`, so a repeat
+   * `loadedmetadata`/`load` firing with the same size (Scrypted can refire it on reconnect)
+   * never dispatches a redundant event or nudges `kibble-card.ts` into an extra style write. */
+  private _reportedAspect: number | undefined;
+  /** The `<img>` currently being watched for its `load` event inside `hui-image`'s own shadow
+   * root (`_syncStillAspectWatch`) -- `null` once nothing has been found yet, or `hui-image`
+   * is not in use (this component's own fallback `<img>` is bound directly in the render
+   * template instead and needs no such tracking). */
+  private _watchedStillImg: HTMLImageElement | null = null;
 
   declare hass: HomeAssistant;
   declare cameraEntity: string | undefined;
-  /** Scrypted device id of the feeder camera, from the card config. */
+  declare cats: CatSummary[];
+  declare cache: ImageUrlCache | undefined;
   declare scryptedId: string | undefined;
   /** HA config-entry id, for the `kibble/vision/last` WS call's `entry_id`. */
   declare entryId: string | undefined;
   /** `switch.<feeder>_detection_overlay`'s entity id; off or missing means no overlay, ever. */
   declare overlayEntity: string | undefined;
+  /** `button.<feeder>_call_cats`'s entity id; missing or unavailable hides the button entirely
+   * (`_callCatsAvailable`). */
+  declare callCatsEntity: string | undefined;
+  /** Set by `kibble-card.ts` while its settings dialog (opened from the `.gear-button` chrome
+   * that overlaps this component from *outside* its shadow DOM) is open -- one more pin
+   * condition alongside the internal ones in `_idlePinned`, so the overlay controls never fade
+   * out from under a popup this component has no other way to know about. */
+  declare externalPin: boolean | undefined;
   /** Live video is actually showing, whichever transport is providing it -- Scrypted's `<video>`
    * or HA's own `<ha-camera-stream>`. Gates the mute button, the detection overlay, and vision
    * polling identically either way; only the Scrypted-specific reconnect/stall/hidden-pause
@@ -126,6 +178,24 @@ export class KibbleLiveHero extends LitElement {
   /** Native fullscreen is active on the frame (or the video, on iOS). */
   declare private _fullscreen: boolean;
   declare private _tick: number;
+  /** True for the button's whole cooldown window (`CALL_COOLDOWN_MS`) from the moment it is
+   * pressed -- disables it and matches the daemon's own per-call debounce
+   * (`speaker::CALL_COOLDOWN`), so the button never looks pressable before a repeat press would
+   * actually work. */
+  declare private _callingCats: boolean;
+  /** True only for the cue's own rough playback length (`CALL_CUE_PULSE_MS`), a strict subset of
+   * `_callingCats`'s longer cooldown window -- drives the brief sound-wave pulse only, never the
+   * disabled state itself. */
+  declare private _pulsingCue: boolean;
+  /** Whether the overlay controls (mute/talk/call-cats, and the expanded topbar's fullscreen/
+   * close chips) are currently shown -- see `lib/overlay-idle.ts` for the state machine and
+   * `_idlePinned`/`_armIdleTimer` for how this component drives it. */
+  declare private _overlayIdle: OverlayIdleState;
+  /** True while a control inside `.controls`/`.topbar` holds keyboard-style focus
+   * (`:focus-visible`) -- a pin condition (`_idlePinned`), set/cleared by `_onFrameFocusIn`/
+   * `_onFrameFocusOut`, distinct from a plain mouse-click focus, which must not itself block the
+   * fade. */
+  declare private _controlsFocusVisible: boolean;
 
   private _live = new ScryptedLive(() => {
     this._tick = (this._tick ?? 0) + 1;
@@ -133,6 +203,7 @@ export class KibbleLiveHero extends LitElement {
 
   constructor() {
     super();
+    this.cats = [];
     this._playing = false;
     this._talking = false;
     this._muted = true;
@@ -140,6 +211,10 @@ export class KibbleLiveHero extends LitElement {
     this._expanded = false;
     this._fullscreen = false;
     this._tick = 0;
+    this._callingCats = false;
+    this._pulsingCue = false;
+    this._overlayIdle = VISIBLE;
+    this._controlsFocusVisible = false;
   }
 
   connectedCallback(): void {
@@ -148,6 +223,7 @@ export class KibbleLiveHero extends LitElement {
     document.addEventListener("fullscreenchange", this._onFullscreenChange);
     document.addEventListener("webkitfullscreenchange", this._onFullscreenChange);
     this._stallCheckInterval = setInterval(this._checkStall, STALL_CHECK_INTERVAL_MS) as unknown as number;
+    this._armIdleTimer();
   }
 
   disconnectedCallback(): void {
@@ -160,6 +236,12 @@ export class KibbleLiveHero extends LitElement {
     this._stallCheckInterval = undefined;
     clearInterval(this._visionTimer);
     this._visionTimer = undefined;
+    clearTimeout(this._cooldownTimer);
+    this._cooldownTimer = undefined;
+    clearTimeout(this._pulseTimer);
+    this._pulseTimer = undefined;
+    clearTimeout(this._idleTimer);
+    this._idleTimer = undefined;
     this._stop();
   }
 
@@ -181,11 +263,26 @@ export class KibbleLiveHero extends LitElement {
    * there is a camera entity to show -- tearing down a still-live (or still-reconnecting)
    * Scrypted session first if the source just switched away from it, so the two transports can
    * never both be mid-session at once. */
-  updated(): void {
+  updated(changedProperties: PropertyValues): void {
     this._syncVisionPolling();
+    this._syncStillAspectWatch();
+    if (changedProperties.has("_talking") || changedProperties.has("_pulsingCue") || changedProperties.has("_controlsFocusVisible") || changedProperties.has("externalPin")) {
+      this._syncIdlePin();
+    }
     const source = this._videoSource();
     if (source.kind !== "scrypted") {
-      if (this._playing || this._starting || this._reconnecting || this._hiddenPaused || this._live.state !== "idle") {
+      // Only `_starting`/`_reconnecting`/`_hiddenPaused`/a non-idle `_live` mean there is an
+      // actual Scrypted session to tear down -- `_playing` alone does NOT: it is also exactly
+      // what a *stable* ha-camera source looks like on every render after the first, and
+      // calling `_stop()` on that steady state reset it to `false` only to be set straight
+      // back to `true` two lines down, which -- since each of those two assignments is a real
+      // change from Lit's point of view -- scheduled another `updated()` pass forever (this is
+      // the actual cause of "mounting a real camera hangs Chromium": a genuine infinite render
+      // loop, not a slow one). Dropping `_playing` from this check leaves the teardown exactly
+      // where it is still needed (switching away from a live/connecting/erroring Scrypted
+      // session) while making steady-state ha-camera a true no-op, matching `<ha-camera-
+      // stream>` managing its own connect/reconnect lifecycle once handed the entity.
+      if (this._starting || this._reconnecting || this._hiddenPaused || this._live.state !== "idle") {
         this._stop();
       }
       this._playing = source.kind === "ha-camera";
@@ -203,12 +300,21 @@ export class KibbleLiveHero extends LitElement {
     const source = this._videoSource();
     return html`
       ${this._expanded ? html`<div class="backdrop" @click=${this._collapse}></div>` : nothing}
-      <div class="frame ${this._expanded ? "expanded" : ""}" id="frame" @click=${this._onFrameClick}>
+      <div
+        class="frame ${this._expanded ? "expanded" : ""}"
+        id="frame"
+        @click=${this._onFrameClick}
+        @pointermove=${this._onOverlayActivity}
+        @pointerenter=${this._onOverlayActivity}
+        @wheel=${this._onOverlayActivity}
+        @focusin=${this._onFrameFocusIn}
+        @focusout=${this._onFrameFocusOut}
+      >
         ${this._renderStill()}
         ${this._playing ? this._renderVideo(source) : nothing}
         ${this._playing ? this._renderDetections() : nothing}
         ${this._expanded
-          ? html`<div class="topbar">
+          ? html`<div class="topbar ${this._overlayIdle.visible ? "" : "idle-hidden"}">
               <button class="chip" aria-label=${this._fullscreen ? "Leave fullscreen" : "Fullscreen"} title=${this._fullscreen ? "Leave fullscreen" : "Fullscreen"} @click=${this._toggleFullscreen}>
                 ${mdiIcon(this._fullscreen ? "fullscreenExit" : "fullscreen")}
               </button>
@@ -218,7 +324,7 @@ export class KibbleLiveHero extends LitElement {
         ${source.kind === "scrypted" && this._reconnecting
           ? html`<div class="reconnect" role="status" aria-label="Reconnecting to the feeder's camera">${mdiIcon("refresh")}</div>`
           : nothing}
-        <div class="controls">
+        <div class="controls ${this._overlayIdle.visible ? "" : "idle-hidden"}">
           ${this._playing
             ? html`<button
                 class="chip"
@@ -239,6 +345,17 @@ export class KibbleLiveHero extends LitElement {
                 @click=${this._toggleTalk}
               >
                 ${mdiIcon(this._talking ? "microphone" : "microphoneOff")}
+              </button>`
+            : nothing}
+          ${this._callCatsAvailable()
+            ? html`<button
+                class="chip call-cats ${this._pulsingCue ? "pulsing" : ""}"
+                aria-label="Call the cats"
+                title="Call the cats"
+                ?disabled=${this._callingCats}
+                @click=${this._callCats}
+              >
+                ${mdiIcon("cat")}
               </button>`
             : nothing}
         </div>
@@ -266,7 +383,7 @@ export class KibbleLiveHero extends LitElement {
         autoplay
         playsinline
         ?muted=${this._muted}
-        @loadedmetadata=${this._applyMute}
+        @loadedmetadata=${this._onScryptedLoadedMetadata}
         @timeupdate=${this._onTimeUpdate}
       ></video>`;
     }
@@ -274,7 +391,7 @@ export class KibbleLiveHero extends LitElement {
       return html`<ha-camera-stream
         .hass=${this.hass}
         .stateObj=${this.hass.states[source.entityId]}
-        .fitMode=${this._expanded ? "contain" : "cover"}
+        .fitMode=${"contain"}
         .muted=${this._muted}
       ></ha-camera-stream>`;
     }
@@ -288,46 +405,81 @@ export class KibbleLiveHero extends LitElement {
     }
     const src = this.hass.states[this.cameraEntity]?.attributes.entity_picture;
     return typeof src === "string"
-      ? html`<img src=${src} alt="The feeder's camera" />`
+      ? html`<img src=${src} alt="The feeder's camera" @load=${this._onStillImgLoad} />`
       : html`<div class="placeholder">Camera unavailable</div>`;
   }
 
-  /** The feeder's own detection boxes for the frame it most recently analysed. `admitted`
-   * boxes get the accent treatment; the ones its clutter memory rejected are drawn quieter --
-   * and only when the feeder's own `overlay_suppressed` flag says to. They are how "the feeder
-   * is ignoring the cat" becomes visible rather than looking like an empty room, but a busy
-   * room emits several of them on every frame forever, so they are opt-in (the "Overlay
-   * ignored detections" switch) instead of permanent dashboard furniture. The identified cat's
-   * name labels whichever admitted box is largest. */
+  /** Reports the media's real width/height ratio once known -- Scrypted's `<video>` on
+   * `loadedmetadata`, or the snapshot `<img>`'s natural size once it loads (`hui-image`'s own
+   * internal `<img>`, reached through its shadow root, or this component's own fallback `<img>`
+   * when `hui-image` is not registered) -- so `kibble-card.ts` can size `.hero` to the stream's
+   * true aspect instead of a guessed default. Degenerate readings (a `0x0` metadata event, an
+   * image that has not actually finished loading) are dropped; everything else is clamped to a
+   * sane range so a corrupt frame can never squash the hero to a sliver or blow it up past
+   * anything a camera stream plausibly is. Also set directly on this element's own
+   * `--kibble-hero-aspect` (its `:host` rule below reads that same variable), so a standalone
+   * `<kibble-live-hero>` -- the dev harness, `dev/parts.html` -- sizes itself correctly too, not
+   * only `.hero` after the event bubbles up to `kibble-card.ts`. */
+  private _reportMediaAspect(width: number, height: number): void {
+    if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return;
+    const ratio = Math.min(MAX_HERO_ASPECT, Math.max(MIN_HERO_ASPECT, width / height));
+    if (this._reportedAspect !== undefined && Math.abs(this._reportedAspect - ratio) < 0.001) return;
+    this._reportedAspect = ratio;
+    this.style.setProperty("--kibble-hero-aspect", String(ratio));
+    this.dispatchEvent(new CustomEvent("media-aspect-changed", { detail: { ratio }, bubbles: true, composed: true }));
+  }
+
+  private _onScryptedLoadedMetadata = (): void => {
+    this._applyMute();
+    const video = this.renderRoot.querySelector<HTMLVideoElement>("#video");
+    if (video) this._reportMediaAspect(video.videoWidth, video.videoHeight);
+  };
+
+  private _onStillImgLoad = (e: Event): void => {
+    const img = e.target as HTMLImageElement;
+    this._reportMediaAspect(img.naturalWidth, img.naturalHeight);
+  };
+
+  /** `hui-image` renders its own `<img>` inside ITS OWN shadow root -- reached only through
+   * that boundary, and only best-effort: a future HA version restructuring it, or a closed
+   * shadow root, just leaves the default aspect standing, never a thrown error. Re-checked on
+   * every `updated()` (cheap: two `querySelector`s) rather than once, since `hui-image` mounts
+   * its own `<img>` on its own render cycle, not necessarily by the time this component's
+   * first render has committed. */
+  private _syncStillAspectWatch(): void {
+    const host = this.renderRoot.querySelector("hui-image");
+    const img = (host?.shadowRoot?.querySelector("img") as HTMLImageElement | null) ?? null;
+    if (img === this._watchedStillImg) return;
+    if (this._watchedStillImg) this._watchedStillImg.removeEventListener("load", this._onStillImgLoad);
+    this._watchedStillImg = img;
+    if (!img) return;
+    if (img.complete && img.naturalWidth > 0) this._reportMediaAspect(img.naturalWidth, img.naturalHeight);
+    img.addEventListener("load", this._onStillImgLoad, { once: true });
+  }
+
+  /** Render each detector box independently. Rejected clutter stays quiet and opt-in, while
+   * named detections use their own roster color and avatar. */
   private _renderDetections() {
     const frame = this._visionQuery.state.data?.frame;
     if (!this._overlayOn() || !frame?.detections) return nothing;
-    // `overlay_suppressed` absent (a daemon predating the switch) keeps the old behaviour of
-    // drawing everything, rather than silently hiding detections it cannot ask about.
+    // Older daemons without the switch echo keep the previous visible-clutter behavior.
     const showIgnored = frame.overlay_suppressed ?? true;
-    const detections = frame.detections.filter((d) => d.admitted || showIgnored);
+    const detections = frame.detections.filter((detection) => detection.admitted || showIgnored);
     if (detections.length === 0) return nothing;
-    const cat = frame.cat;
-    const labelBox = cat ? largestAdmittedDetection(detections) : null;
-    return html`
-      <div class="detections" aria-hidden="true">
-        ${detections.map((detection) => this._renderDetectionBox(detection))}
-        ${labelBox && cat ? this._renderCatLabel(labelBox, cat, frame.cat_score ?? null) : nothing}
-      </div>
-    `;
-  }
-
-  private _renderDetectionBox(detection: VisionDetection) {
-    const rect = detectionRect(detection);
-    const style = `left:${rect.left};top:${rect.top};width:${rect.width};height:${rect.height};`;
-    return html`<div class="det-box ${detection.admitted ? "" : "quiet"}" style=${style}></div>`;
-  }
-
-  private _renderCatLabel(box: VisionDetection, cat: string, catScore: number | null) {
-    const rect = detectionRect(box);
-    return html`<div class="det-label ${labelFlipsInside(box) ? "flip" : ""}" style="left:${rect.left};top:${rect.top};">
-      ${catLabelText(cat, catScore)}
-    </div>`;
+    const boxes: OverlayBox[] = detections.map((detection, index): OverlayBox => {
+      const name = detection.cat || null;
+      const cat = name ? this.cats?.find((candidate) => candidate.name === name) : undefined;
+      const named = detection.admitted && name !== null;
+      return {
+        key: `vision-${detection.sid ?? "unmatched"}-${index}`,
+        box: [detection.x1, detection.y1, detection.x2, detection.y2],
+        tone: detection.admitted ? (named ? "cat" : "unknown") : "clutter",
+        color: named ? (cat ? catColorAt(cat.color) : fallbackCatColor(name)) : undefined,
+        label: named ? name : undefined,
+        avatar: cat?.avatar ?? null,
+      };
+    });
+    return html`<kibble-box-overlay class="detections" .boxes=${boxes} .hass=${this.hass} .cache=${this.cache} .labelSafeTop=${LIVE_HERO_CHROME_SAFE_TOP}></kibble-box-overlay>`;
   }
 
   private _start = async (): Promise<void> => {
@@ -486,9 +638,20 @@ export class KibbleLiveHero extends LitElement {
     this._backoffMs = RECONNECT_BASE_MS;
   };
 
-  /** A tap on the picture itself expands; taps on the chips are their own buttons and never
-   * bubble here as "the picture" (they stop propagation). */
+  /** A tap on the picture itself expands (or, while the overlay controls are faded out, only
+   * reveals them -- the standard "first tap just reveals" mobile video-player convention,
+   * `lib/overlay-idle.ts`'s `revealOnFirstTap`). Taps on the chips are their own buttons and
+   * never bubble here as "the picture" while visible (they stop propagation) -- while hidden
+   * they cannot be tapped at all (`pointer-events: none` in `.idle-hidden`), so this never has
+   * to tell "a chip tap" apart from "a bare video tap" for the reveal-only case. */
   private _onFrameClick = (e: Event): void => {
+    if (!this._overlayIdle.visible) {
+      this._applyOverlayIdle(revealOnFirstTap(this._overlayIdle).state);
+      this._armIdleTimer();
+      e.stopPropagation();
+      return;
+    }
+    this._onOverlayActivity();
     if ((e.target as HTMLElement).closest?.(".chip")) {
       e.stopPropagation();
       return;
@@ -503,6 +666,7 @@ export class KibbleLiveHero extends LitElement {
 
   private _collapse = (e?: Event): void => {
     e?.stopPropagation();
+    this._onOverlayActivity();
     document.removeEventListener("keydown", this._onKeyDown);
     if (this._fullscreen) {
       void (document.exitFullscreen?.() ?? Promise.resolve()).catch(() => undefined);
@@ -518,6 +682,7 @@ export class KibbleLiveHero extends LitElement {
    * the video element, which is why `webkitEnterFullscreen` on the video is the fallback. */
   private _toggleFullscreen = async (e: Event): Promise<void> => {
     e.stopPropagation();
+    this._onOverlayActivity();
     if (this._fullscreen) {
       await (document.exitFullscreen?.() ?? Promise.resolve()).catch(() => undefined);
       return;
@@ -554,6 +719,7 @@ export class KibbleLiveHero extends LitElement {
    * comment); `<ha-camera-stream>`'s `.muted` binding in `_renderVideo` is a normal Lit
    * property, so its own next render already carries the new value with no DOM poke needed. */
   private _toggleMute = (): void => {
+    this._onOverlayActivity();
     this._muted = !this._muted;
     if (this._videoSource().kind === "scrypted") this._applyMute();
   };
@@ -568,6 +734,7 @@ export class KibbleLiveHero extends LitElement {
   };
 
   private _toggleTalk = async (): Promise<void> => {
+    this._onOverlayActivity();
     const next = !this._talking;
     this._talking = next;
     try {
@@ -578,6 +745,119 @@ export class KibbleLiveHero extends LitElement {
     }
   };
 
+  /** Missing entity (an older integration, no LibreFeed daemon) or unavailable (feeder
+   * unreachable, or running the vendor stack -- `KibbleCallCatsButton.available` in the
+   * integration) both hide the button outright, same convention `_overlayOn` uses for the
+   * detection-overlay switch. Not gated by `_playing`: calling the cats needs no live video. */
+  private _callCatsAvailable(): boolean {
+    const id = this.callCatsEntity;
+    return id !== undefined && this.hass?.states[id]?.state !== "unavailable";
+  }
+
+  /** Fire-and-forget `button.press` on the entity, exactly how any other card presses a button
+   * entity -- the agent's own `POST /cue` debounce/cooldown (`speaker::CALL_COOLDOWN`) is the
+   * real authority; `_callingCats`/`_pulsingCue` are only this button's own optimistic local
+   * reflection of that, so it never looks pressable before a repeat press would actually work.
+   * A rejected call (the agent's own cooldown, or a genuine failure) already raises its own
+   * translated Home Assistant notification -- nothing further to show here. */
+  private _callCats = (e: Event): void => {
+    e.stopPropagation();
+    this._onOverlayActivity();
+    if (this._callingCats || !this.callCatsEntity) return;
+    const entityId = this.callCatsEntity;
+    this._callingCats = true;
+    this._pulsingCue = true;
+    this._cooldownTimer = setTimeout(() => {
+      this._callingCats = false;
+    }, CALL_COOLDOWN_MS) as unknown as number;
+    this._pulseTimer = setTimeout(() => {
+      this._pulsingCue = false;
+    }, CALL_CUE_PULSE_MS) as unknown as number;
+    void this.hass.callService("button", "press", { entity_id: entityId }).catch(() => undefined);
+  };
+
+  // ---- Idle overlay (video-player-style auto-hide, lib/overlay-idle.ts) --------------------
+
+  /** Any interaction that should reveal the controls and restart the idle timer: pointer move/
+   * enter or wheel over the frame (bound directly in `render()`), or a real control's own click/
+   * focus handler calling this explicitly so it works the same whether or not that handler also
+   * stops the click from bubbling to `_onFrameClick`. */
+  private _onOverlayActivity = (): void => {
+    this._applyOverlayIdle(VISIBLE);
+    this._armIdleTimer();
+  };
+
+  /** Keyboard `Tab` landing on a control inside the frame reveals it (same as any other
+   * activity) and, if it's a keyboard-style focus (`:focus-visible`, not a mouse-click focus),
+   * pins the controls open for as long as that focus lasts -- see `_idlePinned`. */
+  private _onFrameFocusIn = (e: FocusEvent): void => {
+    this._onOverlayActivity();
+    const target = e.target as HTMLElement;
+    this._controlsFocusVisible = typeof target.matches === "function" && target.matches(":focus-visible");
+  };
+
+  /** Clears the focus-visible pin only once focus actually leaves the frame entirely -- moving
+   * from one control to another inside it re-pins via that control's own `focusin` instead. */
+  private _onFrameFocusOut = (e: FocusEvent): void => {
+    const next = e.relatedTarget as Node | null;
+    const frame = this.renderRoot.querySelector("#frame");
+    if (!next || !frame?.contains(next)) {
+      this._controlsFocusVisible = false;
+    }
+  };
+
+  /** Public hook for chrome that overlaps this component's video from *outside* its own shadow
+   * DOM (`kibble-card.ts`'s `.gear-button`, absolutely positioned over the hero) -- lets an
+   * external click/focus on that chrome count as activity too, exactly like an internal one. */
+  notifyActivity(): void {
+    this._onOverlayActivity();
+  }
+
+  /** The one place `_overlayIdle` is ever reassigned -- dispatches `overlay-idle-changed`
+   * (bubbling, composed) whenever visibility actually transitions, so chrome outside this
+   * component's shadow DOM (`kibble-card.ts`'s `.gear-button`) can fade in step without needing
+   * to poll this component's own state. */
+  private _applyOverlayIdle(next: OverlayIdleState): void {
+    const changed = next.visible !== this._overlayIdle.visible;
+    this._overlayIdle = next;
+    if (changed) {
+      this.dispatchEvent(new CustomEvent<{ visible: boolean }>("overlay-idle-changed", { detail: { visible: next.visible }, bubbles: true, composed: true }));
+    }
+  }
+
+  /** Everything that must keep the overlay controls on screen regardless of the idle timer:
+   * active talkback, the call-cats cooldown pulse, keyboard focus inside the controls, or (from
+   * outside this component entirely) `kibble-card.ts`'s settings popup being open. */
+  private _idlePinned(): boolean {
+    return this._talking || this._pulsingCue || this._controlsFocusVisible || Boolean(this.externalPin);
+  }
+
+  /** Cancels/re-arms the idle timer to match the current pin state -- called from `updated()`
+   * whenever anything `_idlePinned()` reads changes. A pin starting always reveals immediately
+   * (it must never race a timeout already in flight); a pin ending is treated like fresh
+   * activity, restarting the full `IDLE_MS` window rather than resuming a partially-elapsed one. */
+  private _syncIdlePin(): void {
+    if (this._idlePinned()) {
+      clearTimeout(this._idleTimer);
+      this._idleTimer = undefined;
+      if (!this._overlayIdle.visible) this._applyOverlayIdle(VISIBLE);
+      return;
+    }
+    if (this._idleTimer === undefined) this._armIdleTimer();
+  }
+
+  private _armIdleTimer(): void {
+    clearTimeout(this._idleTimer);
+    this._idleTimer = undefined;
+    if (!shouldArmTimer(this._overlayIdle, this._idlePinned())) return;
+    this._idleTimer = setTimeout(this._onIdleTimerFired, IDLE_MS) as unknown as number;
+  }
+
+  private _onIdleTimerFired = (): void => {
+    this._idleTimer = undefined;
+    this._applyOverlayIdle(onIdleTimeout(this._overlayIdle, this._idlePinned()));
+  };
+
   static styles = css`
     :host {
       display: block;
@@ -586,10 +866,15 @@ export class KibbleLiveHero extends LitElement {
          takes its height from its parent. In the stacked (phone) layout nothing supplies one,
          and a hero with no loaded frame collapsed to ~60 px -- measured on a 390x844 viewport
          -- then jumped to full height the moment the stream arrived. The ratio reserves the
-         space up front. Where a parent does set a height (the wide layout, where the side
-         column drives the row) that height still wins: aspect-ratio only fills in a dimension
-         nothing else has decided. */
-      aspect-ratio: 16 / 9;
+         space up front, and is always the media's own real ratio once _reportMediaAspect
+         learns it (set directly on this host's own --kibble-hero-aspect custom property;
+         kibble-card.ts sets the same variable on .hero from the bubbled media-aspect-changed
+         event, so the two stay in lockstep even though .hero -- not this element's own
+         aspect-ratio -- is what actually sizes the video once this is nested inside the card).
+         Where a parent does set a height (the wide layout, where the side column drives the
+         row) that height still wins: aspect-ratio only fills in a dimension nothing else has
+         decided. */
+      aspect-ratio: var(--kibble-hero-aspect, 16 / 9);
       position: relative;
     }
     .frame {
@@ -604,11 +889,6 @@ export class KibbleLiveHero extends LitElement {
       z-index: 1001; /* above HA's app header (z-index 4) and dialogs' scrim */
       cursor: default;
       background: #000;
-    }
-    .frame.expanded video,
-    .frame.expanded img,
-    .frame.expanded hui-image {
-      object-fit: contain;
     }
     .backdrop {
       position: fixed;
@@ -634,7 +914,7 @@ export class KibbleLiveHero extends LitElement {
       display: block;
       width: 100%;
       height: 100%;
-      object-fit: cover; /* ha-camera-stream ignores this on its own host; see .fitMode in _renderVideo */
+      object-fit: contain; /* never cropped, inline or expanded; ha-camera-stream ignores this on its own host -- its .fitMode in _renderVideo carries the same "contain" instead */
     }
     video,
     ha-camera-stream {
@@ -664,6 +944,28 @@ export class KibbleLiveHero extends LitElement {
       bottom: max(12px, env(safe-area-inset-bottom));
       right: max(12px, env(safe-area-inset-right));
     }
+    /* Video-player-style auto-hide (lib/overlay-idle.ts): no transition property outside the
+       no-preference query, so a reduced-motion user's browser snaps the final opacity/position
+       instantly instead of animating it, matching .reconnect svg's spin and
+       .chip.call-cats.pulsing's rings just below. */
+    @media (prefers-reduced-motion: no-preference) {
+      .controls,
+      .topbar {
+        transition: opacity 200ms ease, transform 200ms ease;
+      }
+    }
+    .controls.idle-hidden {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    .topbar.idle-hidden {
+      opacity: 0;
+      transform: translateY(-6px);
+    }
+    .controls.idle-hidden .chip,
+    .topbar.idle-hidden .chip {
+      pointer-events: none;
+    }
     .chip {
       pointer-events: auto;
       display: inline-flex;
@@ -692,6 +994,41 @@ export class KibbleLiveHero extends LitElement {
     .chip.talk[aria-pressed="true"] {
       background: var(--kibble-amber, #f2a33c);
       color: var(--kibble-ink-on-amber, #241a07);
+    }
+    .chip.call-cats {
+      position: relative;
+    }
+    .chip.call-cats:disabled {
+      opacity: 0.5;
+      cursor: default;
+    }
+    .chip.call-cats.pulsing::before,
+    .chip.call-cats.pulsing::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      border: 2px solid var(--kibble-amber, #f2a33c);
+      opacity: 0;
+      pointer-events: none;
+    }
+    @media (prefers-reduced-motion: no-preference) {
+      .chip.call-cats.pulsing::before {
+        animation: kibble-cue-pulse 1.1s ease-out;
+      }
+      .chip.call-cats.pulsing::after {
+        animation: kibble-cue-pulse 1.1s ease-out 0.25s;
+      }
+    }
+    @keyframes kibble-cue-pulse {
+      0% {
+        transform: scale(1);
+        opacity: 0.7;
+      }
+      100% {
+        transform: scale(1.9);
+        opacity: 0;
+      }
     }
     .reconnect {
       position: absolute;
@@ -740,33 +1077,6 @@ export class KibbleLiveHero extends LitElement {
     .detections {
       position: absolute;
       inset: 0;
-      overflow: hidden;
-      pointer-events: none;
-    }
-    .det-box {
-      position: absolute;
-      border: 2px solid var(--kibble-amber, #f2a33c);
-      border-radius: 3px;
-      transition: left 250ms ease, top 250ms ease, width 250ms ease, height 250ms ease;
-    }
-    .det-box.quiet {
-      border: 1px dashed rgba(255, 255, 255, 0.45);
-      opacity: 0.6;
-    }
-    .det-label {
-      position: absolute;
-      transform: translateY(calc(-100% - 4px));
-      padding: 2px 8px;
-      border-radius: 999px;
-      background: rgba(0, 0, 0, 0.65);
-      color: #fff;
-      font-size: 12px;
-      font-weight: 500;
-      white-space: nowrap;
-      transition: left 250ms ease, top 250ms ease;
-    }
-    .det-label.flip {
-      transform: translateY(4px);
     }
   `;
 }

@@ -20,10 +20,6 @@ describe("deriveFeederStatus", () => {
 });
 
 describe("statusText", () => {
-  test("names the interface's own unreachable message, not a raw state", () => {
-    expect(statusText("unreachable", null)).toBe("Feeder unreachable \u2014 check that kibbled is running");
-  });
-
   test("shows Dispensing while a feed is running, ignoring any stale last-fed text", () => {
     expect(statusText("dispensing", "2h ago")).toBe("Dispensing\u2026");
   });

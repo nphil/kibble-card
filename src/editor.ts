@@ -18,14 +18,16 @@ const SCHEMA: SchemaField[] = [
   { name: "name", selector: { text: {} } },
   { name: "scrypted_id", selector: { text: {} } },
   { name: "settings_hash", selector: { text: {} } },
+  { name: "detection_areas_hash", selector: { text: {} } },
   { name: "schedule_hash", selector: { text: {} } },
 ];
 
 const FIELD_LABELS: Record<string, string> = {
   device_id: "Kibble device",
   name: "Name (optional)",
-  scrypted_id: "Scrypted camera id (optional — adds low-latency video + talk)",
+  scrypted_id: "Scrypted camera id (optional, adds low-latency video and talk)",
   settings_hash: "Settings pop-up hash (optional)",
+  detection_areas_hash: "Detection areas pop-up hash (optional)",
   schedule_hash: "Schedule handled by dashboard (optional hash)",
 };
 
@@ -94,6 +96,15 @@ export class KibbleCardEditor extends LitElement {
           />
         </label>
         <label>
+          <span>Detection areas pop-up hash (optional)</span>
+          <input
+            type="text"
+            placeholder="#detection-areas"
+            .value=${this._config?.detection_areas_hash ?? ""}
+            @change=${(event: Event) => this._updateDetectionAreasHash((event.target as HTMLInputElement).value)}
+          />
+        </label>
+        <label>
           <span>Schedule pop-up hash (optional)</span>
           <input
             type="text"
@@ -126,6 +137,12 @@ export class KibbleCardEditor extends LitElement {
   private _updateSettingsHash(value: string): void {
     if (!this._config) return;
     this._config = { ...this._config, settings_hash: value || undefined };
+    this._fireConfigChanged();
+  }
+
+  private _updateDetectionAreasHash(value: string): void {
+    if (!this._config) return;
+    this._config = { ...this._config, detection_areas_hash: value || undefined };
     this._fireConfigChanged();
   }
 

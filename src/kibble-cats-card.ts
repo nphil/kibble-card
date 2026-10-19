@@ -1,144 +1,156 @@
-/** Training as confirmation: enrolled cats up top, a one-tap inbox of pending face crops below.
- * Each crop already carries what the feeder's own identifier and Kibble's classifier think, so
- * the default gesture is one tap that means "yes" -- everything else (the chooser, per-cat
- * galleries) is the correction path, not the common case. See DESIGN.md for the full rationale.
- *
- * v1 scope note: single-crop confirm/choose/undo and per-cat gallery removal are implemented in
- * full; DESIGN.md's "Select mode" bulk bar (checkbox multi-select, "Confirm all <cat>"/"Label
- * as...") is not yet built -- every crop is handled one at a time. See README.md.
+/** Enrolled cats up top (avatar, when last seen, meals today, how much is trained, accuracy once
+ * it's measurable) -- then a paged review queue of whatever the identity engine couldn't name,
+ * one tile per event, with multi-select bulk assign for working through a batch fast. Tap a tile
+ * (outside select mode) for the same full labelling sheet the timeline uses. Per-cat training
+ * photos are hidden behind "View training" so the whole card doesn't render every crop for every
+ * cat at once -- the old "199 blank flashing tiles" failure mode this whole rewrite exists to
+ * fix. See `kibble/docs/36-ai-pipeline.md` for the full contract this renders.
  */
 
+import type { CustomCardEntry } from "./kibble-card";
 import { LitElement, css, html, nothing } from "lit";
-import { createRef, ref } from "lit/directives/ref.js";
-import type { CatSample, FaceUploadResult, HomeAssistant, KibbleCatSummary, KibbleCatsCardConfig, PendingFaceCrop, TimelineIdentifiedItem, TimelineItem } from "./types";
+import type { Asset, CatsResponse, EventDetail, HomeAssistant, KibbleCatsCardConfig, Sample, TimelineEvent, TrainingSample } from "./types";
 import { resolveKibbleEntities, type KibbleEntities } from "./lib/resolve-entities";
 import { resolveEntryId } from "./lib/entry-id";
-import { WsQuery, watchKey, describeWsError } from "./lib/ws-query";
-import { ImageUrlCache, kibbleImageUrl } from "./lib/image-cache";
+import { WsQuery, describeWsError } from "./lib/ws-query";
+import { PagedFeed, type PagedFeedState } from "./lib/paged-feed";
+import { ImageUrlCache } from "./lib/image-cache";
 import { relativeTimeSentence } from "./lib/relative-time";
-import { catLastSeenTs } from "./lib/cat-activity";
-import { detectionHeadline } from "./lib/timeline";
-import { chooseSuggestion } from "./lib/suggestion";
+import { rowThumbAsset, timeLabel } from "./lib/timeline";
+import { labelEvents } from "./lib/label-event";
+import { labelSample } from "./lib/sample-label";
+import { labelSession, type SessionLabelRequest } from "./lib/session-label";
+import { reviewSummaryMessage, type ReviewedEventLabel } from "./lib/review-summary";
+import { storageSummary, spoolSummary } from "./lib/storage-summary";
+import { catSilhouette } from "./lib/brand-shapes";
+import { mdiIcon } from "./lib/mdi-icons";
+import { findCatRecognitionEntityId, readCatRecognition, type LearningState } from "./lib/cat-recognition";
 import "./components/kibble-avatar";
-import "./components/kibble-crop-dialog";
-import "./components/kibble-face-picker";
-import "./components/kibble-lightbox";
+import "./components/kibble-image";
+import "./components/kibble-label-sheet";
+import "./components/kibble-add-photos-sheet";
+import "./components/kibble-avatar-picker";
 import "./cats-editor";
 
 const EMPTY_ENTITIES: KibbleEntities = { deviceId: "", catPresence: [] };
-
-function catSectionId(name: string): string {
-  return `cat-${name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
-}
-
-/** The cat named by a `#cat=<name>` hash (URL-encoded), else null. */
-export function catFromHash(hash: string): string | null {
-  const match = /^#cat=(.+)$/.exec(hash);
-  if (!match) return null;
-  try {
-    return decodeURIComponent(match[1]);
-  } catch {
-    return null;
-  }
-}
-const DEFAULT_CONFIDENCE = 0.7;
-const UNDO_WINDOW_MS = 5000;
+const REVIEW_LIMIT = 24;
+const TRAINING_LIMIT = 24;
 const DELETE_CONFIRM_WINDOW_MS = 3000;
+const LEARNING_LABEL: Record<LearningState, string> = { learning: "Learning", paused: "Paused", learned: "Learned" };
 
-interface UndoAction {
+interface ActionError {
   message: string;
-  run: () => void;
+  retry: () => void;
 }
 
 export class KibbleCatsCard extends LitElement {
   static properties = {
     hass: { attribute: false },
     _config: { state: true },
-    _hiddenCrops: { state: true },
-    _pickerCrop: { state: true },
-    _undo: { state: true },
     _addName: { state: true },
     _addBusy: { state: true },
     _addError: { state: true },
     _actionError: { state: true },
     _openMenuFor: { state: true },
     _deleteConfirmFor: { state: true },
-    _uploadQueue: { state: true },
-    _uploadQueueTotal: { state: true },
-    _uploadCat: { state: true },
-    _uploadBusy: { state: true },
-    _uploadError: { state: true },
-    _uploadNotice: { state: true },
-    _lightboxUrl: { state: true },
-    _lightboxAlt: { state: true },
+    _expandedTraining: { state: true },
+    _reviewSelectMode: { state: true },
+    _reviewSelected: { state: true },
+    _bulkBusy: { state: true },
+    _sheetSummary: { state: true },
+    _sheetGroup: { state: true },
+    _sheetSamples: { state: true },
+    _sheetSamplesFailed: { state: true },
+    _sheetSampleBusyUid: { state: true },
+    _sheetBusy: { state: true },
+    _sheetError: { state: true },
+    _sheetSceneSubjects: { state: true },
+    _sheetSessionCats: { state: true },
+    _sheetMultipleCats: { state: true },
+    _addPhotosOpen: { state: true },
+    _addPhotosCat: { state: true },
+    _addPhotosFiles: { state: true },
+    _avatarPickerCat: { state: true },
   };
 
   declare hass: HomeAssistant;
   declare _config: KibbleCatsCardConfig | undefined;
-  declare _hiddenCrops: Set<string>;
-  declare _pickerCrop: PendingFaceCrop | null;
-  declare _undo: UndoAction | null;
   declare _addName: string;
   declare _addBusy: boolean;
   declare _addError: string | null;
-  declare _actionError: { message: string; retry: () => void } | null;
+  declare _actionError: ActionError | null;
   /** Which cat's kebab menu is currently open, or `null`. At most one at a time. */
   declare _openMenuFor: string | null;
-  /** Which cat's "Delete cat\u2026" button is armed for a second tap, or `null`. */
+  /** Which cat's "Delete cat…" button is armed for a second tap, or `null`. */
   declare _deleteConfirmFor: string | null;
-  /** Photos still queued for the crop dialog, front is the one currently shown. */
-  declare _uploadQueue: File[];
-  /** Size of the batch `_uploadQueue` started from, for the dialog's "Photo X of Y". */
-  declare _uploadQueueTotal: number;
-  /** The cat `_uploadQueue`'s photos are being added to, or `null` when no batch is active. */
-  declare _uploadCat: string | null;
-  declare _uploadBusy: boolean;
-  declare _uploadError: string | null;
-  declare _uploadNotice: string | null;
-  /** Set by tapping a sighting/sample photo to view it full size; see `_openLightbox`. */
-  declare _lightboxUrl: string | null;
-  declare _lightboxAlt: string;
+  /** Which cat's training-photo grid is expanded below the roster, or `null` (none). At most
+   * one at a time -- keeps the default view to the roster and the review queue only. */
+  declare _expandedTraining: string | null;
+  declare _reviewSelectMode: boolean;
+  declare _reviewSelected: Set<string>;
+  declare _bulkBusy: boolean;
+  declare _sheetSummary: TimelineEvent | null;
+  declare _sheetGroup: TimelineEvent[];
+  declare _sheetSamples: Sample[] | null;
+  declare _sheetSamplesFailed: boolean;
+  declare _sheetSampleBusyUid: string | null;
+  declare _sheetBusy: boolean;
+  declare _sheetError: string | null;
+  declare _sheetSceneSubjects: EventDetail["scene_subjects"];
+  declare _sheetSessionCats: EventDetail["cats"] | null;
+  declare _sheetMultipleCats: boolean;
+  declare _addPhotosOpen: boolean;
+  /** Which cat's "Add photos" flow is in progress, or `null`. Set the instant the hidden file
+   * input is triggered, read again once it resolves with the chosen files. */
+  declare _addPhotosCat: string | null;
+  declare _addPhotosFiles: File[];
+  /** Which cat's avatar picker is open, or `null`. */
+  declare _avatarPickerCat: string | null;
 
   private _entities: KibbleEntities = EMPTY_ENTITIES;
   private _entryId: string | undefined;
-  // See `kibble-card.ts`'s identical fields: avoids recomputing entity-role resolution on
-  // every `hass` tick (which is most of them, system-wide) when the registries didn't move.
   private _resolvedEntities: HomeAssistant["entities"] | undefined;
   private _resolvedDevices: HomeAssistant["devices"] | undefined;
   private _resolvedDeviceId: string | undefined;
-  private _catsQuery = new WsQuery<{ cats: KibbleCatSummary[] }>(() => this.requestUpdate());
-  private _pendingQuery = new WsQuery<{ crops: PendingFaceCrop[] }>(() => this.requestUpdate());
-  private _sampleQueries = new Map<string, WsQuery<{ samples: CatSample[] }>>();
-  /** The same identified rows the timeline shows -- a "sighting" here means exactly what
-   * "Kitty was here" means there, so the two never disagree about how often a cat came by. */
-  private _timelineQuery = new WsQuery<{ items: TimelineItem[] }>(() => this.requestUpdate());
+  private _catsQuery = new WsQuery<CatsResponse>(() => this.requestUpdate());
+  private _reviewFeed = new PagedFeed<TimelineEvent>("kibble/review", () => this.requestUpdate());
+  private _trainingFeeds = new Map<string, PagedFeed<TrainingSample>>();
   private _imageCache = new ImageUrlCache();
-  private _lastPendingData: { crops: PendingFaceCrop[] } | null = null;
-  private _undoTimer: number | undefined;
-  private _pickerTrigger: HTMLElement | null = null;
-  private _deleteConfirmTimer: number | undefined;
-  private _fileInputRef = createRef<HTMLInputElement>();
-  private _lightboxTrigger: HTMLElement | null = null;
+  private _detailGeneration = 0;
+  private _sheetTrigger: HTMLElement | null = null;
+  private _deleteConfirmTimer: ReturnType<typeof setTimeout> | undefined;
+  /** Every event label saved during the sheet's current open session, keyed by uid -- see
+   * `kibble-timeline-card.ts`'s identical field for the full contract; the cats card's own
+   * tiles always open a one-element `group`, but the toast logic is shared. */
+  private _sheetReviewedEvents = new Map<string, ReviewedEventLabel>();
+  private _sheetPhotoUids = new Set<string>();
 
   constructor() {
     super();
-    this._hiddenCrops = new Set();
-    this._pickerCrop = null;
-    this._undo = null;
     this._addName = "";
     this._addBusy = false;
     this._addError = null;
     this._actionError = null;
     this._openMenuFor = null;
     this._deleteConfirmFor = null;
-    this._uploadQueue = [];
-    this._uploadQueueTotal = 0;
-    this._uploadCat = null;
-    this._uploadBusy = false;
-    this._uploadError = null;
-    this._uploadNotice = null;
-    this._lightboxUrl = null;
-    this._lightboxAlt = "";
+    this._expandedTraining = null;
+    this._reviewSelectMode = false;
+    this._reviewSelected = new Set();
+    this._bulkBusy = false;
+    this._sheetSummary = null;
+    this._sheetGroup = [];
+    this._sheetSamples = null;
+    this._sheetSamplesFailed = false;
+    this._sheetSampleBusyUid = null;
+    this._sheetSceneSubjects = [];
+    this._sheetSessionCats = null;
+    this._sheetMultipleCats = false;
+    this._sheetBusy = false;
+    this._sheetError = null;
+    this._addPhotosOpen = false;
+    this._addPhotosCat = null;
+    this._addPhotosFiles = [];
+    this._avatarPickerCat = null;
   }
 
   setConfig(config: KibbleCatsCardConfig): void {
@@ -161,43 +173,12 @@ export class KibbleCatsCard extends LitElement {
     return document.createElement("kibble-cats-card-editor");
   }
 
-  connectedCallback(): void {
-    super.connectedCallback();
-    window.addEventListener("location-changed", this._onLocationChanged);
-    window.addEventListener("hashchange", this._onLocationChanged);
-  }
-
   disconnectedCallback(): void {
     super.disconnectedCallback();
-    window.removeEventListener("location-changed", this._onLocationChanged);
-    window.removeEventListener("hashchange", this._onLocationChanged);
     this._imageCache.dispose();
-    clearTimeout(this._undoTimer);
+    this._reviewFeed.dispose();
+    for (const feed of this._trainingFeeds.values()) feed.dispose();
     clearTimeout(this._deleteConfirmTimer);
-  }
-
-  private _confidence(): number {
-    return this._config?.confidence ?? DEFAULT_CONFIDENCE;
-  }
-
-  /** `/cat-feeder/cats#cat=Pancake` (what the feeder view's cat tiles navigate to) lands on
-   * that cat's section: scrolled into view and briefly lit, once its gallery has rendered. */
-  private _scrolledTo: string | null = null;
-
-  private _onLocationChanged = (): void => {
-    this._scrolledTo = null;
-    this.requestUpdate();
-  };
-
-  protected updated(): void {
-    const target = catFromHash(window.location.hash);
-    if (!target || this._scrolledTo === target) return;
-    const section = this.renderRoot.querySelector<HTMLElement>(`#${CSS.escape(catSectionId(target))}`);
-    if (!section) return;
-    this._scrolledTo = target;
-    section.scrollIntoView({ behavior: "smooth", block: "start" });
-    section.classList.add("lit");
-    setTimeout(() => section.classList.remove("lit"), 2400);
   }
 
   protected willUpdate(): void {
@@ -214,138 +195,247 @@ export class KibbleCatsCard extends LitElement {
       this._entryId = resolveEntryId(this.hass.devices ?? {}, deviceId);
     }
     const callWS = this.hass?.callWS;
-    if (this.hass && this._entryId && callWS) {
-      const entryId = this._entryId;
-      const key = watchKey(this.hass, [this._entities.pendingFace, this._entities.lastSeenPet]);
-      this._catsQuery.sync(key, () => callWS({ type: "kibble/cats", entry_id: entryId }).then((r) => r as { cats: KibbleCatSummary[] }));
-      this._pendingQuery.sync(key, () => callWS({ type: "kibble/faces/pending", entry_id: entryId }).then((r) => r as { crops: PendingFaceCrop[] }));
-      this._timelineQuery.sync(key, () => callWS({ type: "kibble/timeline", entry_id: entryId, include_visits: false }).then((r) => r as { items: TimelineItem[] }));
-      for (const cat of this._catsQuery.state.data?.cats ?? []) {
-        if (this._sampleQueries.has(cat.name)) continue;
-        const query = new WsQuery<{ samples: CatSample[] }>(() => this.requestUpdate());
-        this._sampleQueries.set(cat.name, query);
-      }
-      // Samples only actually change on a label/unlabel/upload/delete -- every card-driven one
-      // of those already calls `_refreshAll()` directly. `pendingFace` (not `lastSeenPet`) is
-      // the one push signal worth resyncing on top of that: it also catches another session's
-      // edit, without every enrolled cat's full sample list refetching on every bare detection
-      // (`lastSeenPet` changes on *any* cat seen at the bowl, labelled or not).
-      const samplesKey = watchKey(this.hass, [this._entities.pendingFace]);
-      for (const [name, query] of this._sampleQueries) {
-        query.sync(samplesKey, () => callWS({ type: "kibble/faces/samples", entry_id: entryId, cat: name }).then((r) => r as { samples: CatSample[] }));
+    const entryId = this._entryId;
+    if (this.hass && entryId && callWS) {
+      this._catsQuery.sync(entryId, () => callWS({ type: "kibble/cats", entry_id: entryId }).then((r) => r as CatsResponse));
+      this._reviewFeed.sync(this.hass, entryId, { entry_id: entryId }, REVIEW_LIMIT);
+      if (this._expandedTraining) {
+        const cat = this._expandedTraining;
+        this._trainingFeed(cat).sync(this.hass, `${entryId}:${cat}`, { entry_id: entryId, cat }, TRAINING_LIMIT);
       }
     }
-    // Fresh server data supersedes any optimistic hide -- clear once a new fetch result lands.
-    if (this._pendingQuery.state.data !== this._lastPendingData) {
-      this._lastPendingData = this._pendingQuery.state.data;
-      this._hiddenCrops = new Set();
+  }
+
+  private _trainingFeed(catName: string): PagedFeed<TrainingSample> {
+    let feed = this._trainingFeeds.get(catName);
+    if (!feed) {
+      feed = new PagedFeed<TrainingSample>("kibble/training", () => this.requestUpdate());
+      this._trainingFeeds.set(catName, feed);
     }
+    return feed;
   }
 
   render() {
     if (!this._config || !this.hass) return nothing;
     const cats = this._catsQuery.state.data?.cats ?? [];
-    const allCrops = this._pendingQuery.state.data?.crops ?? [];
-    const crops = allCrops.filter((crop) => !this._hiddenCrops.has(crop.name));
-    const catNames = new Set(cats.map((cat) => cat.name));
-    const presentNames = new Set(
-      this._entities.catPresence.filter((p) => this.hass.states[p.entityId]?.state === "on").map((p) => p.name),
-    );
-    const uploadFile = this._uploadQueue[0] ?? null;
-    const uploadIndex = this._uploadQueueTotal - this._uploadQueue.length;
+    const storage = this._catsQuery.state.data?.storage ?? null;
+    const spoolLine = storage ? spoolSummary(storage.device_spool) : null;
 
     return html`
       <ha-card>
         <div class="container">
           ${this._config.name ? html`<div class="label">${this._config.name}</div>` : nothing}
           ${this._actionError ? this._renderActionError() : nothing}
-          ${this._uploadNotice ? this._renderUploadNotice() : nothing}
-          <section class="header">
-            ${cats.length === 0 ? html`<p class="empty">No cats yet. Add one to start training.</p>` : html`<div class="cat-list">${cats.map((cat) => this._renderCatHeader(cat, presentNames.has(cat.name)))}</div>`}
+          <section class="roster">
+            ${cats.length === 0 ? html`<p class="empty">No cats yet. Add one to start training.</p>` : html`<div class="cat-list">${cats.map((cat) => this._renderCatTile(cat))}</div>`}
             ${this._renderAddCat()}
           </section>
-          <section class="inbox">
-            <div class="inbox-heading">
-              <span>${crops.length === 1 ? "1 to review" : `${crops.length} to review`}</span>
-            </div>
-            ${this._pendingQuery.state.error ? this._renderPendingError() : nothing}
-            ${crops.length === 0 && !this._pendingQuery.state.error
-              ? html`<p class="empty">Nothing to review. New crops arrive when the feeder identifies a cat in view.</p>`
-              : html`<div class="crop-grid" @keydown=${this._onGridKeydown}>${crops.map((crop) => this._renderCrop(crop, catNames))}</div>`}
-          </section>
-          ${cats.map((cat) => this._renderGallery(cat))}
+          ${this._expandedTraining ? this._renderTrainingPanel(this._expandedTraining) : nothing}
+          ${this._renderReview()}
+          ${storage
+            ? html`
+                <p class="storage-line">
+                  <span>${storageSummary(storage)}</span>
+                  ${spoolLine ? html`<span class="quiet">${spoolLine}</span>` : nothing}
+                </p>
+              `
+            : nothing}
         </div>
       </ha-card>
-      ${this._undo ? this._renderUndo(this._undo) : nothing}
-      <kibble-face-picker
-        ?open=${this._pickerCrop !== null}
+      <kibble-label-sheet
+        ?open=${this._sheetSummary !== null}
         .hass=${this.hass}
-        .cats=${cats}
         .entryId=${this._entryId}
-        .crop=${this._pickerCrop}
-        @choice=${this._onPickerChoice}
-        @close-requested=${this._closePicker}
-      ></kibble-face-picker>
-      <input type="file" accept="image/*" multiple class="visually-hidden" ${ref(this._fileInputRef)} @change=${this._onFilesChosen} />
-      <kibble-crop-dialog
-        ?open=${uploadFile !== null}
-        .file=${uploadFile}
-        .catName=${this._uploadCat}
-        .queueIndex=${uploadIndex}
-        .queueTotal=${this._uploadQueueTotal}
-        .busy=${this._uploadBusy}
-        .error=${this._uploadError}
-        @use-crop=${this._onUseCrop}
-        @close-requested=${this._onCropDialogClosed}
-      ></kibble-crop-dialog>
-      <kibble-lightbox
-        ?open=${this._lightboxUrl !== null}
-        .imageUrl=${this._lightboxUrl}
-        .alt=${this._lightboxAlt}
-        @close-requested=${this._closeLightbox}
-      ></kibble-lightbox>
+        .cache=${this._imageCache}
+        .cats=${cats}
+        .summary=${this._sheetSummary}
+        .samples=${this._sheetSamples}
+        .sceneSubjects=${this._sheetSceneSubjects}
+        .sessionCats=${this._sheetSessionCats}
+        .multipleCats=${this._sheetMultipleCats}
+        .samplesFailed=${this._sheetSamplesFailed}
+        .group=${this._sheetGroup}
+        .busy=${this._sheetBusy}
+        .error=${this._sheetError}
+        .sampleBusyUid=${this._sheetSampleBusyUid}
+        @close-requested=${this._closeSheet}
+        @session-label-requested=${this._onSessionLabelRequested}
+        @sample-label-requested=${this._onSampleLabelRequested}
+        @event-requested=${this._onEventRequested}
+        @samples-retry-requested=${this._onSamplesRetryRequested}
+      ></kibble-label-sheet>
+      <input type="file" class="add-photos-file-input" multiple accept="image/*" hidden @change=${(e: Event) => this._onAddPhotosChosen(e)} />
+      <kibble-add-photos-sheet
+        ?open=${this._addPhotosOpen}
+        .hass=${this.hass}
+        .entryId=${this._entryId}
+        .cat=${this._addPhotosCat ?? undefined}
+        .files=${this._addPhotosFiles}
+        @close-requested=${() => this._closeAddPhotos()}
+      ></kibble-add-photos-sheet>
+      <kibble-avatar-picker
+        ?open=${this._avatarPickerCat !== null}
+        .hass=${this.hass}
+        .entryId=${this._entryId}
+        .cache=${this._imageCache}
+        .cat=${cats.find((c) => c.name === this._avatarPickerCat) ?? null}
+        @close-requested=${() => this._closeAvatarPicker()}
+        @avatar-changed=${this._onAvatarChanged}
+      ></kibble-avatar-picker>
     `;
   }
 
-  private _renderCatHeader(cat: KibbleCatSummary, present: boolean) {
-    // Newest of: the feeder's own identifications (the timeline's sightings) and the agent's
-    // labelled-crop timestamp -- so this agrees with the sightings list below it.
-    const lastSeenTs = catLastSeenTs(
-      cat.last_seen,
-      (this._timelineQuery.state.data?.items ?? [])
-        .filter((item) => item.kind === "identified" && item.cat === cat.name)
-        .map((item) => item.ts),
-    );
-    const seen = lastSeenTs !== null ? `seen ${relativeTimeSentence(new Date(lastSeenTs * 1000), new Date())}` : "not seen yet";
+  private _renderActionError() {
+    const error = this._actionError;
+    if (!error) return nothing;
     return html`
-      <div class="cat">
-        <kibble-avatar
-          class=${present ? "present" : ""}
-          .hass=${this.hass}
-          .name=${cat.name}
-          .colorIndex=${cat.color_index}
-          .entryId=${this._entryId}
-          .sampleName=${cat.avatar}
-        ></kibble-avatar>
+      <div class="error">
+        <span>${error.message}</span>
+        <button
+          type="button"
+          @click=${() => {
+            this._actionError = null;
+            error.retry();
+          }}
+        >
+          Try again
+        </button>
+      </div>
+    `;
+  }
+
+  private _renderCatTile(cat: CatsResponse["cats"][number]) {
+    const now = new Date();
+    const seen = cat.last_seen != null ? `Seen ${relativeTimeSentence(new Date(cat.last_seen * 1000), now)}` : "Not seen yet";
+    const meals = `${cat.meals_today} ${cat.meals_today === 1 ? "meal" : "meals"} today`;
+    const trained = cat.training.total === 0 ? "Not trained yet" : `${cat.training.total} ${cat.training.total === 1 ? "photo" : "photos"} trained`;
+    const deviceId = this._config?.device_id;
+    const recognitionEntityId = this.hass && deviceId ? findCatRecognitionEntityId(this.hass.entities ?? {}, deviceId, cat.name) : undefined;
+    const recognition = this.hass ? readCatRecognition(this.hass, recognitionEntityId) : null;
+    return html`
+      <div class="cat-tile">
+        <kibble-avatar class=${cat.present ? "present" : ""} .hass=${this.hass} .name=${cat.name} .colorIndex=${cat.color} .asset=${cat.avatar} .cache=${this._imageCache}></kibble-avatar>
         <div class="cat-text">
           <span class="cat-name">${cat.name}</span>
-          <span class="cat-meta">${cat.samples === 1 ? "1 sample" : `${cat.samples} samples`}, ${seen}</span>
+          <span class="cat-meta">${seen}, ${meals}</span>
+          <span class="cat-meta quiet">${trained}</span>
+          ${recognition
+            ? html`
+                <div class="learning-row" aria-label=${`${recognition.percent}% recognized, ${LEARNING_LABEL[recognition.state]}`}>
+                  <span class="learning-track"><span class="learning-fill" style="width:${recognition.percent}%"></span></span>
+                  <span class="learning-percent">${recognition.percent}%</span>
+                </div>
+                <span class="learning-state">${LEARNING_LABEL[recognition.state]}</span>
+              `
+            : nothing}
         </div>
         <div class="cat-menu" @focusout=${this._onCatMenuFocusOut} @keydown=${this._onCatMenuKeydown}>
           <button
             type="button"
             class="cat-menu-trigger"
             aria-haspopup="menu"
-            aria-expanded=${this._openMenuFor === cat.name}
             aria-label=${`Options for ${cat.name}`}
             @click=${() => this._toggleCatMenu(cat.name)}
           >
-            &#8942;
+            ${mdiIcon("dotsVertical")}
           </button>
           ${this._openMenuFor === cat.name ? this._renderCatMenu(cat) : nothing}
         </div>
       </div>
     `;
+  }
+
+  private _renderCatMenu(cat: CatsResponse["cats"][number]) {
+    const confirming = this._deleteConfirmFor === cat.name;
+    const expanded = this._expandedTraining === cat.name;
+    return html`
+      <div class="menu" role="menu">
+        <button type="button" role="menuitem" @click=${() => this._openAvatarPicker(cat.name)}>Change picture</button>
+        <button type="button" role="menuitem" @click=${() => this._toggleTraining(cat.name)}>${expanded ? "Hide training photos" : `View training (${cat.training.total})`}</button>
+        <button type="button" role="menuitem" class="danger ${confirming ? "confirming" : ""}" @click=${() => this._onDeleteCatClick(cat.name)}>
+          ${confirming ? "Tap again to delete" : "Delete cat\u2026"}
+        </button>
+      </div>
+    `;
+  }
+
+  private _toggleCatMenu(name: string): void {
+    this._openMenuFor = this._openMenuFor === name ? null : name;
+  }
+
+  private _closeCatMenu(): void {
+    this._openMenuFor = null;
+    clearTimeout(this._deleteConfirmTimer);
+    this._deleteConfirmFor = null;
+  }
+
+  private _onCatMenuFocusOut = (event: FocusEvent): void => {
+    const container = event.currentTarget as HTMLElement;
+    const next = event.relatedTarget as Node | null;
+    if (!next || !container.contains(next)) this._closeCatMenu();
+  };
+
+  private _onCatMenuKeydown = (event: KeyboardEvent): void => {
+    if (event.key !== "Escape") return;
+    const trigger = (event.currentTarget as HTMLElement).querySelector<HTMLButtonElement>(".cat-menu-trigger");
+    this._closeCatMenu();
+    trigger?.focus();
+  };
+
+  private _toggleTraining(name: string): void {
+    this._openMenuFor = null;
+    this._expandedTraining = this._expandedTraining === name ? null : name;
+  }
+
+  private _openAvatarPicker(name: string): void {
+    this._openMenuFor = null;
+    this._avatarPickerCat = name;
+  }
+
+  private _closeAvatarPicker(): void {
+    this._avatarPickerCat = null;
+    this._refreshCats();
+  }
+
+  /** Patches the just-changed cat's `avatar`/`avatar_custom` into the cached roster immediately
+   * -- `_closeAvatarPicker`'s own `_refreshCats()` still follows right behind for full
+   * consistency, but the tile updates the instant the picker reports success rather than
+   * waiting on that round trip. */
+  private _onAvatarChanged = (event: CustomEvent<{ cat: string; avatar: Asset | null; avatarCustom: boolean }>): void => {
+    const { cat, avatar, avatarCustom } = event.detail;
+    this._catsQuery.patch((data) => ({ ...data, cats: data.cats.map((c) => (c.name === cat ? { ...c, avatar, avatar_custom: avatarCustom } : c)) }));
+  };
+
+  /** Tap-twice confirm, the same window/pattern `kibble-settings-dialog`'s cloud toggle uses --
+   * deleting a cat is destructive (drops every labelled sample and the classifier model) so it
+   * needs a second, deliberate tap rather than a single accidental one. */
+  private _onDeleteCatClick(name: string): void {
+    if (this._deleteConfirmFor === name) {
+      clearTimeout(this._deleteConfirmTimer);
+      this._deleteConfirmFor = null;
+      this._openMenuFor = null;
+      this._deleteCat(name);
+      return;
+    }
+    this._deleteConfirmFor = name;
+    this._deleteConfirmTimer = setTimeout(() => {
+      this._deleteConfirmFor = null;
+      this.requestUpdate();
+    }, DELETE_CONFIRM_WINDOW_MS);
+  }
+
+  private _deleteCat(name: string): void {
+    const request = this._callWS<unknown>("kibble/cats/delete", { name });
+    if (!request) return;
+    request
+      .then(() => {
+        this._trainingFeeds.delete(name);
+        if (this._expandedTraining === name) this._expandedTraining = null;
+        this._refreshCats();
+      })
+      .catch((err: unknown) => {
+        this._actionError = { message: `Couldn't delete ${name}. ${describeWsError(err)}`, retry: () => this._deleteCat(name) };
+      });
   }
 
   private _renderAddCat() {
@@ -370,11 +460,12 @@ export class KibbleCatsCard extends LitElement {
   private async _onAddCatSubmit(event: Event): Promise<void> {
     event.preventDefault();
     const name = this._addName.trim();
-    if (!name || !this._entities.deviceId) return;
+    const request = name ? this._callWS<unknown>("kibble/cats/add", { name }) : null;
+    if (!request) return;
     this._addBusy = true;
     this._addError = null;
     try {
-      await this.hass.callService("kibble", "add_cat", { device_id: this._entities.deviceId, name });
+      await request;
       this._addName = "";
       this._refreshCats();
     } catch (err) {
@@ -384,460 +475,356 @@ export class KibbleCatsCard extends LitElement {
     }
   }
 
-  private _renderCatMenu(cat: KibbleCatSummary) {
-    const confirming = this._deleteConfirmFor === cat.name;
+  private _renderTrainingPanel(catName: string) {
+    const feed = this._trainingFeed(catName);
+    const state = feed.state;
     return html`
-      <div class="menu" role="menu">
-        <button type="button" role="menuitem" @click=${() => this._startAddPhotos(cat.name)}>Add photos</button>
-        <button type="button" role="menuitem" class="danger ${confirming ? "confirming" : ""}" @click=${() => this._onDeleteCatClick(cat.name)}>
-          ${confirming ? "Tap again to delete" : "Delete cat\u2026"}
+      <section class="training">
+        <div class="training-heading">
+          <span>${catName}\u2019s training photos${state.items !== null ? ` (${state.total})` : ""}</span>
+          <button type="button" class="icon-button" aria-label="Close training photos" @click=${() => this._toggleTraining(catName)}>${mdiIcon("close")}</button>
+        </div>
+        <div class="training-actions">
+          <button type="button" class="add-photos-button" @click=${() => this._openAddPhotos(catName)}>Add photos</button>
+        </div>
+        ${state.error ? this._renderPagedError(state.error, () => feed.refresh(this.hass, { entry_id: this._entryId, cat: catName }, TRAINING_LIMIT)) : nothing}
+        ${state.items && state.items.length === 0 ? html`<p class="empty">No training photos yet.</p>` : nothing}
+        <div class="training-grid">${(state.items ?? []).map((sample) => this._renderTrainingTile(catName, sample))}</div>
+        ${this._renderPager(state, TRAINING_LIMIT, () => feed.previous(this.hass, { entry_id: this._entryId, cat: catName }, TRAINING_LIMIT), () => feed.next(this.hass, { entry_id: this._entryId, cat: catName }, TRAINING_LIMIT))}
+      </section>
+    `;
+  }
+
+  private _renderTrainingTile(catName: string, sample: TrainingSample) {
+    const captured = new Date(sample.created * 1000).toLocaleDateString();
+    return html`
+      <div class="training-tile">
+        <span class="training-crops">
+          ${sample.body ? html`<kibble-image .hass=${this.hass} .asset=${sample.body} .cache=${this._imageCache} alt=""></kibble-image>` : nothing}
+          ${sample.face ? html`<kibble-image .hass=${this.hass} .asset=${sample.face} .cache=${this._imageCache} alt=""></kibble-image>` : nothing}
+        </span>
+        <button type="button" class="remove" aria-label=${`Remove this training photo of ${catName}, added ${captured}`} @click=${() => this._removeTraining(catName, sample.uid)}>
+          ${"\u00d7"}
         </button>
       </div>
     `;
   }
 
-  private _toggleCatMenu(name: string): void {
-    this._openMenuFor = this._openMenuFor === name ? null : name;
-  }
-
-  private _closeCatMenu(): void {
-    this._openMenuFor = null;
-    clearTimeout(this._deleteConfirmTimer);
-    this._deleteConfirmFor = null;
-  }
-
-  /** A menu dismisses itself once focus genuinely leaves its trigger+popover -- no backdrop
-   * element, no global listener, just the same "did focus move outside this container" check a
-   * native disclosure widget uses. */
-  private _onCatMenuFocusOut = (event: FocusEvent): void => {
-    const container = event.currentTarget as HTMLElement;
-    const next = event.relatedTarget as Node | null;
-    if (!next || !container.contains(next)) this._closeCatMenu();
-  };
-
-  private _onCatMenuKeydown = (event: KeyboardEvent): void => {
-    if (event.key !== "Escape") return;
-    const trigger = (event.currentTarget as HTMLElement).querySelector<HTMLButtonElement>(".cat-menu-trigger");
-    this._closeCatMenu();
-    trigger?.focus();
-  };
-
-  /** Tap-twice confirm, the same window/pattern `kibble-settings-dialog`'s cloud toggle uses --
-   * deleting a cat is destructive (it drops every labelled sample and the classifier model) so
-   * it needs a second, deliberate tap rather than a single accidental one. */
-  private _onDeleteCatClick(name: string): void {
-    if (this._deleteConfirmFor === name) {
-      clearTimeout(this._deleteConfirmTimer);
-      this._deleteConfirmFor = null;
-      this._openMenuFor = null;
-      this._deleteCat(name);
-      return;
-    }
-    this._deleteConfirmFor = name;
-    this._deleteConfirmTimer = setTimeout(() => {
-      this._deleteConfirmFor = null;
-      this.requestUpdate();
-    }, DELETE_CONFIRM_WINDOW_MS) as unknown as number;
-  }
-
-  private _deleteCat(name: string): void {
-    const request = this._callWS<unknown>("kibble/cats/delete", { name });
+  private _removeTraining(catName: string, uid: string): void {
+    const request = this._callWS<{ removed: number }>("kibble/training/remove", { uids: [uid] });
     if (!request) return;
     request
       .then(() => {
-        this._sampleQueries.delete(name);
+        this._trainingFeed(catName).refresh(this.hass, { entry_id: this._entryId, cat: catName }, TRAINING_LIMIT);
         this._refreshCats();
       })
       .catch((err: unknown) => {
-        this._actionError = { message: `Couldn't delete ${name}. ${describeWsError(err)}`, retry: () => this._deleteCat(name) };
+        this._actionError = { message: `Couldn't remove this photo. ${describeWsError(err)}`, retry: () => this._removeTraining(catName, uid) };
       });
   }
 
-  private _startAddPhotos(name: string): void {
-    this._openMenuFor = null;
-    this._uploadCat = name;
-    this._fileInputRef.value?.click();
+  private _openAddPhotos(catName: string): void {
+    this._addPhotosCat = catName;
+    this.renderRoot.querySelector<HTMLInputElement>(".add-photos-file-input")?.click();
   }
 
-  /** Starts (or restarts) the crop-dialog queue from a freshly chosen file list -- one dialog
-   * per photo, front of the queue first; `input.value` is cleared so choosing the exact same
-   * file(s) again still fires `change`. */
-  private _onFilesChosen = (event: Event): void => {
+  private _onAddPhotosChosen(event: Event): void {
     const input = event.target as HTMLInputElement;
-    const files = input.files ? Array.from(input.files).filter((file) => file.type.startsWith("image/")) : [];
+    const files = input.files ? [...input.files] : [];
     input.value = "";
     if (files.length === 0) return;
-    this._uploadQueue = files;
-    this._uploadQueueTotal = files.length;
-    this._uploadError = null;
-  };
+    this._addPhotosFiles = files;
+    this._addPhotosOpen = true;
+  }
 
-  private _onUseCrop = (event: CustomEvent<{ blob: Blob }>): void => {
-    const cat = this._uploadCat;
-    if (!cat) return;
-    this._uploadBusy = true;
-    this._uploadError = null;
-    this._blobToBase64(event.detail.blob)
-      .then((jpegB64) => {
-        const request = this._callWS<FaceUploadResult>("kibble/faces/upload", { cat, jpeg_b64: jpegB64 });
-        if (!request) throw new Error("Not connected.");
-        return request;
-      })
-      .then((result) => {
-        this._uploadBusy = false;
-        if (result.low_quality) this._uploadNotice = "The model isn't confident this is a face.";
-        this._advanceUploadQueue();
-        this._refreshAll();
-      })
-      .catch((err: unknown) => {
-        this._uploadBusy = false;
-        this._uploadError = describeWsError(err);
-      });
-  };
-
-  /** Closing the dialog without uploading skips just the current photo -- the rest of the batch
-   * still runs, matching "Skip" rather than aborting everything queued after it. */
-  private _onCropDialogClosed = (): void => {
-    this._advanceUploadQueue();
-  };
-
-  private _advanceUploadQueue(): void {
-    this._uploadQueue = this._uploadQueue.slice(1);
-    this._uploadError = null;
-    if (this._uploadQueue.length === 0) {
-      this._uploadCat = null;
-      this._uploadQueueTotal = 0;
+  private _closeAddPhotos(): void {
+    this._addPhotosOpen = false;
+    const catName = this._addPhotosCat;
+    this._refreshCats();
+    if (catName && this._expandedTraining === catName) {
+      this._trainingFeed(catName).refresh(this.hass, { entry_id: this._entryId, cat: catName }, TRAINING_LIMIT);
     }
   }
 
-  /** Pure base64, no `data:` URL prefix -- the integration base64-decodes this straight into
-   * the raw JPEG bytes `POST /faces/upload` expects. */
-  private _blobToBase64(blob: Blob): Promise<string> {
-    return blob.arrayBuffer().then((buffer) => {
-      const bytes = new Uint8Array(buffer);
-      let binary = "";
-      for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]!);
-      return btoa(binary);
-    });
+  private _renderReview() {
+    const state = this._reviewFeed.state;
+    const cats = this._catsQuery.state.data?.cats ?? [];
+    const count = state.items !== null ? state.total : null;
+    return html`
+      <section class="review">
+        <div class="review-heading">
+          <span>${count === null ? "To review" : count === 0 ? "Nothing to review" : count === 1 ? "1 to review" : `${count} to review`}</span>
+          ${state.items && state.items.length > 0
+            ? html`<button type="button" class="select-toggle" @click=${this._toggleSelectMode}>${this._reviewSelectMode ? "Cancel" : "Select"}</button>`
+            : nothing}
+        </div>
+        ${this._reviewSelectMode && this._reviewSelected.size > 0 ? this._renderBulkBar(cats) : nothing}
+        ${state.error ? this._renderPagedError(state.error, () => this._reviewFeed.refresh(this.hass, { entry_id: this._entryId }, REVIEW_LIMIT)) : nothing}
+        ${state.items && state.items.length === 0 && !state.error
+          ? html`<p class="empty">Nothing to review. New crops arrive when the feeder sees a cat it can't yet name.</p>`
+          : html`<div class="review-grid" @keydown=${this._onReviewGridKeydown}>${(state.items ?? []).map((event) => this._renderReviewTile(event))}</div>`}
+        ${this._renderPager(state, REVIEW_LIMIT, () => this._reviewFeed.previous(this.hass, { entry_id: this._entryId }, REVIEW_LIMIT), () => this._reviewFeed.next(this.hass, { entry_id: this._entryId }, REVIEW_LIMIT))}
+      </section>
+    `;
   }
 
-  /** Shared `entry_id`-injecting wrapper for the three cat-management commands this card calls
-   * over WS directly (delete cat, upload a sample, delete an uploaded sample) -- `null` when
-   * the connection or entry isn't resolved yet, the same guard every WS call site here already
-   * repeats individually. */
+  private _renderReviewTile(event: TimelineEvent) {
+    const thumbAsset = rowThumbAsset(event);
+    const selected = this._reviewSelected.has(event.uid);
+    const when = timeLabel(event.start);
+    const label = this._reviewSelectMode ? `${selected ? "Deselect" : "Select"}, captured ${when}` : `Review this one, captured ${when}`;
+    return html`
+      <div class="review-tile">
+        <button type="button" class="review-thumb" aria-pressed=${this._reviewSelectMode ? selected : nothing} aria-label=${label} @click=${(e: Event) => this._onReviewTileClick(event, e.currentTarget as HTMLElement)}>
+          ${thumbAsset
+            ? html`<kibble-image .hass=${this.hass} .asset=${thumbAsset} .cache=${this._imageCache} alt=""></kibble-image>`
+            : html`<span class="neutral-icon">${catSilhouette()}</span>`}
+          ${this._reviewSelectMode && selected ? html`<span class="review-check">${mdiIcon("check")}</span>` : nothing}
+        </button>
+        <span class="review-caption">${when}</span>
+      </div>
+    `;
+  }
+
+  private _onReviewGridKeydown(event: KeyboardEvent): void {
+    if (!["ArrowRight", "ArrowLeft", "ArrowDown", "ArrowUp"].includes(event.key)) return;
+    const grid = event.currentTarget as HTMLElement;
+    const buttons = [...grid.querySelectorAll<HTMLButtonElement>(".review-thumb")];
+    const focused = this.renderRoot.querySelector<HTMLButtonElement>(":focus");
+    const currentIndex = focused ? buttons.indexOf(focused) : -1;
+    if (currentIndex === -1) return;
+    event.preventDefault();
+    const delta = event.key === "ArrowRight" || event.key === "ArrowDown" ? 1 : -1;
+    buttons[(currentIndex + delta + buttons.length) % buttons.length]?.focus();
+  }
+
+  private _onReviewTileClick(event: TimelineEvent, trigger: HTMLElement): void {
+    if (this._reviewSelectMode) {
+      const next = new Set(this._reviewSelected);
+      if (next.has(event.uid)) next.delete(event.uid);
+      else next.add(event.uid);
+      this._reviewSelected = next;
+      return;
+    }
+    this._openSheet(event, trigger);
+  }
+
+  private _toggleSelectMode = (): void => {
+    this._reviewSelectMode = !this._reviewSelectMode;
+    this._reviewSelected = new Set();
+  };
+
+  private _renderBulkBar(cats: CatsResponse["cats"]) {
+    return html`
+      <div class="bulk-bar">
+        <span>${this._reviewSelected.size} selected</span>
+        <div class="bulk-actions">
+          ${cats.map((cat) => html`<button type="button" class="chip" ?disabled=${this._bulkBusy} @click=${() => this._bulkLabel(cat.name)}>${cat.name}</button>`)}
+          <button type="button" class="chip chip-muted" ?disabled=${this._bulkBusy} @click=${() => this._bulkLabel("not_a_cat")}>Not a cat</button>
+        </div>
+      </div>
+    `;
+  }
+
+  private _bulkLabel(label: string): void {
+    const hass = this.hass;
+    const entryId = this._entryId;
+    if (!hass?.callWS || !entryId || this._reviewSelected.size === 0) return;
+    const uids = [...this._reviewSelected];
+    this._bulkBusy = true;
+    labelEvents(hass, entryId, { uids, label })
+      .then(() => {
+        this._bulkBusy = false;
+        const uidSet = new Set(uids);
+        this._reviewFeed.removeItem((item) => uidSet.has(item.uid));
+        this._reviewSelected = new Set();
+        this._reviewSelectMode = false;
+        this._refreshCats();
+      })
+      .catch((err: unknown) => {
+        this._bulkBusy = false;
+        this._actionError = { message: `Couldn't label those. ${describeWsError(err)}`, retry: () => this._bulkLabel(label) };
+        this.requestUpdate();
+      });
+  }
+
+  private _renderPager(state: PagedFeedState<unknown>, limit: number, onPrevious: () => void, onNext: () => void) {
+    if (state.items === null || (!state.hasNext && !state.hasPrevious)) return nothing;
+    const start = state.pageIndex * limit + 1;
+    const end = state.pageIndex * limit + state.items.length;
+    return html`
+      <div class="pager">
+        <button type="button" ?disabled=${!state.hasPrevious || state.loading} @click=${onPrevious}>Previous</button>
+        <span>${start}\u2013${end} of ${state.total}</span>
+        <button type="button" ?disabled=${!state.hasNext || state.loading} @click=${onNext}>Next</button>
+      </div>
+    `;
+  }
+
+  private _renderPagedError(message: string, retry: () => void) {
+    return html`
+      <div class="error">
+        <span>${message}</span>
+        <button type="button" @click=${retry}>Try again</button>
+      </div>
+    `;
+  }
+
+  /** Resolves any event row uid to its complete feeder session for the shared sheet. */
+  private _loadEventDetail(uid: string, keepData = false): void {
+    const member = this._sheetGroup.find((candidate) => candidate.uid === uid);
+    if (member) this._sheetSummary = member;
+    if (!keepData) {
+      this._sheetSamples = null;
+      this._sheetSceneSubjects = [];
+      this._sheetSessionCats = null;
+      this._sheetMultipleCats = false;
+      this._sheetSamplesFailed = false;
+    }
+    this._sheetError = null;
+    const generation = ++this._detailGeneration;
+    const callWS = this.hass?.callWS;
+    const entryId = this._entryId;
+    if (!callWS || !entryId) {
+      this._sheetSamplesFailed = !keepData;
+      return;
+    }
+    callWS({ type: "kibble/event", entry_id: entryId, uid })
+      .then((result) => {
+        if (generation !== this._detailGeneration) return;
+        const detail = result as EventDetail;
+        this._sheetSummary = detail.event;
+        this._sheetSamples = detail.samples;
+        this._sheetSceneSubjects = detail.scene_subjects;
+        this._sheetSessionCats = detail.cats;
+        this._sheetMultipleCats = detail.multiple_cats;
+        this._sheetSamplesFailed = false;
+        this.requestUpdate();
+      })
+      .catch(() => {
+        if (generation !== this._detailGeneration) return;
+        if (!keepData) this._sheetSamplesFailed = true;
+        this.requestUpdate();
+      });
+  }
+
+  private _openSheet(event: TimelineEvent, trigger: HTMLElement): void {
+    this._sheetTrigger = trigger;
+    this._sheetGroup = [event];
+    this._sheetReviewedEvents = new Map();
+    this._sheetPhotoUids = new Set();
+    this._sheetSessionCats = null;
+    this._sheetMultipleCats = false;
+    this._loadEventDetail(event.uid);
+  }
+
+  private _onEventRequested = (event: CustomEvent<{ uid: string }>): void => {
+    this._loadEventDetail(event.detail.uid);
+  };
+
+  private _onSamplesRetryRequested = (): void => {
+    const uid = this._sheetSummary?.uid;
+    if (uid) this._loadEventDetail(uid);
+  };
+
+  private _closeSheet = (): void => {
+    const locale = this.hass?.locale?.language ?? this.hass?.language;
+    const message = reviewSummaryMessage({ events: [...this._sheetReviewedEvents.values()], photosUpdated: this._sheetPhotoUids.size }, locale);
+    this._sheetSummary = null;
+    this._sheetGroup = [];
+    this._sheetSamples = null;
+    this._sheetSceneSubjects = [];
+    this._sheetSessionCats = null;
+    this._sheetMultipleCats = false;
+    this._sheetSamplesFailed = false;
+    this._sheetSampleBusyUid = null;
+    this._sheetError = null;
+    this._sheetReviewedEvents = new Map();
+    this._sheetPhotoUids = new Set();
+    this._sheetTrigger?.focus();
+    this._sheetTrigger = null;
+    if (message) this.dispatchEvent(new CustomEvent("hass-notification", { detail: { message }, bubbles: true, composed: true }));
+  };
+
+  /** Saves the person's complete answer for the feeder session. */
+  private _onSessionLabelRequested = (event: CustomEvent<SessionLabelRequest & { closeOnSuccess?: boolean; pendingLabel?: string }>): void => {
+    const entryId = this._entryId;
+    const hass = this.hass;
+    if (!entryId || !hass?.callWS) return;
+    const { uid, cats, verdict, subjects, closeOnSuccess } = event.detail;
+    const request: SessionLabelRequest = { uid, ...(cats ? { cats } : {}), ...(verdict ? { verdict } : {}), ...(subjects?.length ? { subjects } : {}) };
+    this._sheetBusy = true;
+    this._sheetError = null;
+    labelSession(hass, entryId, request)
+      .then((detail) => {
+        this._sheetBusy = false;
+        this._sheetSummary = detail.event;
+        this._sheetSamples = detail.samples;
+        this._sheetSceneSubjects = detail.scene_subjects;
+        this._sheetSessionCats = detail.cats;
+        this._sheetMultipleCats = detail.multiple_cats;
+        this._sheetSamplesFailed = false;
+        this._reviewFeed.removeItem((item) => item.uid === request.uid || item.uid === detail.event.uid);
+        for (const key of this._sheetReviewedEvents.keys()) {
+          if (key === detail.event.uid || key.startsWith(detail.event.uid + ":")) this._sheetReviewedEvents.delete(key);
+        }
+        if (request.verdict) {
+          this._sheetReviewedEvents.set(detail.event.uid, { uid: detail.event.uid, event: detail.event, label: request.verdict });
+        } else {
+          for (const cat of request.cats ?? []) {
+            const uid = detail.event.uid + ":" + cat.cat;
+            this._sheetReviewedEvents.set(uid, { uid, event: { kind: cat.ate ? "eat" : "visit", open: detail.event.open, start: detail.event.start }, label: cat.cat });
+          }
+        }
+        this._refreshCats();
+        if (closeOnSuccess) this._closeSheet();
+        else this.requestUpdate();
+      })
+      .catch((err: unknown) => {
+        this._sheetBusy = false;
+        this._sheetError = err instanceof Error ? err.message : "Couldn't save this label.";
+        this.requestUpdate();
+      });
+  };
+
+  private _onSampleLabelRequested = (event: CustomEvent<{ sampleUid: string; label: string }>): void => {
+    const entryId = this._entryId;
+    const hass = this.hass;
+    if (!entryId || !hass?.callWS) return;
+    const { sampleUid, label } = event.detail;
+    this._sheetSampleBusyUid = sampleUid;
+    this._sheetError = null;
+    labelSample(hass, entryId, { sampleUid, label })
+      .then((sample) => {
+        this._sheetSampleBusyUid = null;
+        if (this._sheetSamples) this._sheetSamples = this._sheetSamples.map((item) => item.uid === sample.uid ? sample : item);
+        this._sheetPhotoUids.add(sampleUid);
+        const uid = this._sheetSummary?.uid;
+        if (uid) this._loadEventDetail(uid, true);
+        this.requestUpdate();
+      })
+      .catch((err: unknown) => {
+        this._sheetSampleBusyUid = null;
+        this._sheetError = err instanceof Error ? err.message : "Couldn't save this label.";
+        this.requestUpdate();
+      });
+  };
+
+  private _refreshCats(): void {
+    const callWS = this.hass?.callWS;
+    const entryId = this._entryId;
+    if (!callWS || !entryId) return;
+    this._catsQuery.refresh(() => callWS({ type: "kibble/cats", entry_id: entryId }).then((r) => r as CatsResponse));
+  }
+
+  /** Shared `entry_id`-injecting wrapper for the WS commands this card calls directly (delete
+   * cat, add cat, remove a training sample) -- `null` when the connection or entry isn't
+   * resolved yet, the same guard every WS call site here already repeats individually. */
   private _callWS<T>(type: string, payload: Record<string, unknown>): Promise<T> | null {
     const callWS = this.hass?.callWS;
     const entryId = this._entryId;
     if (!callWS || !entryId) return null;
     return callWS({ type, entry_id: entryId, ...payload }).then((r) => r as T);
-  }
-
-  private _renderUploadNotice() {
-    return html`
-      <div class="notice">
-        <span>${this._uploadNotice}</span>
-        <button
-          type="button"
-          aria-label="Dismiss"
-          @click=${() => {
-            this._uploadNotice = null;
-          }}
-        >
-          &times;
-        </button>
-      </div>
-    `;
-  }
-
-  private _renderCrop(crop: PendingFaceCrop, catNames: ReadonlySet<string>) {
-    const suggestion = chooseSuggestion(crop, this._confidence(), catNames);
-    const path = this._entryId ? kibbleImageUrl(this._entryId, "pending", crop.name) : null;
-    const url = path ? this._imageCache.get(this.hass, path, () => this.requestUpdate()) : null;
-    return html`
-      <div class="crop">
-        <button
-          type="button"
-          class="crop-thumb"
-          ?disabled=${!url}
-          aria-label=${suggestion ? `Confirm ${suggestion.cat}` : "Choose a cat for this crop"}
-          @click=${() => this._onCropTap(crop, suggestion)}
-        >
-          ${url ? html`<img src=${url} alt="" loading="lazy" />` : nothing}
-        </button>
-        <button type="button" class="chooser" aria-label="Choose a cat for this crop" @click=${(e: Event) => this._openPicker(crop, e)}>&#8942;</button>
-        <div class="chip ${suggestion ? `chip-${suggestion.source}` : "chip-empty"}">
-          ${suggestion ? html`${suggestion.cat}<span class="mark">${suggestion.source === "classifier" ? "AI" : "ID"}</span>` : "Tap to choose"}
-        </div>
-      </div>
-    `;
-  }
-
-  private _onGridKeydown(event: KeyboardEvent): void {
-    if (!["ArrowRight", "ArrowLeft", "ArrowDown", "ArrowUp"].includes(event.key)) return;
-    const grid = event.currentTarget as HTMLElement;
-    const buttons = [...grid.querySelectorAll<HTMLButtonElement>(".crop-thumb")];
-    const currentIndex = buttons.indexOf(document.activeElement as HTMLButtonElement);
-    if (currentIndex === -1) return;
-    event.preventDefault();
-    const delta = event.key === "ArrowRight" || event.key === "ArrowDown" ? 1 : -1;
-    const next = buttons[(currentIndex + delta + buttons.length) % buttons.length];
-    next?.focus();
-  }
-
-  private _onCropTap(crop: PendingFaceCrop, suggestion: ReturnType<typeof chooseSuggestion>): void {
-    if (!suggestion) {
-      this._pickerCrop = crop;
-      return;
-    }
-    this._confirm(crop, suggestion.cat);
-  }
-
-  private _openPicker(crop: PendingFaceCrop, event: Event): void {
-    this._pickerTrigger = event.currentTarget as HTMLElement;
-    this._pickerCrop = crop;
-  }
-
-  private _closePicker = (): void => {
-    this._pickerCrop = null;
-    this._pickerTrigger?.focus();
-    this._pickerTrigger = null;
-  };
-
-  private _onPickerChoice = (event: CustomEvent<{ cat: string }>): void => {
-    const crop = this._pickerCrop;
-    this._pickerCrop = null;
-    if (crop) this._confirm(crop, event.detail.cat);
-  };
-
-  /** Opens the same full-viewport overlay `kibble-timeline-card` uses, for a sighting or
-   * training-photo thumbnail tapped out of `_renderSighting`/`_renderSample` -- the grids stay
-   * small enough to scan at a glance, this is the "let me actually look at that one" escape
-   * valve. */
-  private _openLightbox(event: Event, url: string | null, alt: string): void {
-    if (!url) return;
-    this._lightboxTrigger = event.currentTarget as HTMLElement;
-    this._lightboxUrl = url;
-    this._lightboxAlt = alt;
-  }
-
-  private _closeLightbox = (): void => {
-    this._lightboxUrl = null;
-    this._lightboxTrigger?.focus();
-    this._lightboxTrigger = null;
-  };
-
-  private _confirm(crop: PendingFaceCrop, cat: string): void {
-    if (!this._entities.deviceId) return;
-    const deviceId = this._entities.deviceId;
-    this._hiddenCrops = new Set(this._hiddenCrops).add(crop.name);
-    const displayCat = cat === "not_a_cat" ? "Not a cat" : cat === "other" ? "Skip" : cat;
-    this.hass
-      .callService("kibble", "label_face", { device_id: deviceId, crop_id: crop.name, cat })
-      .then(() => {
-        this._refreshAll();
-        this._setUndo({
-          message: `Labelled as ${displayCat}. `,
-          run: () => {
-            this.hass.callService("kibble", "unlabel_face", { device_id: deviceId, cat, name: crop.name }).then(() => this._refreshAll());
-          },
-        });
-      })
-      .catch((err: unknown) => {
-        const next = new Set(this._hiddenCrops);
-        next.delete(crop.name);
-        this._hiddenCrops = next;
-        this._actionError = { message: `Couldn't label this crop. ${describeWsError(err)}`, retry: () => this._confirm(crop, cat) };
-      });
-  }
-
-  private _setUndo(action: UndoAction): void {
-    clearTimeout(this._undoTimer);
-    this._undo = action;
-    this._undoTimer = setTimeout(() => {
-      this._undo = null;
-    }, UNDO_WINDOW_MS) as unknown as number;
-  }
-
-  private _renderUndo(action: UndoAction) {
-    return html`
-      <div class="undo-bar" role="status">
-        <span>${action.message}</span>
-        <button
-          type="button"
-          @click=${() => {
-            clearTimeout(this._undoTimer);
-            this._undo = null;
-            action.run();
-          }}
-        >
-          Undo
-        </button>
-      </div>
-    `;
-  }
-
-  private _renderActionError() {
-    const error = this._actionError;
-    if (!error) return nothing;
-    return html`
-      <div class="error">
-        <span>${error.message}</span>
-        <button
-          type="button"
-          @click=${() => {
-            this._actionError = null;
-            error.retry();
-          }}
-        >
-          Try again
-        </button>
-      </div>
-    `;
-  }
-
-  private _renderPendingError() {
-    const message = this._pendingQuery.state.error;
-    if (!message) return nothing;
-    return html`
-      <div class="error">
-        <span>Couldn't load the review queue. ${message}</span>
-        <button type="button" @click=${() => this._refreshPending()}>Try again</button>
-      </div>
-    `;
-  }
-
-  /** Per cat: the feeder's own captures first ("Sightings", newest first, each with when it
-   * happened -- this is exactly what the "last here" on the feeder view counts, so tapping that
-   * tile lands here and finds the same evidence), then the reference photos someone uploaded. */
-  private _renderGallery(cat: KibbleCatSummary) {
-    const query = this._sampleQueries.get(cat.name);
-    const samples = (query?.state.data?.samples ?? []).slice().sort((a, b) => b.ts - a.ts);
-    const sightings = (this._timelineQuery.state.data?.items ?? []).filter(
-      (item): item is TimelineIdentifiedItem => item.kind === "identified" && item.cat === cat.name,
-    );
-    if (samples.length === 0 && cat.samples === 0 && sightings.length === 0) return nothing;
-    const now = new Date();
-    // `sightings` and `cat.last_seen` are independent signals that can disagree -- most
-    // obviously while per-cat identification is off, where `last_seen` keeps moving and this
-    // list stays empty -- so a real `last_seen` always gets an honest "seen ..." line here,
-    // never "No sightings yet" (a false claim the cat has never been seen at all). See
-    // `catLastSeenTs`.
-    const lastSeenTs = catLastSeenTs(cat.last_seen, sightings.map((item) => item.ts));
-    const relativeSeen = lastSeenTs !== null ? relativeTimeSentence(new Date(lastSeenTs * 1000), now) : null;
-    const sightingsSummary =
-      sightings.length > 0
-        ? `${sightings.length === 1 ? "1 sighting" : `${sightings.length} sightings`}${relativeSeen ? `, seen ${relativeSeen}` : ""}`
-        : relativeSeen
-          ? `Seen ${relativeSeen}`
-          : "Not seen yet";
-    return html`
-      <section class="gallery" id=${catSectionId(cat.name)}>
-        <div class="gallery-header">
-          <kibble-avatar .hass=${this.hass} .name=${cat.name} .colorIndex=${cat.color_index} .entryId=${this._entryId} .sampleName=${cat.avatar}></kibble-avatar>
-          <span class="gallery-name">${cat.name}</span>
-          <span class="gallery-sub">${sightingsSummary}</span>
-        </div>
-        ${sightings.length > 0
-          ? html`<div class="gallery-grid">${sightings.map((item) => this._renderSighting(item, now))}</div>`
-          : nothing}
-        ${samples.length > 0
-          ? html`<div class="gallery-sub">${samples.length === 1 ? "1 training photo" : `${samples.length} training photos`}</div>
-              <div class="gallery-grid">${samples.map((sample) => this._renderSample(cat.name, sample, null))}</div>`
-          : nothing}
-      </section>
-    `;
-  }
-
-  /** One identified visit, with the live image from that moment when the feeder kept one
-   * (a vendor `track` pairs with the nearest visit/eat frame; a labelled face crop is its own
-   * image) -- the same picture the timeline row shows. Large enough in the grid to actually
-   * judge, and tap opens the same full-size overlay every photo in this card uses. */
-  private _renderSighting(item: TimelineIdentifiedItem, now: Date) {
-    const when = relativeTimeSentence(new Date(item.ts * 1000), now);
-    const path = item.image && this._entryId ? kibbleImageUrl(this._entryId, item.image_kind, item.image) : null;
-    const url = path ? this._imageCache.get(this.hass, path, () => this.requestUpdate()) : null;
-    const title = `${detectionHeadline(item)}, ${new Date(item.ts * 1000).toLocaleString()}`;
-    return html`
-      <div class="sample sighting">
-        ${url
-          ? html`<button type="button" class="sample-photo" aria-label=${`View full size: ${title}`} @click=${(event: Event) => this._openLightbox(event, url, title)}>
-              <img src=${url} alt="" loading="lazy" title=${title} />
-            </button>`
-          : html`<kibble-avatar .hass=${this.hass} .name=${null} .colorIndex=${null} .entryId=${this._entryId} .sampleName=${null}></kibble-avatar>`}
-        <span class="caption">${item.paired_class === "eat" ? "ate · " : ""}${when}</span>
-      </div>
-    `;
-  }
-
-  private _renderSample(catName: string, sample: CatSample, caption: string | null) {
-    const path = this._entryId ? kibbleImageUrl(this._entryId, `sample/${catName}`, sample.name) : null;
-    const url = path ? this._imageCache.get(this.hass, path, () => this.requestUpdate()) : null;
-    const title = new Date(sample.ts * 1000).toLocaleString();
-    return html`
-      <div class="sample">
-        ${url
-          ? html`<button type="button" class="sample-photo" aria-label=${`View full size, captured ${title}`} @click=${(event: Event) => this._openLightbox(event, url, title)}>
-              <img src=${url} alt="" loading="lazy" title=${title} />
-            </button>`
-          : nothing}
-        <button type="button" class="remove" aria-label=${`Remove this sample of ${catName}`} @click=${() => this._removeSample(catName, sample)}>
-          ${"\u00d7"}
-        </button>
-        ${caption ? html`<span class="caption">${caption}</span>` : nothing}
-      </div>
-    `;
-  }
-
-  /** `upload-*` samples came in through `kibble/faces/upload`, never through the pending-crop
-   * inbox -- unlabelling would try to move a name `GET /faces/pending` never produced, so
-   * removing one goes through the dedicated `kibble/faces/delete_sample` command instead. */
-  private _removeSample(cat: string, sample: CatSample): void {
-    if (sample.name.startsWith("upload-")) {
-      const request = this._callWS<unknown>("kibble/faces/delete_sample", { cat, name: sample.name });
-      if (!request) return;
-      request.then(() => this._refreshAll()).catch((err: unknown) => {
-        this._actionError = { message: `Couldn't remove this sample. ${describeWsError(err)}`, retry: () => this._removeSample(cat, sample) };
-      });
-      return;
-    }
-    if (!this._entities.deviceId) return;
-    const deviceId = this._entities.deviceId;
-    this.hass
-      .callService("kibble", "unlabel_face", { device_id: deviceId, cat, name: sample.name })
-      .then(() => this._refreshAll())
-      .catch((err: unknown) => {
-        this._actionError = { message: `Couldn't remove this sample. ${describeWsError(err)}`, retry: () => this._removeSample(cat, sample) };
-      });
-  }
-
-  private _refreshCats(): void {
-    const callWS = this.hass?.callWS;
-    if (!callWS || !this._entryId) return;
-    const entryId = this._entryId;
-    this._catsQuery.refresh(() => callWS({ type: "kibble/cats", entry_id: entryId }).then((r) => r as { cats: KibbleCatSummary[] }));
-  }
-
-  private _refreshPending(): void {
-    const callWS = this.hass?.callWS;
-    if (!callWS || !this._entryId) return;
-    const entryId = this._entryId;
-    this._pendingQuery.refresh(() => callWS({ type: "kibble/faces/pending", entry_id: entryId }).then((r) => r as { crops: PendingFaceCrop[] }));
-  }
-
-  private _refreshAll(): void {
-    this._refreshCats();
-    this._refreshPending();
-    if (this.hass?.callWS && this._entryId) {
-      const callWS = this.hass.callWS;
-      const entryId = this._entryId;
-      this._timelineQuery.refresh(() => callWS({ type: "kibble/timeline", entry_id: entryId, include_visits: false }).then((r) => r as { items: TimelineItem[] }));
-    }
-    const callWS = this.hass?.callWS;
-    if (!callWS || !this._entryId) return;
-    const entryId = this._entryId;
-    for (const [name, query] of this._sampleQueries) {
-      query.refresh(() => callWS({ type: "kibble/faces/samples", entry_id: entryId, cat: name }).then((r) => r as { samples: CatSample[] }));
-    }
   }
 
   static styles = css`
@@ -895,40 +882,7 @@ export class KibbleCatsCard extends LitElement {
       cursor: pointer;
       min-height: 36px;
     }
-    .notice {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      padding: 10px 12px;
-      border-radius: 8px;
-      background: color-mix(in srgb, var(--primary-text-color) 6%, transparent);
-      color: var(--secondary-text-color);
-      font-size: var(--kibble-text-caption);
-    }
-    .notice button {
-      flex: 0 0 auto;
-      border: none;
-      background: none;
-      color: inherit;
-      font-size: 16px;
-      line-height: 1;
-      cursor: pointer;
-      min-width: 32px;
-      min-height: 32px;
-    }
-    .visually-hidden {
-      position: absolute;
-      width: 1px;
-      height: 1px;
-      padding: 0;
-      margin: -1px;
-      overflow: hidden;
-      clip: rect(0, 0, 0, 0);
-      white-space: nowrap;
-      border: 0;
-    }
-    .header {
+    .roster {
       display: flex;
       flex-direction: column;
       gap: 12px;
@@ -938,13 +892,13 @@ export class KibbleCatsCard extends LitElement {
       flex-wrap: wrap;
       gap: 16px;
     }
-    .cat {
+    .cat-tile {
       display: flex;
       align-items: center;
       gap: 10px;
     }
     kibble-avatar {
-      --kibble-avatar-size: 40px;
+      --kibble-avatar-size: 44px;
     }
     kibble-avatar.present {
       border-radius: 50%;
@@ -953,7 +907,7 @@ export class KibbleCatsCard extends LitElement {
     .cat-text {
       display: flex;
       flex-direction: column;
-      line-height: 1.3;
+      line-height: 1.35;
     }
     .cat-name {
       font-size: var(--kibble-text-title);
@@ -962,6 +916,40 @@ export class KibbleCatsCard extends LitElement {
     }
     .cat-meta {
       font-size: var(--kibble-text-caption);
+      color: var(--secondary-text-color);
+    }
+    .cat-meta.quiet {
+      opacity: 0.85;
+    }
+    .learning-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 2px;
+    }
+    .learning-track {
+      flex: 1 1 auto;
+      max-width: 96px;
+      height: 4px;
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--primary-text-color) 12%, transparent);
+      overflow: hidden;
+    }
+    .learning-fill {
+      display: block;
+      height: 100%;
+      border-radius: inherit;
+      background: var(--kibble-feed, #43a96a);
+    }
+    .learning-percent {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--secondary-text-color);
+      white-space: nowrap;
+    }
+    .learning-state {
+      font-size: 11px;
+      font-weight: 600;
       color: var(--secondary-text-color);
     }
     .cat-menu {
@@ -988,7 +976,7 @@ export class KibbleCatsCard extends LitElement {
       right: 0;
       z-index: 5;
       margin-top: 4px;
-      min-width: 160px;
+      min-width: 180px;
       display: flex;
       flex-direction: column;
       padding: 6px;
@@ -1018,9 +1006,18 @@ export class KibbleCatsCard extends LitElement {
       background: color-mix(in srgb, var(--error-color, #db4437) 12%, transparent);
     }
     .cat-menu-trigger:focus-visible,
-    .menu button:focus-visible {
+    .menu button:focus-visible,
+    .icon-button:focus-visible,
+    .select-toggle:focus-visible,
+    .review-thumb:focus-visible,
+    .chip:focus-visible,
+    .pager button:focus-visible,
+    .remove:focus-visible,
+    .add-photos-button:focus-visible,
+    .add-cat button:focus-visible,
+    .add-cat input:focus-visible {
       outline: 2px solid var(--primary-color, #03a9f4);
-      outline-offset: -2px;
+      outline-offset: 2px;
     }
     .add-cat {
       display: flex;
@@ -1056,213 +1053,65 @@ export class KibbleCatsCard extends LitElement {
     .inline-error {
       color: var(--error-color, #db4437);
     }
-    .inbox {
+    .training {
       display: flex;
       flex-direction: column;
       gap: 10px;
+      padding-top: 4px;
+      border-top: 1px solid var(--divider-color);
     }
-    .inbox-heading {
+    .training-heading,
+    .review-heading {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
       font-size: var(--kibble-text-title);
       font-weight: 600;
       color: var(--primary-text-color);
     }
-    .crop-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-      gap: 10px;
-    }
-    .crop {
-      position: relative;
+    .training-actions {
       display: flex;
-      flex-direction: column;
-      gap: 4px;
     }
-    .crop-thumb {
-      width: 100%;
-      aspect-ratio: 1;
-      border: none;
+    .add-photos-button {
+      min-height: 40px;
+      padding: 0 16px;
       border-radius: 8px;
-      background: color-mix(in srgb, var(--primary-text-color) 8%, transparent);
-      padding: 0;
+      border: none;
+      background: color-mix(in srgb, var(--primary-color, #03a9f4) 14%, transparent);
+      color: var(--primary-color, #03a9f4);
+      font: inherit;
+      font-size: var(--kibble-text-caption);
+      font-weight: 600;
       cursor: pointer;
-      overflow: hidden;
     }
-    .crop-thumb img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      display: block;
-      /* These are real photos (224x224 JPEGs), not pixel art -- smooth interpolation reads
-       * as a slightly soft photo; "pixelated" would read as a blocky one. Explicit because
-       * "auto" is also the browser default, and a future "these look blurry, sharpen them"
-       * pass should see this comment before reaching for that value. */
-      image-rendering: auto;
-    }
-    .crop-thumb:focus-visible,
-    .sample-photo:focus-visible,
-    .chooser:focus-visible,
-    .remove:focus-visible,
-    .add-cat button:focus-visible,
-    .add-cat input:focus-visible,
-    .undo-bar button:focus-visible {
-      outline: 2px solid var(--primary-color, #03a9f4);
-      outline-offset: 2px;
-    }
-    .chooser {
-      position: absolute;
-      top: 2px;
-      right: 2px;
-      width: 24px;
-      height: 24px;
+    .icon-button {
+      width: 32px;
+      height: 32px;
       border-radius: 50%;
       border: none;
-      background: rgba(0, 0, 0, 0.5);
-      color: #fff;
-      cursor: pointer;
-      line-height: 1;
-      font-size: 14px;
-    }
-    .chip {
-      font-size: 11px;
-      text-align: center;
-      color: var(--secondary-text-color);
+      background: color-mix(in srgb, var(--primary-text-color) 8%, transparent);
+      color: var(--primary-text-color);
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 4px;
-    }
-    .chip-classifier {
-      color: var(--primary-color, #03a9f4);
-      font-weight: 600;
-    }
-    .chip-vendor {
-      color: var(--primary-text-color);
-      font-weight: 500;
-    }
-    .mark {
-      font-size: 9px;
-      font-weight: 700;
-      padding: 0 4px;
-      border-radius: 4px;
-      background: color-mix(in srgb, currentColor 16%, transparent);
-    }
-    .undo-bar {
-      position: fixed;
-      left: 50%;
-      bottom: 16px;
-      transform: translateX(-50%);
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 10px 16px;
-      border-radius: 999px;
-      background: #222;
-      color: #fff;
-      font-size: var(--kibble-text-body);
-      z-index: 10;
-      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
-    }
-    .undo-bar button {
-      border: none;
-      background: none;
-      color: #8ecbff;
-      font: inherit;
-      font-weight: 700;
       cursor: pointer;
     }
-    @media (prefers-reduced-motion: no-preference) {
-      .undo-bar {
-        animation: kibble-undo-in 150ms ease-out;
-      }
-    }
-    @keyframes kibble-undo-in {
-      from {
-        opacity: 0;
-        transform: translate(-50%, 8px);
-      }
-      to {
-        opacity: 1;
-        transform: translate(-50%, 0);
-      }
-    }
-    .gallery {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      padding-top: 12px;
-      border-top: 1px solid var(--divider-color);
-      scroll-margin-top: 16px;
-    }
-    .gallery-header {
-      display: flex;
-      align-items: center;
+    .training-grid,
+    .review-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
       gap: 10px;
-      border-radius: 8px;
-      outline: 2px solid transparent;
-      outline-offset: 4px;
-      transition: outline-color 600ms ease;
     }
-    .gallery.lit .gallery-header {
-      outline-color: var(--kibble-amber, #f2a33c);
-    }
-    .gallery-name {
-      font-size: var(--kibble-text-body);
-      font-weight: 600;
-      color: var(--primary-text-color);
-    }
-    .gallery-sub {
-      font-size: var(--kibble-text-caption, 12px);
-      color: var(--secondary-text-color);
-    }
-    .sample.sighting kibble-avatar {
-      display: block;
-      width: 100%;
-      height: 100%;
-      --kibble-avatar-size: 96px;
-    }
-    .sample-photo {
-      display: block;
-      width: 100%;
-      height: 100%;
-      padding: 0;
-      border: none;
-      background: none;
-      cursor: pointer;
-    }
-    .sample .caption {
-      position: absolute;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      padding: 1px 3px;
-      font-size: 10px;
-      line-height: 1.2;
-      color: #fff;
-      background: rgba(0, 0, 0, 0.55);
-      text-align: center;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      border-radius: 0 0 8px 8px;
-    }
-    .gallery-grid {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-    }
-    .sample {
+    .training-tile {
       position: relative;
-      width: 96px;
-      height: 96px;
     }
-    .sample img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
+    .training-crops {
+      display: flex;
+      gap: 2px;
+      aspect-ratio: 1;
       border-radius: 8px;
-      display: block;
-      /* Same reasoning as .crop-thumb img: real photos, smooth upscale, never "pixelated". */
-      image-rendering: auto;
+      overflow: hidden;
+      background: color-mix(in srgb, var(--primary-text-color) 8%, transparent);
     }
     .remove {
       position: absolute;
@@ -1278,9 +1127,143 @@ export class KibbleCatsCard extends LitElement {
       line-height: 1;
       cursor: pointer;
     }
+    .review {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .select-toggle {
+      border: none;
+      background: color-mix(in srgb, var(--primary-text-color) 8%, transparent);
+      color: var(--primary-text-color);
+      border-radius: 999px;
+      padding: 0 14px;
+      min-height: 32px;
+      font: inherit;
+      font-size: var(--kibble-text-caption);
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .bulk-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      padding: 8px 10px;
+      border-radius: 10px;
+      background: color-mix(in srgb, var(--primary-color, #03a9f4) 10%, transparent);
+      font-size: var(--kibble-text-caption);
+      color: var(--primary-text-color);
+    }
+    .bulk-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .chip {
+      border: none;
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--primary-color, #03a9f4) 14%, transparent);
+      color: var(--primary-color, #03a9f4);
+      font: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      padding: 0 14px;
+      min-height: 32px;
+      cursor: pointer;
+    }
+    .chip.chip-muted {
+      background: color-mix(in srgb, var(--primary-text-color) 8%, transparent);
+      color: var(--secondary-text-color);
+      font-weight: 500;
+    }
+    .chip:disabled {
+      opacity: 0.5;
+      cursor: default;
+    }
+    .review-tile {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .review-thumb {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 1;
+      border: none;
+      border-radius: 10px;
+      background: color-mix(in srgb, var(--primary-text-color) 8%, transparent);
+      padding: 0;
+      cursor: pointer;
+      overflow: hidden;
+    }
+    .neutral-icon {
+      display: block;
+      width: 62%;
+      height: 62%;
+      margin: 19% auto;
+      color: color-mix(in srgb, var(--primary-text-color) 40%, transparent);
+    }
+    .review-check {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: var(--kibble-feed, #43a96a);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+    }
+    .review-caption {
+      font-size: 11px;
+      color: var(--secondary-text-color);
+      text-align: center;
+    }
+    .pager {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      font-size: var(--kibble-text-caption);
+      color: var(--secondary-text-color);
+    }
+    .pager button {
+      border: none;
+      background: color-mix(in srgb, var(--primary-text-color) 8%, transparent);
+      color: var(--primary-text-color);
+      border-radius: 8px;
+      padding: 0 14px;
+      min-height: 36px;
+      font: inherit;
+      font-size: var(--kibble-text-caption);
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .pager button:disabled {
+      opacity: 0.4;
+      cursor: default;
+    }
+    .storage-line {
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      font-size: var(--kibble-text-caption);
+      color: var(--secondary-text-color);
+      border-top: 1px solid var(--divider-color);
+      padding-top: 12px;
+    }
+    .storage-line .quiet {
+      opacity: 0.75;
+    }
     @container (max-width: 360px) {
-      .crop-grid {
-        grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+      .training-grid,
+      .review-grid {
+        grid-template-columns: repeat(auto-fill, minmax(68px, 1fr));
       }
     }
   `;
@@ -1292,11 +1275,14 @@ window.customCards = window.customCards || [];
 window.customCards.push({
   type: "kibble-cats-card",
   name: "Kibble Cats",
-  description: "Enrolled cats -- delete or add training photos -- plus a one-tap inbox for the feeder's own face crops.",
+  description: "Enrolled cats, presence, and the review queue for whatever the feeder couldn't name.",
   preview: true,
 });
 
 declare global {
+  interface Window {
+    customCards?: CustomCardEntry[];
+  }
   interface HTMLElementTagNameMap {
     "kibble-cats-card": KibbleCatsCard;
   }

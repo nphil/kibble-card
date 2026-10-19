@@ -1,5 +1,8 @@
-/** The one-line schedule summary, expanding to either the embedded `dispenser-schedule-card`
- * (github.com/cristianchelu/dispenser-schedule-card) or a plain fallback list. The embed only
+/** The one-line schedule summary, expanding to the schedule itself. With the hopper divider IN
+ * that is Kibble's own per-hopper editor (`kibble-schedule-editor`): the embedded
+ * `dispenser-schedule-card` keeps one amount per entry and mirrors it onto both hoppers, so it
+ * cannot schedule "kibble only". With the divider OUT (one bin, one amount) it is either that
+ * embedded card or a plain fallback list. The embed only
  * activates once both (a) that card is installed and (b) a `schedule_card_state` entity exists —
  * `docs/custom.md`'s `device.type: custom` adapter reads a packed string from an entity's own
  * *state*, which our real `sensor.…_schedule` cannot provide (its state is the entry count, by
@@ -10,9 +13,10 @@
 import { LitElement, css, html, nothing } from "lit";
 import { createRef, ref } from "lit/directives/ref.js";
 import type { ScheduleEntry } from "../lib/schedule";
-import { formatClock, scheduleSummary } from "../lib/schedule";
+import { entryAmountsLabel, formatClock, scheduleSummary, sortScheduleEntries } from "../lib/schedule";
 import { mdiIcon } from "../lib/mdi-icons";
 import type { HomeAssistant } from "../types";
+import "./kibble-schedule-editor";
 
 const DISPENSER_CARD_TAG = "dispenser-schedule-card";
 
@@ -22,12 +26,24 @@ export class KibbleScheduleSummary extends LitElement {
     entries: { attribute: false },
     scheduleCardStateEntity: { type: String },
     deviceName: { type: String },
+    singleHopper: { type: Boolean },
+    deviceId: { type: String },
+    food1: { type: String },
+    food2: { type: String },
   };
 
   declare hass: HomeAssistant;
   declare entries: ScheduleEntry[];
   declare scheduleCardStateEntity: string | undefined;
   declare deviceName: string;
+  /** The hopper divider is out: an entry's amount is the one bin's total, not a per-side
+   * pair -- see `lib/schedule.ts:entryAmountsLabel`. */
+  declare singleHopper: boolean;
+  /** The feeder's device id, for the per-hopper editor's schedule service calls. */
+  declare deviceId: string | undefined;
+  /** Hopper food names for the editor's labels (`null` while unnamed). */
+  declare food1: string | null;
+  declare food2: string | null;
 
   private _expanded = false;
   private _embedRef = createRef<HTMLElement & { hass: HomeAssistant; setConfig: (c: Record<string, unknown>) => void }>();
@@ -36,6 +52,9 @@ export class KibbleScheduleSummary extends LitElement {
     super();
     this.entries = [];
     this.deviceName = "Kibble";
+    this.singleHopper = false;
+    this.food1 = null;
+    this.food2 = null;
   }
 
   updated(): void {
@@ -57,20 +76,29 @@ export class KibbleScheduleSummary extends LitElement {
   }
 
   private _renderExpanded() {
+    if (!this.singleHopper) {
+      return html`<kibble-schedule-editor
+        .hass=${this.hass}
+        .entries=${this.entries}
+        .deviceId=${this.deviceId}
+        .food1=${this.food1}
+        .food2=${this.food2}
+      ></kibble-schedule-editor>`;
+    }
     if (this._canEmbed()) {
       return html`<div ${ref(this._configureEmbed)}></div>`;
     }
     if (this.entries.length === 0) {
       return html`<p class="empty">No schedule set</p>`;
     }
-    const sorted = [...this.entries].sort((a, b) => a.time.localeCompare(b.time));
+    const sorted = sortScheduleEntries(this.entries);
     return html`
       <ul class="entries">
         ${sorted.map(
           (entry) => html`
             <li class=${entry.enabled ? "" : "disabled"}>
               <span class="time">${formatClock(entry.time)}</span>
-              <span class="amounts">${entry.amount_l}g + ${entry.amount_r}g</span>
+              <span class="amounts">${entryAmountsLabel(entry, true)}</span>
               <span class="state">${entry.enabled ? "On" : "Paused"}</span>
             </li>
           `,

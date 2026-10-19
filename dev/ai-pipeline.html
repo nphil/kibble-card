@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>How the feeder thinks</title>
+  <style>
+    :root {
+      --ink: #172024;
+      --muted: #617076;
+      --paper: #f6f4ed;
+      --panel: #fffdf8;
+      --line: #d7d8cf;
+      --camera: #2c7b80;
+      --ai: #d66c3c;
+      --event: #b64b54;
+      --ha: #4c63a8;
+      --card: #75628b;
+      --signal: #e6b93f;
+      --shadow: 0 18px 42px rgba(25, 38, 40, .12);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: radial-gradient(circle at 90% 0%, #e8eee7 0 12%, transparent 32%), var(--paper);
+      font: 16px/1.5 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    button { font: inherit; }
+    .shell { max-width: 1280px; margin: 0 auto; padding: 30px 22px 64px; }
+    header { display: flex; align-items: end; justify-content: space-between; gap: 24px; margin-bottom: 26px; }
+    h1 { margin: 0; font-size: clamp(2.2rem, 5vw, 4.5rem); letter-spacing: -.075em; line-height: .9; max-width: 11ch; }
+    .lede { max-width: 43ch; margin: 0; color: var(--muted); font-size: 1.02rem; }
+    .legend { display: flex; flex-wrap: wrap; gap: 10px; margin: 0 0 18px; }
+    .legend button { border: 1px solid var(--line); color: var(--ink); background: rgba(255,255,255,.62); padding: 8px 12px; border-radius: 999px; cursor: pointer; }
+    .legend button[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: white; }
+    .dot { display:inline-block; width:.72em; height:.72em; border-radius:50%; margin-right:.45em; background:var(--c); }
+
+    .map-wrap { position: relative; min-height: 590px; border: 1px solid var(--line); background: var(--panel); box-shadow: var(--shadow); overflow: hidden; }
+    .lanes { position: absolute; inset: 0; display: grid; grid-template-columns: 1.12fr 1.55fr 1.12fr; pointer-events: none; }
+    .lane { border-right: 1px solid #e8e5dc; padding: 17px; color: #778185; font-size: .75rem; letter-spacing: .04em; font-weight: 700; }
+    .lane:last-child { border: 0; }
+    svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+    .flow { fill: none; stroke: #acb4af; stroke-width: 2.2; stroke-linecap: round; stroke-dasharray: 5 7; }
+    .flow.active { stroke: var(--signal); stroke-width: 4; filter: drop-shadow(0 0 5px rgba(230,185,63,.8)); animation: dash 1s linear infinite; }
+    @keyframes dash { to { stroke-dashoffset: -24; } }
+
+    .node { position: absolute; z-index: 1; width: 178px; min-height: 78px; padding: 12px 14px 10px; border: 1px solid var(--line); border-left: 5px solid var(--tone); background: #fffefa; box-shadow: 0 5px 0 rgba(29,44,43,.05); text-align: left; cursor: pointer; transition: transform .15s ease, box-shadow .15s ease, opacity .15s ease; }
+    .node:hover, .node:focus-visible, .node.selected { transform: translateY(-4px); outline: 0; box-shadow: 0 11px 24px rgba(29,44,43,.15); }
+    .node.dim { opacity: .24; }
+    .node .tag { display:block; color: var(--tone); font-size: .69rem; font-weight: 800; letter-spacing: .08em; }
+    .node strong { display:block; font-size: .98rem; letter-spacing: -.02em; margin-top: 2px; }
+    .node small { display:block; color: var(--muted); line-height: 1.25; margin-top: 2px; }
+    .camera { --tone: var(--camera); left: 5%; top: 16%; }
+    .npu { --tone: var(--ai); left: 35%; top: 13%; }
+    .gate { --tone: var(--event); left: 35%; top: 39%; }
+    .state { --tone: var(--event); left: 35%; top: 67%; }
+    .ha { --tone: var(--ha); right: 5%; top: 19%; }
+    .timeline { --tone: var(--card); right: 5%; top: 49%; }
+
+    .detail { display: grid; grid-template-columns: minmax(0, 1.08fr) minmax(260px, .92fr); gap: 22px; margin-top: 22px; }
+    .explain, .truth { border-top: 3px solid var(--ink); padding-top: 14px; }
+    .eyebrow { margin: 0 0 5px; color: var(--muted); font-size: .77rem; font-weight: 700; }
+    h2 { margin: 0; font-size: 1.7rem; letter-spacing: -.05em; line-height: 1.05; }
+    #description { max-width: 65ch; margin: 10px 0 0; }
+    .chips { display:flex; flex-wrap:wrap; gap:8px; margin-top:14px; }
+    .chip { border: 1px solid var(--line); border-radius:999px; padding: 5px 9px; color:var(--muted); font-size:.82rem; }
+    .truth ul { margin: 10px 0 0; padding: 0; list-style: none; }
+    .truth li { display: grid; grid-template-columns: 20px 1fr; gap: 8px; padding: 7px 0; border-bottom: 1px solid var(--line); }
+    .truth li::before { content: "✓"; color: var(--camera); font-weight: 800; }
+    .divider { height: 1px; background: var(--line); margin: 26px 0; }
+    .compare { display:grid; grid-template-columns: repeat(3,1fr); gap: 14px; }
+    .compare article { padding: 16px; background:rgba(255,255,255,.55); border:1px solid var(--line); }
+    .compare h3 { margin:0 0 5px; font-size:1rem; }
+    .compare p { margin:0; color:var(--muted); font-size:.93rem; }
+    .compare .mark { width:32px; height:32px; display:grid; place-items:center; background:var(--ink); color:white; border-radius:50%; margin-bottom:12px; font-weight:800; }
+    .hint { margin: 22px 0 0; color:var(--muted); font-size:.9rem; }
+
+    @media (max-width: 760px) {
+      header, .detail { display:block; }
+      .lede { margin-top:16px; }
+      .map-wrap { min-height: 855px; }
+      .lanes { grid-template-columns:1fr; grid-template-rows:repeat(3,1fr); }
+      .lane { border-right:0; border-bottom:1px solid #e8e5dc; }
+      .node { width:calc(100% - 44px); left:22px; right:auto; }
+      .camera { top: 7%; } .npu { top: 29%; } .gate { top: 42%; } .state { top: 55%; } .ha { top: 70%; } .timeline { top: 83%; }
+      .compare { grid-template-columns:1fr; }
+      svg { display:none; }
+    }
+    @media (prefers-reduced-motion: reduce) { .flow.active { animation:none; } .node { transition:none; } }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header>
+      <h1>How your feeder thinks.</h1>
+      <p class="lede">Click any box. This is the real path from a cat in front of the camera to a card in Home Assistant.</p>
+    </header>
+
+    <nav class="legend" aria-label="Focus a pipeline">
+      <button data-focus="all" aria-pressed="true"><span class="dot" style="--c:var(--ink)"></span>Whole trip</button>
+      <button data-focus="visit"><span class="dot" style="--c:var(--event)"></span>Why did it say “cat came by”?</button>
+      <button data-focus="identity"><span class="dot" style="--c:var(--ai)"></span>Why Pancake or Kitty?</button>
+      <button data-focus="eating"><span class="dot" style="--c:var(--signal)"></span>Why “eating”?</button>
+      <button data-focus="timeline"><span class="dot" style="--c:var(--card)"></span>How does the timeline get pictures?</button>
+    </nav>
+
+    <section class="map-wrap" aria-label="Interactive feeder architecture map">
+      <div class="lanes"><div class="lane">ON THE FEEDER</div><div class="lane">ON THE FEEDER</div><div class="lane">HOME ASSISTANT</div></div>
+      <svg viewBox="0 0 1000 590" preserveAspectRatio="none" aria-hidden="true">
+        <path class="flow f-all f-visit f-identity f-eating" d="M250 142 C310 142, 315 130, 350 130" />
+        <path class="flow f-all f-visit f-identity f-eating" d="M440 200 L440 250" />
+        <path class="flow f-all f-visit f-eating" d="M440 340 L440 410" />
+        <path class="flow f-all f-timeline" d="M530 465 C675 465, 700 375, 805 375" />
+        <path class="flow f-all f-timeline" d="M530 465 C675 465, 690 175, 805 175" />
+      </svg>
+
+      <button class="node camera" data-node="camera"><span class="tag">01 · CAMERA</span><strong>Frames arrive</strong><small>RGB video, roughly once per second for body analysis</small></button>
+      <button class="node npu" data-node="npu"><span class="tag">02 · NPU</span><strong>Four things are measured</strong><small>body · face · face vector · bowl food</small></button>
+      <button class="node gate" data-node="gate"><span class="tag">03 · TRACKER</span><strong>Is this a real visit?</strong><small>2 frames + genuine movement; static clutter is rejected</small></button>
+      <button class="node state" data-node="state"><span class="tag">04 · EVENT + STATE</span><strong>Visit, eat, identity</strong><small>event journal + live feeder state + evidence names</small></button>
+      <button class="node ha" data-node="ha"><span class="tag">05 · KIBBLE INTEGRATION</span><strong>HA polls and archives</strong><small>entities become current state; images move into HA storage</small></button>
+      <button class="node timeline" data-node="timeline"><span class="tag">06 · CARD</span><strong>Timeline renders the event</strong><small>WebSocket event list + authenticated HA image fetch</small></button>
+    </section>
+
+    <section class="detail" aria-live="polite">
+      <div class="explain">
+        <p class="eyebrow" id="stage">WHOLE TRIP</p>
+        <h2 id="title">The event path, not a pile of sensors.</h2>
+        <p id="description">The feeder’s NPU sees a possible body. The Rust daemon decides whether that is a moving visitor, whether it is at the bowl, and whether a face can be named. Home Assistant mirrors those results; the card draws them.</p>
+        <div class="chips" id="chips"><span class="chip">AI stays on feeder</span><span class="chip">HA does not identify cats</span><span class="chip">timeline is event history</span></div>
+      </div>
+      <aside class="truth">
+        <p class="eyebrow">DON’T MIX THESE UP</p>
+        <ul>
+          <li><span><b>Feeding</b> = dispenser hardware is running.</span></li>
+          <li><span><b>Eating</b> = a valid body overlaps the bowl for 3 seconds.</span></li>
+          <li><span><b>Bowl fill</b> = camera/NPU food estimate, not a weight scale.</span></li>
+        </ul>
+      </aside>
+    </section>
+
+    <div class="divider"></div>
+    <section class="compare" aria-label="Key state distinctions">
+      <article><div class="mark">1</div><h3>“Cat came by”</h3><p>It saw a body twice in a row and proved it moved at least once. A static shelf-shaped false positive should never become a saved visit.</p></article>
+      <article><div class="mark">2</div><h3>“Pancake” / “Kitty”</h3><p>A face vector matched labelled examples strongly enough, with agreement from more than one frame. One attractive guess is intentionally not enough.</p></article>
+      <article><div class="mark">3</div><h3>Scene evidence</h3><p>The full camera frame is matched to the exact vision timestamp, copied into HA, and fetched by the card from HA—not from a public feeder URL.</p></article>
+    </section>
+    <p class="hint">Source map: <code>media.rs</code> / <code>vision.rs</code> / <code>faces.rs</code> on the feeder; <code>coordinator.py</code> / <code>websocket.py</code> / <code>evidence.py</code> in HA; <code>timeline-feed.ts</code> / <code>image-cache.ts</code> in the card.</p>
+  </main>
+
+  <script>
+    const info = {
+      all: { stage: "WHOLE TRIP", title: "The event path, not a pile of sensors.", description: "The feeder’s NPU sees a possible body. The Rust daemon decides whether that is a moving visitor, whether it is at the bowl, and whether a face can be named. Home Assistant mirrors those results; the card draws them.", chips: ["AI stays on feeder", "HA does not identify cats", "timeline is event history"] },
+      camera: { stage: "01 · CAMERA", title: "The camera does not create a visit by itself.", description: "Frames go to the feeder’s media process. A raw frame-wide motion signal is useful telemetry, but it does not independently create a cat event.", chips: ["camera frame", "body analysis cadence", "full-scene JPEG"] },
+      npu: { stage: "02 · NPU", title: "Four vendor models look at the same scene.", description: "The feeder NPU runs body detection, face detection, a 512-number face embedding, and bowl-food estimation. Face work happens only when a body is present; food sampling is independent and periodic.", chips: ["body box", "face crop", "512D embedding", "food score"] },
+      gate: { stage: "03 · TRACKER", title: "A box becomes a visit only after it earns trust.", description: "The daemon needs a body in at least two consecutive analysed frames. With motion-gating enabled, that track must also show meaningful movement once. Repeated unmoving boxes become clutter and are dropped.", chips: ["2 consecutive frames", "motion verified", "5 s close timeout"] },
+      state: { stage: "04 · EVENT + STATE", title: "The daemon turns observations into facts.", description: "Bowl overlap for at least three seconds changes a valid visit into an eat event and makes eating true while it remains open. A face can attach an identity only after score, margin, and multi-frame agreement checks pass. Feeding is separate MCU hardware state.", chips: ["visit / eat", "eating", "identity", "feeding is separate"] },
+      ha: { stage: "05 · KIBBLE INTEGRATION", title: "HA mirrors the feeder; it does not run the AI.", description: "The integration polls feeder state and event data, updates HA entities from its coordinator snapshot, exposes timeline data, and atomically archives event JPEGs under HA’s own /config/.storage area before feeder deletion.", chips: ["HA entities", "timeline API", "authenticated image proxy"] },
+      timeline: { stage: "06 · CARD", title: "The card asks for events, then asks HA for their pictures.", description: "The timeline uses the Kibble WebSocket command rather than guessing from sensor history. Its image cache fetches authenticated /api/kibble/... image URLs, which now serve HA-local archived evidence.", chips: ["kibble/timeline", "event pagination", "HA-local scene evidence"] },
+      visit: { stage: "FOCUS · CAT CAME BY", title: "A visit is not just “the image changed.”", description: "Body detector → two consecutive analysed frames → motion proven at least once → valid visit. If that body never proves movement, it is discarded when the track closes. That is the anti-shelf / anti-wall defense.", chips: ["body", "2 frames", "motion gate", "5-second close"] },
+      identity: { stage: "FOCUS · PUDDING OR KITTY", title: "A name is a cautious face match.", description: "A face crop becomes a 512-number embedding. The daemon compares it with your labelled gallery, then requires threshold, margin, and agreement across distinct frames before a track gets a name. A weak one-frame result should stay unnamed.", chips: ["face crop", "embedding", "gallery", "multi-frame agreement"] },
+      eating: { stage: "FOCUS · EATING", title: "Eating is a geometry rule, not food dispensing.", description: "A previously valid body track must overlap the configured bowl rectangle for at least three seconds. That makes the event an eat event and drives eating true. The dispenser’s feeding state comes from the MCU, separately.", chips: ["bowl ROI", "3 seconds", "eating ≠ feeding"] },
+      timeline: { stage: "FOCUS · TIMELINE", title: "The timeline is direct event history with HA-hosted evidence.", description: "The card requests paged kibble/timeline data over the HA WebSocket. For an image it calls HA’s authenticated Kibble image route. That route returns the local HA archive first, so the scene remains available after feeder cleanup.", chips: ["WebSocket history", "HA image proxy", "atomic archive"] }
+    };
+    const nodes = document.querySelectorAll('.node');
+    const paths = document.querySelectorAll('.flow');
+    const buttons = document.querySelectorAll('.legend button');
+    const stage = document.querySelector('#stage');
+    const title = document.querySelector('#title');
+    const description = document.querySelector('#description');
+    const chips = document.querySelector('#chips');
+
+    function show(key) {
+      const data = info[key];
+      stage.textContent = data.stage; title.textContent = data.title; description.textContent = data.description;
+      chips.replaceChildren(...data.chips.map(text => { const chip = document.createElement('span'); chip.className = 'chip'; chip.textContent = text; return chip; }));
+      const focus = ['visit','identity','eating','timeline'].includes(key) ? key : 'all';
+      nodes.forEach(node => node.classList.toggle('selected', node.dataset.node === key));
+      nodes.forEach(node => node.classList.toggle('dim', focus !== 'all' && !({ visit:['camera','npu','gate','state'], identity:['camera','npu','gate','state'], eating:['camera','npu','gate','state'], timeline:['state','ha','timeline'] }[focus] || []).includes(node.dataset.node)));
+      paths.forEach(path => path.classList.toggle('active', path.classList.contains('f-' + focus)));
+      buttons.forEach(button => button.setAttribute('aria-pressed', String(button.dataset.focus === focus)));
+    }
+    nodes.forEach(node => node.addEventListener('click', () => show(node.dataset.node)));
+    buttons.forEach(button => button.addEventListener('click', () => show(button.dataset.focus)));
+    show('all');
+  </script>
+</body>
+</html>

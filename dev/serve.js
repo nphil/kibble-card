@@ -15,6 +15,10 @@ const CONTENT_TYPES = {
   ".map": "application/json",
   ".svg": "image/svg+xml",
   ".json": "application/json",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".webp": "image/webp",
+  ".mp4": "video/mp4",
 };
 
 Bun.serve({
@@ -32,7 +36,27 @@ Bun.serve({
     if (!(await file.exists())) {
       return new Response("Not found", { status: 404 });
     }
-    return new Response(file, { headers: { "content-type": type } });
+    // Range passthrough (the `?card=timeline` review sheet's `<video>` scrubs a clip fixture
+    // through this same server) -- `Bun.file` alone does not answer `Range` on its own.
+    const rangeHeader = request.headers.get("Range");
+    if (rangeHeader) {
+      const total = file.size;
+      const match = /^bytes=(\d*)-(\d*)$/.exec(rangeHeader);
+      const start = match?.[1] ? Number(match[1]) : 0;
+      const end = match?.[2] ? Number(match[2]) : total - 1;
+      return new Response(file.slice(start, end + 1), {
+        status: 206,
+        headers: {
+          "content-type": type,
+          "accept-ranges": "bytes",
+          "content-range": `bytes ${start}-${end}/${total}`,
+          "content-length": String(end - start + 1),
+        },
+      });
+    }
+    return new Response(file, {
+      headers: { "content-type": type, "accept-ranges": "bytes", "content-length": String(file.size) },
+    });
   },
 });
 

@@ -2,9 +2,9 @@
 
 Three Lovelace cards for the [Kibble](https://github.com/nphil/kibble) Petkit feeder integration:
 `kibble-card` (the daily hero — live camera with a "who's been by" overlay, bowl status, feed,
-schedule), `kibble-timeline-card` (today's feeds and who's been by, as one rail, with photos), and
-`kibble-cats-card` (enrolled cats you can delete or add training photos to, plus a one-tap
-inbox for the feeder's own face crops).
+schedule), `kibble-timeline-card` (every visit, meal and feed, newest first, with real photos and
+an inline "who was this?" picker for anything unidentified), and `kibble-cats-card` (enrolled
+cats, a paged review queue for the identity engine's leftovers, and per-cat training photos).
 Full design rationale in [`DESIGN.md`](DESIGN.md).
 
 Every card is one responsive component — no layout config beyond the device picker and a couple
@@ -32,15 +32,8 @@ of optional fields. Container queries drive the responsive behavior, never viewp
    type: custom:kibble-timeline-card
    device_id: <your Kibble device>
    # name: Today                  # optional label
-   # limit: 30                    # optional: rows shown before "Show more" (default 30)
-   # show_visits: false           # optional: also show bare "a cat came by" rows (default hidden)
-   ```
-
-   ```yaml
-   type: custom:kibble-cats-card
-   device_id: <your Kibble device>
-   # name: Cats                   # optional label
-   # confidence: 0.7              # optional: classifier score needed to trust its own guess over the feeder's onboard id (default 0.7)
+   # limit: 30                    # optional: rows shown before older pages auto-load (default 30)
+   # max_height: clamp(360px, calc(100dvh - 200px), 900px) # optional: the rail's scroll cap, or "none" to grow with the page
    ```
 
    Or use each card's visual editor — the required field is always just the device picker. Every
@@ -99,16 +92,27 @@ bowl redesign are still under `screenshots/` (`idle-*`, `dispensing-*`, `unreach
   (only when the camera is actually streaming), the cat's own avatar, and a plain sentence
   ("Pancake seen 4 min ago") — replaces the old footer/detection row entirely; it reads
   "Dispensing…" or the unreachable message in place of that sentence while either is true.
+- **Every cat gets its own box and name.** With the integration's detection-overlay switch on,
+  each animal the feeder is tracking gets a box in its cat's colour and a small name pill
+  (avatar + name), fed by `kibble/vision/last`'s per-box `cat`; an animal not named yet gets a
+  plain white box and no pill, and furniture the feeder ignores stays dashed. Pills flip inside
+  their box when the video's own top chrome would cover them, and never overlap each other.
+  The same overlay (`components/kibble-box-overlay.ts`, geometry in `lib/boxes.ts`) draws the
+  detected boxes everywhere else too: the review sheet's scene photo, its photo grid and the
+  full-screen photo viewer (one "show boxes" toggle, remembered, hides them all).
 - **The bowl is pure status.** The same custom SVG (traced from the integration's own brand icon)
   shows fill level and splits into two chambers only when the augers disagree by 5 points or
   more — no cat name or status text on it anymore, since that moved to the video overlay above.
   A one-shot, ~900ms kibble-drop animation plays once when a feed starts, skipped entirely under
   `prefers-reduced-motion` — the only other motion on the card besides the hold-to-feed ring.
-- **Three actions on the face:** a 1–5 segmented portion picker (or a big +/− stepper wherever six
-  48px+ segments genuinely don't fit — both read the same `number.feed_amount` entity live), the
-  press-and-hold feed button (600ms, the anti-accident lock for a touchscreen a cat can step on;
-  becomes **Cancel** on a single tap while dispensing), and the schedule one-liner ("Next feed
-  07:30, three a day" — no middle dots).
+- **Three actions on the face:** the portion picker (a 1–5 segmented picker, or a big +/− stepper
+  wherever six 48px+ segments genuinely don't fit), one shared control on `number.feed_amount`
+  with the divider out (single hopper), or two independent rows with it fitted (dual hopper),
+  one per hopper, each its own food name/"Hopper N" label beside its own 0-5 picker on
+  `number.feed_amount_hopper_1`/`_2` (0 means nothing from that side); the press-and-hold feed
+  button (600ms, the anti-accident lock for a touchscreen a cat can step on; becomes **Cancel**
+  on a single tap while dispensing, and disabled outright in dual mode once both hoppers read 0),
+  and the schedule one-liner ("Next feed 07:30, three a day", no middle dots).
 - **Everything else is behind the gear**: per-hopper feed (the wear-leveling/jam-workaround case),
   night vision / status LED / microphone, volume, the Petkit cloud switch (tap-twice confirm — it
   opens/closes an external pathway), Wi-Fi and desiccant detail, before/after dish photos and the
@@ -118,7 +122,7 @@ bowl redesign are still under `screenshots/` (`idle-*`, `dispensing-*`, `unreach
 - **Colour is the host theme**, plus two fixed accents used for exactly one thing each: amber for
   feeding (feed action, dispensing state) and a fixed red for the live-video dot only — never
   reused for errors, which use the theme's own `--error-color`. The cat palette (four colours,
-  assigned by each cat's stable `color_index`) is what every avatar/monogram draws from, on the
+  assigned by each cat's stable `color` slot) is what every avatar/monogram draws from, on the
   hero, the timeline and the cats card alike.
 - **Degrades honestly.** A camera-less device shows "No camera on this device," not a blank box.
   An unreachable agent shows "Feeder unreachable — check that kibbled is running" in the status
@@ -128,39 +132,58 @@ bowl redesign are still under `screenshots/` (`idle-*`, `dispensing-*`, `unreach
 
 ### Timeline
 
-A rail, not stacked cards: a thin vertical line with times hanging to its left, grouped into day
-buckets ("Today", "Yesterday", then a weekday+date). Bare "a cat came by" visits are hidden by
-default (`show_visits: true` brings them back) — what's left is the *named* cat that was actually
-at the bowl, shown with the **live** photo from that moment (never a stored training sample):
-"Pancake ate" when paired with a real eat detection, "Pancake was here" otherwise (seen in view, not necessarily at the bowl), or "A
-cat ate" when nobody was identified nearby. Feed rows show the amount and hopper, a quiet
-"(scheduled)" tag for a scheduler-fired cycle, and before/after bowl thumbnails each captioned.
-Tapping any thumbnail opens a lightbox; Escape or the backdrop closes it and returns focus to
-whatever was tapped.
+One calm list, scrolling inside its own bounded rail by default, newest first, grouped into day
+buckets ("Today", "Yesterday", then a weekday and date) with older pages loading automatically
+as you scroll near the bottom -- no "Show more" button. Every row shows a fixed-size photo and a
+short line: "Pancake ate", "Kitty came by", "Fed 3 portions from hopper 1" -- never a raw class
+string, a guessed name, or a confidence number. A meal or a feed with both a before and an after
+photo shows them as a compact pair right in the row (cat photo first for a meal). An event the
+identity engine couldn't name trades its title for an inline "Who was this?" picker -- one tap on
+a cat chip (or "Not a cat") labels it on the spot, optimistically, before the server confirms; a
+save that fails rolls the row back with a short inline note. Consecutive sightings of the same
+cat within five minutes collapse into one row with a count. Tapping any row's photo opens a
+fuller sheet: the scene photo, the individual photos captured for that visit -- each one
+captioned with what it currently teaches (a cat's own colour, "Not a cat", "Skip", or a muted
+guess before anyone has reviewed it) and correctable on its own with a tap, saved instantly --
+and the same cat buttons for the whole event; this is also how you correct an already-named row.
+Live subscription keeps the list current without polling.
+
+Two cats at the feeder together (the integration splits one feeder session into one row per
+cat, `docs/42-multi-cat.md` in the `kibble` repo) collapse back into one row: "Kitty and Pancake
+ate", each name in its own colour and a two-colour rail dot. The sheet always shows the whole
+session. "Who was here?" is a set of tick boxes: the identity engine's guess starts ticked, a tap
+only ever ticks or unticks that one cat, "Not a cat" is exclusive, and nothing is saved until the
+one button ("Confirm Kitty and Pancake", or "Done" when nothing changed). With two or more cats
+at a meal, each gets an Ate / Came by choice. Tapping a box on the photo names that one animal
+(and ticks its cat) in the same draft. When the vision judge saw more than one cat but fewer are
+ticked, the hint under the heading says so. Photos are grouped per cat once there are two.
 
 ### Cats
 
-Enrolled cats up top (avatar, sample count, "seen ..." sentence, a presence ring when currently
-at the bowl), each with a small menu (⋮) for **Delete cat…** (a second tap confirms — deleting
-drops every labelled sample and the classifier model) and **Add photos**: pick one or more of
-your own photos and a crop dialog walks through them one at a time — drag the square to cover the
-cat's face, drag its corner to resize (always 1:1, pointer and touch both work), a live preview
-shows exactly the 224×224 JPEG that will upload. A photo the classifier isn't confident is a face
-still gets kept, with a small note saying so. Below the cats: an inline "Add a cat" form, then the
-training inbox for the feeder's own face crops, with a suggestion chip (the classifier's own guess
-once it clears `confidence`, else the feeder's onboard identification, else nothing to confirm) so
-the default gesture is one tap that means "yes". Confirming is optimistic with a 5-second undo; a
-per-crop chooser (tap the small button, or press and hold the crop) opens a picker with every cat
-plus "Not a cat"/"Skip" — real reserved buckets the agent understands, not a client-side dismiss.
-Per-cat galleries below let you remove any sample — a trained crop returns to the inbox, an
-uploaded photo is just deleted.
-
-**v1 scope note:** DESIGN.md's "Select mode" bulk bar (checkbox multi-select, "Confirm all
-&lt;cat&gt;" / "Label as…" across many crops at once) is not built yet — every crop in this
-version is confirmed or corrected one at a time. Everything else in DESIGN.md's cats-card plan
-(suggestions, the picker, undo, galleries, empty/error states, keyboard nav) is implemented.
+Enrolled cats up top: avatar, when last seen, meals today, how many photos are trained, and
+leave-one-out accuracy once there are enough samples to measure it. Below that, a paged review
+queue (24 at a time, explicit Previous/Next) of whatever the identity engine couldn't name — one
+tile per event, not per crop. Tap a tile for the same labelling sheet the timeline uses; "Select"
+turns on multi-select with a bulk-assign bar so a batch goes to one cat (or "Not a cat") in a
+single request. "View training" under a cat's menu opens its own paged photo grid, each photo
+removable — collapsed by default, which is what keeps the card from ever rendering hundreds of
+tiles at once. A storage line at the bottom reads the actual usage and retention window ("Using
+184 MB, keeping 14 days"), plus the feeder's own transient buffer when the daemon reports it. Add
+or delete a cat from the header; deleting is a tap-twice confirm — it drops every labelled sample.
 
 ## Schedule card integration
+
+**Divider in (two foods):** the expanded schedule is Kibble's own per-hopper editor
+(`kibble-schedule-editor`), not the embed. The embed has one amount per entry and the integration
+mirrors it onto both hoppers, so it cannot schedule "kibble only". Each feed shows its time, hopper
+1, hopper 2 (named after the hopper's food) and an on/paused switch; tap a feed to edit its time and
+both amounts (0 to 20 portions, at least one above zero) or remove it (with a confirm step), and
+"Add feed" adds one. Writes use `kibble.schedule_add` (add), `kibble.schedule_set` (edit: the whole
+table, every other entry passed through unchanged with its id), `kibble.schedule_remove` and
+`kibble.schedule_set_enabled`; a refused call (for example `enable_schedule_writes` off) shows its
+message above the list.
+
+**Divider out (one bin):** the schedule is the embed below, or the fallback list.
 
 Tapping the schedule line expands either the embedded
 [`dispenser-schedule-card`](https://github.com/cristianchelu/dispenser-schedule-card) or, when
@@ -205,9 +228,10 @@ bun install
 bun run typecheck        # src/ + dev/, browser DOM lib only
 bun run typecheck:test    # test/ + src/lib/, with bun-types for bun:test
 bun test                  # pure-logic unit tests: entity resolution, entry_id, schedule math,
-                           # feeding state, relative time, WS watch keys, image URL building,
-                           # cat colours, suggestion choice, timeline row/verb selection, visit
-                           # filtering, feed summary, day grouping
+                           # feeding state, relative time, WS watch keys, cat colours, image
+                           # cache reference counting, WS paging (timeline/review/training),
+                           # timeline title/duration/grouping rules, storage formatting, crop
+                           # caption derivation and per-photo/event label requests
 bun run build              # dist/kibble-card.js, minified, all three cards + Lit bundled in
 ```
 
@@ -227,4 +251,7 @@ Then open `http://localhost:4173/?card=hero&scenario=idle&theme=light&width=480`
 `card` (`hero` | `timeline` | `cats`, default `hero`), `scenario` (`idle` | `dispensing` |
 `unreachable`, hero only), `theme` (`light` | `dark`), `width`, `height` (omit for natural content
 height; set both for a fixed kiosk-panel box), `name` (optional label, all cards), `settings_hash`
-/ `schedule_hash` (hero), `limit` / `show_visits` (timeline), `confidence` (cats).
+/ `schedule_hash` (hero), `limit` (timeline), and (hero) `schedule` (`divider` | `mixed`: the
+schedule table shown; `divider` is the default, 00:00 and 12:00 at 0 + 3 portions) and
+`schedule_fail=1` (every `kibble.schedule_*` call is refused, to see the editor's error line).
+The harness records each service call on `window.__kibbleCalls`.

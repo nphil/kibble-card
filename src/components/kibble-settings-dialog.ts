@@ -13,7 +13,7 @@ import type { HomeAssistant } from "../types";
 import "./kibble-hold-button";
 import "./kibble-before-after";
 import "./kibble-calibration-dialog";
-
+import "./kibble-detection-areas-dialog";
 const CLOUD_CONFIRM_WINDOW_MS = 3000;
 
 interface NumberAttrs {
@@ -43,7 +43,11 @@ export class KibbleSettingsDialog extends LitElement {
     entities: { attribute: false },
     entryId: { attribute: false },
     open: { type: Boolean, reflect: true },
+    singleHopper: { type: Boolean },
+    food1: { type: String },
+    food2: { type: String },
     _calibrationOpen: { state: true },
+    _detectionAreasOpen: { state: true },
   };
 
   declare hass: HomeAssistant;
@@ -51,8 +55,11 @@ export class KibbleSettingsDialog extends LitElement {
   /** HA config-entry id, for the calibration dialog's `kibble/calibration*` WS calls. */
   declare entryId: string | undefined;
   declare open: boolean;
+  declare singleHopper: boolean;
+  declare food1: string | null;
+  declare food2: string | null;
   declare _calibrationOpen: boolean;
-
+  declare _detectionAreasOpen: boolean;
   private _cloudConfirmArmed = false;
   private _cloudConfirmTimer: number | undefined = undefined;
   private _stackConfirmArmed = false;
@@ -61,7 +68,11 @@ export class KibbleSettingsDialog extends LitElement {
   constructor() {
     super();
     this.open = false;
+    this.singleHopper = false;
+    this.food1 = null;
+    this.food2 = null;
     this._calibrationOpen = false;
+    this._detectionAreasOpen = false;
   }
 
   disconnectedCallback(): void {
@@ -83,6 +94,7 @@ export class KibbleSettingsDialog extends LitElement {
         <div class="body">
           ${e.feedButtonHopper1 || e.feedButtonHopper2 ? this._renderHopperSection() : nothing}
           ${e.bowlFill ? this._renderCalibrationSection() : nothing}
+          ${e.camera ? this._renderCameraSection() : nothing}
           ${e.feedAmount ? this._renderMoreAmountSection() : nothing}
           ${this._renderToggles()}
           ${e.cloudSwitch ? this._renderCloud() : nothing}
@@ -98,12 +110,33 @@ export class KibbleSettingsDialog extends LitElement {
       <kibble-calibration-dialog
         .hass=${this.hass}
         .entryId=${this.entryId}
+        .singleHopper=${this.singleHopper}
+        .food1=${this.food1}
+        .food2=${this.food2}
         ?open=${this._calibrationOpen}
         @close-requested=${this._closeCalibration}
       ></kibble-calibration-dialog>
+      <kibble-detection-areas-dialog
+        .hass=${this.hass}
+        .cameraEntity=${e.camera}
+        .entryId=${this.entryId}
+        ?open=${this._detectionAreasOpen}
+        @close-requested=${this._closeDetectionAreas}
+      ></kibble-detection-areas-dialog>
     `;
   }
 
+  private _renderCameraSection() {
+    return html`
+      <section>
+        <h3>Camera</h3>
+        <p class="hint">Choose which parts of the camera frame the detector should use.</p>
+        <button type="button" class="cloud-toggle" @click=${this._openDetectionAreas}>
+          Detection areas
+        </button>
+      </section>
+    `;
+  }
   private _renderMoreAmountSection() {
     const attrs = numberAttrs(this.hass, this.entities.feedAmount);
     if (!attrs) return nothing;
@@ -121,14 +154,14 @@ export class KibbleSettingsDialog extends LitElement {
       <section>
         <h3>Per-hopper feed</h3>
         <p class="hint">
-          Targets one auger's amount byte. This feeder's firmware spins both augers anyway, so
-          expect roughly double into the bowl until a hopper divider is fitted.
+          Targets one auger's amount byte directly. This feeder's firmware has been observed to
+          spin both augers regardless, so expect roughly double into the bowl.
         </p>
         <div class="hoppers">
           ${feedAmountHopper1
             ? html`
                 <div class="hopper">
-                  <span class="hopper-label">Hopper 1</span>
+                  <span class="hopper-label">${this._hopperFeedLabel(1)}</span>
                   ${this._renderStepper(feedAmountHopper1, numberAttrs(this.hass, feedAmountHopper1))}
                   ${feedButtonHopper1
                     ? html`<kibble-hold-button label="Hold to feed" @activate=${() => this._pressButton(feedButtonHopper1)}></kibble-hold-button>`
@@ -136,10 +169,10 @@ export class KibbleSettingsDialog extends LitElement {
                 </div>
               `
             : nothing}
-          ${feedAmountHopper2
+          ${feedAmountHopper2 && !this.singleHopper
             ? html`
                 <div class="hopper">
-                  <span class="hopper-label">Hopper 2</span>
+                  <span class="hopper-label">${this._hopperFeedLabel(2)}</span>
                   ${this._renderStepper(feedAmountHopper2, numberAttrs(this.hass, feedAmountHopper2))}
                   ${feedButtonHopper2
                     ? html`<kibble-hold-button label="Hold to feed" @activate=${() => this._pressButton(feedButtonHopper2)}></kibble-hold-button>`
@@ -152,6 +185,15 @@ export class KibbleSettingsDialog extends LitElement {
     `;
   }
 
+  /** "Hopper" with the divider out -- there is only one physical side to target, so the
+   * per-side index stops meaning anything -- otherwise the hopper's own food name once dual
+   * mode has one set, falling back to plain "Hopper N". */
+  private _hopperFeedLabel(index: 1 | 2): string {
+    if (this.singleHopper) return "Hopper";
+    const food = index === 1 ? this.food1 : this.food2;
+    return food ?? `Hopper ${index}`;
+  }
+
   /** Just the entry point -- picking a hopper, seeing its status, and every action beyond that
    * (begin/capture/mark full/inherit/clear) is the wizard dialog's own job, not this panel's. */
   private _renderCalibrationSection() {
@@ -160,7 +202,7 @@ export class KibbleSettingsDialog extends LitElement {
         <h3>Bowl calibration</h3>
         <p class="hint">
           Turns the bowl's raw fill reading into a real percentage by dispensing known portions
-          into an empty bowl. Each hopper keeps its own curve.
+          into an empty bowl.${this.singleHopper ? nothing : " Each hopper keeps its own curve."}
         </p>
         <button type="button" class="cloud-toggle" @click=${this._openCalibration}>Calibrate bowl</button>
       </section>
@@ -222,7 +264,7 @@ export class KibbleSettingsDialog extends LitElement {
         <h3>Petkit cloud</h3>
         <p class="hint">${connection ? `Connection: ${connection}` : "Turns the feeder's cloud link on or off."}</p>
         <button type="button" class="cloud-toggle ${this._cloudConfirmArmed ? "confirming" : ""}" @click=${this._onCloudToggleClick}>
-          ${this._cloudConfirmArmed ? `Tap again to turn ${on ? "off" : "on"}` : on ? "On \u2014 tap to turn off" : "Off \u2014 tap to turn on"}
+          ${this._cloudConfirmArmed ? `Tap again to turn ${on ? "off" : "on"}` : on ? "On, tap to turn off" : "Off, tap to turn on"}
         </button>
       </section>
     `;
@@ -297,7 +339,7 @@ export class KibbleSettingsDialog extends LitElement {
     if (!state || state.state === "unavailable") return nothing;
     const running = state.state;
     const other = running === "librefeed" ? "vendor" : "librefeed";
-    const label = (v: string) => (v === "librefeed" ? "LibreFeed" : "Petkit stack");
+    const label = (v: string) => (v === "librefeed" ? "KibbleOS" : "Petkit stack");
     return html`
       <section>
         <h3>Stack</h3>
@@ -358,6 +400,15 @@ export class KibbleSettingsDialog extends LitElement {
     this._calibrationOpen = true;
   }
 
+  private _openDetectionAreas(): void {
+    this._detectionAreasOpen = true;
+  }
+
+  /** The editor is a nested overlay; keep its close event from closing Settings too. */
+  private _closeDetectionAreas(event: Event): void {
+    event.stopPropagation();
+    this._detectionAreasOpen = false;
+  }
   /** Stops the calibration dialog's own `close-requested` here -- both dialogs use the same
    * event name (the one contract every controlled overlay in this repo follows), and without
    * this it would keep bubbling past this panel and close the whole settings dialog too. */

@@ -74,3 +74,126 @@ export function scheduleSummary(entries: ScheduleEntry[], now: Date, locale?: st
   const countWord = COUNT_WORDS[enabledCount] ?? String(enabledCount);
   return `Next feed ${formatClock(next.entry.time, locale)}, ${countWord} a day`;
 }
+
+/** The most portions one hopper can be given in a single scheduled feed -- the integration
+ * accepts 0..50, but the feeder's own stepper (`kibble-settings-dialog`, the schedule card's
+ * `max_amount`) stops at 20, and one scheduled feed has no business exceeding it. */
+export const MAX_SCHEDULE_PORTIONS = 20;
+
+function portionsWord(count: number): string {
+  return count === 1 ? "1 portion" : `${count} portions`;
+}
+
+/** The hopper's own name for the editor and its labels: the operator's food name once set,
+ * else "Hopper N". */
+export function hopperLabel(index: 1 | 2, food: string | null | undefined): string {
+  const name = food?.trim();
+  return name ? name : `Hopper ${index}`;
+}
+
+/** One schedule entry's amount, as the expanded schedule shows it. The values are PORTIONS (the
+ * services call them `hopper1_g`/`hopper2_g` for historical reasons, but nothing is weighed).
+ * In dual mode each hopper keeps its own number, headed by its food name ("Kibble 3",
+ * "Freeze-dried 2 + Kibble 1"); a side at zero gives nothing, so it is left out rather than
+ * printed as "Freeze-dried 0". With the divider out there is one bin, so showing two numbers
+ * would imply a second dispenser that no longer exists; one combined figure -- the larger side,
+ * matching the single packed amount the embedded card's own sensor derives from the same two
+ * fields -- is what actually lands in the bowl. */
+export function entryAmountsLabel(
+  entry: Pick<ScheduleEntry, "amount_l" | "amount_r">,
+  single: boolean,
+  food1?: string | null,
+  food2?: string | null,
+): string {
+  if (single) return portionsWord(Math.max(entry.amount_l, entry.amount_r));
+  const parts: string[] = [];
+  if (entry.amount_l > 0) parts.push(`${hopperLabel(1, food1)} ${entry.amount_l}`);
+  if (entry.amount_r > 0) parts.push(`${hopperLabel(2, food2)} ${entry.amount_r}`);
+  return parts.length > 0 ? parts.join(" + ") : "No food";
+}
+
+/** Entries in clock order. Compares minutes, not strings: "9:00" must sort before "10:00". */
+export function sortScheduleEntries(entries: readonly ScheduleEntry[]): ScheduleEntry[] {
+  return [...entries].sort((a, b) => parseTimeToMinutes(a.time) - parseTimeToMinutes(b.time));
+}
+
+/** What the editor's form holds: a clock time ("" while the picker is cleared) plus portions per
+ * hopper. Hopper 1 is `amount_l`, hopper 2 `amount_r`, as on the schedule sensor. */
+export interface ScheduleDraft {
+  time: string;
+  amount_l: number;
+  amount_r: number;
+}
+
+/** Why a draft cannot be saved, in words for the person editing, or `null` when it can. */
+export function draftProblem(draft: ScheduleDraft): string | null {
+  if (!/^\d{1,2}:\d{2}$/.test(draft.time.trim())) return "Pick a time";
+  try {
+    parseTimeToMinutes(draft.time);
+  } catch {
+    return "Pick a time";
+  }
+  for (const amount of [draft.amount_l, draft.amount_r]) {
+    if (!Number.isInteger(amount) || amount < 0 || amount > MAX_SCHEDULE_PORTIONS) {
+      return `Portions go from 0 to ${MAX_SCHEDULE_PORTIONS}`;
+    }
+  }
+  if (draft.amount_l === 0 && draft.amount_r === 0) return "Pick at least one portion";
+  return null;
+}
+
+/** "HH:MM" (the sensor's and the time picker's shape) as the services' "HH:MM:SS". */
+export function toServiceTime(time: string): string {
+  const minutes = parseTimeToMinutes(time);
+  const hh = String(Math.floor(minutes / 60)).padStart(2, "0");
+  const mm = String(minutes % 60).padStart(2, "0");
+  return `${hh}:${mm}:00`;
+}
+
+/** One row of `kibble.schedule_set`'s table. `entry_id` is absent for a new row (the agent mints
+ * it); the `_g` names are the service's, the values are portions. */
+export interface ScheduleWriteEntry {
+  entry_id?: string;
+  time: string;
+  hopper1_g: number;
+  hopper2_g: number;
+  enabled: boolean;
+}
+
+/** Data for `kibble.schedule_add`: a new feed, enabled. */
+export function scheduleAddData(deviceId: string, draft: ScheduleDraft): Record<string, unknown> {
+  return {
+    device_id: deviceId,
+    time: toServiceTime(draft.time),
+    hopper1_g: draft.amount_l,
+    hopper2_g: draft.amount_r,
+    enabled: true,
+  };
+}
+
+/** The whole table for `kibble.schedule_set` after editing one entry. `schedule_set` replaces
+ * everything, so every other entry is passed through exactly as it is now (same id, time,
+ * amounts, enabled) and the edited one keeps its id and its on/paused state -- only its time
+ * and amounts change. Throws when `entryId` is no longer in the table (someone removed it
+ * meanwhile): writing the table then would silently resurrect nothing and drop the edit. */
+export function scheduleSetEntries(entries: readonly ScheduleEntry[], entryId: string, draft: ScheduleDraft): ScheduleWriteEntry[] {
+  if (!entries.some((entry) => entry.id === entryId)) {
+    throw new Error("That feed was removed meanwhile. Reopen the schedule and try again.");
+  }
+  return entries.map((entry) =>
+    entry.id === entryId
+      ? { entry_id: entry.id, time: toServiceTime(draft.time), hopper1_g: draft.amount_l, hopper2_g: draft.amount_r, enabled: entry.enabled }
+      : { entry_id: entry.id, time: toServiceTime(entry.time), hopper1_g: entry.amount_l, hopper2_g: entry.amount_r, enabled: entry.enabled },
+  );
+}
+
+/** A rejected service call as one readable sentence. Home Assistant rejects with a plain
+ * `{ code, message }` object over the websocket, an `Error` elsewhere. */
+export function serviceErrorMessage(error: unknown): string {
+  if (typeof error === "string" && error.trim()) return error.trim();
+  if (typeof error === "object" && error !== null) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === "string" && message.trim()) return message.trim();
+  }
+  return "Home Assistant did not accept the change";
+}

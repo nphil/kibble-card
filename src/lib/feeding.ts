@@ -23,7 +23,7 @@ export function deriveFeederStatus(
 /** The single status line shown with the bowl: never a raw state string, always the interface's
  * own voice. */
 export function statusText(status: FeederStatus, lastFedRelative: string | null): string {
-  if (status === "unreachable") return "Feeder unreachable \u2014 check that kibbled is running";
+  if (status === "unreachable") return "Feeder unreachable. Check that kibbled is running";
   if (status === "dispensing") return "Dispensing\u2026";
   return lastFedRelative ? `Fed ${lastFedRelative}` : "Ready to feed";
 }

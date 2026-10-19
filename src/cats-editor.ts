@@ -1,5 +1,5 @@
-/** Visual editor for `kibble-cats-card`: the device picker plus an optional label and an
- * optional confidence threshold. Mirrors `editor.ts`'s dual `ha-form`/plain-`<select>` pattern.
+/** Visual editor for `kibble-cats-card`: the device picker plus an optional label. Mirrors
+ * `editor.ts`'s dual `ha-form`/plain-`<select>` pattern.
  */
 
 import { LitElement, css, html, nothing } from "lit";
@@ -14,13 +14,11 @@ interface SchemaField {
 const SCHEMA: SchemaField[] = [
   { name: "device_id", required: true, selector: { device: { filter: { integration: "kibble" } } } },
   { name: "name", selector: { text: {} } },
-  { name: "confidence", selector: { number: { min: 0, max: 1, step: 0.05, mode: "box" } } },
 ];
 
 const FIELD_LABELS: Record<string, string> = {
   device_id: "Kibble device",
   name: "Name (optional)",
-  confidence: "Classifier confidence needed to suggest it (optional, default 0.7)",
 };
 
 export class KibbleCatsCardEditor extends LitElement {
@@ -78,17 +76,6 @@ export class KibbleCatsCardEditor extends LitElement {
             @change=${(event: Event) => this._updateName((event.target as HTMLInputElement).value)}
           />
         </label>
-        <label>
-          <span>Classifier confidence needed to suggest it (optional, default 0.7)</span>
-          <input
-            type="number"
-            min="0"
-            max="1"
-            step="0.05"
-            .value=${this._config?.confidence != null ? String(this._config.confidence) : ""}
-            @change=${(event: Event) => this._updateConfidence((event.target as HTMLInputElement).value)}
-          />
-        </label>
       </div>
     `;
   }
@@ -107,13 +94,6 @@ export class KibbleCatsCardEditor extends LitElement {
   private _updateName(value: string): void {
     if (!this._config) return;
     this._config = { ...this._config, name: value || undefined };
-    this._fireConfigChanged();
-  }
-
-  private _updateConfidence(value: string): void {
-    if (!this._config) return;
-    const parsed = Number(value);
-    this._config = { ...this._config, confidence: value && Number.isFinite(parsed) ? parsed : undefined };
     this._fireConfigChanged();
   }
 

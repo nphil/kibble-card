@@ -21,6 +21,20 @@ export interface KibbleEntities {
   bowlFill?: string;
   hopperLevel1?: string;
   hopperLevel2?: string;
+  /** `hopper_N_remaining`: the "mark hopper full" feature's derived portions-left sensor, only
+   * present once that feature and its learned capacity exist. */
+  hopperRemaining1?: string;
+  hopperRemaining2?: string;
+  markFullHopper1?: string;
+  markFullHopper2?: string;
+  markFullBoth?: string;
+  /** `switch.*_hopper_divider`: off means the divider is out and the feeder has one hopper. */
+  hopperDivider?: string;
+  /** `text.*_hopper_1_food` / `_hopper_2_food`: the operator's own name for what's in each
+   * hopper, local to HA and never written to the feeder. Meaningful in dual mode only -- a
+   * single, undivided bin has nothing to name. */
+  hopperFood1?: string;
+  hopperFood2?: string;
   desiccantDays?: string;
   schedule?: string;
   scheduleCardState?: string;
@@ -28,6 +42,8 @@ export interface KibbleEntities {
   feedButtonHopper1?: string;
   feedButtonHopper2?: string;
   cancelFeedButton?: string;
+  /** `button.<feeder>_call_cats`: plays the feed cue on demand ("call the cats"), LibreFeed-only. */
+  callCatsButton?: string;
   feedAmount?: string;
   feedAmountHopper1?: string;
   feedAmountHopper2?: string;
@@ -51,12 +67,6 @@ export interface KibbleEntities {
    * hero's video, gating both the overlay itself and `kibble-live-hero`'s poll of
    * `kibble/vision/last` -- off (or missing, e.g. the vendor stack) means neither happens. */
   detectionOverlaySwitch?: string;
-  // The image whose `image_last_updated` timestamp changes on every pending-queue mutation
-  // (advances to a new crop, or the current one's status flips once labelled) -- the training
-  // inbox and the cats-card watch this to know when to re-read `kibble/faces/pending`, since
-  // the diagnostic `sensor.*_pending_faces` count is disabled by default and can't be relied on
-  // for that. See resolve-entities.test.ts and DESIGN.md's data-contract section.
-  pendingFace?: string;
 }
 
 interface RoleRule {
@@ -73,6 +83,14 @@ const RULES: Record<RuleRole, RoleRule> = {
   bowlFill: { domain: "sensor", translationKeys: ["bowl_fill", "bowl_fill_1"], idSuffixes: ["_bowl_fill", "_bowl_fill_1", "_bowl_fill_hopper_1"] },
   hopperLevel1: { domain: "sensor", translationKeys: ["hopper_1_level"], idSuffixes: ["_hopper_1_level"] },
   hopperLevel2: { domain: "sensor", translationKeys: ["hopper_2_level"], idSuffixes: ["_hopper_2_level"] },
+  hopperRemaining1: { domain: "sensor", translationKeys: ["hopper_1_remaining"], idSuffixes: ["_hopper_1_remaining"] },
+  hopperRemaining2: { domain: "sensor", translationKeys: ["hopper_2_remaining"], idSuffixes: ["_hopper_2_remaining"] },
+  markFullHopper1: { domain: "button", translationKeys: ["hopper_1_full"], idSuffixes: ["_hopper_1_full"] },
+  markFullHopper2: { domain: "button", translationKeys: ["hopper_2_full"], idSuffixes: ["_hopper_2_full"] },
+  markFullBoth: { domain: "button", translationKeys: ["hopper_full"], idSuffixes: ["_hopper_full"] },
+  hopperDivider: { domain: "switch", translationKeys: ["hopper_divider"], idSuffixes: ["_hopper_divider"] },
+  hopperFood1: { domain: "text", translationKeys: ["hopper_1_food"], idSuffixes: ["_hopper_1_food"] },
+  hopperFood2: { domain: "text", translationKeys: ["hopper_2_food"], idSuffixes: ["_hopper_2_food"] },
   desiccantDays: { domain: "sensor", translationKeys: ["desiccant_days", "desiccant_left"], idSuffixes: ["_desiccant_days", "_desiccant_left"] },
   schedule: { domain: "sensor", translationKeys: ["schedule"], idSuffixes: ["_schedule"] },
   scheduleCardState: { domain: "sensor", translationKeys: ["schedule_card_state"], idSuffixes: ["_schedule_card_state"] },
@@ -80,6 +98,7 @@ const RULES: Record<RuleRole, RoleRule> = {
   feedButtonHopper1: { domain: "button", translationKeys: ["feed_hopper_1"], idSuffixes: ["_feed_hopper_1"] },
   feedButtonHopper2: { domain: "button", translationKeys: ["feed_hopper_2"], idSuffixes: ["_feed_hopper_2"] },
   cancelFeedButton: { domain: "button", translationKeys: ["cancel_feed"], idSuffixes: ["_cancel_feed"] },
+  callCatsButton: { domain: "button", translationKeys: ["call_cats"], idSuffixes: ["_call_cats"] },
   feedAmount: { domain: "number", translationKeys: ["feed_amount"], idSuffixes: ["_feed_amount"] },
   feedAmountHopper1: { domain: "number", translationKeys: ["feed_amount_hopper_1"], idSuffixes: ["_feed_amount_hopper_1"] },
   feedAmountHopper2: { domain: "number", translationKeys: ["feed_amount_hopper_2"], idSuffixes: ["_feed_amount_hopper_2"] },
@@ -97,7 +116,6 @@ const RULES: Record<RuleRole, RoleRule> = {
   detectionsToday: { domain: "sensor", translationKeys: ["detections_today"], idSuffixes: ["_detections_today"] },
   lastDetectionImage: { domain: "image", translationKeys: ["last_detection"], idSuffixes: ["_last_detection"] },
   detectionOverlaySwitch: { domain: "switch", translationKeys: ["detection_overlay"], idSuffixes: ["_detection_overlay"] },
-  pendingFace: { domain: "image", translationKeys: ["pending_face"], idSuffixes: ["_pending_face"] },
 };
 
 function domainOf(entityId: string): string {

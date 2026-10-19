@@ -1,137 +1,140 @@
-import type { TimelineItem } from "../types";
+/** Reads bounded, newest-first pages from `kibble/timeline` and keeps them fresh via
+ * `kibble/timeline/subscribe`. Explicit "Show more" navigation keeps the journal usable at a
+ * 90-day retention without pretending a client-side slice is a history limit; the opaque cursor
+ * keeps equal-timestamp events stable across page boundaries. A live-push change snaps the list
+ * back to a fresh page 1 (the doc's own words: "client refetches") rather than trying to splice
+ * a partial update into however many older pages the user has already loaded -- simple and
+ * correct beats a merge that can silently drift from what the server actually has.
+ */
 
-/** The subscription's own state, as a card renders it. `error` is a message, never an object,
- * so a render path never has to know what threw. */
+import type { TimelineEvent, TimelinePage } from "../types";
+import { describeWsError } from "./ws-query";
+import { LiveSignal, type SubscribeCapableHass as LiveSignalHass } from "./live-signal";
+
+/** The paged history state the card renders. `error` is a message, never an object. */
 export interface TimelineFeedState {
-  items: TimelineItem[] | null;
+  items: TimelineEvent[] | null;
   loading: boolean;
+  loadingMore: boolean;
+  cursor: string | null;
+  hasMore: boolean;
   error: string | null;
 }
 
-/** What the card needs from `hass` to subscribe. Narrow on purpose: the whole `hass` object is
- * replaced on every state tick system-wide, and depending on a slice of it that actually
- * matters is what keeps this from resubscribing constantly. */
-export interface SubscribeCapableHass {
-  connection?: {
-    subscribeMessage?: (
-      callback: (message: { items?: TimelineItem[] }) => void,
-      message: Record<string, unknown>,
-    ) => Promise<() => void | Promise<void>>;
-  };
+/** Narrow on purpose: the whole `hass` object changes on every system state tick. */
+export interface SubscribeCapableHass extends LiveSignalHass {
   callWS?: (message: Record<string, unknown>) => Promise<unknown>;
 }
 
-/**
- * Keeps a live `kibble/timeline/subscribe` open, so rows appear when they exist rather than
- * when some watched entity happens to change.
- *
- * The card previously re-fetched whenever one of three entity states moved. That inference
- * broke in the ordinary case: a feed's photos land ~30 s after the dispense, by which point
- * nothing watched moves again, so the row said "no photo for this feed" until the page was
- * reloaded by hand.
- *
- * Falls back to a one-shot `kibble/timeline` when the subscription is unavailable -- an older
- * integration alongside a newer card answers `unknown_command`, and a timeline frozen at
- * "loading" would be a worse regression than the staleness this replaces.
- *
- * Not a Lit controller: it owns no rendering, and keeping it a plain object makes the
- * resubscribe policy (the interesting part) testable without a DOM.
- */
 export class TimelineFeed {
-  state: TimelineFeedState = { items: null, loading: false, error: null };
-  /** Identifies the current subscription's parameters; a change means resubscribe. */
+  state: TimelineFeedState = {
+    items: null, loading: false, loadingMore: false, cursor: null, hasMore: false, error: null,
+  };
+  /** Identifies current filters; a change restarts at the newest page. */
   private _key: string | null = null;
-  private _unsubscribe: (() => void | Promise<void>) | null = null;
-  /** Incremented per subscribe attempt so a late resolution from a superseded attempt cannot
-   * install its unsubscribe handle (or its rows) over a newer one. */
+  /** Guards against an older request resolving over a newer filter or card instance. */
   private _generation = 0;
+  private readonly _live: LiveSignal;
+  private _lastHass: SubscribeCapableHass | undefined;
+  private _lastEntryId: string | undefined;
+  private _lastLimit = 30;
 
-  constructor(private readonly _onChange: () => void) {}
-
-  /** Opens (or re-opens) the subscription when `entryId`/`includeVisits` change. Safe to call
-   * on every update: identical parameters are a no-op, which is the common case by far. */
-  sync(hass: SubscribeCapableHass | undefined, entryId: string | undefined, includeVisits: boolean): void {
-    if (!hass || !entryId) return;
-    const key = `${entryId}|${includeVisits}`;
-    if (key === this._key) return;
-    this._key = key;
-    this._close();
-
-    const generation = ++this._generation;
-    this.state = { ...this.state, loading: true, error: null };
-    const message = { type: "kibble/timeline/subscribe", entry_id: entryId, include_visits: includeVisits };
-
-    const subscribe = hass.connection?.subscribeMessage;
-    if (!subscribe) {
-      void this._fallback(hass, entryId, includeVisits, generation);
-      return;
-    }
-    subscribe.call(
-      hass.connection,
-      (event) => {
-        if (generation !== this._generation) return;
-        this.state = { items: event.items ?? [], loading: false, error: null };
-        this._onChange();
-      },
-      message,
-    ).then(
-      (unsub) => {
-        if (generation !== this._generation) {
-          void unsub();
-          return;
-        }
-        this._unsubscribe = unsub;
-      },
-      () => {
-        if (generation !== this._generation) return;
-        void this._fallback(hass, entryId, includeVisits, generation);
-      },
-    );
+  constructor(private readonly _onChange: () => void) {
+    this._live = new LiveSignal(() => this._onLiveChange());
   }
 
-  /** One-shot read for an integration too old to stream. */
-  private async _fallback(
+  /** Loads the newest page when its filter changes, and keeps the live subscription pointed at
+   * the current entry. Safe to call on every card update. */
+  sync(hass: SubscribeCapableHass | undefined, entryId: string | undefined, limit: number): void {
+    this._lastHass = hass;
+    this._lastEntryId = entryId;
+    this._lastLimit = limit;
+    this._live.sync(hass, entryId);
+    const key = entryId ? `${entryId}:${limit}` : null;
+    if (key === this._key) return;
+    this._key = key;
+    if (!hass?.callWS || !entryId) return;
+    void this._readPage(hass, entryId, limit, null, ++this._generation, true);
+  }
+
+  /** Appends one older page. No-op while a request is outstanding or history is exhausted. */
+  loadMore(hass: SubscribeCapableHass | undefined, entryId: string | undefined, limit: number): void {
+    if (!hass?.callWS || !entryId || this.state.loading || this.state.loadingMore || !this.state.hasMore) return;
+    void this._readPage(hass, entryId, limit, this.state.cursor, this._generation, false);
+  }
+
+  /** Re-reads the newest page. */
+  refresh(hass: SubscribeCapableHass | undefined, entryId: string | undefined, limit: number): void {
+    if (!hass?.callWS || !entryId) return;
+    void this._readPage(hass, entryId, limit, null, ++this._generation, true);
+  }
+
+  /** Splices a freshly labelled event back into the loaded pages in place, by uid -- a no-op
+   * if that uid isn't currently loaded (it scrolled past "Show more", or hasn't loaded yet).
+   * The caller decides whether a label should instead call `removeItem` (a row labelled
+   * `not_a_cat` stops matching what `kibble/timeline` would return). */
+  replaceItem(uid: string, updated: TimelineEvent): void {
+    const items = this.state.items;
+    if (!items) return;
+    const index = items.findIndex((item) => item.uid === uid);
+    if (index === -1) return;
+    const next = items.slice();
+    next[index] = updated;
+    this.state = { ...this.state, items: next };
+    this._onChange();
+  }
+
+  removeItem(uid: string): void {
+    const items = this.state.items;
+    if (!items) return;
+    if (!items.some((item) => item.uid === uid)) return;
+    this.state = { ...this.state, items: items.filter((item) => item.uid !== uid) };
+    this._onChange();
+  }
+
+  /** Restores a prior `items` snapshot wholesale -- the rollback half of an optimistic label:
+   * the card snapshots `state.items` before mutating rows for instant feedback, then calls this
+   * with that snapshot if the server call fails, undoing any mix of `replaceItem`/`removeItem`
+   * calls in one step regardless of how many rows were touched. */
+  restoreItems(items: TimelineEvent[] | null): void {
+    this.state = { ...this.state, items };
+    this._onChange();
+  }
+
+  private _onLiveChange(): void {
+    this.refresh(this._lastHass, this._lastEntryId, this._lastLimit);
+  }
+
+  private async _readPage(
     hass: SubscribeCapableHass,
     entryId: string,
-    includeVisits: boolean,
+    limit: number,
+    cursor: string | null,
     generation: number,
+    replace: boolean,
   ): Promise<void> {
-    const callWS = hass.callWS;
-    if (!callWS) return;
+    this.state = replace ? { ...this.state, loading: true, error: null } : { ...this.state, loadingMore: true, error: null };
+    this._onChange();
     try {
-      const result = (await callWS({
+      const result = (await hass.callWS!({
         type: "kibble/timeline",
         entry_id: entryId,
-        include_visits: includeVisits,
-      })) as { items: TimelineItem[] };
+        limit,
+        ...(cursor ? { cursor } : {}),
+      })) as TimelinePage;
       if (generation !== this._generation) return;
-      this.state = { items: result.items ?? [], loading: false, error: null };
-    } catch (error) {
+      const items = replace ? result.items : [...(this.state.items ?? []), ...result.items];
+      this.state = { items, loading: false, loadingMore: false, cursor: result.cursor, hasMore: result.has_more, error: null };
+    } catch (err) {
       if (generation !== this._generation) return;
-      this.state = { items: null, loading: false, error: error instanceof Error ? error.message : String(error) };
+      this.state = { ...this.state, loading: false, loadingMore: false, error: describeWsError(err) };
     }
     this._onChange();
   }
 
-  /** Re-reads now, keeping the current rows on screen while it does. The retry button's path;
-   * a live subscription needs no polling. */
-  refresh(hass: SubscribeCapableHass | undefined, entryId: string | undefined, includeVisits: boolean): void {
-    if (!hass || !entryId) return;
-    this._key = null;
-    this.sync(hass, entryId, includeVisits);
-  }
-
-  /** Drops the subscription. The card calls this on disconnect: a subscription outliving its
-   * card would keep the integration rebuilding rows for a listener nobody can see. */
+  /** Invalidates in-flight requests and drops the live subscription. */
   dispose(): void {
     this._generation += 1;
-    this._key = null;
-    this._close();
-  }
-
-  private _close(): void {
-    const unsub = this._unsubscribe;
-    this._unsubscribe = null;
-    if (unsub) void unsub();
+    this._live.dispose();
   }
 }

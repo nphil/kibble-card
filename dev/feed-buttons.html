@@ -1,0 +1,433 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Hold to feed: pick a style</title>
+<style>
+  :root {
+    --bg: #121820;
+    --card: #1c242e;
+    --card-edge: #2a3542;
+    --ink: #e8edf2;
+    --muted: #8d9aa8;
+    --feed: #43a96a;
+    --kibble: #c98a4b;
+    --kibble-dark: #8a5a2b;
+    font-family: "Segoe UI", Roboto, system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); -webkit-tap-highlight-color: transparent; }
+  header { padding: 28px 20px 8px; max-width: 1180px; margin: 0 auto; }
+  h1 { margin: 0 0 6px; font-size: 26px; letter-spacing: -0.02em; }
+  header p { margin: 0; color: var(--muted); font-size: 15px; max-width: 60ch; line-height: 1.5; }
+  .grid {
+    display: grid; gap: 18px; padding: 20px; max-width: 1180px; margin: 0 auto;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  }
+  .tile {
+    position: relative; background: var(--card); border: 1px solid var(--card-edge);
+    border-radius: 20px; padding: 18px 18px 22px; overflow: hidden;
+    display: flex; flex-direction: column; gap: 14px; min-height: 290px;
+  }
+  .tile h2 { margin: 0; font-size: 17px; display: flex; align-items: baseline; gap: 10px; }
+  .tile h2 .num { color: var(--muted); font-size: 13px; font-weight: 600; }
+  .tile .desc { margin: -8px 0 0; color: var(--muted); font-size: 13px; line-height: 1.45; }
+  .stage { position: relative; flex: 1; display: grid; place-items: center; min-height: 170px; }
+  .fx { position: absolute; inset: -40px; width: calc(100% + 80px); height: calc(100% + 80px); pointer-events: none; z-index: 5; }
+  .tile.picked { outline: 3px solid var(--feed); outline-offset: -3px; }
+  .pick { align-self: center; background: none; border: 1px solid var(--card-edge); color: var(--muted); border-radius: 999px; padding: 6px 14px; font: inherit; font-size: 13px; cursor: pointer; }
+  .tile.picked .pick { background: var(--feed); color: #07210f; border-color: var(--feed); font-weight: 700; }
+  .hold { touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; cursor: pointer; outline: none; }
+  .hold:focus-visible { box-shadow: 0 0 0 3px #7cc4ff; }
+  .count { font-size: 12px; color: var(--muted); text-align: center; min-height: 16px; }
+
+  /* 1 Wish orb */
+  .orb { width: 132px; height: 132px; border-radius: 50%; position: relative; display: grid; place-items: center; transition: transform 160ms cubic-bezier(.3,1.6,.5,1); }
+  .orb .ring { position: absolute; inset: 0; border-radius: 50%; background: conic-gradient(var(--c) calc(var(--p) * 360deg), #ffffff14 0); filter: drop-shadow(0 0 calc(6px + var(--p) * 18px) var(--c)); transition: filter 200ms; }
+  .orb .core { position: absolute; inset: 9px; border-radius: 50%; background: radial-gradient(circle at 38% 32%, #fff 0 4%, var(--c) 30%, #0b1020 78%); box-shadow: inset 0 0 30px #000a; transform: scale(calc(0.9 + var(--p) * 0.12)); }
+  .orb .label { position: relative; font-weight: 800; font-size: 15px; letter-spacing: .04em; text-shadow: 0 1px 6px #000; }
+  .orb.pressed { transform: scale(.94); }
+  .orb.done .core { animation: orbPop 700ms ease-out; }
+  @keyframes orbPop { 0% { transform: scale(1.02); filter: brightness(3); } 100% { transform: scale(.95); filter: none; } }
+
+  /* 2 Arcade */
+  .arcade { width: 150px; height: 150px; position: relative; display: grid; place-items: center; }
+  .arcade .leds { position: absolute; inset: 0; }
+  .arcade .led { position: absolute; left: 50%; top: 50%; width: 12px; height: 12px; margin: -6px; border-radius: 50%; background: #3a1f24; box-shadow: inset 0 1px 2px #0008; transition: background 90ms, box-shadow 90ms; }
+  .arcade .led.on { background: #ffd24a; box-shadow: 0 0 10px #ffc21a, 0 0 22px #ffa20088; }
+  .arcade .dome { width: 96px; height: 96px; border-radius: 50%; background: radial-gradient(circle at 40% 30%, #ff8a8a, #e3262f 45%, #8e0f17 100%); box-shadow: 0 10px 0 #5d0a10, 0 14px 18px #0009, inset 0 -6px 12px #0005; display: grid; place-items: center; font-weight: 900; font-size: 13px; color: #fff; text-shadow: 0 1px 0 #0007; transition: transform 70ms, box-shadow 70ms; }
+  .arcade.pressed .dome { transform: translateY(8px); box-shadow: 0 2px 0 #5d0a10, 0 4px 8px #0009, inset 0 -3px 8px #0005; }
+  .arcade.done .led { animation: rainbow 900ms linear; }
+  @keyframes rainbow { 0% { background: #ff4d4d; } 25% { background: #ffd24a; } 50% { background: #4dff88; } 75% { background: #4dc3ff; } 100% { background: #c34dff; } }
+
+  /* 3 Power meter */
+  .meter { width: 260px; display: grid; gap: 10px; justify-items: center; }
+  .meter .bar { width: 100%; height: 34px; border-radius: 10px; background: #0b1016; border: 2px solid #3a4756; display: grid; grid-template-columns: repeat(12, 1fr); gap: 3px; padding: 4px; }
+  .meter .cell { border-radius: 3px; background: #1a232d; transition: background 80ms, box-shadow 80ms, transform 80ms; }
+  .meter .cell.on { background: var(--cc); box-shadow: 0 0 8px var(--cc); transform: scaleY(1.08); }
+  .meter .btn { padding: 12px 26px; border-radius: 12px; background: linear-gradient(#3b4a5c, #232d38); border: 1px solid #52667c; font-weight: 800; letter-spacing: .06em; box-shadow: 0 5px 0 #121a22; transition: transform 70ms, box-shadow 70ms; }
+  .meter.pressed .btn { transform: translateY(4px); box-shadow: 0 1px 0 #121a22; }
+  .meter.tense .bar { animation: shake 90ms linear infinite; }
+  .meter .perfect { position: absolute; top: 12px; font-weight: 900; font-size: 30px; letter-spacing: .04em; color: #ffe05a; text-shadow: 0 0 18px #ffb300, 0 3px 0 #b36b00; opacity: 0; transform: scale(.4); pointer-events: none; }
+  .meter.done .perfect { animation: perfect 1100ms cubic-bezier(.2,1.6,.4,1); }
+  @keyframes perfect { 0% { opacity: 0; transform: scale(.3) rotate(-8deg); } 25% { opacity: 1; transform: scale(1.15) rotate(3deg); } 70% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(1.05) translateY(-10px); } }
+  @keyframes shake { 0% { transform: translate(0, 0); } 25% { transform: translate(-1.5px, .5px); } 50% { transform: translate(1.5px, -.5px); } 75% { transform: translate(-1px, -.5px); } 100% { transform: translate(0, 0); } }
+
+  /* 4 Kibble jar */
+  .jar { width: 250px; height: 76px; border-radius: 38px; position: relative; overflow: hidden; background: linear-gradient(#ffffff10, #ffffff05); border: 2px solid #ffffff30; box-shadow: inset 0 2px 10px #ffffff10, 0 8px 22px #0006; transition: transform 160ms cubic-bezier(.3,1.6,.5,1); }
+  .jar canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .jar .label { position: absolute; inset: 0; display: grid; place-items: center; font-weight: 800; font-size: 17px; text-shadow: 0 1px 6px #000c; }
+  .jar .shine { position: absolute; left: 18px; right: 18px; top: 7px; height: 10px; border-radius: 10px; background: linear-gradient(#ffffff40, #ffffff00); }
+  .jar.pressed { transform: scale(.96); }
+  .jar.done { animation: jarBounce 600ms cubic-bezier(.2,1.8,.4,1); }
+  @keyframes jarBounce { 0% { transform: scale(.94); } 40% { transform: scale(1.08, .94); } 100% { transform: scale(1); } }
+
+  /* 5 Neon */
+  .neon { width: 250px; height: 70px; position: relative; display: grid; place-items: center; }
+  .neon svg { position: absolute; inset: 0; overflow: visible; }
+  .neon .track { fill: #0a0f18; stroke: #1d2a3d; stroke-width: 2; }
+  .neon .trace { fill: none; stroke: url(#neonGrad); stroke-width: 3; stroke-linecap: round; filter: drop-shadow(0 0 4px #37f) drop-shadow(0 0 calc(4px + var(--p) * 16px) #f3c); }
+  .neon .label { position: relative; font-weight: 800; letter-spacing: .18em; font-size: 15px; color: #cfe3ff; text-shadow: 0 0 calc(2px + var(--p) * 14px) #5af; }
+  .neon.done .label { animation: glitch 700ms steps(2) ; }
+  @keyframes glitch { 0% { transform: translate(0); text-shadow: -2px 0 #f0f, 2px 0 #0ff; } 20% { transform: translate(-3px, 1px); } 40% { transform: translate(3px, -1px); text-shadow: 3px 0 #f0f, -3px 0 #0ff; } 60% { transform: translate(-1px, 2px); } 100% { transform: translate(0); } }
+
+  /* 6 Sigil */
+  .sigil { width: 160px; height: 160px; position: relative; display: grid; place-items: center; }
+  .sigil svg { position: absolute; inset: 0; overflow: visible; }
+  .sigil .runes { transform-origin: 80px 80px; animation: spin 14s linear infinite; }
+  .sigil .inner { transform-origin: 80px 80px; animation: spin 9s linear infinite reverse; }
+  .sigil .c { fill: none; stroke: #b98cff; stroke-linecap: round; filter: drop-shadow(0 0 6px #9a5bff); }
+  .sigil .label { position: relative; font-weight: 800; font-size: 13px; letter-spacing: .12em; color: #eadcff; text-shadow: 0 0 10px #9a5bff; }
+  .sigil.pressed .runes { animation-duration: 2s; }
+  .sigil.done { animation: flashWhite 700ms ease-out; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes flashWhite { 0% { filter: brightness(3.5); } 100% { filter: none; } }
+
+  /* 7 Slot reels */
+  .slots { display: grid; gap: 12px; justify-items: center; }
+  .reels { display: flex; gap: 8px; padding: 10px; border-radius: 14px; background: linear-gradient(#ffd46b, #c7881c); box-shadow: 0 6px 0 #7a4f0a, 0 10px 20px #0008; }
+  .reel { width: 56px; height: 64px; border-radius: 8px; background: linear-gradient(#fff, #e8e2d6 50%, #fff); overflow: hidden; position: relative; box-shadow: inset 0 6px 8px #0003, inset 0 -6px 8px #0003; }
+  .reel .strip { position: absolute; left: 0; right: 0; top: 0; display: flex; flex-direction: column; align-items: center; }
+  .reel .sym { height: 64px; display: grid; place-items: center; font-size: 34px; }
+  .reel.locked { box-shadow: inset 0 0 0 3px #43a96a, inset 0 6px 8px #0003; }
+  .slots .lever { padding: 11px 28px; border-radius: 999px; background: linear-gradient(#e34a4a, #9e1c1c); font-weight: 900; letter-spacing: .06em; box-shadow: 0 5px 0 #5c0c0c; transition: transform 70ms, box-shadow 70ms; }
+  .slots.pressed .lever { transform: translateY(4px); box-shadow: 0 1px 0 #5c0c0c; }
+  .slots .jackpot { position: absolute; top: 0; font-weight: 900; font-size: 26px; color: #ffe05a; text-shadow: 0 0 16px #ffb300, 0 3px 0 #9a5c00; opacity: 0; }
+  .slots.done .jackpot { animation: perfect 1300ms cubic-bezier(.2,1.6,.4,1); }
+
+  /* 8 Activity ring */
+  .ringbtn { width: 150px; height: 150px; position: relative; display: grid; place-items: center; transition: transform 160ms cubic-bezier(.3,1.6,.5,1); }
+  .ringbtn svg { position: absolute; inset: 0; transform: rotate(-90deg); overflow: visible; }
+  .ringbtn .bg { fill: none; stroke: #ffffff12; stroke-width: 18; }
+  .ringbtn .fg { fill: none; stroke: url(#ringGrad); stroke-width: 18; stroke-linecap: round; filter: drop-shadow(0 0 6px #43e08a88); }
+  .ringbtn .label { display: grid; justify-items: center; line-height: 1.1; }
+  .ringbtn .big { font-size: 30px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .ringbtn .small { font-size: 11px; color: var(--muted); letter-spacing: .1em; }
+  .ringbtn.pressed { transform: scale(.95); }
+  .ringbtn.done { animation: ringDone 800ms cubic-bezier(.2,1.8,.4,1); }
+  @keyframes ringDone { 0% { transform: scale(.9); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
+
+  /* 9 Jelly */
+  .jelly { width: 210px; height: 84px; border-radius: 42px; position: relative; overflow: hidden; background: radial-gradient(circle at 30% 25%, #ffb3d6, #ff6fb0 45%, #d93a86 100%); box-shadow: inset 0 -8px 16px #a0205f, inset 0 6px 12px #ffffff70, 0 10px 24px #ff4fa04a; transform-origin: 50% 100%; display: grid; place-items: center; }
+  .jelly .label { position: relative; z-index: 2; font-weight: 900; font-size: 18px; color: #fff; text-shadow: 0 2px 0 #b02a6e; }
+  .jelly canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .jelly.done { animation: wobble 900ms cubic-bezier(.2,.8,.3,1); }
+  @keyframes wobble { 0% { transform: scale(1.25, .7); } 25% { transform: scale(.85, 1.2); } 45% { transform: scale(1.1, .92); } 65% { transform: scale(.96, 1.05); } 100% { transform: scale(1); } }
+
+  /* 10 8-bit */
+  .pixel { width: 260px; display: grid; gap: 10px; justify-items: center; font-family: "Courier New", ui-monospace, monospace; image-rendering: pixelated; }
+  .pixel .frame { width: 100%; height: 54px; background: #0b0b18; border: 4px solid #fff; box-shadow: 4px 4px 0 #000, inset 0 0 0 4px #0b0b18; display: grid; grid-template-columns: repeat(16, 1fr); gap: 2px; padding: 6px; }
+  .pixel .blk { background: #1c1c38; }
+  .pixel .blk.on { background: var(--bc); box-shadow: inset -3px -3px 0 #0005, inset 3px 3px 0 #fff4; }
+  .pixel .btn { padding: 10px 20px; background: #3b5bdb; border: 4px solid #fff; box-shadow: 4px 4px 0 #000; font-weight: 900; font-size: 16px; letter-spacing: .08em; color: #fff; text-transform: uppercase; transition: transform 60ms, box-shadow 60ms; }
+  .pixel.pressed .btn { transform: translate(4px, 4px); box-shadow: 0 0 0 #000; }
+  .pixel .lvl { position: absolute; top: 4px; font-weight: 900; font-size: 26px; color: #ffe94d; text-shadow: 3px 3px 0 #c2410c; opacity: 0; letter-spacing: .05em; }
+  .pixel.done .lvl { animation: levelup 1300ms steps(8); }
+  @keyframes levelup { 0% { opacity: 0; transform: translateY(20px); } 20% { opacity: 1; transform: translateY(0); } 80% { opacity: 1; } 100% { opacity: 0; transform: translateY(-14px); } }
+
+  /* 11 Toe beans */
+  .paw { width: 150px; height: 150px; position: relative; transition: transform 160ms cubic-bezier(.3,1.6,.5,1); }
+  .paw svg { width: 100%; height: 100%; overflow: visible; }
+  .paw .fur { fill: #3a2f2a; }
+  .paw .bean { fill: #5a3f45; transition: fill 160ms, filter 160ms; }
+  .paw .bean.on { fill: #ff9ec2; filter: drop-shadow(0 0 8px #ff7fb0); }
+  .paw .padfill { fill: #ff9ec2; }
+  .paw.pressed { transform: scale(.93) translateY(3px); }
+  .paw.done { animation: ringDone 700ms cubic-bezier(.2,1.8,.4,1); }
+
+  /* 12 Treasure chest */
+  .chest { width: 150px; height: 140px; position: relative; }
+  .chest svg { width: 100%; height: 100%; overflow: visible; }
+  .chest .lid { transform-origin: 75px 62px; transition: transform 500ms cubic-bezier(.2,1.6,.4,1); }
+  .chest.open .lid { transform: rotate(-38deg) translate(-6px, -6px); }
+  .chest .glow { opacity: var(--g); filter: blur(4px); }
+  .chest .rays { opacity: 0; transform-origin: 75px 60px; }
+  .chest.open .rays { animation: rays 1400ms ease-out; }
+  @keyframes rays { 0% { opacity: 0; transform: scale(.3) rotate(0); } 30% { opacity: 1; } 100% { opacity: 0; transform: scale(1.6) rotate(25deg); } }
+  .chest.tense .body { animation: shake 70ms linear infinite; }
+  .chest-label { font-weight: 800; font-size: 13px; letter-spacing: .1em; color: #ffd98a; text-align: center; }
+</style>
+</head>
+<style>
+  .tabs { display: flex; gap: 6px; margin-bottom: 16px; }
+  .tabs a { color: var(--muted); text-decoration: none; padding: 7px 14px; border-radius: 999px; border: 1px solid var(--card-edge); font-size: 14px; }
+  .tabs a.on { background: var(--ink); color: var(--bg); border-color: var(--ink); font-weight: 700; }
+</style>
+<body>
+<header>
+  <nav class="tabs"><a class="on" href="feed-buttons.html">Feed buttons</a><a href="feed-layouts.html">Bowl and hopper</a></nav>
+  <h1>Hold to feed: pick a style</h1>
+  <p>Twelve takes on the same interaction. Press and hold any of them (mouse, finger, or focus it and hold Space). Let go early to see how it cancels. Tap "I like this one" on the ones you want, then tell me which numbers.</p>
+</header>
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <linearGradient id="neonGrad" x1="0" x2="1"><stop offset="0" stop-color="#37e0ff" /><stop offset=".5" stop-color="#7a5cff" /><stop offset="1" stop-color="#ff3ccf" /></linearGradient>
+    <linearGradient id="ringGrad" x1="0" x2="1" y1="0" y2="1"><stop offset="0" stop-color="#1fd17a" /><stop offset="1" stop-color="#b6ff5c" /></linearGradient>
+  </defs>
+</svg>
+<main class="grid" id="grid"></main>
+
+<script>
+const HOLD_MS = 1400;
+const TIERS = [0.33, 0.66, 0.9];
+const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const buzz = (ms) => { try { navigator.vibrate && navigator.vibrate(ms); } catch {} };
+
+/* ---------- particles ---------- */
+class FX {
+  constructor(canvas) {
+    this.c = canvas; this.ctx = canvas.getContext("2d"); this.parts = []; this.running = false;
+    new ResizeObserver(() => this.resize()).observe(canvas); this.resize();
+  }
+  resize() { const r = this.c.getBoundingClientRect(); const d = devicePixelRatio || 1; this.c.width = r.width * d; this.c.height = r.height * d; this.ctx.setTransform(d, 0, 0, d, 0, 0); this.w = r.width; this.h = r.height; }
+  center() { return { x: this.w / 2, y: this.h / 2 }; }
+  emit(o) {
+    if (reduced) return;
+    const { x, y, n = 30, colors = ["#fff"], speed = [2, 7], gravity = 0.18, life = [40, 80], size = [2, 5], shape = "circle", spread = Math.PI * 2, dir = 0, drag = 0.985, inward = false } = o;
+    for (let i = 0; i < n; i++) {
+      const a = dir + (Math.random() - 0.5) * spread; const s = speed[0] + Math.random() * (speed[1] - speed[0]);
+      const L = life[0] + Math.random() * (life[1] - life[0]);
+      const p = { x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, g: gravity, life: L, max: L, r: size[0] + Math.random() * (size[1] - size[0]), col: colors[(Math.random() * colors.length) | 0], shape, rot: Math.random() * 6.28, vr: (Math.random() - 0.5) * 0.3, drag };
+      if (inward) { const d = 70 + Math.random() * 40; p.x = x + Math.cos(a) * d; p.y = y + Math.sin(a) * d; p.vx = -Math.cos(a) * s; p.vy = -Math.sin(a) * s; p.g = 0; }
+      this.parts.push(p);
+    }
+    if (!this.running) { this.running = true; requestAnimationFrame(() => this.tick()); }
+  }
+  draw(p) {
+    const k = this.ctx; const a = Math.max(0, p.life / p.max); k.globalAlpha = a; k.fillStyle = p.col;
+    k.save(); k.translate(p.x, p.y); k.rotate(p.rot);
+    if (p.shape === "star") { k.beginPath(); for (let i = 0; i < 10; i++) { const r = i % 2 ? p.r * 0.45 : p.r; const t = (i / 10) * Math.PI * 2; k.lineTo(Math.cos(t) * r, Math.sin(t) * r); } k.fill(); }
+    else if (p.shape === "kibble") { for (let i = 0; i < 3; i++) { const t = (i / 3) * Math.PI * 2; k.beginPath(); k.arc(Math.cos(t) * p.r * 0.5, Math.sin(t) * p.r * 0.5, p.r * 0.62, 0, 6.28); k.fill(); } }
+    else if (p.shape === "square") { k.fillRect(-p.r, -p.r, p.r * 2, p.r * 2); }
+    else if (p.shape === "coin") { k.beginPath(); k.ellipse(0, 0, p.r, p.r * Math.abs(Math.cos(p.rot * 3)) + 0.5, 0, 0, 6.28); k.fill(); }
+    else if (p.shape === "heart") { const r = p.r; k.beginPath(); k.moveTo(0, r * 0.9); k.bezierCurveTo(-r * 1.6, -r * 0.2, -r * 0.6, -r * 1.3, 0, -r * 0.4); k.bezierCurveTo(r * 0.6, -r * 1.3, r * 1.6, -r * 0.2, 0, r * 0.9); k.fill(); }
+    else if (p.shape === "line") { k.fillRect(0, -1, p.r * 4, 2); }
+    else if (p.shape === "paw") { k.beginPath(); k.ellipse(0, p.r * 0.4, p.r * 0.7, p.r * 0.55, 0, 0, 6.28); k.fill(); for (const [dx, dy] of [[-0.75, -0.35], [-0.28, -0.8], [0.28, -0.8], [0.75, -0.35]]) { k.beginPath(); k.arc(dx * p.r, dy * p.r, p.r * 0.26, 0, 6.28); k.fill(); } }
+    else { k.beginPath(); k.arc(0, 0, p.r, 0, 6.28); k.fill(); }
+    k.restore(); k.globalAlpha = 1;
+  }
+  tick() {
+    this.ctx.clearRect(0, 0, this.w, this.h);
+    this.parts = this.parts.filter((p) => { p.vx *= p.drag; p.vy = p.vy * p.drag + p.g; p.x += p.vx; p.y += p.vy; p.rot += p.vr; p.life--; this.draw(p); return p.life > 0; });
+    if (this.parts.length) requestAnimationFrame(() => this.tick()); else { this.running = false; this.ctx.clearRect(0, 0, this.w, this.h); }
+  }
+}
+
+/* ---------- hold engine ---------- */
+function holdable(el, h) {
+  let p = 0, start = 0, raf = 0, holding = false, locked = false, tier = 0, drainFrom = 0, drainStart = 0;
+  const set = (v, draining) => { p = v; h.progress(v, { draining }); };
+  const frame = (now) => {
+    if (holding) {
+      const v = Math.min(1, (now - start) / HOLD_MS);
+      while (tier < TIERS.length && v >= TIERS[tier]) { h.tier && h.tier(tier, v); buzz(12); tier++; }
+      set(v, false);
+      if (v >= 1) { holding = false; locked = true; buzz([30, 40, 60]); h.complete(); el.classList.remove("pressed"); setTimeout(() => { locked = false; tier = 0; set(0, false); h.reset && h.reset(); }, 1900); return; }
+      raf = requestAnimationFrame(frame);
+    } else if (drainStart) {
+      const t = Math.min(1, (now - drainStart) / 320); const v = drainFrom * (1 - (1 - Math.pow(1 - t, 3)));
+      set(v, true);
+      if (t < 1) raf = requestAnimationFrame(frame); else { drainStart = 0; tier = 0; set(0, false); h.reset && h.reset(); }
+    }
+  };
+  const down = (e) => {
+    if (locked || holding) return; if (e && e.pointerId != null) el.setPointerCapture(e.pointerId);
+    holding = true; drainStart = 0; tier = 0; start = performance.now() - p * HOLD_MS; el.classList.add("pressed"); buzz(8); h.start && h.start();
+    cancelAnimationFrame(raf); raf = requestAnimationFrame(frame);
+  };
+  const up = () => {
+    if (!holding) return; holding = false; el.classList.remove("pressed");
+    drainFrom = p; drainStart = performance.now(); h.cancel && h.cancel(); cancelAnimationFrame(raf); raf = requestAnimationFrame(frame);
+  };
+  el.tabIndex = 0; el.setAttribute("role", "button");
+  el.addEventListener("pointerdown", down); el.addEventListener("pointerup", up); el.addEventListener("pointercancel", up);
+  el.addEventListener("contextmenu", (e) => e.preventDefault());
+  el.addEventListener("keydown", (e) => { if ((e.key === " " || e.key === "Enter") && !e.repeat) { e.preventDefault(); down(); } });
+  el.addEventListener("keyup", (e) => { if (e.key === " " || e.key === "Enter") up(); });
+  h.progress(0, { draining: false });
+}
+
+/* ---------- variants ---------- */
+const kibbleCols = ["#c98a4b", "#a86b34", "#e0a868", "#8a5a2b"];
+const V = [];
+
+V.push({ name: "Wish orb", from: "Gacha summon (Genshin wish, Honkai warp)", html: `<div class="orb hold" aria-label="Hold to feed"><div class="ring"></div><div class="core"></div><span class="label">FEED</span></div>`,
+  init(root, fx) {
+    const orb = root.querySelector(".orb"); const tiers = ["#5aa9ff", "#b06bff", "#ffc43d"]; let tick = 0;
+    holdable(orb, {
+      progress(p) { orb.style.setProperty("--p", p); orb.style.setProperty("--c", tiers[p < .33 ? 0 : p < .66 ? 1 : 2]); if (p > 0 && p < 1 && ++tick % 3 === 0) { const c = fx.center(); fx.emit({ x: c.x, y: c.y, n: 2, inward: true, speed: [1.5, 3], life: [22, 30], size: [1.5, 3], shape: "star", colors: [tiers[p < .33 ? 0 : p < .66 ? 1 : 2], "#fff"] }); } },
+      tier(i) { const c = fx.center(); fx.emit({ x: c.x, y: c.y, n: 16, speed: [2, 5], gravity: 0, life: [18, 28], shape: "star", colors: [tiers[Math.min(i + 1, 2)], "#fff"] }); },
+      complete() { orb.classList.add("done"); const c = fx.center(); fx.emit({ x: c.x, y: c.y, n: 70, speed: [3, 10], gravity: 0.05, life: [40, 80], size: [2, 6], shape: "star", colors: ["#ffc43d", "#fff3b0", "#ffffff", "#ffa000"] }); fx.emit({ x: c.x, y: c.y, n: 24, speed: [2, 6], gravity: 0.2, shape: "kibble", size: [4, 7], colors: kibbleCols }); setTimeout(() => orb.classList.remove("done"), 700); },
+    });
+  } });
+
+V.push({ name: "Arcade button", from: "Arcade cabinet button with LED chaser", html: `<div class="arcade hold" aria-label="Hold to feed"><div class="leds"></div><div class="dome">FEED</div></div>`,
+  init(root, fx) {
+    const a = root.querySelector(".arcade"); const leds = a.querySelector(".leds"); const N = 16; const els = [];
+    for (let i = 0; i < N; i++) { const d = document.createElement("i"); d.className = "led"; const t = (i / N) * Math.PI * 2 - Math.PI / 2; d.style.transform = `translate(${Math.cos(t) * 66}px, ${Math.sin(t) * 66}px)`; leds.append(d); els.push(d); }
+    holdable(a, {
+      progress(p) { const on = Math.round(p * N); els.forEach((e, i) => e.classList.toggle("on", i < on)); },
+      complete() { a.classList.add("done"); const c = fx.center(); fx.emit({ x: c.x, y: c.y, n: 40, dir: -Math.PI / 2, spread: 1.6, speed: [5, 11], gravity: 0.35, life: [50, 90], size: [4, 7], shape: "coin", colors: ["#ffd24a", "#ffb400", "#fff1a8"] }); setTimeout(() => a.classList.remove("done"), 900); },
+    });
+  } });
+
+V.push({ name: "Power meter", from: "Golf swing and fighting-game super meters", html: `<div class="meter"><span class="perfect">PERFECT!</span><div class="bar"></div><div class="btn hold" aria-label="Hold to feed">HOLD TO FEED</div></div>`,
+  init(root, fx) {
+    const m = root.querySelector(".meter"); const bar = m.querySelector(".bar"); const btn = m.querySelector(".btn"); const N = 12; const cells = [];
+    for (let i = 0; i < N; i++) { const c = document.createElement("i"); c.className = "cell"; const h = 130 - (i / (N - 1)) * 120; c.style.setProperty("--cc", `hsl(${h} 90% 55%)`); bar.append(c); cells.push(c); }
+    holdable(btn, {
+      start() { m.classList.add("pressed"); }, cancel() { m.classList.remove("pressed", "tense"); },
+      progress(p) { const on = Math.ceil(p * N); cells.forEach((c, i) => c.classList.toggle("on", i < on)); m.classList.toggle("tense", p > .85 && p < 1); },
+      complete() { m.classList.remove("pressed", "tense"); m.classList.add("done"); const r = bar.getBoundingClientRect(), f = fx.c.getBoundingClientRect(); fx.emit({ x: r.right - f.left, y: r.top + r.height / 2 - f.top, n: 50, speed: [3, 9], gravity: 0.25, size: [2, 4], shape: "line", colors: ["#ffe05a", "#ff7a1a", "#fff"] }); setTimeout(() => m.classList.remove("done"), 1100); },
+    });
+  } });
+
+V.push({ name: "Kibble jar", from: "Physics fill meters (Suika, coin pushers)", html: `<div class="jar hold" aria-label="Hold to feed"><canvas></canvas><div class="shine"></div><span class="label">Hold to feed</span></div>`,
+  init(root, fx) {
+    const jar = root.querySelector(".jar"); const cv = jar.querySelector("canvas"); const ctx = cv.getContext("2d"); let pieces = [], target = 0, raf = 0;
+    const size = () => { const r = cv.getBoundingClientRect(), d = devicePixelRatio || 1; cv.width = r.width * d; cv.height = r.height * d; ctx.setTransform(d, 0, 0, d, 0, 0); return r; };
+    let R = size(); new ResizeObserver(() => (R = size())).observe(cv);
+    const cap = 90;
+    const loop = () => {
+      const want = Math.max(0, Math.round((target || 0) * cap));
+      while (pieces.length < want) pieces.push({ x: 14 + Math.random() * (R.width - 28), y: -10, vy: 0, r: 5 + Math.random() * 2.5, rot: Math.random() * 6, col: kibbleCols[(Math.random() * 4) | 0], rest: false });
+      if (pieces.length > want) pieces.length = Math.max(want, pieces.length - 4);
+      ctx.clearRect(0, 0, R.width, R.height);
+      const cols = 22, colW = R.width / cols, heights = new Array(cols).fill(R.height);
+      for (const p of pieces) { const ci = Math.min(cols - 1, Math.max(0, Math.floor(p.x / colW))); const floor = heights[ci] - p.r * 0.8; if (!p.rest) { p.vy += 0.6; p.y += p.vy; if (p.y >= floor) { p.y = floor; p.rest = true; } } else p.y = Math.min(p.y + 1, floor); heights[ci] = Math.min(heights[ci], p.y - p.r * 0.6);
+        ctx.fillStyle = p.col; ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot); for (let i = 0; i < 3; i++) { const t = (i / 3) * 6.28; ctx.beginPath(); ctx.arc(Math.cos(t) * p.r * .5, Math.sin(t) * p.r * .5, p.r * .62, 0, 6.28); ctx.fill(); } ctx.restore(); }
+      raf = requestAnimationFrame(loop);
+    };
+    loop();
+    holdable(jar, {
+      progress(p) { target = p; },
+      complete() { jar.classList.add("done"); const r = jar.getBoundingClientRect(), f = fx.c.getBoundingClientRect(); for (let i = 0; i < 5; i++) fx.emit({ x: r.left - f.left + r.width * (0.2 + i * 0.15), y: r.top - f.top + 6, n: 8, dir: -Math.PI / 2, spread: 1.2, speed: [3, 7], gravity: 0.3, shape: "kibble", size: [4, 6], colors: kibbleCols, life: [50, 80] }); setTimeout(() => jar.classList.remove("done"), 600); },
+      reset() { pieces = []; },
+    });
+  } });
+
+V.push({ name: "Neon circuit", from: "Synthwave and cyberpunk UI (Tron, Cyberpunk 2077)", html: `<div class="neon hold" aria-label="Hold to feed"><svg viewBox="0 0 250 70"><rect class="track" x="2" y="2" width="246" height="66" rx="33" /><rect class="trace" x="2" y="2" width="246" height="66" rx="33" pathLength="100" stroke-dasharray="100" /></svg><span class="label">HOLD TO FEED</span></div>`,
+  init(root, fx) {
+    const n = root.querySelector(".neon"); const tr = n.querySelector(".trace");
+    holdable(n, {
+      progress(p) { tr.style.strokeDashoffset = 100 - p * 100; n.style.setProperty("--p", p); },
+      tier() { const r = n.getBoundingClientRect(), f = fx.c.getBoundingClientRect(); fx.emit({ x: r.left - f.left + r.width / 2, y: r.top - f.top + r.height / 2, n: 12, gravity: 0, speed: [3, 6], life: [14, 22], shape: "line", colors: ["#37e0ff", "#ff3ccf"] }); },
+      complete() { n.classList.add("done"); const r = n.getBoundingClientRect(), f = fx.c.getBoundingClientRect(); fx.emit({ x: r.left - f.left + r.width / 2, y: r.top - f.top + r.height / 2, n: 60, gravity: 0, speed: [4, 12], life: [20, 40], shape: "line", size: [3, 7], colors: ["#37e0ff", "#7a5cff", "#ff3ccf", "#fff"] }); setTimeout(() => n.classList.remove("done"), 700); },
+    });
+  } });
+
+V.push({ name: "Summoning sigil", from: "Magic circles in RPG summons (Fate, Final Fantasy)", html: `<div class="sigil hold" aria-label="Hold to feed"><svg viewBox="0 0 160 160"><g class="runes"><circle class="c o" cx="80" cy="80" r="74" stroke-width="2" pathLength="100" stroke-dasharray="100" /><g class="glyphs"></g></g><g class="inner"><circle cx="80" cy="80" r="74" fill="none" stroke="#3a2a55" stroke-width="2" /><circle class="c m" cx="80" cy="80" r="56" stroke-width="1.5" pathLength="100" stroke-dasharray="3 3" /><polygon class="c t" points="80,32 121.6,104 38.4,104" stroke-width="1.5" pathLength="100" stroke-dasharray="100" /><polygon class="c t2" points="80,128 38.4,56 121.6,56" stroke-width="1.5" pathLength="100" stroke-dasharray="100" /></g></svg><span class="label">SUMMON<br/>FOOD</span></div>`,
+  init(root, fx) {
+    const s = root.querySelector(".sigil"); const o = s.querySelector(".o"), t = s.querySelector(".t"), t2 = s.querySelector(".t2"), m = s.querySelector(".m"); const g = s.querySelector(".glyphs");
+    const SHAPES = ["M0-5L4 0 0 5-4 0Z", "M-4-4H4V4H-4Z", "M0-5L5 4H-5Z", "M-5 0A5 5 0 1 0 5 0A5 5 0 1 0-5 0M-2 0A2 2 0 1 1 2 0A2 2 0 1 1-2 0"]; for (let i = 0; i < 12; i++) { const a = (i / 12) * 6.28; const glyph = document.createElementNS("http://www.w3.org/2000/svg", "path"); glyph.setAttribute("d", SHAPES[i % SHAPES.length]); glyph.setAttribute("fill-rule", "evenodd"); glyph.setAttribute("transform", `translate(${80 + Math.cos(a) * 65} ${80 + Math.sin(a) * 65}) rotate(${(a * 180) / Math.PI + 90}) scale(.8)`); glyph.setAttribute("fill", "#5c3f8a"); g.append(glyph); }
+    const glyphs = [...g.children];
+    holdable(s, {
+      progress(p) { o.style.strokeDashoffset = 100 - Math.min(1, p / .5) * 100; t.style.strokeDashoffset = 100 - Math.max(0, Math.min(1, (p - .3) / .35)) * 100; t2.style.strokeDashoffset = 100 - Math.max(0, Math.min(1, (p - .6) / .35)) * 100; m.style.opacity = p > .15 ? 1 : p / .15; glyphs.forEach((e, i) => e.setAttribute("fill", i < p * 12 ? "#e2c8ff" : "#5c3f8a")); },
+      tier() { const c = fx.center(); fx.emit({ x: c.x, y: c.y, n: 14, gravity: -0.03, speed: [1, 3], life: [30, 50], size: [1.5, 3], colors: ["#b98cff", "#fff"] }); },
+      complete() { s.classList.add("done"); const c = fx.center(); fx.emit({ x: c.x, y: c.y, n: 80, gravity: 0, speed: [3, 9], life: [30, 60], size: [1.5, 4], colors: ["#b98cff", "#e9d8ff", "#fff", "#7a4dff"] }); fx.emit({ x: c.x, y: c.y, n: 20, gravity: 0.25, speed: [2, 6], shape: "kibble", size: [4, 7], colors: kibbleCols }); setTimeout(() => s.classList.remove("done"), 700); },
+    });
+  } });
+
+V.push({ name: "Slot reels", from: "Slot machine reels that lock one by one", html: `<div class="slots"><span class="jackpot">JACKPOT!</span><div class="reels"><div class="reel"><div class="strip"></div></div><div class="reel"><div class="strip"></div></div><div class="reel"><div class="strip"></div></div></div><div class="lever hold" aria-label="Hold to feed">HOLD TO SPIN</div></div>`,
+  init(root, fx) {
+    const sl = root.querySelector(".slots"); const lever = sl.querySelector(".lever"); const reels = [...sl.querySelectorAll(".reel")]; const syms = ["🐟", "🍗", "🧶", "🐭", "🥛", "🐾"]; const WIN = "🐾";
+    const strips = reels.map((r) => { const s = r.querySelector(".strip"); for (let i = 0; i < 12; i++) { const d = document.createElement("div"); d.className = "sym"; d.textContent = i === 0 ? WIN : syms[i % syms.length]; s.append(d); } return s; });
+    const off = [0, 0, 0]; let last = performance.now(); let spinning = false; let speed = 0;
+    const lockAt = [0.33, 0.66, 0.97];
+    const spin = (now) => { const dt = Math.min(40, now - last); last = now; strips.forEach((s, i) => { if (reels[i].classList.contains("locked")) return; if (spinning) { off[i] = (off[i] + speed * dt * (1 + i * .15)) % (64 * 12); s.style.transform = `translateY(${-off[i]}px)`; } }); requestAnimationFrame(spin); };
+    requestAnimationFrame(spin);
+    holdable(lever, {
+      start() { sl.classList.add("pressed"); spinning = true; }, cancel() { sl.classList.remove("pressed"); },
+      progress(p, { draining }) { speed = draining ? 0.3 * p : 0.5 + p * 0.9; reels.forEach((r, i) => { const want = !draining && p >= lockAt[i]; if (want && !r.classList.contains("locked")) { r.classList.add("locked"); strips[i].style.transform = "translateY(0)"; off[i] = 0; buzz(15); const rr = r.getBoundingClientRect(), f = fx.c.getBoundingClientRect(); fx.emit({ x: rr.left - f.left + rr.width / 2, y: rr.top - f.top + rr.height / 2, n: 10, gravity: 0.1, speed: [2, 4], life: [15, 25], shape: "star", size: [2, 4], colors: ["#ffe05a", "#fff"] }); } if (draining || p === 0) r.classList.remove("locked"); }); if (p === 0) spinning = false; },
+      complete() { sl.classList.remove("pressed"); sl.classList.add("done"); const c = fx.center(); fx.emit({ x: c.x, y: c.y - 10, n: 60, dir: -Math.PI / 2, spread: 2.2, speed: [5, 11], gravity: 0.35, life: [60, 100], size: [4, 7], shape: "coin", colors: ["#ffd24a", "#ffb400", "#fff1a8"] }); setTimeout(() => sl.classList.remove("done"), 1300); },
+      reset() { reels.forEach((r) => r.classList.remove("locked")); spinning = false; },
+    });
+  } });
+
+V.push({ name: "Close the ring", from: "Fitness ring closing (Apple Watch style)", html: `<div class="ringbtn hold" aria-label="Hold to feed"><svg viewBox="0 0 150 150"><circle class="bg" cx="75" cy="75" r="60" /><circle class="fg" cx="75" cy="75" r="60" pathLength="100" stroke-dasharray="100" /></svg><div class="label"><span class="big">0%</span><span class="small">HOLD TO FEED</span></div></div>`,
+  init(root, fx) {
+    const r = root.querySelector(".ringbtn"); const fg = r.querySelector(".fg"); const big = r.querySelector(".big");
+    holdable(r, {
+      progress(p) { fg.style.strokeDashoffset = 100 - p * 100; big.textContent = `${Math.round(p * 100)}%`; },
+      complete() { r.classList.add("done"); big.textContent = "Fed"; const c = fx.center(); for (let k = 0; k < 3; k++) setTimeout(() => { const x = c.x + (Math.random() - .5) * 140, y = c.y - 20 - Math.random() * 50; fx.emit({ x, y, n: 36, gravity: 0.06, speed: [1.5, 5], life: [35, 60], size: [1.5, 3], colors: [["#1fd17a", "#b6ff5c"], ["#5aa9ff", "#bfe0ff"], ["#ffd24a", "#fff"]][k] }); }, k * 160); setTimeout(() => r.classList.remove("done"), 800); },
+    });
+  } });
+
+V.push({ name: "Jelly squish", from: "Squishy, bouncy buttons (Animal Crossing, mobile puzzle games)", html: `<div class="jelly hold" aria-label="Hold to feed"><canvas></canvas><span class="label">Hold to feed</span></div>`,
+  init(root, fx) {
+    const j = root.querySelector(".jelly"); const cv = j.querySelector("canvas"); const ctx = cv.getContext("2d"); let bubbles = [], lvl = 0;
+    const size = () => { const r = cv.getBoundingClientRect(), d = devicePixelRatio || 1; cv.width = r.width * d; cv.height = r.height * d; ctx.setTransform(d, 0, 0, d, 0, 0); return r; }; let R = size();
+    const loop = () => { ctx.clearRect(0, 0, R.width, R.height); if (Math.random() < lvl * 0.6) bubbles.push({ x: Math.random() * R.width, y: R.height + 6, r: 2 + Math.random() * 5 * (0.4 + lvl), v: 0.6 + Math.random() * 1.6 }); bubbles = bubbles.filter((b) => { b.y -= b.v; b.x += Math.sin(b.y / 8) * 0.4; ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, 6.28); ctx.fillStyle = "#ffffff55"; ctx.fill(); ctx.strokeStyle = "#ffffffaa"; ctx.stroke(); return b.y > -10; }); requestAnimationFrame(loop); }; loop();
+    holdable(j, {
+      progress(p) { lvl = p; if (!j.classList.contains("done")) j.style.transform = `scale(${1 + p * 0.12}, ${1 - p * 0.22})`; },
+      complete() { j.style.transform = ""; j.classList.add("done"); const c = fx.center(); fx.emit({ x: c.x, y: c.y, n: 26, dir: -Math.PI / 2, spread: 2.6, speed: [4, 9], gravity: 0.28, life: [50, 80], size: [5, 8], shape: "paw", colors: ["#ff6fb0", "#ffb3d6", "#fff"] }); setTimeout(() => j.classList.remove("done"), 900); },
+    });
+  } });
+
+V.push({ name: "8-bit level up", from: "Retro RPG experience bars (Pokemon, Zelda)", html: `<div class="pixel"><span class="lvl">LEVEL UP!</span><div class="frame"></div><div class="btn hold" aria-label="Hold to feed">Hold A</div></div>`,
+  init(root, fx) {
+    const px = root.querySelector(".pixel"); const fr = px.querySelector(".frame"); const btn = px.querySelector(".btn"); const N = 16; const blks = [];
+    const pal = ["#38d9a9", "#38d9a9", "#51cf66", "#51cf66", "#94d82d", "#94d82d", "#fcc419", "#fcc419", "#ff922b", "#ff922b", "#ff6b6b", "#ff6b6b", "#f06595", "#f06595", "#cc5de8", "#cc5de8"];
+    for (let i = 0; i < N; i++) { const b = document.createElement("i"); b.className = "blk"; b.style.setProperty("--bc", pal[i]); fr.append(b); blks.push(b); }
+    holdable(btn, {
+      start() { px.classList.add("pressed"); }, cancel() { px.classList.remove("pressed"); },
+      progress(p) { const on = Math.floor(p * N + 0.001); blks.forEach((b, i) => b.classList.toggle("on", i < on)); },
+      complete() { px.classList.remove("pressed"); px.classList.add("done"); const c = fx.center(); fx.emit({ x: c.x, y: c.y - 20, n: 40, speed: [2, 6], gravity: 0.15, life: [30, 60], size: [3, 4], shape: "square", colors: ["#ffe94d", "#fff", "#51cf66", "#cc5de8"] }); setTimeout(() => px.classList.remove("done"), 1300); },
+    });
+  } });
+
+V.push({ name: "Toe beans", from: "Collect-the-set progress (a paw that fills bean by bean)", html: `<div class="paw hold" aria-label="Hold to feed"><svg viewBox="0 0 150 150"><defs><clipPath id="padclip"><path d="M75 70 C 100 70 118 92 116 110 C 114 128 96 132 75 126 C 54 132 36 128 34 110 C 32 92 50 70 75 70 Z" /></clipPath></defs><circle class="fur" cx="75" cy="85" r="68" /><ellipse class="bean b0" cx="30" cy="62" rx="12" ry="15" /><ellipse class="bean b1" cx="56" cy="38" rx="12" ry="15" /><ellipse class="bean b2" cx="94" cy="38" rx="12" ry="15" /><ellipse class="bean b3" cx="120" cy="62" rx="12" ry="15" /><path class="bean pad" d="M75 70 C 100 70 118 92 116 110 C 114 128 96 132 75 126 C 54 132 36 128 34 110 C 32 92 50 70 75 70 Z" /><rect class="padfill" clip-path="url(#padclip)" x="30" y="130" width="90" height="0" /></svg></div>`,
+  init(root, fx) {
+    const pw = root.querySelector(".paw"); const beans = [0, 1, 2, 3].map((i) => pw.querySelector(".b" + i)); const fill = pw.querySelector(".padfill");
+    holdable(pw, {
+      progress(p) { beans.forEach((b, i) => b.classList.toggle("on", p >= (i + 1) * 0.2)); const h = Math.max(0, (p - 0.8) / 0.2) * 62; fill.setAttribute("y", 128 - h); fill.setAttribute("height", h); },
+      tier() {},
+      complete() { pw.classList.add("done"); const c = fx.center(); fx.emit({ x: c.x, y: c.y, n: 30, dir: -Math.PI / 2, spread: 2.4, speed: [3, 8], gravity: 0.12, life: [45, 75], size: [5, 9], shape: "heart", colors: ["#ff7fb0", "#ffb3d6", "#ff4f93"] }); setTimeout(() => pw.classList.remove("done"), 700); },
+    });
+  } });
+
+V.push({ name: "Treasure chest", from: "Loot box and chest opening (Clash Royale, Brawl Stars)", html: `<div style="display:grid;gap:6px;justify-items:center"><div class="chest hold" aria-label="Hold to feed"><svg viewBox="0 0 150 140"><g class="rays"><g fill="#ffe28a">${Array.from({ length: 12 }, (_, i) => `<polygon points="75,60 ${75 + Math.cos((i / 12) * 6.28 - .1) * 90},${60 + Math.sin((i / 12) * 6.28 - .1) * 90} ${75 + Math.cos((i / 12) * 6.28 + .1) * 90},${60 + Math.sin((i / 12) * 6.28 + .1) * 90}" />`).join("")}</g></g><g class="body"><rect x="22" y="62" width="106" height="62" rx="8" fill="#7a4a1f" /><rect x="22" y="62" width="106" height="62" rx="8" fill="none" stroke="#f2b33d" stroke-width="5" /><rect x="68" y="62" width="14" height="62" fill="#f2b33d" /><rect x="66" y="74" width="18" height="18" rx="3" fill="#ffdd6b" stroke="#a36a10" stroke-width="2" /><rect class="glow" x="26" y="58" width="98" height="10" rx="4" fill="#ffe99a" /></g><g class="lid"><path d="M22 62 L22 44 Q22 22 75 22 Q128 22 128 44 L128 62 Z" fill="#8a5424" stroke="#f2b33d" stroke-width="5" stroke-linejoin="round" /><rect x="68" y="22" width="14" height="40" fill="#f2b33d" /></g></svg></div><div class="chest-label">HOLD TO OPEN</div></div>`,
+  init(root, fx) {
+    const ch = root.querySelector(".chest");
+    holdable(ch, {
+      progress(p) { ch.style.setProperty("--g", p * p); ch.classList.toggle("tense", p > 0.55 && p < 1); },
+      tier() { const r = ch.getBoundingClientRect(), f = fx.c.getBoundingClientRect(); fx.emit({ x: r.left - f.left + r.width / 2, y: r.top - f.top + r.height * 0.44, n: 8, dir: -Math.PI / 2, spread: 2, speed: [1, 3], gravity: -0.02, life: [20, 35], size: [1.5, 3], colors: ["#ffe99a", "#fff"] }); },
+      complete() { ch.classList.remove("tense"); ch.classList.add("open"); const r = ch.getBoundingClientRect(), f = fx.c.getBoundingClientRect(); const x = r.left - f.left + r.width / 2, y = r.top - f.top + r.height * 0.42; fx.emit({ x, y, n: 36, dir: -Math.PI / 2, spread: 1.4, speed: [5, 11], gravity: 0.32, life: [60, 100], size: [4, 7], shape: "kibble", colors: kibbleCols }); fx.emit({ x, y, n: 30, dir: -Math.PI / 2, spread: 2, speed: [2, 7], gravity: 0.05, life: [30, 60], size: [2, 4], shape: "star", colors: ["#ffe99a", "#fff", "#ffc43d"] }); setTimeout(() => ch.classList.remove("open"), 1600); },
+    });
+  } });
+
+/* ---------- mount ---------- */
+const grid = document.getElementById("grid");
+const picks = new Set(JSON.parse(localStorage.getItem("feed-style-picks") || "[]"));
+V.forEach((v, i) => {
+  const t = document.createElement("section"); t.className = "tile" + (picks.has(i + 1) ? " picked" : "");
+  t.innerHTML = `<h2><span class="num">${i + 1}</span>${v.name}</h2><p class="desc">${v.from}</p><div class="stage">${v.html}<canvas class="fx"></canvas></div><button class="pick" type="button">${picks.has(i + 1) ? "Picked" : "I like this one"}</button>`;
+  grid.append(t);
+  const fx = new FX(t.querySelector(".fx"));
+  v.init(t.querySelector(".stage"), fx);
+  t.querySelector(".pick").addEventListener("click", (e) => { const k = i + 1; picks.has(k) ? picks.delete(k) : picks.add(k); localStorage.setItem("feed-style-picks", JSON.stringify([...picks])); t.classList.toggle("picked", picks.has(k)); e.target.textContent = picks.has(k) ? "Picked" : "I like this one"; });
+});
+</script>
+</body>
+</html>

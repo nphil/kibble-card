@@ -5,27 +5,44 @@
  */
 
 import { LitElement, css, html, nothing, unsafeCSS } from "lit";
-import type { CalibrationState, HomeAssistant, KibbleCardConfig, KibbleCatSummary } from "./types";
+import type { CalibrationState, CatSummary, HomeAssistant, KibbleCardConfig, TimelinePage } from "./types";
 import { resolveKibbleEntities, type KibbleEntities } from "./lib/resolve-entities";
 import { resolveEntryId } from "./lib/entry-id";
 import { deriveFeederStatus, statusText, type FeederStatus } from "./lib/feeding";
 import { relativeTimeSentence } from "./lib/relative-time";
 import { WsQuery, watchKey } from "./lib/ws-query";
 import type { ScheduleEntry } from "./lib/schedule";
+import { ImageUrlCache } from "./lib/image-cache";
 import { mdiIcon } from "./lib/mdi-icons";
 import { version as KIBBLE_CARD_VERSION } from "../package.json";
 import { KIOSK_MIN_HEIGHT_PX, KIBBLE_AMBER, KIBBLE_AMBER_DARK, KIBBLE_FEED, KIBBLE_FEED_DARK, KIBBLE_INK_ON_AMBER, KIBBLE_INK_ON_FEED, KIBBLE_LIVE } from "./styles/tokens";
 import "./components/kibble-bowl";
-import { parseHopperLevel } from "./lib/hopper-status";
+import { parseHopperLevel, parseHopperRemaining, hopperFoodName } from "./lib/hopper-status";
 import { displayCalibrationHopper } from "./lib/calibration";
+import { dualFeedPlan } from "./lib/dual-feed";
+import { popupForHash } from "./lib/popup-hash";
+import type { PourSource } from "./lib/pour";
+import { deriveBowlMix } from "./lib/bowl-mix";
+import {
+  FEED_REQUEST_IDLE,
+  DEFAULT_FEED_REQUEST_CONFIG,
+  feedRequestFeedingChanged,
+  feedRequestReset,
+  feedRequestSubmitted,
+  feedRequestTick,
+  type FeedRequestState,
+} from "./lib/feed-request";
 import "./components/kibble-segmented-picker";
 import "./components/kibble-stepper";
 import "./components/kibble-hold-button";
 import "./components/kibble-schedule-summary";
 import "./components/kibble-calibration-dialog";
+import "./components/kibble-detection-areas-dialog";
 import "./components/kibble-settings-dialog";
+import "./components/kibble-hopper-sheet";
 import "./components/kibble-avatar";
 import "./components/kibble-live-hero";
+import type { KibbleLiveHero } from "./components/kibble-live-hero";
 import "./components/kibble-bubble-row";
 import { bubbleCardAvailable } from "./components/kibble-bubble-row";
 import "./editor";
@@ -35,7 +52,7 @@ import "./kibble-cats-card";
 const EMPTY_ENTITIES: KibbleEntities = { deviceId: "", catPresence: [] };
 
 const PORTION_OPTIONS = [1, 2, 3, 4, 5] as const;
-
+const PORTION_SEGMENT_OPTIONS = PORTION_OPTIONS.map((n) => ({ value: String(n), label: String(n) }));
 /** Bubble's `styles` hook: the feed row is the card's one accent-filled control, so it wears
  * the amber the native hold button always did (theme-overridable through the same variables). */
 const FEED_ROW_STYLES = `
@@ -65,7 +82,14 @@ export class KibbleCard extends LitElement {
     hass: { attribute: false },
     _config: { state: true },
     _settingsOpen: { state: true },
+    _calibrationOpen: { state: true },
+    _detectionAreasOpen: { state: true },
+    _hopperSheetOpen: { state: true },
     _bubble: { state: true },
+    _feedRequest: { state: true },
+    _feedError: { state: true },
+    _pourSource: { state: true },
+    _heroControlsVisible: { state: true },
   };
 
   declare hass: HomeAssistant;
@@ -73,6 +97,21 @@ export class KibbleCard extends LitElement {
   declare _settingsOpen: boolean;
   /** Bubble Card is installed: the feed controls render as real Bubble rows. */
   declare _bubble: boolean;
+  declare _feedRequest: FeedRequestState;
+  /** Transient status text overriding the hold label -- a network failure ("Try hold again") or
+   * a request the feeder never confirmed ("No response from the feeder"). `null` the rest of
+   * the time. Separate from `_feedRequest` because the two failure modes are genuinely
+   * different (the service call itself rejecting, vs. it succeeding but the feeder staying
+   * silent) and each earns its own wording. */
+  declare _feedError: string | null;
+  /** Which hopper(s) *this card's own* hold button chose for the feed currently in progress --
+   * `null` once there is no such feed (idle, or one this card did not start). Drives the bowl's
+   * pour colour; see `lib/pour.ts`. */
+  declare _pourSource: PourSource;
+  /** Mirrors `<kibble-live-hero>`'s own `overlay-idle-changed` event -- drives the same fade on
+   * `.gear-button`, which overlaps the hero's video from *outside* its shadow DOM and so has no
+   * other way to know its controls just faded out. */
+  declare _heroControlsVisible: boolean;
 
   private _entities: KibbleEntities = EMPTY_ENTITIES;
   private _entryId: string | undefined;
@@ -84,9 +123,25 @@ export class KibbleCard extends LitElement {
   private _resolvedDevices: HomeAssistant["devices"] | undefined;
   private _resolvedDeviceId: string | undefined;
   private _resizeObserver: ResizeObserver | undefined;
+  private _feedRequestTimeoutTimer: ReturnType<typeof setTimeout> | undefined;
+  private _feedErrorTimer: ReturnType<typeof setTimeout> | undefined;
+  /** The last `feeding` boolean `willUpdate` reacted to, so a transition (not just "still on"
+   * or "still off") drives `_feedRequest`/`_pourSource`/the timeline refetch exactly once each,
+   * regardless of how many unrelated `hass` ticks land in between. */
+  private _wasFeedingForRequest = false;
+  /** Bumped on every `feeding` transition so `kibble/timeline`'s own watch key changes even
+   * when the entity cycles back to a state string it already had (off -> on -> off would
+   * otherwise look "unchanged" to `WsQuery`) -- same trick `_calibrationGeneration` uses below. */
+  private _timelineGeneration = 0;
+  // The bowl's mixed-food share reads `kibble/timeline`'s newest few rows for the most recent
+  // feed that recorded a per-hopper split (`lib/bowl-mix.ts`); refetched on every feed-state
+  // transition, never on a timer.
+  private _timelineQuery = new WsQuery<TimelinePage>(() => this.requestUpdate());
+  // Shared by the hero status avatar and live detection labels for this card's lifetime.
+  private _imageCache = new ImageUrlCache();
   // The status overlay's avatar needs the named cat's color/photo from the roster; a private
   // field (not a reactive property) since `WsQuery` drives its own `requestUpdate` on change.
-  private _catsQuery = new WsQuery<{ cats: KibbleCatSummary[] }>(() => this.requestUpdate());
+  private _catsQuery = new WsQuery<{ cats: CatSummary[] }>(() => this.requestUpdate());
   // No entity's state changing correlates with a calibration change the way `lastSeenPet`
   // does for the cat roster above -- the wizard is the only thing that ever mutates this, so
   // it bumps this generation counter itself (`_onCalibrationChanged`) instead of a watch key.
@@ -100,11 +155,17 @@ export class KibbleCard extends LitElement {
    * which is exactly what happened on the real dashboard (2026-09-19). A pop-up row can now
    * fire `kibble: "calibrate"` the same way its feed rows already fire `kibble: "feed"`. */
   private _calibrationOpen = false;
+  private _detectionAreasOpen = false;
+  private _hopperSheetOpen = false;
 
   constructor() {
     super();
     this._settingsOpen = false;
     this._bubble = false;
+    this._feedRequest = FEED_REQUEST_IDLE;
+    this._feedError = null;
+    this._pourSource = null;
+    this._heroControlsVisible = true;
     void bubbleCardAvailable().then((ok) => {
       this._bubble = ok;
     });
@@ -148,12 +209,22 @@ export class KibbleCard extends LitElement {
   disconnectedCallback(): void {
     window.removeEventListener("hashchange", this._onHashChange);
     window.removeEventListener("location-changed", this._onHashChange);
+    this._clearFeedRequestTimeoutTimer();
+    this._clearFeedErrorTimer();
     super.disconnectedCallback();
     this._resizeObserver?.disconnect();
+    this._imageCache.dispose();
   }
 
   protected willUpdate(): void {
     const deviceId = this._config?.device_id;
+    // Data-driven, not measured: the >=960px side-by-side tier's own CSS (below) uses this to
+    // give dual-hopper mode a higher side-by-side threshold than single -- two stepper rows
+    // plus the hold button need more height than single's one picker does, and a true-16:9
+    // video at 63% width does not always have that much to spare. Toggled from `hass` state
+    // the same way `_singleHopper()` reads it, so it never drifts from what the row currently
+    // renders, and never needs its own ResizeObserver.
+    this.classList.toggle("dual-hopper", this.hass ? !this._singleHopper() : false);
     if (
       this.hass &&
       deviceId &&
@@ -171,7 +242,7 @@ export class KibbleCard extends LitElement {
     if (this.hass && this._entryId && callWS && this._entities.lastSeenPet) {
       const entryId = this._entryId;
       this._catsQuery.sync(watchKey(this.hass, [this._entities.lastSeenPet]), () =>
-        callWS({ type: "kibble/cats", entry_id: entryId }).then((result) => result as { cats: KibbleCatSummary[] }),
+        callWS({ type: "kibble/cats", entry_id: entryId }).then((result) => result as { cats: CatSummary[] }),
       );
     }
     // Gated on `bowlFill` (not, say, `hopperLevel1`): calibration only means anything where
@@ -180,6 +251,31 @@ export class KibbleCard extends LitElement {
       const entryId = this._entryId;
       this._calibrationQuery.sync(`${entryId}:${this._calibrationGeneration}`, () =>
         callWS({ type: "kibble/calibration", entry_id: entryId }).then((result) => result as CalibrationState),
+      );
+    }
+    // The feeding entity flipping is the one signal this card reacts to beyond plain rendering:
+    // it drives the pill's own requesting -> feeding -> idle machine (a scheduled feed, the
+    // feeder's own physical button, and another dashboard's feed all flip this same entity, so
+    // the pill reflects reality regardless of who started it) and bumps the watch key for the
+    // bowl-mix timeline query below.
+    if (this.hass && this._entities.feeding) {
+      const feedingNow = this.hass.states[this._entities.feeding]?.state === "on";
+      if (feedingNow !== this._wasFeedingForRequest) {
+        this._wasFeedingForRequest = feedingNow;
+        this._feedRequest = feedRequestFeedingChanged(this._feedRequest, feedingNow);
+        if (feedingNow) {
+          this._clearFeedRequestTimeoutTimer();
+          this._feedError = null;
+        } else {
+          this._pourSource = null;
+        }
+        this._timelineGeneration += 1;
+      }
+    }
+    if (this.hass && this._entryId && callWS) {
+      const entryId = this._entryId;
+      this._timelineQuery.sync(`${entryId}:${this._timelineGeneration}`, () =>
+        callWS({ type: "kibble/timeline", entry_id: entryId, limit: 5 }).then((result) => result as TimelinePage),
       );
     }
   }
@@ -195,12 +291,36 @@ export class KibbleCard extends LitElement {
     const feeding = feedingState === "on";
 
     const bowlFill = this._numberState(e.bowlFill);
+    const fillSource = e.bowlFill ? (this.hass.states[e.bowlFill]?.attributes?.source as string | undefined) ?? null : null;
     const calibrationHopper = displayCalibrationHopper(this._calibrationQuery.state.data);
     const hopperLevel1 = parseHopperLevel(e.hopperLevel1 && this.hass.states[e.hopperLevel1]?.state);
     const hopperLevel2 = parseHopperLevel(e.hopperLevel2 && this.hass.states[e.hopperLevel2]?.state);
+    const hopperRemaining1 = e.hopperRemaining1 ? parseHopperRemaining(this.hass.states[e.hopperRemaining1]) : null;
+    const hopperRemaining2 = e.hopperRemaining2 ? parseHopperRemaining(this.hass.states[e.hopperRemaining2]) : null;
+    const singleHopper = this._singleHopper();
+    const food1 = e.hopperFood1 ? hopperFoodName(this.hass.states[e.hopperFood1]) : null;
+    const food2 = e.hopperFood2 ? hopperFoodName(this.hass.states[e.hopperFood2]) : null;
     const scheduleEntries = this._scheduleEntries();
     const feedAmount = this._numberState(e.feedAmount) ?? 1;
+    const hopperAmount1 = this._numberState(e.feedAmountHopper1) ?? 0;
+    const hopperAmount2 = this._numberState(e.feedAmountHopper2) ?? 0;
+    // Single mode's own shared control still drives the bowl's stream-lane count; dual mode's
+    // `feedAmount` entity is no longer touched by this card at all (see `_onFeedActivate`), so
+    // the honest total is both hoppers' own chosen amounts instead -- same "never claim more
+    // than what's honest" rule `pour.ts`'s own doc states for the pour colour.
+    const totalPortions = singleHopper ? feedAmount : hopperAmount1 + hopperAmount2;
     const overlay = this._heroOverlay(status);
+
+    const feedRequestLabel = this._feedError ?? (this._feedRequest.phase === "requesting" ? "Requesting…" : "Hold to feed");
+    const feedControlLabel = feeding ? "Feeding" : feedRequestLabel;
+    // Dual mode: nothing to dispense once both hoppers read 0 -- `dualFeedPlan` (used by
+    // `_onFeedActivate`) would return null for the exact same inputs, so this is the render-time
+    // half of that one rule, never a second copy of its branching.
+    const dualFeedIsEmpty = !singleHopper && hopperAmount1 === 0 && hopperAmount2 === 0;
+    const feedControlDisabled = status === "unreachable" || (!feeding && this._feedRequest.phase === "requesting") || dualFeedIsEmpty;
+    const feedControlPending = !feeding && this._feedRequest.phase === "requesting";
+    const darkMode = this.hass.themes?.darkMode === true;
+    const bowlMix = deriveBowlMix(this._timelineQuery.state.data?.items ?? [], singleHopper);
 
     return html`
       <ha-card>
@@ -210,10 +330,16 @@ export class KibbleCard extends LitElement {
               <div class="hero-media">
                 <kibble-live-hero
                   .hass=${this.hass}
+                  .cats=${this._catsQuery.state.data?.cats ?? []}
+                  .cache=${this._imageCache}
                   .cameraEntity=${e.camera}
                   .scryptedId=${this._config.scrypted_id}
                   .entryId=${this._entryId}
                   .overlayEntity=${e.detectionOverlaySwitch}
+                  .callCatsEntity=${e.callCatsButton}
+                  .externalPin=${this._settingsOpen}
+                  @overlay-idle-changed=${this._onHeroOverlayIdleChanged}
+                  @media-aspect-changed=${this._onMediaAspectChanged}
                 ></kibble-live-hero>
               </div>
               <div class="hero-status">
@@ -223,50 +349,99 @@ export class KibbleCard extends LitElement {
                       .hass=${this.hass}
                       .name=${overlay.catName}
                       .colorIndex=${overlay.colorIndex}
-                      .entryId=${this._entryId}
-                      .sampleName=${overlay.avatarSample}
+                      .asset=${overlay.avatarAsset}
+                      .cache=${this._imageCache}
                     ></kibble-avatar>`
                   : nothing}
                 <span class="hero-status-text" data-tone=${overlay.tone}>${overlay.text}</span>
               </div>
-              <button class="gear-button" aria-label="Settings" @click=${this._openSettings}>${mdiIcon("cog")}</button>
+              <button
+                class="gear-button ${this._heroControlsVisible ? "" : "idle-hidden"}"
+                aria-label="Settings"
+                @click=${this._openSettings}
+                @focus=${this._notifyHeroActivity}
+              >
+                ${mdiIcon("cog")}
+              </button>
               ${this._config.name ? html`<div class="name-chip">${this._config.name}</div>` : nothing}
             </div>
             <div class="side">
+            <div class="panel">
             <kibble-bowl
-              class="bowl-block"
+              class="bowl-art"
               .fill=${bowlFill}
+              .fillSource=${fillSource}
               .calibration=${calibrationHopper}
               .hopperLevel1=${hopperLevel1}
               .hopperLevel2=${hopperLevel2}
+              .hopperRemaining1=${hopperRemaining1}
+              .hopperRemaining2=${hopperRemaining2}
+              .singleHopper=${singleHopper}
+              .food1=${food1}
+              .food2=${food2}
               .feeding=${feeding}
-              .portions=${feedAmount}
+              .portions=${totalPortions}
+              .darkMode=${darkMode}
+              .bowlMix=${bowlMix}
+              .pourSource=${this._pourSource}
+              @hopper-detail-requested=${this._openHopperSheet}
             ></kibble-bowl>
-            <div class="feed-controls" @hass-action=${this._onBubbleAction}>
+            <div class="controls" @hass-action=${this._onBubbleAction}>
               <!-- Always this card's own controls, never a Bubble Card row.
                    Delegating the feed action to Bubble looked native on a Bubble dashboard
                    and behaved badly everywhere it mattered: no hold animation (Bubble has
                    none to drive), and on Android a long press raised the OS text-selection
                    magnifier because that row suppresses neither selection nor the callout.
                    A press-and-hold control has to own its own pointer handling. -->
-              <kibble-segmented-picker
-                class="picker-full"
-                .value=${feedAmount}
-                ?disabled=${status === "unreachable" || feeding}
-                @portion-selected=${this._onPortionSelected}
-              ></kibble-segmented-picker>
-              <kibble-stepper
-                class="picker-compact"
-                .value=${feedAmount}
-                ?disabled=${status === "unreachable" || feeding}
-                @value-selected=${this._onPortionSelected}
-              ></kibble-stepper>
+              ${singleHopper
+                ? html`
+                    <kibble-segmented-picker
+                      class="picker-full"
+                      .value=${String(feedAmount)}
+                      .options=${PORTION_SEGMENT_OPTIONS}
+                      group-label="Feed amount, portions"
+                      ?disabled=${status === "unreachable" || feeding}
+                      @option-selected=${this._onPortionSelected}
+                    ></kibble-segmented-picker>
+                    <kibble-stepper
+                      class="picker-compact"
+                      .value=${feedAmount}
+                      ?disabled=${status === "unreachable" || feeding}
+                      @value-selected=${this._onPortionSelected}
+                    ></kibble-stepper>
+                  `
+                : html`
+                    <div class="hopper-row">
+                      <span class="hopper-row-label">${food1 ?? "Hopper 1"}</span>
+                      <kibble-stepper
+                        .value=${hopperAmount1}
+                        .min=${0}
+                        .max=${5}
+                        aria-label="${food1 ?? "Hopper 1"} portions"
+                        ?disabled=${status === "unreachable" || feeding}
+                        @value-selected=${this._onHopper1PortionSelected}
+                      ></kibble-stepper>
+                    </div>
+                    <div class="hopper-row">
+                      <span class="hopper-row-label">${food2 ?? "Hopper 2"}</span>
+                      <kibble-stepper
+                        .value=${hopperAmount2}
+                        .min=${0}
+                        .max=${5}
+                        aria-label="${food2 ?? "Hopper 2"} portions"
+                        ?disabled=${status === "unreachable" || feeding}
+                        @value-selected=${this._onHopper2PortionSelected}
+                      ></kibble-stepper>
+                    </div>
+                  `}
               <kibble-hold-button
-                .label=${feeding ? "Cancel" : "Hold to feed"}
+                .label=${feedControlLabel}
                 .variant=${feeding ? "cancel" : "feed"}
-                ?disabled=${status === "unreachable"}
+                ?disabled=${feedControlDisabled}
+                ?pending=${feedControlPending}
                 @activate=${feeding ? this._onCancelActivate : this._onFeedActivate}
               ></kibble-hold-button>
+            </div>
             </div>
             ${this._config.schedule_hash
               ? nothing
@@ -275,6 +450,10 @@ export class KibbleCard extends LitElement {
                   .hass=${this.hass}
                   .entries=${scheduleEntries}
                   .scheduleCardStateEntity=${e.scheduleCardState}
+                  .singleHopper=${singleHopper}
+                  .deviceId=${e.deviceId}
+                  .food1=${food1}
+                  .food2=${food2}
                 ></kibble-schedule-summary>`}
             </div>
           </div>
@@ -284,17 +463,43 @@ export class KibbleCard extends LitElement {
         .hass=${this.hass}
         .entities=${e}
         .entryId=${this._entryId}
+        .singleHopper=${singleHopper}
+        .food1=${food1}
+        .food2=${food2}
         ?open=${this._settingsOpen}
         @close-requested=${this._closeSettings}
         @calibration-changed=${this._onCalibrationChanged}
       ></kibble-settings-dialog>
+      <kibble-hopper-sheet
+        .hass=${this.hass}
+        .entities=${e}
+        ?open=${this._hopperSheetOpen}
+        .hopperLevel1=${hopperLevel1}
+        .hopperLevel2=${hopperLevel2}
+        .hopperRemaining1=${hopperRemaining1}
+        .hopperRemaining2=${hopperRemaining2}
+        .singleHopper=${singleHopper}
+        .food1=${food1}
+        .food2=${food2}
+        @close-requested=${this._closeHopperSheet}
+      ></kibble-hopper-sheet>
       <kibble-calibration-dialog
         .hass=${this.hass}
         .entryId=${this._entryId}
+        .singleHopper=${singleHopper}
+        .food1=${food1}
+        .food2=${food2}
         ?open=${this._calibrationOpen}
         @close-requested=${this._closeCalibration}
         @calibration-changed=${this._onCalibrationChanged}
       ></kibble-calibration-dialog>
+      <kibble-detection-areas-dialog
+        .hass=${this.hass}
+        .cameraEntity=${e.camera}
+        .entryId=${this._entryId}
+        ?open=${this._detectionAreasOpen}
+        @close-requested=${this._closeDetectionAreas}
+      ></kibble-detection-areas-dialog>
     `;
   }
 
@@ -314,17 +519,17 @@ export class KibbleCard extends LitElement {
     live: boolean;
     catName: string | null;
     colorIndex: number | null;
-    avatarSample: string | null;
+    avatarAsset: CatSummary["avatar"];
   } {
     const cameraId = this._entities.camera;
     const cameraState = cameraId ? this.hass.states[cameraId] : undefined;
     const live = cameraState !== undefined && cameraState.state !== "unavailable";
 
     if (status === "unreachable") {
-      return { text: statusText(status, null), tone: "error", live, catName: null, colorIndex: null, avatarSample: null };
+      return { text: statusText(status, null), tone: "error", live, catName: null, colorIndex: null, avatarAsset: null };
     }
     if (status === "dispensing") {
-      return { text: statusText(status, null), tone: "amber", live, catName: null, colorIndex: null, avatarSample: null };
+      return { text: statusText(status, null), tone: "amber", live, catName: null, colorIndex: null, avatarAsset: null };
     }
     const seen = this._catSeen();
     // The feeder's own eat detector is up: a meal is happening right now, which outranks
@@ -333,7 +538,7 @@ export class KibbleCard extends LitElement {
     const eatingId = this._entities.eating;
     const eating = eatingId !== undefined && this.hass.states[eatingId]?.state === "on";
     if (!seen) {
-      return { text: eating ? "Eating now" : "Ready to feed", tone: "normal", live, catName: null, colorIndex: null, avatarSample: null };
+      return { text: eating ? "Eating now" : "Ready to feed", tone: "normal", live, catName: null, colorIndex: null, avatarAsset: null };
     }
     const roster = this._catsQuery.state.data?.cats.find((cat) => cat.name === seen.name) ?? null;
     return {
@@ -341,8 +546,8 @@ export class KibbleCard extends LitElement {
       tone: "normal",
       live,
       catName: seen.name,
-      colorIndex: roster?.color_index ?? null,
-      avatarSample: roster?.avatar ?? null,
+      colorIndex: roster?.color ?? null,
+      avatarAsset: roster?.avatar ?? null,
     };
   }
 
@@ -433,16 +638,116 @@ export class KibbleCard extends LitElement {
     }
   };
 
-  private _onPortionSelected(event: CustomEvent<{ value: number }>): void {
-    if (!this._entities.feedAmount) return;
-    this.hass.callService("number", "set_value", { value: event.detail.value }, { entity_id: this._entities.feedAmount });
+  /** Shared by the single-mode portion segmented-picker's `option-selected` (string values) and
+   * the compact stepper's `value-selected` (numeric) -- both just want `feedAmount` set. */
+  private _onPortionSelected(event: CustomEvent<{ value: string | number }>): void {
+    this._setHopperPortion(this._entities.feedAmount, event);
   }
 
-  private _onFeedActivate = (): void => {
-    if (!this._entities.deviceId) return;
-    const amount = this._numberState(this._entities.feedAmount) ?? 1;
-    this.hass.callService("kibble", "feed", { device_id: this._entities.deviceId, hopper: "both", amount });
+  private _onHopper1PortionSelected = (event: CustomEvent<{ value: string | number }>): void => {
+    this._setHopperPortion(this._entities.feedAmountHopper1, event);
   };
+
+  private _onHopper2PortionSelected = (event: CustomEvent<{ value: string | number }>): void => {
+    this._setHopperPortion(this._entities.feedAmountHopper2, event);
+  };
+
+  /** Writes one number entity from a picker's `option-selected`/stepper's `value-selected` --
+   * shared by the single-mode shared control and each of dual mode's two per-hopper rows, none
+   * of which need anything beyond "set this entity to this value". */
+  private _setHopperPortion(entityId: string | undefined, event: CustomEvent<{ value: string | number }>): void {
+    if (!entityId) return;
+    const value = Number(event.detail.value);
+    if (!Number.isFinite(value)) return;
+    this.hass.callService("number", "set_value", { value }, { entity_id: entityId });
+  }
+
+  /** The hopper divider switch reads off: the feeder is running as one undivided hopper. */
+  private _singleHopper(): boolean {
+    const entityId = this._entities.hopperDivider;
+    return entityId != null && this.hass.states[entityId]?.state === "off";
+  }
+
+  private _onFeedActivate = async (): Promise<void> => {
+    if (!this._entities.deviceId || this._feedRequest.phase === "requesting") return;
+    // Single mode has exactly one control and always dispenses something (feedAmount's own
+    // floor is MIN_AMOUNT, never 0) -- "both" is the whole serving from the one real dispenser.
+    // Dual mode reads each hopper's own row directly: `dualFeedPlan` turns the pair into
+    // exactly what `kibble.feed` should receive, or `null` once both read 0 -- unreachable from
+    // the UI (the Hold button is disabled in that state, `feedControlDisabled`), but guarded
+    // here too rather than trusting the disabled attribute alone.
+    const single = this._singleHopper();
+    const plan = single
+      ? { hopper: "both" as const, amount: this._numberState(this._entities.feedAmount) ?? 1 }
+      : dualFeedPlan(this._numberState(this._entities.feedAmountHopper1) ?? 0, this._numberState(this._entities.feedAmountHopper2) ?? 0);
+    if (!plan) return;
+    this._clearFeedRequestTimeoutTimer();
+    this._clearFeedErrorTimer();
+    this._feedError = null;
+    // The hold's own local completion (the checkmark, the flare, the burst) already fired by
+    // the time this runs -- from here the pill just needs an honest "Requesting…" until the
+    // feeder's own `feeding` entity confirms it, which `willUpdate`'s feeding-transition check
+    // reacts to independently of this call's outcome.
+    this._feedRequest = feedRequestSubmitted();
+    this._armFeedRequestTimeout();
+    // Recorded as the pour's own colour source before the call even resolves, so the bowl is
+    // already primed the instant `feeding` flips.
+    this._pourSource = plan.hopper;
+    try {
+      await this.hass.callService("kibble", "feed", {
+        device_id: this._entities.deviceId,
+        hopper: plan.hopper,
+        amount: plan.amount,
+        ...(plan.amount2 !== undefined ? { amount2: plan.amount2 } : {}),
+      });
+      // Success only means Home Assistant accepted the call -- stay in "requesting" until the
+      // armed timeout gives up or the entity itself confirms dispensing has actually started.
+    } catch {
+      this._clearFeedRequestTimeoutTimer();
+      this._feedRequest = feedRequestReset();
+      this._pourSource = null;
+      this._feedError = "Try hold again";
+      this._resetFeedErrorAfter(5_000);
+    }
+  };
+
+  /** Gives the feeder `DEFAULT_FEED_REQUEST_CONFIG.timeoutMs` to confirm dispensing has started
+   * before the pill gives up honestly rather than reading "Requesting…" forever. A single timer
+   * for the whole wait (rather than a repeating tick) is enough: `feedRequestTick` settles to
+   * the same clamped `timeout` phase whether it is fed one big step or many small ones. */
+  private _armFeedRequestTimeout(): void {
+    this._clearFeedRequestTimeoutTimer();
+    this._feedRequestTimeoutTimer = setTimeout(() => {
+      this._feedRequestTimeoutTimer = undefined;
+      if (this._feedRequest.phase !== "requesting") return;
+      this._feedRequest = feedRequestTick(this._feedRequest, DEFAULT_FEED_REQUEST_CONFIG.timeoutMs, DEFAULT_FEED_REQUEST_CONFIG);
+      this._pourSource = null;
+      this._feedError = "No response from the feeder";
+      this._resetFeedErrorAfter(5_000);
+    }, DEFAULT_FEED_REQUEST_CONFIG.timeoutMs);
+  }
+
+  private _clearFeedRequestTimeoutTimer(): void {
+    if (this._feedRequestTimeoutTimer !== undefined) clearTimeout(this._feedRequestTimeoutTimer);
+    this._feedRequestTimeoutTimer = undefined;
+  }
+
+  /** Clears a shown error/timeout message after its own display window, returning the machine
+   * to rest so a fresh hold starts clean. Shared by both failure modes -- the wording differs,
+   * the reset behaviour does not. */
+  private _resetFeedErrorAfter(delay: number): void {
+    this._clearFeedErrorTimer();
+    this._feedErrorTimer = setTimeout(() => {
+      this._feedErrorTimer = undefined;
+      this._feedError = null;
+      this._feedRequest = feedRequestReset();
+    }, delay);
+  }
+
+  private _clearFeedErrorTimer(): void {
+    if (this._feedErrorTimer !== undefined) clearTimeout(this._feedErrorTimer);
+    this._feedErrorTimer = undefined;
+  }
 
   private _onCancelActivate = (): void => {
     if (!this._entities.deviceId) return;
@@ -456,6 +761,7 @@ export class KibbleCard extends LitElement {
   // Assigning `location.hash` is not enough: HA's router rewrites a bare hash to `#/…` and
   // Bubble Card only listens for the frontend's own `location-changed` event.
   private _openSettings = (): void => {
+    this._notifyHeroActivity();
     const hash = this._config?.settings_hash;
     if (hash) {
       history.pushState(null, "", hash);
@@ -463,6 +769,33 @@ export class KibbleCard extends LitElement {
       return;
     }
     this._settingsOpen = true;
+  };
+
+  /** Forwards a click/focus on `.gear-button` -- chrome that overlaps the hero's video from
+   * *outside* its shadow DOM -- into the hero's own idle timer, exactly as if the activity had
+   * happened inside it. */
+  private _notifyHeroActivity = (): void => {
+    this.renderRoot.querySelector<KibbleLiveHero>("kibble-live-hero")?.notifyActivity();
+  };
+
+  /** Mirrors `<kibble-live-hero>`'s own fade onto `.gear-button`, which has no other way to
+   * learn its controls just faded (it lives outside the hero's shadow DOM entirely). */
+  private _onHeroOverlayIdleChanged = (e: Event): void => {
+    this._heroControlsVisible = (e as CustomEvent<{ visible: boolean }>).detail.visible;
+  };
+
+  /** `kibble-live-hero` sets its own `--kibble-hero-aspect` on itself once it learns the
+   * stream's real ratio (`_reportMediaAspect`), but that only sizes that one element -- `.hero`,
+   * its ANCESTOR in this card's own shadow tree, needs its own copy of the same custom property
+   * for its own `aspect-ratio` rule (custom properties inherit downward only, never up from a
+   * child to its parent). Set imperatively, not through a reactive property: nothing else in
+   * this card's own template depends on the value, so there is no reason to trigger a full
+   * re-render on every `loadedmetadata`/`load` tick just to patch one CSS custom property
+   * lit-html was never asked to track in the first place. */
+  private _onMediaAspectChanged = (e: Event): void => {
+    const ratio = (e as CustomEvent<{ ratio: number }>).detail?.ratio;
+    if (!Number.isFinite(ratio) || ratio <= 0) return;
+    this.renderRoot.querySelector<HTMLElement>(".hero")?.style.setProperty("--kibble-hero-aspect", String(ratio));
   };
 
   private _closeSettings = (): void => {
@@ -478,17 +811,40 @@ export class KibbleCard extends LitElement {
    * them. A hash crosses that boundary, and it is the same mechanism `settings_hash` already
    * uses to send the gear the other way. */
   private _onHashChange = (): void => {
-    const hash = this._config?.calibrate_hash ?? "#calibrate";
-    if (window.location.hash === hash) {
-      this._calibrationOpen = true;
-    }
+    const popup = popupForHash(window.location.hash, this._config);
+    if (popup === "calibrate") this._calibrationOpen = true;
+    if (popup === "detection-areas") this._detectionAreasOpen = true;
   };
+
+  /** Clears the popup hash the dialog was opened from, so the next `location-changed`
+   * (any navigation anywhere on the dashboard re-fires it) cannot silently reopen a dialog
+   * the operator just dismissed. */
+  private _clearPopupHash(): void {
+    if (popupForHash(window.location.hash, this._config) === null) return;
+    history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
+  }
 
   private _closeCalibration = (event: Event): void => {
     // Stopped here for the same reason the settings panel stops it: both dialogs use the
     // `close-requested` name, and letting it bubble past would close whatever else is open.
     event.stopPropagation();
     this._calibrationOpen = false;
+    this._clearPopupHash();
+  };
+
+  private _closeDetectionAreas = (event: Event): void => {
+    event.stopPropagation();
+    this._detectionAreasOpen = false;
+    this._clearPopupHash();
+  };
+
+  private _openHopperSheet = (): void => {
+    this._hopperSheetOpen = true;
+  };
+
+  private _closeHopperSheet = (event: Event): void => {
+    event.stopPropagation();
+    this._hopperSheetOpen = false;
   };
 
   /** The wizard just changed a hopper's curve (or discarded/cleared one) -- bump the sync key
@@ -518,6 +874,11 @@ export class KibbleCard extends LitElement {
       --kibble-status-size: 22px;
       --kibble-segment-size: 16px;
       --kibble-schedule-size: 14px;
+      /* The one vertical rhythm every gap and every section's own top padding is built from --
+       * the art, the chips, the choice row, the stepper, and the pill all breathe by the same
+       * amount, so nothing in the hero reads as an accident of whichever element happened to
+       * need a number. */
+      --kibble-rhythm: 14px;
     }
     :host(.kiosk) {
       --kibble-touch-target: 60px;
@@ -540,37 +901,52 @@ export class KibbleCard extends LitElement {
       container-type: inline-size;
       height: 100%;
     }
+    /* One column: the card is exactly as tall as its content, never a scroll box inside the
+     * dashboard's own scroll. The two-column layout below boxes itself to the video instead.
+     * Zero row gap on purpose: the video and the panel below it are one continuous card
+     * surface, not two stacked tiles -- the hero's own square bottom corners (below) are what
+     * make that continuity read as intentional rather than a seam. Every panel/schedule gets
+     * its own top padding instead, off the same --kibble-rhythm scale. */
     .root {
       display: grid;
-      height: 100%;
-      overflow-y: auto;
-      gap: 10px;
-      padding-bottom: 10px;
+      gap: 0;
       grid-template-columns: 1fr;
-      grid-template-areas: "hero" "bowl" "feed" "schedule";
+      grid-template-areas: "hero" "panel" "schedule";
     }
-    /* The feeder's streams are 16:10 (1152x720 sub, 1728x1080 main): the hero keeps that ratio
-     * so the fisheye frame is never cropped or stretched to fit a layout guess. */
+    /* .side only exists as a grid area at >= 960px container width -- display: contents
+     * unwraps it entirely below that so .panel/.schedule-row place directly into .root's own
+     * "panel"/"schedule" areas, exactly as if .side were never in the markup at all. The
+     * @container (min-width: 960px) block below turns it back into a real grid container once
+     * there is a second column for it to own. */
     .side {
       display: contents;
     }
+    /* Always the stream's true aspect ratio -- --kibble-hero-aspect starts at the sane 16/9
+     * default every real feeder stream actually is (main 1920x1080, sub 1280x720) and is
+     * overwritten by _onMediaAspectChanged the moment kibble-live-hero reports the real
+     * media size, so the box never guesses a ratio the video itself does not have. */
     .hero {
       grid-area: hero;
       position: relative;
       overflow: hidden;
-      aspect-ratio: 16 / 10;
+      aspect-ratio: var(--kibble-hero-aspect, 16 / 9);
       background: #1c1c1c;
+      /* Square where the panel continues directly below -- rounded only at the top, so the
+       * video and the card's own surface read as one shape, not two abutted rectangles. */
       border-radius: var(--ha-card-border-radius, 12px) var(--ha-card-border-radius, 12px) 0 0;
     }
     .hero-media {
       position: absolute;
       inset: 0;
     }
+    /* Fills .hero exactly; kibble-live-hero never crops beyond this box on its own (it
+     * object-fit: contains the actual video/image internally), so there is no object-fit to
+     * set here -- it would do nothing anyway, since this child is a custom element, never a
+     * replaced one. */
     .hero-media > * {
       display: block;
       width: 100%;
       height: 100%;
-      object-fit: cover;
     }
     .hero-placeholder {
       display: flex;
@@ -638,6 +1014,19 @@ export class KibbleCard extends LitElement {
       font-size: 22px;
       cursor: pointer;
     }
+    /* Mirrors <kibble-live-hero>'s own controls/topbar fade (overlay-idle-changed, forwarded by
+       _onHeroOverlayIdleChanged) since this button overlaps the hero's video from outside its
+       shadow DOM and shares none of its CSS. No transition property outside the no-preference
+       query, so a reduced-motion user's browser snaps the opacity instantly. */
+    @media (prefers-reduced-motion: no-preference) {
+      .gear-button {
+        transition: opacity 200ms ease;
+      }
+    }
+    .gear-button.idle-hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
     .name-chip {
       position: absolute;
       left: 12px;
@@ -649,58 +1038,76 @@ export class KibbleCard extends LitElement {
       font-size: 13px;
       font-weight: 600;
     }
-    .bowl-block {
-      grid-area: bowl;
-      padding: 8px 14px 0;
-      --kibble-bowl-max-width: 300px;
-    }
-    /* On a phone the stacked layout gave the bowl its full 300 px, measured at ~170 px tall
-       on a 390x844 screen -- a fifth of the viewport for an illustration, which pushed
-       "Hold to feed" (the only thing anyone opens this card in a hurry for) to the fold.
-       Scaled to the viewport instead, so the controls stay reachable without scrolling. */
-    @container (max-width: 480px) {
-      .bowl-block {
-        --kibble-bowl-max-width: min(220px, 42vw);
-        padding-top: 4px;
-      }
-    }
-    .feed-controls {
-      grid-area: feed;
-      padding: 0 14px;
+    /* The one calm panel: the art, the chips (drawn inside kibble-bowl itself), the hopper
+     * choice, the portion stepper, and the pill -- one shared content width and one left edge,
+     * so the art's own centre lines up with the pill's. Never touched by the container queries
+     * below: the same rule places it under the video on a narrow card and beside it on a wide
+     * one, capped and centred either way so it never grows into a giant balloon on a big
+     * screen. kibble-bowl is the one child allowed to shrink (flex: 1 1 auto) when the wide
+     * layout's own height budget is tight; the controls beneath it never do. */
+    .panel {
+      grid-area: panel;
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      min-height: 0;
+      gap: var(--kibble-rhythm);
+      width: 100%;
+      max-width: 340px;
+      margin: 0 auto;
+      box-sizing: border-box;
+      padding: var(--kibble-rhythm) 16px calc(var(--kibble-rhythm) + 2px);
     }
-    .portions {
-      display: grid;
-      grid-template-columns: repeat(5, 1fr);
-      gap: 8px;
+    .bowl-art {
+      flex: 1 1 auto;
+      min-height: 0;
     }
-    .portions > * {
-      min-width: 0;
+    .controls {
+      flex: none;
+      display: flex;
+      flex-direction: column;
+      gap: var(--kibble-rhythm);
+      width: 100%;
       container-type: inline-size;
       container-name: feed-controls;
     }
-    .feed-controls .picker-full {
+    .controls .picker-full {
       display: none;
     }
-    .feed-controls .picker-compact {
+    .controls .picker-compact {
       display: block;
     }
     @container feed-controls (min-width: 280px) {
-      .feed-controls .picker-full {
+      .controls .picker-full {
         display: block;
       }
-      .feed-controls .picker-compact {
+      .controls .picker-compact {
         display: none;
       }
     }
+    /* One dual-hopper row: the hopper's label left, its stepper right. Both rows share one
+     * column edge, so the steppers line up whatever the food names' lengths, and each row is
+     * one control tall, so two rows plus the Hold button never grow the hero. */
+    .hopper-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      column-gap: 12px;
+    }
+    .hopper-row-label {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: var(--kibble-segment-size);
+      font-weight: 500;
+      color: var(--primary-text-color);
+    }
     .schedule-row {
       grid-area: schedule;
-      padding: 0 10px 6px;
+      padding: var(--kibble-rhythm) 16px 6px;
     }
-    :host(.compact) .root {
-      gap: 6px;
+    :host(.compact) {
+      --kibble-rhythm: 8px;
     }
     :host(.compact) .hero {
       aspect-ratio: auto;
@@ -709,70 +1116,139 @@ export class KibbleCard extends LitElement {
     :host(.compact) .hero-status-text {
       font-size: 12px;
     }
-    :host(.compact) .bowl-block {
-      padding-top: 2px;
-      --kibble-bowl-max-width: 260px;
-    }
 
-    /* >=640px: two columns, camera left, silo/feed/schedule stacked right. The camera is 60%
-     * of the card at 16:10, so the row is exactly 0.6 * 10/16 = 37.5% of the card width tall;
-     * the right column is boxed to that same height so it can never outgrow the video. */
-    @container (min-width: 640px) {
-      .root {
-        grid-template-columns: 60% 1fr;
-        grid-template-rows: auto;
+    /* 560-959px (dual-hopper: 560-1279px, see the two @container blocks below -- two stepper
+     * rows plus the hold button need more height at the same video width, so dual mode keeps
+     * this layout until there is room): the video is full width above ONE row -- the bowl art
+     * and the feed controls side by side, vertically centred. .root itself stays the
+     * single-column stacked grid (only .panel's own internal direction changes) since the
+     * video still spans the whole card width in this tier, exactly like the narrower stacked
+     * layout above it. Unconditional -- both hopper modes want a row here, only where they
+     * leave it differs. */
+    @container (min-width: 560px) {
+      .panel {
+        flex-direction: row;
+        align-items: center;
+        max-width: 640px;
+      }
+      .bowl-art {
+        flex: 0 1 220px;
+        max-width: 220px;
+      }
+      .controls {
+        flex: 1 1 0%;
+        width: auto;
+        min-width: 0;
+      }
+    }
+    /* >=1100px, single-hopper only (:host(.dual-hopper) gets the same rules at a higher
+     * threshold, below): two real columns, video left, panel/schedule stacked right -- .panel
+     * reverts to the vertical layout the narrower tiers use (undoing the 560px row above),
+     * since it now has its own dedicated column instead of sitting below a full-width video.
+     * The video column is ~63% of the card width at its own true ratio (.hero's aspect-ratio,
+     * set above): that fixed width plus the aspect ratio gives it a definite, intrinsic
+     * height, which is what actually sets the row's height -- align-self: start (rather than
+     * the default stretch) keeps the box at exactly that height instead of being stretched to
+     * match .side if the panel ever needs more room than the video does. .side keeps the
+     * default stretch and matches whatever height that turns out to be; .bowl-art's own
+     * flex: 1 1 auto; min-height: 0 (unchanged from the base rule below) is what actually
+     * absorbs the difference, since it is the one flexible child in that column -- and
+     * kibble-bowl.ts's own .art{min-height:0} is what lets it genuinely shrink that far
+     * without kibble-bowl's non-shrinking .calibrated/.chips ever losing their own space.
+     * 1100px, not 960px: below it the shrunk art drops under ~70px (measured ~22px at 960,
+     * ~45px at 1024) -- legible chips are not enough on their own if the illustration above
+     * them has shrunk to a speck, so single mode stays in the 560px row tier (where bowl-art
+     * is sized from its own width, never height-squeezed) until there is room for both.
+     * .panel's overflow-y: auto and .bowl-art's overflow: hidden are a last-resort safety net
+     * for a combination this tight and single mode alone should essentially never reach. */
+    @container (min-width: 1100px) {
+      :host(:not(.dual-hopper)) .root {
+        grid-template-columns: 63% 1fr;
+        grid-template-rows: calc(100cqw * 0.63 / var(--kibble-hero-aspect, 1.7778));
         grid-template-areas: "hero side";
-        gap: 4px;
-        padding-bottom: 0;
         height: auto;
         overflow: visible;
       }
-      .hero {
+      :host(:not(.dual-hopper)) .hero {
         grid-area: hero;
         align-self: start;
         border-radius: var(--ha-card-border-radius, 12px) 0 0 var(--ha-card-border-radius, 12px);
       }
-      .side {
+      :host(:not(.dual-hopper)) .side {
         grid-area: side;
         display: grid;
-        grid-template-rows: minmax(0, 1fr) auto auto;
-        height: calc(100cqw * 0.6 * 10 / 16);
-        min-height: 0;
+        grid-template-rows: minmax(0, 1fr) auto;
       }
-      .bowl-block,
-      .feed-controls {
+      :host(:not(.dual-hopper)) .panel {
+        flex-direction: column;
+        max-width: 340px;
+        overflow-y: auto;
+      }
+      :host(:not(.dual-hopper)) .bowl-art {
+        flex: 1 1 auto;
+        max-width: none;
+        overflow: hidden;
+      }
+      :host(:not(.dual-hopper)) .controls {
+        flex: none;
+        width: 100%;
+      }
+      :host(:not(.dual-hopper)) .panel,
+      :host(:not(.dual-hopper)) .schedule-row {
         grid-area: unset;
+      }
+      :host(:not(.dual-hopper)) .schedule-row {
         align-self: start;
-        justify-self: stretch;
-        z-index: 0;
-        margin: 0;
-        width: auto;
-        background: none;
-        border-radius: 0;
       }
-      .bowl-block {
+    }
+    /* >=1440px, dual-hopper only: identical layout to the single-hopper >=1100px tier above,
+     * just a later threshold, for the same ~70px-minimum-art reason. Measured, not guessed: at
+     * a true 16:9 video and 63% width, two stepper rows plus the hold button plus kibble-bowl's
+     * own non-shrinking hopper-status chips (and, once calibration exists, its
+     * calibrated-percent line) leave art around 183px at 960-1200px (comfortable) but the
+     * SAME numbers only apply while dual stays in the row tier below -- once forced into this
+     * column tier, dual needs noticeably more width than single before art clears ~70px again
+     * (measured ~78px right at 1440, well under 70 at 1280) since it is negotiating for space
+     * against a taller controls block (two stepper rows, not one). Below this threshold dual
+     * mode stays in the 560px row tier above instead, where bowl-art is sized from its own
+     * width and never height-squeezed at all. */
+    @container (min-width: 1440px) {
+      :host(.dual-hopper) .root {
+        grid-template-columns: 63% 1fr;
+        grid-template-rows: calc(100cqw * 0.63 / var(--kibble-hero-aspect, 1.7778));
+        grid-template-areas: "hero side";
+        height: auto;
+        overflow: visible;
+      }
+      :host(.dual-hopper) .hero {
+        grid-area: hero;
+        align-self: start;
+        border-radius: var(--ha-card-border-radius, 12px) 0 0 var(--ha-card-border-radius, 12px);
+      }
+      :host(.dual-hopper) .side {
+        grid-area: side;
+        display: grid;
+        grid-template-rows: minmax(0, 1fr) auto;
+      }
+      :host(.dual-hopper) .panel {
+        flex-direction: column;
+        max-width: 340px;
+        overflow-y: auto;
+      }
+      :host(.dual-hopper) .bowl-art {
+        flex: 1 1 auto;
+        max-width: none;
+        overflow: hidden;
+      }
+      :host(.dual-hopper) .controls {
+        flex: none;
+        width: 100%;
+      }
+      :host(.dual-hopper) .panel,
+      :host(.dual-hopper) .schedule-row {
         grid-area: unset;
-        align-self: stretch;
-        min-height: 0;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: 4px 16px 0;
-        --kibble-bowl-max-width: 300px;
       }
-      .bowl-block > * {
-        height: 100%;
-        max-height: 100%;
-      }
-      .feed-controls {
-        grid-area: unset;
-        padding: 6px 16px 12px;
-        --kibble-touch-target: 48px;
-        --kibble-segment-size: 16px;
-      }
-      .schedule-row {
-        grid-area: unset;
-        padding: 2px 16px 10px;
+      :host(.dual-hopper) .schedule-row {
         align-self: start;
       }
     }

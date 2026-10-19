@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <!-- Dev-harness stand-in for a body crop (the identity engine's appearance-first signal for a
+       cat whose face rarely detects, per docs/36-ai-pipeline.md): a top-down torso silhouette,
+       deliberately distinct from face-crop.svg's close-up muzzle so the two never read as the
+       same placeholder reused twice in one sample strip. -->
+  <defs>
+    <linearGradient id="coat" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#4a4844"/>
+      <stop offset="100%" stop-color="#2c2a28"/>
+    </linearGradient>
+  </defs>
+  <rect width="200" height="200" fill="#1c1b19"/>
+  <ellipse cx="100" cy="118" rx="66" ry="46" fill="url(#coat)"/>
+  <ellipse cx="60" cy="150" rx="14" ry="20" fill="#242220"/>
+  <ellipse cx="140" cy="150" rx="14" ry="20" fill="#242220"/>
+  <path d="M 148 92 Q 176 78 182 100 Q 166 98 150 106 Z" fill="#333130"/>
+  <ellipse cx="100" cy="80" rx="24" ry="20" fill="#38352f"/>
+</svg>

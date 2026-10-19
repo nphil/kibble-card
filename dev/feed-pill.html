@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Hold to feed: wish and sigil pills</title>
+<style>
+  :root {
+    --bg: #121820; --card: #1c242e; --card-edge: #2a3542; --ink: #e8edf2; --muted: #8d9aa8;
+    --t1: #34d3c3; --t2: #9b87f5; --t3: #f7c948;
+    font-family: "Segoe UI", Roboto, system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); -webkit-tap-highlight-color: transparent; }
+  header, section.wrap { max-width: 1180px; margin: 0 auto; padding: 24px 20px 0; }
+  h1 { margin: 0 0 6px; font-size: 26px; letter-spacing: -0.02em; }
+  h2.sec { margin: 26px 0 4px; font-size: 20px; }
+  header p, .sub { margin: 0; color: var(--muted); font-size: 15px; max-width: 64ch; line-height: 1.5; }
+  .grid { display: grid; gap: 18px; padding: 18px 0 8px; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); }
+  .tile { position: relative; background: var(--card); border: 1px solid var(--card-edge); border-radius: 22px; padding: 18px; display: flex; flex-direction: column; gap: 12px; }
+  .tile h3 { margin: 0; font-size: 17px; display: flex; gap: 10px; align-items: baseline; }
+  .tile h3 .num { color: var(--muted); font-size: 13px; }
+  .tile .desc { margin: -6px 0 0; color: var(--muted); font-size: 13px; line-height: 1.45; }
+  .stage { position: relative; height: 150px; display: grid; place-items: center; }
+  .fx { position: absolute; left: -40px; top: -40px; width: calc(100% + 80px); height: calc(100% + 80px); pointer-events: none; z-index: 6; }
+  .pick { align-self: center; background: none; border: 1px solid var(--card-edge); color: var(--muted); border-radius: 999px; padding: 6px 14px; font: inherit; font-size: 13px; cursor: pointer; }
+  .tile.picked { outline: 3px solid var(--t1); outline-offset: -3px; }
+  .tile.picked .pick { background: var(--t1); color: #04211e; border-color: var(--t1); font-weight: 700; }
+  .light { background: #eef2f6; }
+  .light .pill { --base: #ffffff; --edge: #d5dde6; --txt: #1b2735; }
+
+  /* ---------- the pill ---------- */
+  .pill {
+    --p: 0; --c: var(--t1); --base: #1e2533; --edge: #ffffff1a; --txt: #eef2f7;
+    position: relative; width: min(100%, 320px); height: 60px; border-radius: 30px;
+    background: var(--base); border: 1px solid var(--edge); color: var(--txt);
+    box-shadow: 0 1px 0 #ffffff10 inset, 0 8px 20px #0006, 0 0 calc(var(--p) * 28px) color-mix(in srgb, var(--c) calc(var(--p) * 70%), transparent);
+    display: grid; place-items: center; overflow: visible; isolation: isolate;
+    touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; cursor: pointer; outline: none;
+    transition: transform 140ms cubic-bezier(.3,1.5,.5,1), box-shadow 200ms;
+  }
+  .pill:focus-visible { box-shadow: 0 0 0 3px #7cc4ff, 0 8px 20px #0006; }
+  .pill.pressed { transform: scale(.975); }
+  .pill .clip { position: absolute; inset: 0; border-radius: inherit; overflow: hidden; z-index: 0; }
+  .pill .fill { position: absolute; inset: 0; transform-origin: left; transform: scaleX(var(--p));
+    background: linear-gradient(90deg, color-mix(in srgb, var(--c) 18%, transparent), color-mix(in srgb, var(--c) 48%, transparent)); }
+  .pill .edge { position: absolute; top: 0; bottom: 0; left: calc(var(--p) * 100% - 1px); width: 3px; background: var(--c); box-shadow: 0 0 14px 4px var(--c); opacity: calc(min(1, var(--p) * 8) * (1 - var(--done, 0))); }
+  .pill .trace { position: absolute; inset: -5px; width: calc(100% + 10px); height: calc(100% + 10px); overflow: visible; z-index: 1; pointer-events: none; }
+  .pill .trace rect { fill: none; stroke: var(--c); stroke-width: 2; stroke-linecap: round; filter: drop-shadow(0 0 4px var(--c)); transition: stroke 180ms; }
+  .pill .label { position: relative; z-index: 2; font-weight: 700; font-size: 17px; letter-spacing: .01em; display: flex; align-items: center; gap: 8px; }
+  .pill .check { width: 20px; height: 20px; display: none; }
+  .pill .txt { transition: color 200ms; }
+  .pill.done .fill { background: linear-gradient(90deg, #f7c948, #ffe08a); }
+  .pill.done .label { color: #2a1d00; }
+  .pill .label { text-shadow: 0 1px 2px #0006; }
+  .pill.done .label { text-shadow: none; }
+  .pill.done .check { display: block; animation: checkIn 380ms cubic-bezier(.2,1.8,.4,1); }
+  @keyframes checkIn { from { transform: scale(0) rotate(-30deg); } to { transform: none; } }
+  .pill .flash { position: absolute; inset: 0; border-radius: inherit; background: #fff; opacity: 0; z-index: 3; pointer-events: none; }
+  .pill.done .flash { animation: flash 520ms ease-out; }
+  @keyframes flash { 0% { opacity: .85; } 100% { opacity: 0; } }
+  .pill .shock { position: absolute; inset: 0; border-radius: inherit; border: 2px solid var(--c); opacity: 0; pointer-events: none; }
+  .pill .shock.go { animation: shock 620ms cubic-bezier(.2,.7,.3,1); }
+  @keyframes shock { 0% { opacity: .9; transform: scale(1); } 100% { opacity: 0; transform: scale(1.35, 1.9); } }
+  .pill.tense { animation: tense 80ms linear infinite; }
+  @keyframes tense { 0% { translate: 0 0; } 25% { translate: -1px .5px; } 50% { translate: 1px -.5px; } 75% { translate: -.5px -.5px; } 100% { translate: 0 0; } }
+
+  /* sigil emblem (variant B) */
+  .emblem { position: absolute; left: 6px; top: 6px; width: 48px; height: 48px; z-index: 2; }
+  .emblem svg { width: 100%; height: 100%; overflow: visible; }
+  .emblem .o { fill: none; stroke: var(--c); stroke-width: 1.8; filter: drop-shadow(0 0 3px var(--c)); }
+  .emblem .spin { transform-origin: 24px 24px; animation: spin 8s linear infinite; }
+  .emblem .spin2 { transform-origin: 24px 24px; animation: spin 5s linear infinite reverse; }
+  .pill.pressed .emblem .spin { animation-duration: 1.6s; }
+  .pill.pressed .emblem .spin2 { animation-duration: 1.2s; }
+  .pill.done .emblem { animation: emblemOut 700ms cubic-bezier(.2,.8,.3,1); }
+  @keyframes emblemOut { 0% { transform: scale(1); } 40% { transform: scale(1.6); opacity: 1; } 100% { transform: scale(1); } }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .withEmblem .label { padding-left: 34px; }
+
+  /* constellation (variant C) */
+  .constel { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
+  .constel svg { width: 100%; height: 100%; overflow: visible; }
+  .constel .ln { stroke: var(--c); stroke-width: 1.4; stroke-linecap: round; opacity: .9; filter: drop-shadow(0 0 3px var(--c)); }
+  .constel .st { fill: #ffffff30; transition: fill 160ms, r 160ms; }
+  .constel .st.on { fill: #fff; filter: drop-shadow(0 0 5px var(--c)); }
+
+  /* glyph ring (variant A) */
+  .glyphs { position: absolute; inset: -5px; width: calc(100% + 10px); height: calc(100% + 10px); overflow: visible; z-index: 1; pointer-events: none; }
+  .glyphs path { fill: var(--c); opacity: 0; transition: opacity 200ms; filter: drop-shadow(0 0 3px var(--c)); }
+  .glyphs path.on { opacity: .9; }
+
+  iframe { width: 100%; height: 1820px; border: 0; border-radius: 22px; background: var(--bg); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Hold to feed: wish and sigil pills</h1>
+  <p>Your pill shape and clean flat colours, with effects from the wish orb (three colour levels, stars gathering, a gold burst) and the summoning sigil (lines drawing themselves, glyphs lighting up, a flash). Four takes on the mix, then a light-theme check. Hold to try, let go early to cancel.</p>
+</header>
+<section class="wrap"><div class="grid" id="grid"></div></section>
+<section class="wrap">
+  <h2 class="sec">Bowl and hopper layouts</h2>
+  <p class="sub">The six layouts from before, shown here so nothing hides behind a tab. The controls inside change every layout at once.</p>
+  <iframe src="feed-layouts.html?embed=1" title="Bowl and hopper layouts"></iframe>
+</section>
+
+<script>
+const HOLD_MS = 1400;
+const TIERS = [0.33, 0.66, 0.9];
+const TIER_COL = ["#34d3c3", "#9b87f5", "#f7c948"];
+const KIB = ["#c98a4b", "#a86b34", "#e0a868", "#8a5a2b"];
+const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const buzz = (ms) => { try { navigator.vibrate && navigator.vibrate(ms); } catch {} };
+const tierOf = (p) => (p < TIERS[0] ? 0 : p < TIERS[1] ? 1 : 2);
+
+class FX {
+  constructor(canvas) { this.c = canvas; this.ctx = canvas.getContext("2d"); this.parts = []; this.running = false; new ResizeObserver(() => this.resize()).observe(canvas); this.resize(); }
+  resize() { const r = this.c.getBoundingClientRect(), d = devicePixelRatio || 1; this.c.width = r.width * d; this.c.height = r.height * d; this.ctx.setTransform(d, 0, 0, d, 0, 0); this.w = r.width; this.h = r.height; }
+  at(el, fx = 0.5, fy = 0.5) { const a = el.getBoundingClientRect(), b = this.c.getBoundingClientRect(); return { x: a.left - b.left + a.width * fx, y: a.top - b.top + a.height * fy }; }
+  emit(o) {
+    if (reduced) return;
+    const { x, y, n = 20, colors = ["#fff"], speed = [2, 6], gravity = 0.1, life = [30, 60], size = [2, 4], shape = "circle", spread = Math.PI * 2, dir = 0, drag = 0.975, to = null } = o;
+    for (let i = 0; i < n; i++) {
+      const a = dir + (Math.random() - 0.5) * spread, s = speed[0] + Math.random() * (speed[1] - speed[0]), L = life[0] + Math.random() * (life[1] - life[0]);
+      const p = { x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, g: gravity, life: L, max: L, r: size[0] + Math.random() * (size[1] - size[0]), col: colors[(Math.random() * colors.length) | 0], shape, rot: Math.random() * 6.28, vr: (Math.random() - 0.5) * 0.25, drag };
+      if (to) { const d = 36 + Math.random() * 34, a2 = Math.random() * 6.28; p.x = to.x + Math.cos(a2) * d * 1.6; p.y = to.y + Math.sin(a2) * d; p.tx = to.x; p.ty = to.y; p.g = 0; p.homing = true; }
+      this.parts.push(p);
+    }
+    if (!this.running) { this.running = true; requestAnimationFrame(() => this.tick()); }
+  }
+  draw(p) {
+    const k = this.ctx; k.globalAlpha = Math.max(0, p.life / p.max); k.fillStyle = p.col; k.save(); k.translate(p.x, p.y); k.rotate(p.rot);
+    if (p.shape === "star") { k.beginPath(); for (let i = 0; i < 8; i++) { const r = i % 2 ? p.r * 0.35 : p.r; const t = (i / 8) * Math.PI * 2; k.lineTo(Math.cos(t) * r, Math.sin(t) * r); } k.fill(); }
+    else if (p.shape === "kibble") { for (let i = 0; i < 3; i++) { const t = (i / 3) * 6.28; k.beginPath(); k.arc(Math.cos(t) * p.r * 0.5, Math.sin(t) * p.r * 0.5, p.r * 0.62, 0, 6.28); k.fill(); } }
+    else if (p.shape === "glyph") { k.beginPath(); k.moveTo(0, -p.r); k.lineTo(p.r * .8, 0); k.lineTo(0, p.r); k.lineTo(-p.r * .8, 0); k.closePath(); k.fill(); }
+    else { k.beginPath(); k.arc(0, 0, p.r, 0, 6.28); k.fill(); }
+    k.restore(); k.globalAlpha = 1;
+  }
+  tick() {
+    this.ctx.clearRect(0, 0, this.w, this.h);
+    this.parts = this.parts.filter((p) => {
+      if (p.homing) { p.x += (p.tx - p.x) * 0.14; p.y += (p.ty - p.y) * 0.14; p.life -= 1.4; }
+      else { p.vx *= p.drag; p.vy = p.vy * p.drag + p.g; p.x += p.vx; p.y += p.vy; p.life--; }
+      p.rot += p.vr; this.draw(p); return p.life > 0;
+    });
+    if (this.parts.length) requestAnimationFrame(() => this.tick()); else { this.running = false; this.ctx.clearRect(0, 0, this.w, this.h); }
+  }
+}
+
+function holdable(el, h) {
+  let p = 0, start = 0, raf = 0, holding = false, locked = false, tier = 0, drainFrom = 0, drainStart = 0;
+  const set = (v, draining) => { p = v; el.style.setProperty("--p", v); el.style.setProperty("--c", TIER_COL[tierOf(v)]); h.progress && h.progress(v, draining); };
+  const frame = (now) => {
+    if (holding) {
+      const v = Math.min(1, (now - start) / HOLD_MS);
+      while (tier < TIERS.length && v >= TIERS[tier]) { h.tier && h.tier(tier); shock(el); buzz(12); tier++; }
+      el.classList.toggle("tense", v > 0.9 && v < 1 && !reduced);
+      set(v, false);
+      if (v >= 1) {
+        holding = false; locked = true; el.classList.remove("pressed", "tense"); el.classList.add("done"); el.style.setProperty("--done", 1); buzz([30, 40, 70]); shock(el); h.complete && h.complete();
+        const lbl = el.querySelector(".txt"); const old = lbl.textContent; lbl.textContent = "Feeding";
+        setTimeout(() => { el.classList.remove("done"); el.style.setProperty("--done", 0); lbl.textContent = old; locked = false; tier = 0; set(0, false); h.reset && h.reset(); }, 2000);
+        return;
+      }
+      raf = requestAnimationFrame(frame);
+    } else if (drainStart) {
+      const t = Math.min(1, (now - drainStart) / 320); set(drainFrom * Math.pow(1 - t, 3), true);
+      if (t < 1) raf = requestAnimationFrame(frame); else { drainStart = 0; tier = 0; set(0, false); h.reset && h.reset(); }
+    }
+  };
+  const down = (e) => { if (locked || holding) return; if (e && e.pointerId != null) el.setPointerCapture(e.pointerId); holding = true; drainStart = 0; tier = 0; start = performance.now() - p * HOLD_MS; el.classList.add("pressed"); buzz(8); cancelAnimationFrame(raf); raf = requestAnimationFrame(frame); };
+  const up = () => { if (!holding) return; holding = false; el.classList.remove("pressed", "tense"); drainFrom = p; drainStart = performance.now(); cancelAnimationFrame(raf); raf = requestAnimationFrame(frame); };
+  el.tabIndex = 0; el.setAttribute("role", "button");
+  el.addEventListener("pointerdown", down); el.addEventListener("pointerup", up); el.addEventListener("pointercancel", up);
+  el.addEventListener("contextmenu", (e) => e.preventDefault());
+  el.addEventListener("keydown", (e) => { if ((e.key === " " || e.key === "Enter") && !e.repeat) { e.preventDefault(); down(); } });
+  el.addEventListener("keyup", (e) => { if (e.key === " " || e.key === "Enter") up(); });
+  set(0, false);
+}
+function shock(el) { const s = el.querySelector(".shock"); if (!s || reduced) return; s.classList.remove("go"); void s.offsetWidth; s.classList.add("go"); }
+
+/* shared pill chrome */
+const CHECK = `<svg class="check" viewBox="0 0 24 24"><path d="M5 12.5l4.2 4.2L19 7" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const TRACE = `<svg class="trace" preserveAspectRatio="none"><rect x="1" y="1" rx="34" ry="34" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100"/></svg>`;
+const pill = (extra, inner = "") => `<div class="pill hold ${extra}" aria-label="Hold to feed"><div class="clip"><div class="fill"></div><div class="edge"></div></div>${inner}<div class="shock"></div><div class="flash"></div><span class="label">${CHECK}<span class="txt">Hold to feed</span></span></div>`;
+function sizeTrace(el) { const svg = el.querySelector(".trace"); if (!svg) return; const fit = () => { const r = svg.getBoundingClientRect(); svg.setAttribute("viewBox", `0 0 ${r.width} ${r.height}`); const rect = svg.querySelector("rect"); rect.setAttribute("width", r.width - 2); rect.setAttribute("height", r.height - 2); rect.setAttribute("rx", (r.height - 2) / 2); rect.setAttribute("ry", (r.height - 2) / 2); }; new ResizeObserver(fit).observe(svg); fit(); }
+const traceTo = (el, v) => { const r = el.querySelector(".trace rect"); if (r) r.setAttribute("stroke-dashoffset", 100 - v * 100); };
+
+const V = [];
+
+V.push({ name: "Starlight", desc: "The full mix. Stars gather at the glowing front edge as it fills, a sigil line traces the outline, glyphs light up around the rim, and each colour level sends out a ring. Ends in a gold starburst with kibble.",
+  html: pill("", TRACE + `<svg class="glyphs" preserveAspectRatio="none"></svg>`),
+  init(el, fx) {
+    sizeTrace(el);
+    const gs = el.querySelector(".glyphs"); const N = 14; const marks = [];
+    const place = () => { const r = gs.getBoundingClientRect(); gs.setAttribute("viewBox", `0 0 ${r.width} ${r.height}`); gs.innerHTML = ""; marks.length = 0; for (let i = 0; i < N; i++) { const t = (i + 0.5) / N; const top = i % 2 === 0; const x = 20 + t * (r.width - 40); const y = top ? -3 : r.height + 3; const m = document.createElementNS("http://www.w3.org/2000/svg", "path"); m.setAttribute("d", `M${x} ${y - 3}L${x + 2.4} ${y}L${x} ${y + 3}L${x - 2.4} ${y}Z`); gs.append(m); marks.push({ m, t }); } };
+    new ResizeObserver(place).observe(gs); place();
+    let k = 0;
+    holdable(el, {
+      progress(v) { traceTo(el, v); marks.forEach(({ m, t }) => m.classList.toggle("on", v >= t)); if (v > 0.02 && v < 1 && ++k % 4 === 0) fx.emit({ to: fx.at(el, v, 0.5), n: 2, size: [1.2, 2.4], life: [18, 26], shape: "star", colors: [TIER_COL[tierOf(v)], "#fff"] }); },
+      tier(i) { const c = fx.at(el, TIERS[i], 0.5); fx.emit({ x: c.x, y: c.y, n: 14, gravity: 0, speed: [1.5, 4], life: [18, 30], shape: "star", size: [1.5, 3], colors: [TIER_COL[Math.min(i + 1, 2)], "#fff"] }); },
+      complete() { const c = fx.at(el); fx.emit({ x: c.x, y: c.y, n: 70, gravity: 0.03, speed: [2, 9], life: [35, 70], shape: "star", size: [1.5, 4.5], colors: ["#f7c948", "#fff3b0", "#ffffff", "#ffb020"] }); fx.emit({ x: c.x, y: c.y, n: 16, dir: -Math.PI / 2, spread: 2.4, speed: [2, 6], gravity: 0.22, shape: "kibble", size: [3.5, 6], colors: KIB }); },
+    });
+  } });
+
+V.push({ name: "Sigil seal", desc: "A small magic circle at the left end draws itself and spins faster as you hold, while the fill sweeps behind the label. On completion the seal flares out into a star ring.",
+  html: pill("withEmblem", `<div class="emblem"><svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="21" fill="none" stroke="#ffffff18" stroke-width="1.5"/><g class="spin"><circle class="o c1" cx="24" cy="24" r="21" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100"/><g class="dots"></g></g><g class="spin2"><polygon class="o t1" points="24,8 37.9,32 10.1,32" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100"/><polygon class="o t2" points="24,40 10.1,16 37.9,16" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100"/></g><circle cx="24" cy="24" r="3" fill="var(--c)"/></svg></div>`),
+  init(el, fx) {
+    const c1 = el.querySelector(".c1"), t1 = el.querySelector(".t1"), t2 = el.querySelector(".t2"), dots = el.querySelector(".dots");
+    const D = []; for (let i = 0; i < 8; i++) { const a = (i / 8) * 6.28; const d = document.createElementNS("http://www.w3.org/2000/svg", "circle"); d.setAttribute("cx", 24 + Math.cos(a) * 21); d.setAttribute("cy", 24 + Math.sin(a) * 21); d.setAttribute("r", 1.8); d.setAttribute("fill", "#ffffff30"); dots.append(d); D.push(d); }
+    const seg = (v, a, b) => Math.max(0, Math.min(1, (v - a) / (b - a)));
+    holdable(el, {
+      progress(v) { c1.setAttribute("stroke-dashoffset", 100 - seg(v, 0, 0.45) * 100); t1.setAttribute("stroke-dashoffset", 100 - seg(v, 0.3, 0.7) * 100); t2.setAttribute("stroke-dashoffset", 100 - seg(v, 0.6, 0.95) * 100); D.forEach((d, i) => d.setAttribute("fill", v >= (i + 1) / 9 ? "#fff" : "#ffffff30")); },
+      tier(i) { const c = fx.at(el.querySelector(".emblem")); fx.emit({ x: c.x, y: c.y, n: 10, gravity: 0, speed: [1.5, 3.5], life: [16, 26], shape: "glyph", size: [2, 3], colors: [TIER_COL[Math.min(i + 1, 2)], "#fff"] }); },
+      complete() { const c = fx.at(el.querySelector(".emblem")); fx.emit({ x: c.x, y: c.y, n: 46, gravity: 0, speed: [3, 8], life: [26, 50], shape: "star", size: [1.5, 4], colors: ["#f7c948", "#fff", "#9b87f5"] }); const m = fx.at(el); fx.emit({ x: m.x, y: m.y, n: 22, gravity: 0.03, speed: [1.5, 5], life: [30, 55], shape: "glyph", size: [2, 3.5], colors: ["#f7c948", "#fff"] }); fx.emit({ x: m.x, y: m.y, n: 14, dir: -Math.PI / 2, spread: 2.4, speed: [2, 6], gravity: 0.22, shape: "kibble", size: [3.5, 6], colors: KIB }); },
+    });
+  } });
+
+V.push({ name: "Constellation", desc: "Stars along the pill light up in sequence and join with glowing lines, like drawing a sigil across the button. Completing the pattern flashes the whole constellation and scatters it.",
+  html: pill("", `<div class="constel"><svg preserveAspectRatio="none"></svg></div>`),
+  init(el, fx) {
+    const svg = el.querySelector(".constel svg"); let stars = [], lines = [];
+    const pts = [[0.08, 0.5], [0.2, 0.3], [0.33, 0.66], [0.47, 0.34], [0.6, 0.62], [0.74, 0.3], [0.86, 0.6], [0.94, 0.42]];
+    const build = () => { const r = svg.getBoundingClientRect(); svg.setAttribute("viewBox", `0 0 ${r.width} ${r.height}`); svg.innerHTML = ""; lines = []; stars = [];
+      pts.forEach(([x, y], i) => { if (i) { const [px, py] = pts[i - 1]; const l = document.createElementNS("http://www.w3.org/2000/svg", "line"); l.setAttribute("class", "ln"); l.setAttribute("x1", px * r.width); l.setAttribute("y1", py * r.height); l.setAttribute("x2", px * r.width); l.setAttribute("y2", py * r.height); l.dataset.x2 = x * r.width; l.dataset.y2 = y * r.height; svg.append(l); lines.push(l); } });
+      pts.forEach(([x, y]) => { const s = document.createElementNS("http://www.w3.org/2000/svg", "circle"); s.setAttribute("class", "st"); s.setAttribute("cx", x * r.width); s.setAttribute("cy", y * r.height); s.setAttribute("r", 2.2); svg.append(s); stars.push(s); }); };
+    new ResizeObserver(build).observe(svg); build();
+    let lit = -1;
+    holdable(el, {
+      progress(v) {
+        const pos = v * (pts.length - 1);
+        stars.forEach((s, i) => s.classList.toggle("on", i <= pos + 0.001));
+        lines.forEach((l, i) => { const t = Math.max(0, Math.min(1, pos - i)); const x1 = +l.getAttribute("x1"), y1 = +l.getAttribute("y1"); l.setAttribute("x2", x1 + (l.dataset.x2 - x1) * t); l.setAttribute("y2", y1 + (l.dataset.y2 - y1) * t); });
+        const now = Math.floor(pos + 0.001); if (now > lit && v > 0) { lit = now; const s = stars[now]; if (s) { const c = fx.at(el, pts[now][0], pts[now][1]); fx.emit({ x: c.x, y: c.y, n: 5, gravity: 0, speed: [0.8, 2], life: [14, 22], shape: "star", size: [1.5, 2.5], colors: [TIER_COL[tierOf(v)], "#fff"] }); } }
+        if (v === 0) lit = -1;
+      },
+      complete() { pts.forEach(([x, y], i) => setTimeout(() => { const c = fx.at(el, x, y); fx.emit({ x: c.x, y: c.y, n: 10, gravity: 0.02, speed: [1.5, 5], life: [30, 50], shape: "star", size: [1.5, 3.5], colors: ["#f7c948", "#fff", "#9b87f5"] }); }, i * 35)); const m = fx.at(el); fx.emit({ x: m.x, y: m.y, n: 16, dir: -Math.PI / 2, spread: 2.4, speed: [2, 6], gravity: 0.22, shape: "kibble", size: [3.5, 6], colors: KIB }); },
+    });
+  } });
+
+V.push({ name: "Quiet starlight", desc: "The same language turned down for everyday use: fill, glowing front edge and the traced outline, with colour levels but no ambient particles. One clean star burst at the end.",
+  html: pill("", TRACE),
+  init(el, fx) {
+    sizeTrace(el);
+    holdable(el, {
+      progress(v) { traceTo(el, v); },
+      complete() { const c = fx.at(el); fx.emit({ x: c.x, y: c.y, n: 36, gravity: 0.02, speed: [2, 7], life: [26, 50], shape: "star", size: [1.5, 3.5], colors: ["#f7c948", "#fff3b0", "#fff"] }); },
+    });
+  } });
+
+V.push({ name: "Starlight, light theme", desc: "Take 1 on a light dashboard, to check the colours hold up in daytime themes.", light: true,
+  html: pill("", TRACE + `<svg class="glyphs" preserveAspectRatio="none"></svg>`), init: (...a) => V[0].init(...a) });
+
+const grid = document.getElementById("grid");
+const picks = new Set(JSON.parse(localStorage.getItem("feed-pill-picks") || "[]"));
+V.forEach((v, i) => {
+  const t = document.createElement("section"); t.className = "tile" + (v.light ? " light" : "") + (picks.has(i + 1) ? " picked" : "");
+  if (v.light) t.style.color = "#1b2735";
+  t.innerHTML = `<h3><span class="num">${i + 1}</span>${v.name}</h3><p class="desc" ${v.light ? 'style="color:#51606f"' : ""}>${v.desc}</p><div class="stage">${v.html}<canvas class="fx"></canvas></div><button class="pick" type="button">${picks.has(i + 1) ? "Picked" : "I like this one"}</button>`;
+  grid.append(t);
+  v.init(t.querySelector(".pill"), new FX(t.querySelector(".fx")));
+  t.querySelector(".pick").addEventListener("click", (e) => { const k = i + 1; picks.has(k) ? picks.delete(k) : picks.add(k); localStorage.setItem("feed-pill-picks", JSON.stringify([...picks])); t.classList.toggle("picked", picks.has(k)); e.target.textContent = picks.has(k) ? "Picked" : "I like this one"; });
+});
+</script>
+</body>
+</html>

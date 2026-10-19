@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Kibble hero layout: true aspect ratio, responsive</title>
+<style>
+  :root { font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  body { margin: 0; padding: 24px; background: #dfe4ea; }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  p.lead { margin: 0 0 20px; color: #445; font-size: 13px; max-width: 720px; }
+  .section { padding: 20px; border-radius: 14px; margin-bottom: 24px; }
+  .section h2 { margin: 0 0 4px; font-size: 15px; }
+  .section p.meta { margin: 0 0 16px; font-size: 12px; opacity: 0.75; }
+  .theme-light {
+    background: #f4f6f8; --primary-background-color: #f4f6f8; --primary-text-color: #172b3a;
+    --secondary-text-color: #5b6b78; --card-background-color: #ffffff; --ha-card-background: #ffffff;
+    --divider-color: #d5dde6; color: var(--primary-text-color);
+  }
+  .theme-dark {
+    background: #14171c; --primary-background-color: #14171c; --primary-text-color: #e9eef4;
+    --secondary-text-color: #9aa7b4; --card-background-color: #1c222b; --ha-card-background: #1c222b;
+    --divider-color: #ffffff1f; color: var(--primary-text-color);
+  }
+  .probe-row { display: flex; flex-wrap: wrap; gap: 28px; align-items: flex-start; }
+  .probe { position: relative; padding-top: 22px; }
+  .probe::before { content: attr(data-label); position: absolute; top: 0; left: 0; font-size: 11px; font-weight: 600; opacity: 0.7; font-family: monospace; }
+  .probe-inner { outline: 1px dashed rgba(128, 128, 128, 0.6); outline-offset: 2px; }
+  kibble-card { display: block; }
+</style>
+</head>
+<body>
+  <h1>Kibble hero layout harness</h1>
+  <p class="lead">Real &lt;kibble-card&gt; instances at fixed container widths, a checkerboard test-pattern image (16:9, camera-frame.svg's replacement here) standing in for the camera feed -- no scrypted_id, so the plain still-image path renders, same as a fresh install. Resize by editing the width list below or reading each probe's own box in devtools; container queries respond to each probe's own inline width exactly like a real dashboard.</p>
+
+  <section class="section theme-light"><h2>Light &middot; single hopper</h2><div class="probe-row" id="row-light-single"></div></section>
+  <section class="section theme-light"><h2>Light &middot; dual hopper</h2><div class="probe-row" id="row-light-dual"></div></section>
+  <section class="section theme-dark"><h2>Dark &middot; single hopper</h2><div class="probe-row" id="row-dark-single"></div></section>
+  <section class="section theme-dark"><h2>Dark &middot; dual hopper</h2><div class="probe-row" id="row-dark-dual"></div></section>
+
+<script type="module">
+  import "./dist/kibble-card.js";
+
+  const DEVICE_ID = "hero-harness-device";
+  const ENTRY_ID = "hero-harness-entry";
+  const CAMERA_ID = "camera.hero_harness_feeder";
+  const DIVIDER_ID = "switch.hero_harness_hopper_divider";
+
+  const ENTITY_IDS = {
+    camera: CAMERA_ID,
+    feeding: "binary_sensor.hero_harness_feeding",
+    bowlFill1: "sensor.hero_harness_bowl_fill_1",
+    hopperLevel1: "sensor.hero_harness_hopper_1_level",
+    hopperLevel2: "sensor.hero_harness_hopper_2_level",
+    hopperDivider: DIVIDER_ID,
+    hopperFood1: "text.hero_harness_hopper_1_food",
+    hopperFood2: "text.hero_harness_hopper_2_food",
+    feedAmount: "number.hero_harness_feed_amount",
+    feedAmountHopper1: "number.hero_harness_feed_amount_hopper_1",
+    feedAmountHopper2: "number.hero_harness_feed_amount_hopper_2",
+    schedule: "sensor.hero_harness_schedule",
+    lastSeenPet: "sensor.hero_harness_last_seen_pet",
+  };
+
+  function entry(entityId, translationKey) {
+    return { entity_id: entityId, device_id: DEVICE_ID, platform: "kibble", translation_key: translationKey, disabled_by: null };
+  }
+  function state(entityId, value, attributes = {}) {
+    const now = new Date().toISOString();
+    return { entity_id: entityId, state: value, attributes, last_changed: now, last_updated: now };
+  }
+
+  function buildEntities() {
+    return Object.fromEntries(
+      Object.entries(ENTITY_IDS).map(([role, id]) => [id, entry(id, role.replace(/([A-Z0-9])/g, "_$1").toLowerCase())]),
+    );
+  }
+
+  function buildStates({ single, image }) {
+    return {
+      [ENTITY_IDS.camera]: state(ENTITY_IDS.camera, "streaming", { entity_picture: image }),
+      [ENTITY_IDS.feeding]: state(ENTITY_IDS.feeding, "off"),
+      [ENTITY_IDS.bowlFill1]: state(ENTITY_IDS.bowlFill1, "62", { unit_of_measurement: "%" }),
+      [ENTITY_IDS.hopperLevel1]: state(ENTITY_IDS.hopperLevel1, "ok"),
+      [ENTITY_IDS.hopperLevel2]: state(ENTITY_IDS.hopperLevel2, "low"),
+      [ENTITY_IDS.hopperDivider]: state(ENTITY_IDS.hopperDivider, single ? "off" : "on"),
+      [ENTITY_IDS.hopperFood1]: state(ENTITY_IDS.hopperFood1, "Kibble"),
+      [ENTITY_IDS.hopperFood2]: state(ENTITY_IDS.hopperFood2, "Freeze-dried"),
+      [ENTITY_IDS.feedAmount]: state(ENTITY_IDS.feedAmount, "3"),
+      [ENTITY_IDS.feedAmountHopper1]: state(ENTITY_IDS.feedAmountHopper1, "2"),
+      [ENTITY_IDS.feedAmountHopper2]: state(ENTITY_IDS.feedAmountHopper2, "2"),
+      [ENTITY_IDS.schedule]: state(ENTITY_IDS.schedule, "on", { entries: [{ id: "a1", time: "07:30", amount_l: 5, amount_r: 5, enabled: true }] }),
+      [ENTITY_IDS.lastSeenPet]: state(ENTITY_IDS.lastSeenPet, "Kitty", { last_identified: new Date(Date.now() - 2 * 3600_000).toISOString() }),
+    };
+  }
+
+  function makeHass({ dark, single, image }) {
+    return {
+      states: buildStates({ single, image }),
+      entities: buildEntities(),
+      devices: { [DEVICE_ID]: { id: DEVICE_ID, name: "Cat Feeder", name_by_user: null, model: "Harness", manufacturer: "Kibble", config_entries: [ENTRY_ID] } },
+      themes: { darkMode: !!dark },
+      language: "en",
+      callService: async () => {},
+      callWS: async () => ({ cats: [] }),
+    };
+  }
+
+  const WIDTHS = [320, 390, 560, 660, 768, 1024, 1440];
+  const TEST_PATTERN = "./camera-frame.svg";
+
+  function buildProbe(row, width, opts) {
+    const wrap = document.createElement("div");
+    wrap.className = "probe";
+    wrap.dataset.label = `${width}px`;
+    const inner = document.createElement("div");
+    inner.style.width = width + "px";
+    const card = document.createElement("kibble-card");
+    card.hass = makeHass({ dark: opts.dark, single: opts.single, image: TEST_PATTERN });
+    card.setConfig({ type: "custom:kibble-card", device_id: DEVICE_ID });
+    inner.appendChild(card);
+    wrap.appendChild(inner);
+    row.appendChild(wrap);
+  }
+
+  for (const w of WIDTHS) {
+    buildProbe(document.getElementById("row-light-single"), w, { dark: false, single: true });
+    buildProbe(document.getElementById("row-light-dual"), w, { dark: false, single: false });
+    buildProbe(document.getElementById("row-dark-single"), w, { dark: true, single: true });
+    buildProbe(document.getElementById("row-dark-dual"), w, { dark: true, single: false });
+  }
+
+  window.__heroLayoutReady = true;
+</script>
+</body>
+</html>

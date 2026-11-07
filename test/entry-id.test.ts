@@ -13,6 +13,18 @@ describe("resolveEntryId", () => {
     expect(resolveEntryId(devices, "feeder-1")).toBe("entry-abc");
   });
 
+  test("prefers config_entry_id (Home Assistant 2026.8+) over the deprecated list", () => {
+    const devices = { "feeder-1": device({ id: "feeder-1", config_entry_id: "entry-new", config_entries: ["entry-old"] }) };
+
+    expect(resolveEntryId(devices, "feeder-1")).toBe("entry-new");
+  });
+
+  test("reads config_entry_id when the deprecated list is gone", () => {
+    const devices = { "feeder-1": device({ id: "feeder-1", config_entry_id: "entry-new" }) };
+
+    expect(resolveEntryId(devices, "feeder-1")).toBe("entry-new");
+  });
+
   test("returns undefined for an unknown device id", () => {
     expect(resolveEntryId({}, "missing")).toBeUndefined();
   });

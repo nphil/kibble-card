@@ -31,6 +31,9 @@ export interface DeviceRegistryEntry {
   model?: string | null;
   manufacturer?: string | null;
   identifiers?: Array<[string, string]>;
+  /** The one config entry the device belongs to (Home Assistant 2026.8+). */
+  config_entry_id?: string | null;
+  /** Deprecated by Home Assistant (removed in 2027.8); same single id as `config_entry_id`. */
   config_entries?: string[];
 }
 

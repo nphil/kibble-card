@@ -11,12 +11,16 @@ Full design rationale in [`DESIGN.md`](DESIGN.md).
 Every card is one responsive component — no layout config beyond the device picker and a couple
 of optional fields. Container queries drive the responsive behavior, never viewport queries.
 
-## Install (HACS)
+## Install
 
-1. HACS → Frontend → ⋮ → Custom repositories → add `https://github.com/nphil/kibble-card`.
-2. Install "Kibble Card", then add it as a Lovelace resource if HACS doesn't do so automatically
-   (Settings → Dashboards → Resources → `/hacsfiles/kibble-card/kibble-card.js`, type: JavaScript
-   Module).
+Home Assistant 2026.11 and newer: add `nphil/kibble-card` from the built-in Marketplace (public GitHub
+repository with a `hacs.json`; the card file `kibble-card.js` is attached to every release). Before
+2026.11: HACS → Frontend → ⋮ → Custom repositories → `https://github.com/nphil/kibble-card`.
+
+1. Install "Kibble Card". If the resource is not added for you, add it under Settings → Dashboards →
+   Resources → `/local/community/kibble-card/kibble-card.js` (type: JavaScript Module). The older
+   `/hacsfiles/kibble-card/kibble-card.js` path keeps working.
+2. Works on Home Assistant 2026.10 and 2026.11.
 3. Add whichever cards you want to a dashboard:
 
    ```yaml

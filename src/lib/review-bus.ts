@@ -1,5 +1,5 @@
-/** One in-page signal that says "a visit was just named". Every Kibble card on a dashboard
- * listens, so naming a visit in one card updates the others at once instead of waiting for the
+/** One in-page signal that says "an answer just reached Kibble". Every Kibble card on a dashboard
+ * listens, so answering a photo in one card updates the others at once instead of waiting for the
  * integration's own push (which only arrives after its background retraining).
  *
  * A module-level `EventTarget`, deliberately not a `window` listener: the cards share one

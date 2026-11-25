@@ -107,16 +107,23 @@ export function timeLabel(unixSeconds: number, locale?: string): string {
   return new Date(unixSeconds * 1000).toLocaleTimeString(locale, { hour: "numeric", minute: "2-digit" });
 }
 
-/** When a visit happened, for a screen that shows visits from several days at once: just the
- * time today, the weekday and time within the last week, the date and time before that. */
-export function visitWhenLabel(unixSeconds: number, now: Date, locale?: string): string {
+/** Which day a visit happened on, for a screen that shows visits from several days at once:
+ * `null` for today, the weekday within the last week, the date before that. */
+export function visitDayLabel(unixSeconds: number, now: Date, locale?: string): string | null {
   const date = new Date(unixSeconds * 1000);
-  const time = timeLabel(unixSeconds, locale);
   const midnight = (value: Date): number => new Date(value.getFullYear(), value.getMonth(), value.getDate()).getTime();
   const daysAgo = Math.round((midnight(now) - midnight(date)) / 86_400_000);
-  if (daysAgo <= 0) return time;
-  if (daysAgo < 7) return `${date.toLocaleDateString(locale, { weekday: "short" })} ${time}`;
-  return `${date.toLocaleDateString(locale, { month: "short", day: "numeric" })} ${time}`;
+  if (daysAgo <= 0) return null;
+  if (daysAgo < 7) return date.toLocaleDateString(locale, { weekday: "short" });
+  return date.toLocaleDateString(locale, { month: "short", day: "numeric" });
+}
+
+/** When a visit happened: just the time today, the weekday and time within the last week, the
+ * date and time before that. */
+export function visitWhenLabel(unixSeconds: number, now: Date, locale?: string): string {
+  const day = visitDayLabel(unixSeconds, now, locale);
+  const time = timeLabel(unixSeconds, locale);
+  return day ? `${day} ${time}` : time;
 }
 
 /** The evidence photos for a meal or feed's compact inline compare pair -- `null` unless both

@@ -35,16 +35,16 @@ function fakeHass(pagesByCursor: Record<string, Page>) {
 describe("PagedFeed", () => {
   test("sync loads page 0 with no cursor and reports total/hasNext/hasPrevious", async () => {
     const { hass, calls } = fakeHass({ start: { items: [{ uid: "a" }, { uid: "b" }], total: 5, cursor: "p1", has_more: true } });
-    const feed = new PagedFeed<Item>("kibble/review", () => {});
+    const feed = new PagedFeed<Item>("kibble/training", () => {});
     feed.sync(hass, "entry", { entry_id: "entry" }, 2);
     await settle();
-    expect(calls).toEqual([{ type: "kibble/review", limit: 2, entry_id: "entry" }]);
+    expect(calls).toEqual([{ type: "kibble/training", limit: 2, entry_id: "entry" }]);
     expect(feed.state).toMatchObject({ items: [{ uid: "a" }, { uid: "b" }], total: 5, pageIndex: 0, hasNext: true, hasPrevious: false });
   });
 
   test("sync with an unchanged key is a no-op", async () => {
     const { hass, calls } = fakeHass({ start: { items: [], total: 0, cursor: null, has_more: false } });
-    const feed = new PagedFeed<Item>("kibble/review", () => {});
+    const feed = new PagedFeed<Item>("kibble/training", () => {});
     feed.sync(hass, "entry", { entry_id: "entry" }, 24);
     feed.sync(hass, "entry", { entry_id: "entry" }, 24);
     await settle();
@@ -69,7 +69,7 @@ describe("PagedFeed", () => {
       start: { items: [{ uid: "a" }], total: 2, cursor: "p1", has_more: true },
       p1: { items: [{ uid: "b" }], total: 2, cursor: null, has_more: false },
     });
-    const feed = new PagedFeed<Item>("kibble/review", () => {});
+    const feed = new PagedFeed<Item>("kibble/training", () => {});
     feed.sync(hass, "entry", { entry_id: "entry" }, 1);
     await settle();
     feed.next(hass, { entry_id: "entry" }, 1);
@@ -77,13 +77,13 @@ describe("PagedFeed", () => {
     expect(feed.state).toMatchObject({ items: [{ uid: "b" }], pageIndex: 1, hasNext: false, hasPrevious: true });
     feed.previous(hass, { entry_id: "entry" }, 1);
     await settle();
-    expect(calls[2]).toEqual({ type: "kibble/review", limit: 1, entry_id: "entry" });
+    expect(calls[2]).toEqual({ type: "kibble/training", limit: 1, entry_id: "entry" });
     expect(feed.state).toMatchObject({ items: [{ uid: "a" }], pageIndex: 0, hasPrevious: false });
   });
 
   test("next is a no-op once there is no next page, previous is a no-op on page 0", async () => {
     const { hass, calls } = fakeHass({ start: { items: [{ uid: "a" }], total: 1, cursor: null, has_more: false } });
-    const feed = new PagedFeed<Item>("kibble/review", () => {});
+    const feed = new PagedFeed<Item>("kibble/training", () => {});
     feed.sync(hass, "entry", { entry_id: "entry" }, 24);
     await settle();
     feed.next(hass, { entry_id: "entry" }, 24);

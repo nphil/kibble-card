@@ -1,7 +1,7 @@
-/** Explicit-page (next/previous) reader for `kibble/review` and `kibble/training`, which share
- * one response shape: `{items, total, cursor, has_more}`. Unlike `TimelineFeed`'s "Show more"
- * append, both of these render one page at a time -- a review grid or a per-cat training grid is
- * a task queue you page through, not a rail you scroll. The WS cursor is forward-only and
+/** Explicit-page (next/previous) reader for `kibble/training`, whose response shape is
+ * `{items, total, cursor, has_more}`. Unlike `TimelineFeed`'s "Show more" append, it renders one
+ * page at a time -- a per-cat training grid is a task queue you page through, not a rail you
+ * scroll. The WS cursor is forward-only and
  * opaque, so a "Previous" needs its own client-side history: `_cursors[i]` records the cursor
  * that produced page `i`, letting `previous()` re-request an earlier page without the server
  * ever needing to support backward cursors itself.

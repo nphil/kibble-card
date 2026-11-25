@@ -1,8 +1,9 @@
 /** Enrolled cats up top (avatar, when last seen, meals today, how much is trained, how often
- * each is recognized), then one "Check visits" bar that opens the review queue: the single
- * place visits get named, shared with every other Kibble card. Per-cat training photos are
- * hidden behind "View training" so the whole card doesn't render every crop for every cat at
- * once. See `kibble/docs/36-ai-pipeline.md` for the full contract this renders.
+ * each is recognized), then one entry button that opens the review queue: the single place
+ * photos get answered, shared with every other Kibble card, with a live line about what Kibble
+ * is learning from those answers. Per-cat training photos are hidden behind "View training" so
+ * the whole card doesn't render every crop for every cat at once. See
+ * `kibble/docs/36-ai-pipeline.md` for the full contract this renders.
  */
 
 import type { CustomCardEntry } from "./kibble-card";
@@ -11,6 +12,7 @@ import type { Asset, CatsResponse, HomeAssistant, KibbleCatsCardConfig, Training
 import { resolveKibbleEntities, type KibbleEntities } from "./lib/resolve-entities";
 import { resolveEntryId } from "./lib/entry-id";
 import { WsQuery, describeWsError } from "./lib/ws-query";
+import { CALL_TIMEOUT_MS, RETRY_SCHEDULE_MS } from "./lib/backoff";
 import { PagedFeed, type PagedFeedState } from "./lib/paged-feed";
 import { ImageUrlCache } from "./lib/image-cache";
 import { relativeTimeSentence } from "./lib/relative-time";
@@ -21,6 +23,7 @@ import { findCatRecognitionEntityId, readCatRecognition, type LearningState } fr
 import "./components/kibble-avatar";
 import "./components/kibble-image";
 import "./components/kibble-review-entry";
+import "./components/kibble-learning-line";
 import "./components/kibble-add-photos-sheet";
 import "./components/kibble-avatar-picker";
 import "./cats-editor";
@@ -78,7 +81,7 @@ export class KibbleCatsCard extends LitElement {
   private _resolvedEntities: HomeAssistant["entities"] | undefined;
   private _resolvedDevices: HomeAssistant["devices"] | undefined;
   private _resolvedDeviceId: string | undefined;
-  private _catsQuery = new WsQuery<CatsResponse>(() => this.requestUpdate());
+  private _catsQuery = new WsQuery<CatsResponse>(() => this.requestUpdate(), { retry: RETRY_SCHEDULE_MS, timeoutMs: CALL_TIMEOUT_MS });
   private _trainingFeeds = new Map<string, PagedFeed<TrainingSample>>();
   private _imageCache = new ImageUrlCache();
   private _deleteConfirmTimer: ReturnType<typeof setTimeout> | undefined;
@@ -121,6 +124,7 @@ export class KibbleCatsCard extends LitElement {
 
   connectedCallback(): void {
     super.connectedCallback();
+    this._catsQuery.retryNow(); // a reattached card reads again; `dispose` stopped the last read
     // A visit named anywhere on the page changes the photo counts shown here.
     this._stopReviewListening = onReviewChange(
       () => this._entryId,
@@ -136,6 +140,7 @@ export class KibbleCatsCard extends LitElement {
     super.disconnectedCallback();
     this._stopReviewListening?.();
     this._stopReviewListening = null;
+    this._catsQuery.dispose();
     this._imageCache.dispose();
     for (const feed of this._trainingFeeds.values()) feed.dispose();
     clearTimeout(this._deleteConfirmTimer);
@@ -185,13 +190,17 @@ export class KibbleCatsCard extends LitElement {
         <div class="container">
           ${this._config.name ? html`<div class="label">${this._config.name}</div>` : nothing}
           ${this._actionError ? this._renderActionError() : nothing}
+          ${this._catsQuery.state.reconnecting ? html`<p class="storage-line" role="status"><span>Reconnecting\u2026</span></p>` : nothing}
           <section class="roster">
-            ${cats.length === 0 ? html`<p class="empty">No cats yet. Add one to start training.</p>` : html`<div class="cat-list">${cats.map((cat) => this._renderCatTile(cat))}</div>`}
+            ${this._renderRosterBody(cats)}
             ${this._renderAddCat()}
           </section>
           ${this._expandedTraining ? this._renderTrainingPanel(this._expandedTraining) : nothing}
           ${cats.length > 0
-            ? html`<kibble-review-entry .hass=${this.hass} .entryId=${this._entryId} .cats=${cats} .cache=${this._imageCache} .revision=${this._catsQuery.state.data}></kibble-review-entry>`
+            ? html`
+                <kibble-review-entry .hass=${this.hass} .entryId=${this._entryId} .cats=${cats} .cache=${this._imageCache} .revision=${this._catsQuery.state.data}></kibble-review-entry>
+                <kibble-learning-line summary .hass=${this.hass} .entryId=${this._entryId}></kibble-learning-line>
+              `
             : nothing}
           ${storage
             ? html`
@@ -222,6 +231,17 @@ export class KibbleCatsCard extends LitElement {
         @avatar-changed=${this._onAvatarChanged}
       ></kibble-avatar-picker>
     `;
+  }
+
+  /** The cat list, or what stands in for it until the first read answers: never a false "No cats yet". */
+  private _renderRosterBody(cats: CatsResponse["cats"]) {
+    const { data, error } = this._catsQuery.state;
+    if (data === null) {
+      return error
+        ? html`<div class="error"><span>Couldn\u2019t load your cats.</span><button type="button" @click=${() => this._catsQuery.retryNow()}>Try again</button></div>`
+        : html`<p class="empty">Loading your cats\u2026</p>`;
+    }
+    return cats.length === 0 ? html`<p class="empty">No cats yet. Add one to start training.</p>` : html`<div class="cat-list">${cats.map((cat) => this._renderCatTile(cat))}</div>`;
   }
 
   private _renderActionError() {

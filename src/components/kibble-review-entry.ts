@@ -1,6 +1,9 @@
-/** The one way into the review queue, the same control on every Kibble card: a "Check visits"
- * button with the number of visits Kibble could not name. It owns the queue dialog too, so a
- * card only places this element and, to start at one particular visit, calls `open(uid)`.
+/** The one way into the review queue, the same control on every Kibble card: a "Check photos"
+ * button with the number of photos still waiting for an answer. It owns the queue dialog too, so
+ * a card only places this element.
+ *
+ * It also joins the answer outbox as soon as it has a `hass`, which is what delivers answers an
+ * earlier visit to the page left unsent, even if nobody opens the queue.
  *
  * `variant="bar"` is the full-width row for a card body; `variant="chip"` is the small pill for
  * the live video, shown only while something is waiting.
@@ -11,7 +14,9 @@ import type { CatSummary, HomeAssistant } from "../types";
 import type { ImageUrlCache } from "../lib/image-cache";
 import { mdiIcon } from "../lib/mdi-icons";
 import { onReviewChange } from "../lib/review-bus";
-import { loadUnknownCount } from "../lib/review-source";
+import { loadPhotosLeft } from "../lib/review-source";
+import { answerOutbox, type EntryOutbox } from "../lib/answer-sync";
+import { countOf } from "../lib/format-count";
 import "./kibble-review-queue";
 
 export class KibbleReviewEntry extends LitElement {
@@ -22,7 +27,7 @@ export class KibbleReviewEntry extends LitElement {
     cache: { attribute: false },
     variant: { type: String, reflect: true },
     revision: { attribute: false },
-    _count: { state: true },
+    _remaining: { state: true },
   };
 
   declare hass: HomeAssistant | undefined;
@@ -34,10 +39,12 @@ export class KibbleReviewEntry extends LitElement {
    * the count is read again whenever it does. */
   declare revision: unknown;
 
-  private _count: number | null = null;
+  private _remaining: number | null = null;
   private _countedEntry: string | undefined;
   private _generation = 0;
   private _stopListening: (() => void) | null = null;
+  private _outbox: EntryOutbox | null = null;
+  private _unsubscribeOutbox: (() => void) | null = null;
 
   constructor() {
     super();
@@ -45,9 +52,9 @@ export class KibbleReviewEntry extends LitElement {
     this.variant = "bar";
   }
 
-  /** Opens the queue; `startUid` is the visit to show first. */
-  open(startUid?: string | null): void {
-    this.renderRoot.querySelector("kibble-review-queue")?.show(startUid);
+  /** Opens the queue. */
+  open(): void {
+    this.renderRoot.querySelector("kibble-review-queue")?.show();
   }
 
   connectedCallback(): void {
@@ -62,12 +69,25 @@ export class KibbleReviewEntry extends LitElement {
     super.disconnectedCallback();
     this._stopListening?.();
     this._stopListening = null;
+    this._unsubscribeOutbox?.();
+    this._unsubscribeOutbox = null;
+    this._outbox = null;
     this._generation++;
   }
 
   protected willUpdate(changed: PropertyValues): void {
-    const ready = Boolean(this.hass?.callWS && this.entryId);
-    if (ready && (this.entryId !== this._countedEntry || changed.has("revision"))) this._loadCount();
+    const { hass, entryId } = this;
+    // Joining the outbox is what replays answers an earlier visit to the page left unsent.
+    if (hass && entryId) this._joinOutbox(answerOutbox(hass, entryId));
+    const ready = Boolean(hass?.callWS && entryId);
+    if (ready && (entryId !== this._countedEntry || changed.has("revision"))) this._loadCount();
+  }
+
+  private _joinOutbox(outbox: EntryOutbox): void {
+    if (outbox === this._outbox) return;
+    this._unsubscribeOutbox?.();
+    this._outbox = outbox;
+    this._unsubscribeOutbox = outbox.subscribe(() => this.requestUpdate());
   }
 
   private _loadCount = (): void => {
@@ -76,17 +96,23 @@ export class KibbleReviewEntry extends LitElement {
     if (!callWS || !entryId) return;
     this._countedEntry = entryId;
     const generation = ++this._generation;
-    loadUnknownCount(callWS, entryId).then(
-      (count) => {
-        if (generation === this._generation) this._count = count;
+    loadPhotosLeft(callWS, entryId).then(
+      (remaining) => {
+        if (generation === this._generation) this._remaining = remaining;
       },
-      () => {}, // the button still opens the queue; only the number is missing
+      () => {}, // the button still opens the queue; the number keeps its last value
     );
   };
 
+  /** Photos still waiting for an answer: Kibble's count, less answers this device has not sent yet. */
+  private _waitingCount(): number {
+    const unsent = [...(this._outbox?.pendingPhotoLabels().values() ?? [])].filter((label) => label !== "follow").length;
+    return Math.max(0, (this._remaining ?? 0) - unsent);
+  }
+
   render() {
-    const count = this._count ?? 0;
-    const label = count > 0 ? `Check visits, ${count} ${count === 1 ? "needs" : "need"} a name` : "Check visits";
+    const count = this._waitingCount();
+    const label = count > 0 ? `Check photos, ${countOf(count, "photo", "photos")} waiting` : "Check photos";
     return html`
       ${this.variant === "chip"
         ? count > 0
@@ -94,7 +120,7 @@ export class KibbleReviewEntry extends LitElement {
           : nothing
         : html`<button type="button" class="bar" aria-label=${label} @click=${() => this.open()}>
             <span class="bar-glyph">${mdiIcon("helpCircle")}</span>
-            <span class="bar-label">Check visits</span>
+            <span class="bar-label">Check photos</span>
             ${count > 0 ? html`<span class="badge">${count}</span>` : nothing}
             <span class="bar-chevron">${mdiIcon("chevronRight")}</span>
           </button>`}

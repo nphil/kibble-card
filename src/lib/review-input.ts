@@ -1,12 +1,11 @@
 /** How keys and swipes become review-queue commands. Pure, so the mapping the on-screen hints
  * promise is exactly the mapping that is tested. */
 
-import type { ReviewOption } from "./review-queue";
+import type { AnswerOption } from "./photo-answers";
 
 export type ReviewCommand =
   | { type: "answer"; optionId: string }
   | { type: "undo" }
-  | { type: "photo"; delta: 1 | -1 }
   | { type: "scene" };
 
 export interface KeyPress {
@@ -18,15 +17,13 @@ export interface KeyPress {
   repeat?: boolean;
 }
 
-/** Number keys pick the option that shows that number, Z / Backspace / Ctrl+Z undo, the left
- * and right arrows browse the visit's photos, S or the up and down arrows flip between the
- * close-up and the whole scene. Anything else is left for the browser. */
-export function keyCommand(press: KeyPress, options: readonly Pick<ReviewOption, "id" | "hotkey">[]): ReviewCommand | null {
+/** Number keys pick the option that shows that number, Z / Backspace / Ctrl+Z undo, S or the up
+ * and down arrows flip between the close-up and the whole picture. Anything else is left for the
+ * browser. */
+export function keyCommand(press: KeyPress, options: readonly Pick<AnswerOption, "id" | "hotkey">[]): ReviewCommand | null {
   if (press.altKey) return null;
   const key = press.key.length === 1 ? press.key.toLowerCase() : press.key;
   if (press.ctrlKey || press.metaKey) return key === "z" && !press.repeat ? { type: "undo" } : null;
-  if (key === "ArrowLeft") return { type: "photo", delta: -1 };
-  if (key === "ArrowRight") return { type: "photo", delta: 1 };
   if (press.repeat) return null;
   if (key === "z" || key === "u" || key === "Backspace") return { type: "undo" };
   if (key === "s" || key === "ArrowUp" || key === "ArrowDown") return { type: "scene" };
@@ -77,7 +74,7 @@ export function swipeCommit(dx: number, velocity: number, width: number): SwipeS
 /** Swiping answers only when there are exactly two cats: left is the first, right the second,
  * matching where their buttons sit. With any other roster a swipe means nothing, so it can
  * never be read two ways. */
-export function swipeOptionId(side: SwipeSide, options: readonly Pick<ReviewOption, "id" | "kind">[]): string | null {
+export function swipeOptionId(side: SwipeSide, options: readonly Pick<AnswerOption, "id" | "kind">[]): string | null {
   const cats = options.filter((option) => option.kind === "cat");
   if (cats.length !== 2) return null;
   return (side === "left" ? cats[0] : cats[1])!.id;

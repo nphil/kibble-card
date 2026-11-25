@@ -6,9 +6,9 @@
  * event -- "<Cat> came by", "<Cat> ate", "Fed N portion(s)" -- the cat's own name tinted in its
  * colour, never a raw class string. A meal or feed with both a before and after photo shows them
  * as a real, readable pair right in the row; a visit shows a large round photo. A visit nobody
- * has named asks "Who was here?" instead of a title, and tapping it (or its photo) opens the
- * review queue at that visit; the "Check visits" bar at the top opens the same queue from its
- * start. Tapping a named row opens the event sheet for detail and correction. The whole list
+ * has named asks "Who was here?" instead of a title. Tapping any row opens the event sheet, where
+ * each photo is named one at a time; the "Check photos" bar at the top opens the review queue for
+ * every photo still waiting. The whole list
  * sits on one card surface with the page's own scroll carrying it by
  * default (an optional `max_height` opts back into a bounded, internally-scrolling rail); older
  * pages load automatically as an intersection sentinel comes into view. A freshly pushed event
@@ -19,15 +19,16 @@
 import type { CustomCardEntry } from "./kibble-card";
 import { LitElement, css, html, nothing } from "lit";
 import { createRef, ref } from "lit/directives/ref.js";
-import type { CatsResponse, EventDetail, HomeAssistant, KibbleTimelineCardConfig, TimelineEvent } from "./types";
+import type { CatsResponse, EventDetail, HomeAssistant, KibbleTimelineCardConfig, Sample, TimelineEvent } from "./types";
 import { resolveKibbleEntities, type KibbleEntities } from "./lib/resolve-entities";
 import { resolveEntryId } from "./lib/entry-id";
 import { ImageUrlCache } from "./lib/image-cache";
 import { TimelineFeed } from "./lib/timeline-feed";
 import { WsQuery } from "./lib/ws-query";
-import { labelSample } from "./lib/sample-label";
-import { reviewSummaryMessage, type ReviewedEventLabel } from "./lib/review-summary";
-import { labelSession, type SessionLabelRequest } from "./lib/session-label";
+import { reviewSummaryMessage } from "./lib/review-summary";
+import { answerOutbox, type Delivery, type EntryOutbox } from "./lib/answer-sync";
+import { describeDrops, type OutboxEvent } from "./lib/answer-outbox";
+import type { AteChosenDetail } from "./components/kibble-who-ate";
 import {
   catVerb,
   compareAssets,
@@ -49,7 +50,7 @@ import {
 } from "./lib/timeline";
 import { catSilhouette } from "./lib/brand-shapes";
 import { mdiIcon } from "./lib/mdi-icons";
-import { announceReviewChange, onReviewChange } from "./lib/review-bus";
+import { onReviewChange } from "./lib/review-bus";
 import { catColorAt } from "./styles/tokens";
 import { fallbackCatColor } from "./lib/cat-colors";
 import "./components/kibble-image";
@@ -61,6 +62,12 @@ import "./timeline-editor";
 const EMPTY_ENTITIES: KibbleEntities = { deviceId: "", catPresence: [] };
 const DEFAULT_LIMIT = 30;
 
+/** A photo as it will read once its waiting answer is delivered ("follow" hands it back to its visit). */
+function answeredSample(sample: Sample, label: string): Sample {
+  const answer = label === "follow" ? null : label;
+  return { ...sample, review: answer, label: answer };
+}
+
 export class KibbleTimelineCard extends LitElement {
   static properties = {
     hass: { attribute: false },
@@ -69,13 +76,9 @@ export class KibbleTimelineCard extends LitElement {
     _sheetSamples: { state: true },
     _sheetSceneSubjects: { state: true },
     _sheetSessionCats: { state: true },
-    _sheetMultipleCats: { state: true },
     _sheetSamplesFailed: { state: true },
-    _sheetSampleBusyUid: { state: true },
     _sheetGroup: { state: true },
     _sheetTogether: { state: true },
-    _sheetBusy: { state: true },
-    _sheetError: { state: true },
     _edgeTop: { state: true },
     _edgeBottom: { state: true },
   };
@@ -86,13 +89,9 @@ export class KibbleTimelineCard extends LitElement {
   declare _sheetSamples: EventDetail["samples"] | null;
   declare _sheetSceneSubjects: EventDetail["scene_subjects"];
   declare _sheetSessionCats: EventDetail["cats"] | null;
-  declare _sheetMultipleCats: boolean;
   declare _sheetSamplesFailed: boolean;
-  declare _sheetSampleBusyUid: string | null;
   declare _sheetGroup: TimelineEvent[];
   declare _sheetTogether: boolean;
-  declare _sheetBusy: boolean;
-  declare _sheetError: string | null;
   declare _edgeTop: boolean;
   declare _edgeBottom: boolean;
 
@@ -115,10 +114,11 @@ export class KibbleTimelineCard extends LitElement {
   /** The newest uid already rendered once; only new live rows get the entrance animation. */
   private _newestKnownUid: string | null = null;
   private _animateUids = new Set<string>();
-  /** Session answers saved while the sheet is open, reduced to one toast on close. */
-  private _sheetReviewedEvents = new Map<string, ReviewedEventLabel>();
+  /** Photos answered while the sheet is open, reduced to one toast on close. */
   private _sheetPhotoUids = new Set<string>();
   private _stopReviewListening: (() => void) | null = null;
+  private _outbox: EntryOutbox | null = null;
+  private _unsubscribeOutbox: (() => void) | null = null;
 
   constructor() {
     super();
@@ -126,13 +126,9 @@ export class KibbleTimelineCard extends LitElement {
     this._sheetSamples = null;
     this._sheetSceneSubjects = [];
     this._sheetSessionCats = null;
-    this._sheetMultipleCats = false;
     this._sheetSamplesFailed = false;
-    this._sheetSampleBusyUid = null;
     this._sheetGroup = [];
     this._sheetTogether = false;
-    this._sheetBusy = false;
-    this._sheetError = null;
     this._edgeTop = false;
     this._edgeBottom = false;
   }
@@ -165,6 +161,8 @@ export class KibbleTimelineCard extends LitElement {
       () => {
         this._timelineFeed.refresh(this.hass, this._entryId, this._config?.limit ?? DEFAULT_LIMIT);
         this._refreshCats();
+        const open = this._sheetSummary?.uid;
+        if (open) this._loadEventDetail(open, true);
       },
     );
   }
@@ -173,6 +171,9 @@ export class KibbleTimelineCard extends LitElement {
     super.disconnectedCallback();
     this._stopReviewListening?.();
     this._stopReviewListening = null;
+    this._unsubscribeOutbox?.();
+    this._unsubscribeOutbox = null;
+    this._outbox = null;
     this._imageCache.dispose();
     this._timelineFeed.dispose();
     this._sentinelObserver?.disconnect();
@@ -192,6 +193,7 @@ export class KibbleTimelineCard extends LitElement {
       this._entities = resolveKibbleEntities(this.hass.entities ?? {}, deviceId);
       this._entryId = resolveEntryId(this.hass.devices ?? {}, deviceId);
     }
+    if (this.hass && this._entryId) this._joinOutbox(answerOutbox(this.hass, this._entryId));
     this._timelineFeed.sync(this.hass, this._entryId, this._config?.limit ?? DEFAULT_LIMIT);
     const callWS = this.hass?.callWS;
     if (this.hass && this._entryId && callWS && this._entryId !== this._catsEntryId) {
@@ -329,16 +331,12 @@ export class KibbleTimelineCard extends LitElement {
         .samples=${this._sheetSamples}
         .sceneSubjects=${this._sheetSceneSubjects}
         .sessionCats=${this._sheetSessionCats}
-        .multipleCats=${this._sheetMultipleCats}
         .samplesFailed=${this._sheetSamplesFailed}
         .group=${this._sheetGroup}
         .groupTogether=${this._sheetTogether}
-        .busy=${this._sheetBusy}
-        .error=${this._sheetError}
-        .sampleBusyUid=${this._sheetSampleBusyUid}
         @close-requested=${this._closeSheet}
-        @session-label-requested=${this._onSessionLabelRequested}
-        @sample-label-requested=${this._onSampleLabelRequested}
+        @sample-answer-requested=${this._onSampleAnswer}
+        @ate-chosen=${this._onAteChosen}
         @event-requested=${this._onEventRequested}
         @samples-retry-requested=${this._onSamplesRetryRequested}
       ></kibble-label-sheet>
@@ -463,24 +461,13 @@ export class KibbleTimelineCard extends LitElement {
         : html`${event.open ? (event.kind === "eat" ? "Someone is eating" : "Someone is here") : "Who was here?"}`;
     const asks = needsIdentification(event);
     const label = asks ? `Who was here? ${timeLabel(event.start, this._locale())}` : `Review ${eventTitle(event)}, ${timeLabel(event.start, this._locale())}`;
-    return html`<button type="button" class="title-open ${asks ? "asks" : ""}" aria-label=${label} @click=${(click: Event) => this._openRow(group, click.currentTarget as HTMLElement)}>
+    return html`<button type="button" class="title-open ${asks ? "asks" : ""}" aria-label=${label} @click=${(click: Event) => this._openSheet(group, click.currentTarget as HTMLElement)}>
       <span class="title-line">
         <span class="title">${titleBody}</span>
         ${asks ? html`<span class="ask-chevron">${mdiIcon("chevronRight")}</span>` : nothing}
         ${event.open ? this._renderLiveRing(color) : nothing}
         ${group.events.length > 1 ? html`<span class="count-badge">${groupCountLabel(event.kind, group.events.length)}</span>` : nothing}
       </span></button>`;
-  }
-
-  /** A row's tap: a visit nobody has named goes straight to the review queue at that visit;
-   * everything else opens the event sheet. */
-  private _openRow(group: EventGroup, trigger: HTMLElement): void {
-    const event = group.event;
-    if (group.together !== true && needsIdentification(event)) {
-      this.renderRoot.querySelector("kibble-review-entry")?.open(event.session ?? event.uid);
-    } else {
-      this._openSheet(group, trigger);
-    }
   }
 
   private _renderLiveRing(color: string) {
@@ -528,7 +515,7 @@ export class KibbleTimelineCard extends LitElement {
     const hasClip = event.kind === "eat" && Boolean(event.clip);
     const label = `View and correct: ${eventTitle(event)}, ${timeLabel(event.start, this._locale())}${hasClip ? ". Has video." : ""}`;
     return html`
-      <button type="button" class="${extraClass}" aria-label=${label} @click=${(e: Event) => this._openRow(group, e.currentTarget as HTMLElement)}>
+      <button type="button" class="${extraClass}" aria-label=${label} @click=${(e: Event) => this._openSheet(group, e.currentTarget as HTMLElement)}>
         ${asset
           ? html`<kibble-image .hass=${this.hass} .asset=${asset} .cache=${this._imageCache} alt=""></kibble-image>`
           : html`<span class="neutral-icon">${catSilhouette()}</span>`}
@@ -541,11 +528,11 @@ export class KibbleTimelineCard extends LitElement {
     const label = `View and correct: ${eventTitle(group.event)}, ${timeLabel(group.event.start, this._locale())}`;
     return html`
       <div class="compare-pair ${size === "full" ? "compare-full" : "compare-third"}">
-        <button type="button" class="compare-tile" aria-label=${`${label}. Before.`} @click=${(e: Event) => this._openRow(group, e.currentTarget as HTMLElement)}>
+        <button type="button" class="compare-tile" aria-label=${`${label}. Before.`} @click=${(e: Event) => this._openSheet(group, e.currentTarget as HTMLElement)}>
           ${compare.before ? html`<kibble-image .hass=${this.hass} .asset=${compare.before} .cache=${this._imageCache} alt=""></kibble-image>` : nothing}
           <span class="compare-label">Before</span>
         </button>
-        <button type="button" class="compare-tile" aria-label=${`${label}. After.`} @click=${(e: Event) => this._openRow(group, e.currentTarget as HTMLElement)}>
+        <button type="button" class="compare-tile" aria-label=${`${label}. After.`} @click=${(e: Event) => this._openSheet(group, e.currentTarget as HTMLElement)}>
           ${compare.after ? html`<kibble-image .hass=${this.hass} .asset=${compare.after} .cache=${this._imageCache} alt=""></kibble-image>` : nothing}
           <span class="compare-label">After</span>
         </button>
@@ -561,12 +548,18 @@ export class KibbleTimelineCard extends LitElement {
     this._catsQuery.refresh(() => callWS({ type: "kibble/cats", entry_id: entryId }).then((r) => r as CatsResponse));
   }
 
+  /** Shows a session's detail. Answers still waiting in the outbox are laid over it, so a refresh
+   * never flips a photo that was just answered back to unanswered. */
   private _applySheetDetail(detail: EventDetail): void {
-    this._sheetSummary = detail.event;
-    this._sheetSamples = detail.samples;
+    const pending = this._outbox?.pendingPhotoLabels();
+    const askedAte = this._outbox?.entries.some((entry) => entry.answer.kind === "ate" && entry.answer.visitUid === detail.event.uid) ?? false;
+    this._sheetSummary = askedAte ? { ...detail.event, needs_ate: false } : detail.event;
+    this._sheetSamples = detail.samples.map((sample) => {
+      const label = pending?.get(sample.uid);
+      return label === undefined ? sample : answeredSample(sample, label);
+    });
     this._sheetSceneSubjects = detail.scene_subjects;
     this._sheetSessionCats = detail.cats;
-    this._sheetMultipleCats = detail.multiple_cats;
     this._sheetSamplesFailed = false;
     this.requestUpdate();
   }
@@ -579,10 +572,8 @@ export class KibbleTimelineCard extends LitElement {
       this._sheetSamples = null;
       this._sheetSceneSubjects = [];
       this._sheetSessionCats = null;
-      this._sheetMultipleCats = false;
       this._sheetSamplesFailed = false;
     }
-    this._sheetError = null;
     const generation = ++this._detailGeneration;
     const callWS = this.hass?.callWS;
     const entryId = this._entryId;
@@ -606,10 +597,8 @@ export class KibbleTimelineCard extends LitElement {
     this._sheetTrigger = trigger;
     this._sheetGroup = group.events;
     this._sheetTogether = group.together === true;
-    this._sheetReviewedEvents = new Map();
     this._sheetPhotoUids = new Set();
     this._sheetSessionCats = null;
-    this._sheetMultipleCats = false;
     this._loadEventDetail(group.event.uid);
   }
 
@@ -623,81 +612,52 @@ export class KibbleTimelineCard extends LitElement {
   };
 
   private _closeSheet = (): void => {
-    const message = reviewSummaryMessage({ events: [...this._sheetReviewedEvents.values()], photosUpdated: this._sheetPhotoUids.size }, this._locale());
+    const message = reviewSummaryMessage(this._sheetPhotoUids.size, this._locale());
     this._sheetSummary = null;
     this._sheetSamples = null;
     this._sheetSceneSubjects = [];
     this._sheetSessionCats = null;
-    this._sheetMultipleCats = false;
     this._sheetSamplesFailed = false;
-    this._sheetSampleBusyUid = null;
     this._sheetGroup = [];
     this._sheetTogether = false;
-    this._sheetError = null;
-    this._sheetReviewedEvents = new Map();
     this._sheetPhotoUids = new Set();
     this._sheetTrigger?.focus();
     this._sheetTrigger = null;
     if (message) this.dispatchEvent(new CustomEvent("hass-notification", { detail: { message }, bubbles: true, composed: true }));
   };
 
-  /** Saves a whole-session answer and refreshes the row, cats, and sheet from the returned detail. */
-  private _onSessionLabelRequested = (event: CustomEvent<SessionLabelRequest & { closeOnSuccess?: boolean }>): void => {
-    const entryId = this._entryId;
-    const hass = this.hass;
-    if (!entryId || !hass?.callWS) return;
-    const { uid, cats, verdict, subjects, closeOnSuccess } = event.detail;
-    const request: SessionLabelRequest = { uid, ...(cats ? { cats } : {}), ...(verdict ? { verdict } : {}), ...(subjects?.length ? { subjects } : {}) };
-    this._sheetBusy = true;
-    this._sheetError = null;
-    labelSession(hass, entryId, request)
-      .then((detail) => {
-        this._sheetBusy = false;
-        this._applySheetDetail(detail);
-        announceReviewChange(entryId);
-        for (const key of this._sheetReviewedEvents.keys()) {
-          if (key === detail.event.uid || key.startsWith(detail.event.uid + ":")) this._sheetReviewedEvents.delete(key);
-        }
-        if (request.verdict) {
-          this._sheetReviewedEvents.set(detail.event.uid, { uid: detail.event.uid, event: detail.event, label: request.verdict });
-        } else {
-          for (const cat of request.cats ?? []) {
-            const uid = detail.event.uid + ":" + cat.cat;
-            this._sheetReviewedEvents.set(uid, { uid, event: { kind: cat.ate ? "eat" : "visit", open: detail.event.open, start: detail.event.start }, label: cat.cat });
-          }
-        }
-        if (closeOnSuccess) this._closeSheet();
-        else this.requestUpdate();
-      })
-      .catch((err: unknown) => {
-        this._sheetBusy = false;
-        this._sheetError = err instanceof Error ? err.message : "Couldn't save this label.";
-        this.requestUpdate();
-      });
+  private _joinOutbox(outbox: EntryOutbox): void {
+    if (outbox === this._outbox) return;
+    this._unsubscribeOutbox?.();
+    this._outbox = outbox;
+    this._unsubscribeOutbox = outbox.subscribe((event) => this._onOutbox(event));
+  }
+
+  /** An answer Kibble refused for good: say so once, then show what Kibble really has. */
+  private _onOutbox(event: OutboxEvent<Delivery>): void {
+    const outbox = this._outbox;
+    const uid = this._sheetSummary?.uid;
+    if (event.type !== "dropped" || !outbox || !uid) return;
+    this.dispatchEvent(new CustomEvent("hass-notification", { detail: { message: describeDrops(outbox.drops) }, bubbles: true, composed: true }));
+    outbox.clearDrops();
+    this._loadEventDetail(uid, true);
+  }
+
+  /** A photo answered in the viewer: shown at once, saved by the outbox (which keeps retrying). */
+  private _onSampleAnswer = (event: CustomEvent<{ sampleUid: string; label: string }>): void => {
+    const { sampleUid, label } = event.detail;
+    if (!this._outbox) return;
+    this._outbox.enqueue({ kind: "photo", sampleUid, label });
+    this._sheetPhotoUids.add(sampleUid);
+    if (this._sheetSamples) this._sheetSamples = this._sheetSamples.map((item) => (item.uid === sampleUid ? answeredSample(item, label) : item));
   };
 
-  private _onSampleLabelRequested = (event: CustomEvent<{ sampleUid: string; label: string }>): void => {
-    const entryId = this._entryId;
-    const hass = this.hass;
-    if (!entryId || !hass?.callWS) return;
-    const { sampleUid, label } = event.detail;
-    this._sheetSampleBusyUid = sampleUid;
-    this._sheetError = null;
-    labelSample(hass, entryId, { sampleUid, label })
-      .then((sample) => {
-        this._sheetSampleBusyUid = null;
-        if (this._sheetSamples) this._sheetSamples = this._sheetSamples.map((item) => item.uid === sample.uid ? sample : item);
-        this._sheetPhotoUids.add(sampleUid);
-        const uid = this._sheetSummary?.uid;
-        if (uid) this._loadEventDetail(uid, true);
-        announceReviewChange(entryId);
-        this.requestUpdate();
-      })
-      .catch((err: unknown) => {
-        this._sheetSampleBusyUid = null;
-        this._sheetError = err instanceof Error ? err.message : "Couldn't save this label.";
-        this.requestUpdate();
-      });
+  /** "Who ate?" answered in the sheet: the question goes away at once, the outbox saves it. */
+  private _onAteChosen = (event: CustomEvent<AteChosenDetail>): void => {
+    const { visitUid, ate } = event.detail;
+    if (!this._outbox) return;
+    this._outbox.enqueue({ kind: "ate", visitUid, ate });
+    if (this._sheetSummary?.uid === visitUid) this._sheetSummary = { ...this._sheetSummary, needs_ate: false };
   };
 
   private _loadOlder = (): void => {

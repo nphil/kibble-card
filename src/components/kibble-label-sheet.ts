@@ -1,7 +1,8 @@
-/** The session sheet shared by the timeline and cats cards. It shows who was here, each cat's
- * meal or visit role, the scene with its labeled subjects, and the session's photos. Whole-session
- * answers and scene labels are reported to the host card; per-photo corrections still go through
- * the photo viewer. The host owns every Home Assistant call and refreshes the session detail.
+/** The event sheet shared by the timeline and cats cards. It shows what happened (the title, the
+ * scene with its labeled animals, any clip) and the event's photos. Naming happens one photo at a
+ * time: a tap opens the viewer, where that photo gets its answer, so the visit itself is read-only
+ * here. The one question the sheet asks on its own is "Who ate?", for a meal two cats were at.
+ * Answers are reported to the host card, which owns the outbox and every Home Assistant call.
  *
  * `summary` is available as soon as a row is tapped; `kibble/event` fills in the full photo and
  * subject lists after opening. Grouped timeline rows keep their compact pager, but every page is
@@ -12,7 +13,9 @@ import { createRef, ref } from "lit/directives/ref.js";
 import type { CatSummary, HomeAssistant, Sample, SceneSubject, SessionCat, TimelineEvent } from "../types";
 import { AssetRef, type ImageUrlCache } from "../lib/image-cache";
 import { eventDuration, feedTitle, timeLabel } from "../lib/timeline";
-import { confirmAction, draftChipState, draftFrom, groupSessionPhotos, nameDraftSubject, sessionTitle, setDraftAte, toggleDraftCat, toggleDraftNotACat, type SessionDraft, type SessionLabelRequest } from "../lib/session-label";
+import { groupSessionPhotos, sessionTitle } from "../lib/session-label";
+import { photoTag } from "../lib/photo-answers";
+import type { AteQuestion } from "../lib/who-ate";
 import { boxInCrop, type OverlayBox } from "../lib/boxes";
 import { mdiIcon } from "../lib/mdi-icons";
 import { clipSeekOffsetSeconds } from "../lib/clip-offset";
@@ -24,7 +27,7 @@ import "./kibble-avatar";
 import "./kibble-before-after";
 import "./kibble-box-overlay";
 import "./kibble-photo-viewer";
-import "./kibble-choice";
+import "./kibble-who-ate";
 
 const FOCUSABLE_SELECTOR = [
   "button:not([disabled])",
@@ -58,8 +61,6 @@ function readBoxesVisible(): boolean {
 }
 
 
-type PhotoBadge = { kind: "cat"; name: string; cat: CatSummary | null } | { kind: "skip" } | { kind: "not_a_cat" };
-
 export class KibbleLabelSheet extends LitElement {
   static properties = {
     open: { type: Boolean, reflect: true },
@@ -71,20 +72,15 @@ export class KibbleLabelSheet extends LitElement {
     samples: { attribute: false },
     sceneSubjects: { attribute: false },
     sessionCats: { attribute: false },
-    multipleCats: { type: Boolean },
     samplesFailed: { type: Boolean },
     group: { attribute: false },
     groupTogether: { type: Boolean },
-    busy: { type: Boolean },
-    error: { type: String },
-    sampleBusyUid: { attribute: false },
     _photosExpanded: { state: true },
     _viewerIndex: { state: true },
     _zoom: { state: true },
     _clipSrc: { state: true },
     _clipError: { state: true },
     _showBoxes: { state: true },
-    _draft: { state: true },
   };
 
   declare open: boolean;
@@ -103,20 +99,10 @@ export class KibbleLabelSheet extends LitElement {
    * or the cats card. `summary.uid`'s position in this array drives the header pager. */
   declare group: TimelineEvent[];
   declare groupTogether: boolean;
-  /** Busy/error for the whole-event label (identity chips, footer). */
-  declare busy: boolean;
-  declare error: string | null;
-  /** Which one photo (by sample uid) is mid-save via the photo viewer, or `null`. */
-  declare sampleBusyUid: string | null;
   declare sceneSubjects: SceneSubject[];
   declare sessionCats: SessionCat[] | null;
-  /** The vision judge saw more than one cat; nudges the person when fewer are ticked. */
-  declare multipleCats: boolean;
   declare _showBoxes: boolean;
 
-  /** The unsaved answer being built in this sheet; `null` = untouched (derived from the saved
-   * session each render). Reset whenever the session detail changes underneath it. */
-  private _draft: SessionDraft | null = null;
   /** Whether the photo grid shows every sample or just the first dozen behind a "+N" tile. */
   private _photosExpanded = false;
   /** Which sample index the photo viewer is open on, or `null`. */
@@ -145,7 +131,6 @@ export class KibbleLabelSheet extends LitElement {
 
   private _keydownHandler = (event: KeyboardEvent): void => {
     if (!this.open) return;
-    if (event.key === "Escape" && event.composedPath().some((target) => target instanceof Element && target.matches(".picker"))) return;
     if (this._viewerIndex !== null) return; // the photo viewer owns Escape/Tab while it is open
     if (event.key === "Escape") {
       event.preventDefault();
@@ -178,12 +163,8 @@ export class KibbleLabelSheet extends LitElement {
     this.samplesFailed = false;
     this.group = [];
     this.groupTogether = false;
-    this.busy = false;
-    this.error = null;
-    this.sampleBusyUid = null;
     this.sceneSubjects = [];
     this.sessionCats = null;
-    this.multipleCats = false;
     this._showBoxes = readBoxesVisible();
   }
 
@@ -237,10 +218,6 @@ export class KibbleLabelSheet extends LitElement {
       this._photosExpanded = false;
       this._viewerIndex = null;
       this._zoom = null;
-      this._draft = null;
-    }
-    if (changed.has("sessionCats")) {
-      this._draft = null;
     }
     // On sheet close or a switch to a different event, release the video and revert to the
     // poster/photo state (docs/39-eating-clips.md) -- a later re-open of the SAME event still
@@ -255,15 +232,14 @@ export class KibbleLabelSheet extends LitElement {
     const event = this.summary;
     if (!this.open || !event) return nothing;
     const sessionCats = this._sessionCatsFor(event);
-    const draft = this._draft ?? draftFrom(sessionCats, event.identity);
     const isFeed = event.kind === "feed";
     const locale = this.hass?.locale?.language ?? this.hass?.language;
-    const ariaTitle = isFeed ? feedTitle(event) : this._draftTitle(event, draft);
+    const title = isFeed ? feedTitle(event) : sessionTitle(sessionCats, event);
     const stageKind = this._stageKind(event);
     return html`
       <div class="backdrop" @click=${this._close}>
-        <div class="sheet" role="dialog" aria-modal="true" aria-label=${ariaTitle} @click=${(e: Event) => e.stopPropagation()}>
-          ${this._renderHeader(event, isFeed, locale, draft)}
+        <div class="sheet" role="dialog" aria-modal="true" aria-label=${title} @click=${(e: Event) => e.stopPropagation()}>
+          ${this._renderHeader(event, locale, title, sessionCats)}
           <div class="scroll">
             <div class="layout ${stageKind === "none" ? "no-media" : ""}">
               ${stageKind !== "none"
@@ -274,10 +250,10 @@ export class KibbleLabelSheet extends LitElement {
                     </div>
                   `
                 : nothing}
-              <div class="info-col">${!isFeed ? html`${this._renderIdentity(event, sessionCats, draft)}${this._renderPhotos(event, sessionCats)}` : nothing}</div>
+              <div class="info-col">${!isFeed ? html`${this._renderAsk(event, sessionCats)}${this._renderPhotos(event, sessionCats)}` : nothing}</div>
             </div>
           </div>
-          ${!isFeed ? this._renderFooter(event, sessionCats, draft) : html`<footer><button type="button" class="primary-btn" @click=${this._close}>Done</button></footer>`}
+          <footer><button type="button" class="primary-btn" @click=${this._close}>Done</button></footer>
         </div>
         ${this._zoom ? this._renderZoom() : nothing}
       </div>
@@ -290,9 +266,6 @@ export class KibbleLabelSheet extends LitElement {
         .showBoxes=${this._showBoxes}
         @boxes-visibility-requested=${this._onBoxesVisibilityRequested}
         .initialIndex=${this._viewerIndex ?? 0}
-        .event=${event}
-        .busyUid=${this.sampleBusyUid}
-        .error=${this.error}
         @viewer-close-requested=${this._onViewerClose}
       ></kibble-photo-viewer>
     `;
@@ -304,12 +277,10 @@ export class KibbleLabelSheet extends LitElement {
   }
 
   private _sceneOverlayBoxes(): OverlayBox[] {
-    const drafted = this._draft?.subjects ?? {};
     return this.sceneSubjects.map((subject, index) => {
-      const labelNow = subject.sid !== null && drafted[subject.sid] !== undefined ? drafted[subject.sid]! : subject.label;
-      const name = labelNow && labelNow !== "not_a_cat" ? labelNow : null;
+      const name = subject.label && subject.label !== "not_a_cat" ? subject.label : null;
       const cat = name ? this.cats.find((candidate) => candidate.name === name) : null;
-      const tone = name ? "cat" : labelNow === "not_a_cat" ? "not-cat" : "unknown";
+      const tone = name ? "cat" : subject.label === "not_a_cat" ? "not-cat" : "unknown";
       return {
         key: "scene:" + index,
         box: subject.box,
@@ -317,20 +288,9 @@ export class KibbleLabelSheet extends LitElement {
         label: name ?? (tone === "not-cat" ? "Not a cat" : "Who?"),
         color: name ? this._catColor(name) : undefined,
         avatar: cat?.avatar ?? null,
-        selectable: subject.sid !== null,
-        subjectSid: subject.sid,
-        subjectLabel: labelNow,
       };
     });
   }
-
-  /** Naming a box on the photo only changes the draft, exactly like ticking a chip. */
-  private _onSubjectLabelSelected = (request: CustomEvent<{ sid: number; label: string }>): void => {
-    const event = this.summary;
-    if (!event) return;
-    const draft = this._draft ?? draftFrom(this._sessionCatsFor(event), event.identity);
-    this._draft = nameDraftSubject(draft, request.detail.sid, request.detail.label, event.kind === "eat");
-  };
 
   private _onBoxesVisibilityRequested = (request: CustomEvent<{ visible?: unknown }>): void => {
     const visible = request.detail?.visible;
@@ -345,10 +305,11 @@ export class KibbleLabelSheet extends LitElement {
     const ownBox = boxInCrop(sample.box, sample.crop);
     if (!ownBox) return [];
     const name = sample.label ?? sample.guess;
-    const tone = name === "not_a_cat" ? "not-cat" : name && name !== "skip" ? "cat" : "unknown";
-    const cat = tone === "cat" ? this.cats.find((candidate) => candidate.name === name) : null;
+    const named = name !== null && name !== "not_a_cat" && name !== "skip" && name !== "both" ? name : null;
+    const tone = named ? "cat" : name === "not_a_cat" ? "not-cat" : "unknown";
+    const cat = named ? this.cats.find((candidate) => candidate.name === named) : null;
     return [
-      { key: "sample:" + sample.uid, box: ownBox, tone, color: name && name !== "not_a_cat" && name !== "skip" ? this._catColor(name) : undefined, avatar: cat?.avatar ?? null },
+      { key: "sample:" + sample.uid, box: ownBox, tone, color: named ? this._catColor(named) : undefined, avatar: cat?.avatar ?? null },
       ...sample.peers.flatMap((peer, index) => {
         const box = boxInCrop(peer, sample.crop!);
         return box ? [{ key: "peer:" + sample.uid + ":" + index, box, tone: "peer" as const }] : [];
@@ -358,15 +319,10 @@ export class KibbleLabelSheet extends LitElement {
 
   // ---- Header + pager ----
 
-  private _draftTitle(event: TimelineEvent, draft: SessionDraft): string {
-    return sessionTitle(draft.cats, { identity: draft.notACat ? "not_a_cat" : "auto", open: event.open });
-  }
-
-  private _renderHeader(event: TimelineEvent, isFeed: boolean, locale: string | undefined, draft: SessionDraft) {
+  private _renderHeader(event: TimelineEvent, locale: string | undefined, title: string, cats: readonly SessionCat[]) {
     const duration = eventDuration(event);
-    const liveCat = draft.cats.find((cat) => cat.ate)?.cat ?? draft.cats[0]?.cat ?? event.cat;
+    const liveCat = cats.find((cat) => cat.ate)?.cat ?? cats[0]?.cat ?? event.cat;
     const color = liveCat ? this._catColor(liveCat) : null;
-    const title = isFeed ? feedTitle(event) : this._draftTitle(event, draft);
     const index = this.group.findIndex((member) => member.uid === event.uid);
     return html`
       <header>
@@ -470,7 +426,7 @@ export class KibbleLabelSheet extends LitElement {
                 : nothing}
             `
           : nothing}
-        ${this._showBoxes && this.sceneSubjects.length ? html`<kibble-box-overlay .boxes=${this._sceneOverlayBoxes()} .hass=${this.hass} .cache=${this.cache} .cats=${this.cats} .busy=${this.busy} @subject-label-requested=${this._onSubjectLabelSelected}></kibble-box-overlay>` : nothing}
+        ${this._showBoxes && this.sceneSubjects.length ? html`<kibble-box-overlay .boxes=${this._sceneOverlayBoxes()} .hass=${this.hass} .cache=${this.cache}></kibble-box-overlay>` : nothing}
         ${this.sceneSubjects.length ? this._renderBoxesToggle() : nothing}
       </div>
     `;
@@ -542,7 +498,7 @@ export class KibbleLabelSheet extends LitElement {
       <div class="zoom" @click=${(e: Event) => { e.stopPropagation(); this._zoom = null; }}>
         <div class="zoom-scene" @click=${(e: Event) => e.stopPropagation()}>
           <kibble-image .hass=${this.hass} .asset=${this._zoom} .cache=${this.cache} alt="" fit="contain"></kibble-image>
-          ${event && this._showBoxes && this.sceneSubjects.length ? html`<kibble-box-overlay .boxes=${this._sceneOverlayBoxes()} .hass=${this.hass} .cache=${this.cache} .cats=${this.cats} .busy=${this.busy} @subject-label-requested=${this._onSubjectLabelSelected}></kibble-box-overlay>` : nothing}
+          ${event && this._showBoxes && this.sceneSubjects.length ? html`<kibble-box-overlay .boxes=${this._sceneOverlayBoxes()} .hass=${this.hass} .cache=${this.cache}></kibble-box-overlay>` : nothing}
         </div>
         ${this.sceneSubjects.length ? this._renderBoxesToggle() : nothing}
         <button type="button" class="zoom-close" aria-label="Close photo" @click=${(e: Event) => { e.stopPropagation(); this._zoom = null; }}>${mdiIcon("close")}</button>
@@ -550,7 +506,7 @@ export class KibbleLabelSheet extends LitElement {
     `;
   }
 
-  // ---- Identity ----
+  // ---- What the sheet asks ----
 
   private _sessionCatsFor(event: TimelineEvent): SessionCat[] {
     if (this.sessionCats) return this.sessionCats;
@@ -558,69 +514,16 @@ export class KibbleLabelSheet extends LitElement {
     return [{ cat: event.cat, ate: event.kind === "eat", confirmed: event.identity === "reviewed", confidence: event.confidence ?? null, photos: event.sample_count ?? 0 }];
   }
 
-  private _requestSessionLabel(request: SessionLabelRequest, closeOnSuccess = false): void {
-    this.dispatchEvent(new CustomEvent("session-label-requested", {
-      detail: { ...request, closeOnSuccess },
-      bubbles: true,
-      composed: true,
-    }));
-  }
-
-  private _setDraft(event: TimelineEvent, update: (draft: SessionDraft) => SessionDraft): void {
-    if (this.busy) return;
-    this._draft = update(this._draft ?? draftFrom(this._sessionCatsFor(event), event.identity));
-  }
-
-  private _renderIdentity(event: TimelineEvent, saved: readonly SessionCat[], draft: SessionDraft) {
-    const isMeal = event.kind === "eat";
+  /** "Who ate?" on a meal that still needs it, and a hint to tap a photo to name it. */
+  private _renderAsk(event: TimelineEvent, sessionCats: readonly SessionCat[]) {
+    const cats = sessionCats.map((cat) => cat.cat);
+    const question: AteQuestion | null = event.needs_ate && cats.length >= 2 ? { visitUid: event.uid, cats, start: event.start } : null;
     return html`
-      <div class="identity">
-        <div class="identity-heading">
-          <span class="identity-title">Who was here?</span>
-          <span class="identity-hint ${this.multipleCats && draft.cats.length < 2 && !draft.notACat ? "identity-hint-multiple" : ""}">${this.multipleCats && draft.cats.length < 2 && !draft.notACat ? "Looks like more than one cat. Tap everyone who was here" : "Tap everyone who was here"}</span>
-        </div>
-        <div class="chip-grid" role="group" aria-label="Who was here?">
-          ${this.cats.map((cat) => this._renderIdentityChip(cat, event, saved, draft))}
-          ${this._renderNotACatChip(event, draft)}
-          <kibble-choice
-            label="Can\u2019t tell"
-            .icon=${"helpCircle"}
-            .state=${event.identity === "unknown" ? "selected" : "neutral"}
-            ?disabled=${this.busy || event.identity === "unknown"}
-            @click=${() => this._requestSessionLabel({ uid: event.uid, verdict: "unknown" }, true)}
-          ></kibble-choice>
-        </div>
-        ${isMeal && draft.cats.length >= 2 ? html`<div class="meal-roles" role="group" aria-label="Who ate?">${draft.cats.map((cat) => html`
-          <div class="meal-role"><span class="meal-cat">${cat.cat}</span><div class="meal-role-options" role="group" aria-label=${cat.cat}>
-            <button type="button" aria-pressed=${cat.ate} ?disabled=${this.busy} @click=${() => this._setDraft(event, (d) => setDraftAte(d, cat.cat, true))}>Ate</button>
-            <button type="button" aria-pressed=${!cat.ate} ?disabled=${this.busy} @click=${() => this._setDraft(event, (d) => setDraftAte(d, cat.cat, false))}>Came by</button>
-          </div></div>`)}</div>` : nothing}
-        ${this.error ? html`<p class="identity-error">${this.error}</p>` : nothing}
+      <div class="ask">
+        ${question ? html`<kibble-who-ate .hass=${this.hass} .cache=${this.cache} .question=${question} .roster=${this.cats}></kibble-who-ate>` : nothing}
+        ${this.samples?.length ? html`<p class="hint">Tap a photo to say who is in it.</p>` : nothing}
       </div>
     `;
-  }
-
-  private _renderIdentityChip(cat: CatSummary, event: TimelineEvent, saved: readonly SessionCat[], draft: SessionDraft) {
-    const state = draftChipState(draft, saved, cat.name);
-    return html`<kibble-choice
-      .hass=${this.hass}
-      .cache=${this.cache}
-      .label=${cat.name}
-      .cats=${[cat]}
-      .state=${state === "confirmed" ? "selected" : state}
-      ?disabled=${this.busy}
-      @click=${() => this._setDraft(event, (d) => toggleDraftCat(d, cat.name, event.kind === "eat"))}
-    ></kibble-choice>`;
-  }
-
-  private _renderNotACatChip(event: TimelineEvent, draft: SessionDraft) {
-    return html`<kibble-choice
-      label="Not a cat"
-      .icon=${"cancel"}
-      .state=${draft.notACat ? "selected" : "neutral"}
-      ?disabled=${this.busy}
-      @click=${() => this._setDraft(event, toggleDraftNotACat)}
-    ></kibble-choice>`;
   }
 
   // ---- Photos ----
@@ -648,29 +551,24 @@ export class KibbleLabelSheet extends LitElement {
     </div>`;
   }
 
-  private _sampleBadge(sample: Sample): PhotoBadge | null {
-    if (sample.review === null) return null;
-    if (sample.review === "skip") return { kind: "skip" };
-    if (sample.review === "not_a_cat") return { kind: "not_a_cat" };
-    if (sample.review !== sample.cat) return { kind: "cat", name: sample.review, cat: this.cats.find((cat) => cat.name === sample.review) ?? null };
-    return null;
+  /** A photo someone named differently from its visit wears that cat's face in its corner. */
+  private _catBadge(sample: Sample): CatSummary | null {
+    if (sample.review === null || sample.review === sample.cat) return null;
+    return this.cats.find((cat) => cat.name === sample.review) ?? null;
   }
 
   private _renderPhotoTile(sample: Sample, index: number) {
     const asset = sample.body ?? sample.face;
-    const badge = this._sampleBadge(sample);
-    const dimmed = badge !== null && badge.kind !== "cat";
+    const tag = photoTag(sample);
+    const badge = this._catBadge(sample);
+    const label = `Photo ${index + 1} of ${this.samples!.length}${tag ? ", " + tag.text.toLowerCase() : ""}`;
     return html`
-      <button type="button" class="photo-tile ${dimmed ? "dim" : ""}" aria-label=${`Photo ${index + 1} of ${this.samples!.length}`} @click=${() => { this._viewerIndex = index; }}>
+      <button type="button" class="photo-tile ${tag?.kind === "skip" ? "dim" : ""}" aria-label=${label} @click=${() => { this._viewerIndex = index; }}>
         ${asset ? html`<kibble-image .hass=${this.hass} .asset=${asset} .cache=${this.cache} alt=""></kibble-image>` : html`<span class="photo-neutral">${catSilhouette()}</span>`}
-        ${badge ? this._renderPhotoBadge(badge) : nothing}
+        ${tag ? html`<span class="photo-tag">${tag.text}</span>` : nothing}
+        ${badge ? html`<span class="photo-badge photo-badge-avatar"><kibble-avatar .hass=${this.hass} .name=${badge.name} .colorIndex=${badge.color ?? null} .asset=${badge.avatar ?? null} .cache=${this.cache}></kibble-avatar></span>` : nothing}
         ${this._showBoxes && sample.body && sample.box && sample.crop ? html`<kibble-box-overlay .boxes=${this._photoOverlayBoxes(sample)} .hass=${this.hass} .cache=${this.cache}></kibble-box-overlay>` : nothing}
       </button>`;
-  }
-
-  private _renderPhotoBadge(badge: PhotoBadge) {
-    if (badge.kind === "cat") return html`<span class="photo-badge photo-badge-avatar"><kibble-avatar .hass=${this.hass} .name=${badge.name} .colorIndex=${badge.cat?.color ?? null} .asset=${badge.cat?.avatar ?? null} .cache=${this.cache}></kibble-avatar></span>`;
-    return html`<span class="photo-badge photo-badge-icon">${mdiIcon(badge.kind === "skip" ? "eyeOff" : "close")}</span>`;
   }
 
   private _onViewerClose = (): void => {
@@ -680,14 +578,6 @@ export class KibbleLabelSheet extends LitElement {
   private _retrySamples = (): void => {
     this.dispatchEvent(new CustomEvent("samples-retry-requested", { bubbles: true, composed: true }));
   };
-
-  // ---- Footer ----
-
-  private _renderFooter(event: TimelineEvent, saved: readonly SessionCat[], draft: SessionDraft) {
-    const action = confirmAction(draft, saved, event.identity);
-    const onClick = action.kind === "save" ? () => this._requestSessionLabel({ uid: event.uid, ...action.request }, true) : this._close;
-    return html`<footer><button type="button" class="primary-btn" ?disabled=${this.busy || action.kind === "blocked"} @click=${onClick}>${this.busy && action.kind === "save" ? "Saving" : action.text}</button></footer>`;
-  }
 
   private _close = (): void => {
     this.dispatchEvent(new CustomEvent("close-requested", { bubbles: true, composed: true }));
@@ -1074,82 +964,15 @@ export class KibbleLabelSheet extends LitElement {
     }
 
 
-    .identity {
+    .ask {
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 12px;
     }
-    .identity-heading {
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-    }
-    .identity-title {
-      font-size: var(--kibble-text-body, 14px);
-      font-weight: 600;
-      color: var(--primary-text-color);
-    }
-    .identity-hint {
+    .hint {
+      margin: 0;
       font-size: var(--kibble-text-caption, 12px);
       color: var(--secondary-text-color);
-    }
-    .identity-hint-multiple {
-      color: var(--warning-color, #f4a452);
-      font-weight: 500;
-    }
-    .chip-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-      gap: 8px;
-    }
-    .meal-roles {
-      display: grid;
-      gap: 6px;
-      padding-top: 4px;
-    }
-    .meal-role {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
-      align-items: center;
-      gap: 8px;
-    }
-    .meal-cat {
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      font-size: 14px;
-      font-weight: 600;
-    }
-    .meal-role-options {
-      display: flex;
-      gap: 4px;
-    }
-    .meal-role-options button {
-      min-width: 72px;
-      min-height: 48px;
-      padding: 0 8px;
-      border: 1px solid var(--divider-color);
-      border-radius: 8px;
-      background: transparent;
-      color: var(--primary-text-color);
-      font: inherit;
-      font-size: 12px;
-      cursor: pointer;
-    }
-    .meal-role-options button[aria-pressed="true"] {
-      border-color: var(--primary-color);
-      background: color-mix(in srgb, var(--primary-color) 16%, transparent);
-    }
-    .meal-role-options button:disabled {
-      cursor: default;
-    }
-    .identity-error {
-      margin: 0;
-      padding: 8px 10px;
-      border-radius: 8px;
-      background: color-mix(in srgb, var(--error-color, #db4437) 10%, transparent);
-      color: var(--error-color, #db4437);
-      font-size: 14px;
     }
     .photos {
       display: flex;
@@ -1246,10 +1069,22 @@ export class KibbleLabelSheet extends LitElement {
     .photo-badge-avatar kibble-avatar {
       --kibble-avatar-size: 22px;
     }
-    .photo-badge-icon {
-      background: rgba(0, 0, 0, 0.62);
+    .photo-tag {
+      position: absolute;
+      left: 4px;
+      bottom: 4px;
+      max-width: calc(100% - 8px);
+      padding: 2px 6px;
+      border-radius: 999px;
+      background: rgba(0, 0, 0, 0.7);
       color: #fff;
-      box-shadow: 0 0 0 2px var(--ha-card-background, var(--card-background-color, #fff));
+      font-size: 11px;
+      font-weight: 600;
+      line-height: 1.3;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      pointer-events: none;
     }
     .photo-skeleton {
       aspect-ratio: 1;

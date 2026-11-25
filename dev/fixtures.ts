@@ -24,7 +24,7 @@ import type {
 
 export type ScenarioName = "idle" | "dispensing" | "unreachable";
 export type MultiCatFixtureName = "multicat-a" | "multicat-b" | "multicat-c";
-export type ReviewFixtureName = "review" | "review-empty";
+export type ReviewFixtureName = "review" | "review-empty" | "mixed";
 export type HarnessFixture = "default" | MultiCatFixtureName | ReviewFixtureName;
 
 export const DEVICE_ID = "kibble-device-1";
@@ -547,7 +547,7 @@ const FIXTURES: EventFixture[] = [
 
 export const TIMELINE_EVENTS: TimelineEvent[] = FIXTURES.map((f) => f.event);
 
-// ---- `kibble/review` extra fixture data: `import`-kind events from the one-off migration
+// ---- `kibble/review/photos` extra fixture data: `import`-kind events from the one-off migration
 // (docs/36-ai-pipeline.md's "Migration" step 3) -- never shown in the timeline, always in the
 // review queue, giving the cats card's paged grid more than one page (24/page) to actually
 // page through. ----
@@ -688,7 +688,7 @@ export const MULTICAT_FIXTURES: Record<MultiCatFixtureName, { events: TimelineEv
 // real fixture photo a visit shows (`mock-hass.ts` maps the uid to it); `broken` is a visit
 // whose photos fail to load. ----
 interface ReviewSpec {
-  who: "kitty" | "pancake" | "broken";
+  who: "kitty" | "pancake" | "broken" | "hand";
   kind: "visit" | "eat";
   cat?: string;
   confidence?: number;
@@ -718,6 +718,9 @@ const REVIEW_SPECS: ReviewSpec[] = [
     return { who: kitty ? "kitty" : "pancake", kind: index % 3 ? "visit" : "eat", cat: kitty ? "Kitty" : "Pancake", confidence: 0.8 + index * 0.015, photos: 3 };
   }),
 ];
+
+/** A mixed queue: the same visits plus a hand at the bowl, which is not a cat at all. */
+const MIXED_SPECS: ReviewSpec[] = [...REVIEW_SPECS, { who: "hand", kind: "visit", photos: 2 }];
 
 function buildReviewFixture(specs: readonly ReviewSpec[]): EventFixture[] {
   const fixtures = specs.map((spec, index) => {
@@ -755,6 +758,7 @@ function reviewFixture(fixtures: EventFixture[]): { events: TimelineEvent[]; sam
 export const REVIEW_FIXTURES: Record<ReviewFixtureName, { events: TimelineEvent[]; samples: Record<string, Sample[]>; cats: string[] }> = {
   review: reviewFixture(buildReviewFixture(REVIEW_SPECS)),
   "review-empty": reviewFixture(REVIEWED_FIXTURES),
+  mixed: reviewFixture(buildReviewFixture(MIXED_SPECS)),
 };
 
 export const MULTICAT_LIVE_DETECTIONS: VisionDetection[] = [

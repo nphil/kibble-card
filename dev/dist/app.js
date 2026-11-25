@@ -124,16 +124,16 @@ var require_base64_arraybuffer = __commonJS({
     exports.decode = exports.encode = void 0;
     var chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     var lookup = typeof Uint8Array === "undefined" ? [] : new Uint8Array(256);
-    for (let i8 = 0; i8 < chars.length; i8++) {
-      lookup[chars.charCodeAt(i8)] = i8;
+    for (let i7 = 0; i7 < chars.length; i7++) {
+      lookup[chars.charCodeAt(i7)] = i7;
     }
     var encode = (arraybuffer) => {
-      let bytes = new Uint8Array(arraybuffer), i8, len = bytes.length, base64 = "";
-      for (i8 = 0; i8 < len; i8 += 3) {
-        base64 += chars[bytes[i8] >> 2];
-        base64 += chars[(bytes[i8] & 3) << 4 | bytes[i8 + 1] >> 4];
-        base64 += chars[(bytes[i8 + 1] & 15) << 2 | bytes[i8 + 2] >> 6];
-        base64 += chars[bytes[i8 + 2] & 63];
+      let bytes = new Uint8Array(arraybuffer), i7, len = bytes.length, base64 = "";
+      for (i7 = 0; i7 < len; i7 += 3) {
+        base64 += chars[bytes[i7] >> 2];
+        base64 += chars[(bytes[i7] & 3) << 4 | bytes[i7 + 1] >> 4];
+        base64 += chars[(bytes[i7 + 1] & 15) << 2 | bytes[i7 + 2] >> 6];
+        base64 += chars[bytes[i7 + 2] & 63];
       }
       if (len % 3 === 2) {
         base64 = base64.substring(0, base64.length - 1) + "=";
@@ -144,7 +144,7 @@ var require_base64_arraybuffer = __commonJS({
     };
     exports.encode = encode;
     var decode = (base64) => {
-      let bufferLength = base64.length * 0.75, len = base64.length, i8, p4 = 0, encoded1, encoded2, encoded3, encoded4;
+      let bufferLength = base64.length * 0.75, len = base64.length, i7, p4 = 0, encoded1, encoded2, encoded3, encoded4;
       if (base64[base64.length - 1] === "=") {
         bufferLength--;
         if (base64[base64.length - 2] === "=") {
@@ -152,11 +152,11 @@ var require_base64_arraybuffer = __commonJS({
         }
       }
       const arraybuffer = new ArrayBuffer(bufferLength), bytes = new Uint8Array(arraybuffer);
-      for (i8 = 0; i8 < len; i8 += 4) {
-        encoded1 = lookup[base64.charCodeAt(i8)];
-        encoded2 = lookup[base64.charCodeAt(i8 + 1)];
-        encoded3 = lookup[base64.charCodeAt(i8 + 2)];
-        encoded4 = lookup[base64.charCodeAt(i8 + 3)];
+      for (i7 = 0; i7 < len; i7 += 4) {
+        encoded1 = lookup[base64.charCodeAt(i7)];
+        encoded2 = lookup[base64.charCodeAt(i7 + 1)];
+        encoded3 = lookup[base64.charCodeAt(i7 + 2)];
+        encoded4 = lookup[base64.charCodeAt(i7 + 3)];
         bytes[p4++] = encoded1 << 2 | encoded2 >> 4;
         bytes[p4++] = (encoded2 & 15) << 4 | encoded3 >> 2;
         bytes[p4++] = (encoded3 & 3) << 6 | encoded4 & 63;
@@ -247,11 +247,11 @@ var require_cjs = __commonJS({
     var encodePayload = (packets, callback) => {
       const length = packets.length;
       const encodedPackets = new Array(length);
-      let count = 0;
-      packets.forEach((packet, i8) => {
+      let count2 = 0;
+      packets.forEach((packet, i7) => {
         (0, encodePacket_js_1.encodePacket)(packet, false, (encodedPacket) => {
-          encodedPackets[i8] = encodedPacket;
-          if (++count === length) {
+          encodedPackets[i7] = encodedPacket;
+          if (++count2 === length) {
             callback(encodedPackets.join(SEPARATOR));
           }
         });
@@ -261,8 +261,8 @@ var require_cjs = __commonJS({
     var decodePayload = (encodedPayload, binaryType) => {
       const encodedPackets = encodedPayload.split(SEPARATOR);
       const packets = [];
-      for (let i8 = 0; i8 < encodedPackets.length; i8++) {
-        const decodedPacket = (0, decodePacket_js_1.decodePacket)(encodedPackets[i8], binaryType);
+      for (let i7 = 0; i7 < encodedPackets.length; i7++) {
+        const decodedPacket = (0, decodePacket_js_1.decodePacket)(encodedPackets[i7], binaryType);
         packets.push(decodedPacket);
         if (decodedPacket.type === "error") {
           break;
@@ -310,8 +310,8 @@ var require_cjs = __commonJS({
       }
       const buffer = new Uint8Array(size);
       let j2 = 0;
-      for (let i8 = 0; i8 < size; i8++) {
-        buffer[i8] = chunks[0][j2++];
+      for (let i7 = 0; i7 < size; i7++) {
+        buffer[i7] = chunks[0][j2++];
         if (j2 === chunks[0].length) {
           chunks.shift();
           j2 = 0;
@@ -426,10 +426,10 @@ var require_cjs2 = __commonJS({
         return this;
       }
       var cb;
-      for (var i8 = 0; i8 < callbacks.length; i8++) {
-        cb = callbacks[i8];
+      for (var i7 = 0; i7 < callbacks.length; i7++) {
+        cb = callbacks[i7];
         if (cb === fn || cb.fn === fn) {
-          callbacks.splice(i8, 1);
+          callbacks.splice(i7, 1);
           break;
         }
       }
@@ -441,13 +441,13 @@ var require_cjs2 = __commonJS({
     Emitter.prototype.emit = function(event) {
       this._callbacks = this._callbacks || {};
       var args = new Array(arguments.length - 1), callbacks = this._callbacks["$" + event];
-      for (var i8 = 1; i8 < arguments.length; i8++) {
-        args[i8 - 1] = arguments[i8];
+      for (var i7 = 1; i7 < arguments.length; i7++) {
+        args[i7 - 1] = arguments[i7];
       }
       if (callbacks) {
         callbacks = callbacks.slice(0);
-        for (var i8 = 0, len = callbacks.length; i8 < len; ++i8) {
-          callbacks[i8].apply(this, args);
+        for (var i7 = 0, len = callbacks.length; i7 < len; ++i7) {
+          callbacks[i7].apply(this, args);
         }
       }
       return this;
@@ -527,8 +527,8 @@ var require_util = __commonJS({
     }
     function utf8Length(str) {
       let c6 = 0, length = 0;
-      for (let i8 = 0, l3 = str.length; i8 < l3; i8++) {
-        c6 = str.charCodeAt(i8);
+      for (let i7 = 0, l3 = str.length; i7 < l3; i7++) {
+        c6 = str.charCodeAt(i7);
         if (c6 < 128) {
           length += 1;
         } else if (c6 < 2048) {
@@ -536,7 +536,7 @@ var require_util = __commonJS({
         } else if (c6 < 55296 || c6 >= 57344) {
           length += 3;
         } else {
-          i8++;
+          i7++;
           length += 4;
         }
       }
@@ -555,11 +555,11 @@ var require_parseqs = __commonJS({
     exports.decode = decode;
     function encode(obj) {
       let str = "";
-      for (let i8 in obj) {
-        if (obj.hasOwnProperty(i8)) {
+      for (let i7 in obj) {
+        if (obj.hasOwnProperty(i7)) {
           if (str.length)
             str += "&";
-          str += encodeURIComponent(i8) + "=" + encodeURIComponent(obj[i8]);
+          str += encodeURIComponent(i7) + "=" + encodeURIComponent(obj[i7]);
         }
       }
       return str;
@@ -567,8 +567,8 @@ var require_parseqs = __commonJS({
     function decode(qs) {
       let qry = {};
       let pairs = qs.split("&");
-      for (let i8 = 0, l3 = pairs.length; i8 < l3; i8++) {
-        let pair = pairs[i8].split("=");
+      for (let i7 = 0, l3 = pairs.length; i7 < l3; i7++) {
+        let pair = pairs[i7].split("=");
         qry[decodeURIComponent(pair[0])] = decodeURIComponent(pair[1]);
       }
       return qry;
@@ -708,8 +708,8 @@ var require_common = __commonJS({
       createDebug.formatters = {};
       function selectColor(namespace) {
         let hash = 0;
-        for (let i8 = 0; i8 < namespace.length; i8++) {
-          hash = (hash << 5) - hash + namespace.charCodeAt(i8);
+        for (let i7 = 0; i7 < namespace.length; i7++) {
+          hash = (hash << 5) - hash + namespace.charCodeAt(i7);
           hash |= 0;
         }
         return createDebug.colors[Math.abs(hash) % createDebug.colors.length];
@@ -1451,9 +1451,9 @@ var require_polling_xhr = __commonJS({
           try {
             if (this._opts.extraHeaders) {
               xhr.setDisableHeaderCheck && xhr.setDisableHeaderCheck(true);
-              for (let i8 in this._opts.extraHeaders) {
-                if (this._opts.extraHeaders.hasOwnProperty(i8)) {
-                  xhr.setRequestHeader(i8, this._opts.extraHeaders[i8]);
+              for (let i7 in this._opts.extraHeaders) {
+                if (this._opts.extraHeaders.hasOwnProperty(i7)) {
+                  xhr.setRequestHeader(i7, this._opts.extraHeaders[i7]);
                 }
               }
             }
@@ -1571,9 +1571,9 @@ var require_polling_xhr = __commonJS({
       }
     }
     function unloadHandler() {
-      for (let i8 in Request.requests) {
-        if (Request.requests.hasOwnProperty(i8)) {
-          Request.requests[i8].abort();
+      for (let i7 in Request.requests) {
+        if (Request.requests.hasOwnProperty(i7)) {
+          Request.requests[i7].abort();
         }
       }
     }
@@ -1667,9 +1667,9 @@ var require_websocket = __commonJS({
       }
       write(packets) {
         this.writable = false;
-        for (let i8 = 0; i8 < packets.length; i8++) {
-          const packet = packets[i8];
-          const lastPacket = i8 === packets.length - 1;
+        for (let i7 = 0; i7 < packets.length; i7++) {
+          const packet = packets[i7];
+          const lastPacket = i7 === packets.length - 1;
           (0, engine_io_parser_1.encodePacket)(packet, this.supportsBinary, (data) => {
             try {
               this.doWrite(packet, data);
@@ -1784,9 +1784,9 @@ var require_webtransport = __commonJS({
       }
       write(packets) {
         this.writable = false;
-        for (let i8 = 0; i8 < packets.length; i8++) {
-          const packet = packets[i8];
-          const lastPacket = i8 === packets.length - 1;
+        for (let i7 = 0; i7 < packets.length; i7++) {
+          const packet = packets[i7];
+          const lastPacket = i7 === packets.length - 1;
           this._writer.write(packet).then(() => {
             if (lastPacket) {
               (0, globals_node_js_1.nextTick)(() => {
@@ -1850,9 +1850,9 @@ var require_parseuri = __commonJS({
       if (b3 != -1 && e6 != -1) {
         str = str.substring(0, b3) + str.substring(b3, e6).replace(/:/g, ";") + str.substring(e6, str.length);
       }
-      let m3 = re.exec(str || ""), uri = {}, i8 = 14;
-      while (i8--) {
-        uri[parts[i8]] = m3[i8] || "";
+      let m3 = re.exec(str || ""), uri = {}, i7 = 14;
+      while (i7--) {
+        uri[parts[i7]] = m3[i7] || "";
       }
       if (b3 != -1 && e6 != -1) {
         uri.source = src;
@@ -2174,14 +2174,14 @@ var require_socket = __commonJS({
           return this.writeBuffer;
         }
         let payloadSize = 1;
-        for (let i8 = 0; i8 < this.writeBuffer.length; i8++) {
-          const data = this.writeBuffer[i8].data;
+        for (let i7 = 0; i7 < this.writeBuffer.length; i7++) {
+          const data = this.writeBuffer[i7].data;
           if (data) {
             payloadSize += (0, util_js_1.byteLength)(data);
           }
-          if (i8 > 0 && payloadSize > this._maxPayload) {
-            debug("only send %d out of %d packets", i8, this.writeBuffer.length);
-            return this.writeBuffer.slice(0, i8);
+          if (i7 > 0 && payloadSize > this._maxPayload) {
+            debug("only send %d out of %d packets", i7, this.writeBuffer.length);
+            return this.writeBuffer.slice(0, i7);
           }
           payloadSize += 2;
         }
@@ -2338,10 +2338,10 @@ var require_socket = __commonJS({
               removeEventListener("beforeunload", this._beforeunloadEventListener, false);
             }
             if (this._offlineEventListener) {
-              const i8 = OFFLINE_EVENT_LISTENERS.indexOf(this._offlineEventListener);
-              if (i8 !== -1) {
+              const i7 = OFFLINE_EVENT_LISTENERS.indexOf(this._offlineEventListener);
+              if (i7 !== -1) {
                 debug("removing listener for the 'offline' event");
-                OFFLINE_EVENT_LISTENERS.splice(i8, 1);
+                OFFLINE_EVENT_LISTENERS.splice(i7, 1);
               }
             }
           }
@@ -2364,8 +2364,8 @@ var require_socket = __commonJS({
         super.onOpen();
         if ("open" === this.readyState && this.opts.upgrade) {
           debug("starting upgrade probes");
-          for (let i8 = 0; i8 < this._upgrades.length; i8++) {
-            this._probe(this._upgrades[i8]);
+          for (let i7 = 0; i7 < this._upgrades.length; i7++) {
+            this._probe(this._upgrades[i7]);
           }
         }
       }
@@ -2479,9 +2479,9 @@ var require_socket = __commonJS({
        */
       _filterUpgrades(upgrades) {
         const filteredUpgrades = [];
-        for (let i8 = 0; i8 < upgrades.length; i8++) {
-          if (~this.transports.indexOf(upgrades[i8]))
-            filteredUpgrades.push(upgrades[i8]);
+        for (let i7 = 0; i7 < upgrades.length; i7++) {
+          if (~this.transports.indexOf(upgrades[i7]))
+            filteredUpgrades.push(upgrades[i7]);
         }
         return filteredUpgrades;
       }
@@ -6432,7 +6432,7 @@ var require_src = __commonJS({
         if (mod && mod.__esModule) return mod;
         var result = {};
         if (mod != null) {
-          for (var k2 = ownKeys(mod), i8 = 0; i8 < k2.length; i8++) if (k2[i8] !== "default") __createBinding(result, mod, k2[i8]);
+          for (var k2 = ownKeys(mod), i7 = 0; i7 < k2.length; i7++) if (k2[i7] !== "default") __createBinding(result, mod, k2[i7]);
         }
         __setModuleDefault(result, mod);
         return result;
@@ -7114,23 +7114,23 @@ var u = { toAttribute(t5, s6) {
   }
   return t5;
 }, fromAttribute(t5, s6) {
-  let i8 = t5;
+  let i7 = t5;
   switch (s6) {
     case Boolean:
-      i8 = null !== t5;
+      i7 = null !== t5;
       break;
     case Number:
-      i8 = null === t5 ? null : Number(t5);
+      i7 = null === t5 ? null : Number(t5);
       break;
     case Object:
     case Array:
       try {
-        i8 = JSON.parse(t5);
+        i7 = JSON.parse(t5);
       } catch (t6) {
-        i8 = null;
+        i7 = null;
       }
   }
-  return i8;
+  return i7;
 } };
 var f = (t5, s6) => !i2(t5, s6);
 var b = { attribute: true, type: String, converter: u, reflect: false, useDefault: false, hasChanged: f };
@@ -7144,11 +7144,11 @@ var y = class extends HTMLElement {
   }
   static createProperty(t5, s6 = b) {
     if (s6.state && (s6.attribute = false), this._$Ei(), this.prototype.hasOwnProperty(t5) && ((s6 = Object.create(s6)).wrapped = true), this.elementProperties.set(t5, s6), !s6.noAccessor) {
-      const i8 = Symbol(), h6 = this.getPropertyDescriptor(t5, i8, s6);
+      const i7 = Symbol(), h6 = this.getPropertyDescriptor(t5, i7, s6);
       void 0 !== h6 && e2(this.prototype, t5, h6);
     }
   }
-  static getPropertyDescriptor(t5, s6, i8) {
+  static getPropertyDescriptor(t5, s6, i7) {
     const { get: e6, set: r6 } = h(this.prototype, t5) ?? { get() {
       return this[s6];
     }, set(t6) {
@@ -7156,7 +7156,7 @@ var y = class extends HTMLElement {
     } };
     return { get: e6, set(s7) {
       const h6 = e6?.call(this);
-      r6?.call(this, s7), this.requestUpdate(t5, h6, i8);
+      r6?.call(this, s7), this.requestUpdate(t5, h6, i7);
     }, configurable: true, enumerable: true };
   }
   static getPropertyOptions(t5) {
@@ -7171,31 +7171,31 @@ var y = class extends HTMLElement {
     if (this.hasOwnProperty(d("finalized"))) return;
     if (this.finalized = true, this._$Ei(), this.hasOwnProperty(d("properties"))) {
       const t6 = this.properties, s6 = [...r2(t6), ...o2(t6)];
-      for (const i8 of s6) this.createProperty(i8, t6[i8]);
+      for (const i7 of s6) this.createProperty(i7, t6[i7]);
     }
     const t5 = this[Symbol.metadata];
     if (null !== t5) {
       const s6 = litPropertyMetadata.get(t5);
-      if (void 0 !== s6) for (const [t6, i8] of s6) this.elementProperties.set(t6, i8);
+      if (void 0 !== s6) for (const [t6, i7] of s6) this.elementProperties.set(t6, i7);
     }
     this._$Eh = /* @__PURE__ */ new Map();
     for (const [t6, s6] of this.elementProperties) {
-      const i8 = this._$Eu(t6, s6);
-      void 0 !== i8 && this._$Eh.set(i8, t6);
+      const i7 = this._$Eu(t6, s6);
+      void 0 !== i7 && this._$Eh.set(i7, t6);
     }
     this.elementStyles = this.finalizeStyles(this.styles);
   }
   static finalizeStyles(s6) {
-    const i8 = [];
+    const i7 = [];
     if (Array.isArray(s6)) {
       const e6 = new Set(s6.flat(1 / 0).reverse());
-      for (const s7 of e6) i8.unshift(c(s7));
-    } else void 0 !== s6 && i8.push(c(s6));
-    return i8;
+      for (const s7 of e6) i7.unshift(c(s7));
+    } else void 0 !== s6 && i7.push(c(s6));
+    return i7;
   }
   static _$Eu(t5, s6) {
-    const i8 = s6.attribute;
-    return false === i8 ? void 0 : "string" == typeof i8 ? i8 : "string" == typeof t5 ? t5.toLowerCase() : void 0;
+    const i7 = s6.attribute;
+    return false === i7 ? void 0 : "string" == typeof i7 ? i7 : "string" == typeof t5 ? t5.toLowerCase() : void 0;
   }
   constructor() {
     super(), this._$Ep = void 0, this.isUpdatePending = false, this.hasUpdated = false, this._$Em = null, this._$Ev();
@@ -7211,7 +7211,7 @@ var y = class extends HTMLElement {
   }
   _$E_() {
     const t5 = /* @__PURE__ */ new Map(), s6 = this.constructor.elementProperties;
-    for (const i8 of s6.keys()) this.hasOwnProperty(i8) && (t5.set(i8, this[i8]), delete this[i8]);
+    for (const i7 of s6.keys()) this.hasOwnProperty(i7) && (t5.set(i7, this[i7]), delete this[i7]);
     t5.size > 0 && (this._$Ep = t5);
   }
   createRenderRoot() {
@@ -7226,35 +7226,35 @@ var y = class extends HTMLElement {
   disconnectedCallback() {
     this._$EO?.forEach((t5) => t5.hostDisconnected?.());
   }
-  attributeChangedCallback(t5, s6, i8) {
-    this._$AK(t5, i8);
+  attributeChangedCallback(t5, s6, i7) {
+    this._$AK(t5, i7);
   }
   _$ET(t5, s6) {
-    const i8 = this.constructor.elementProperties.get(t5), e6 = this.constructor._$Eu(t5, i8);
-    if (void 0 !== e6 && true === i8.reflect) {
-      const h6 = (void 0 !== i8.converter?.toAttribute ? i8.converter : u).toAttribute(s6, i8.type);
+    const i7 = this.constructor.elementProperties.get(t5), e6 = this.constructor._$Eu(t5, i7);
+    if (void 0 !== e6 && true === i7.reflect) {
+      const h6 = (void 0 !== i7.converter?.toAttribute ? i7.converter : u).toAttribute(s6, i7.type);
       this._$Em = t5, null == h6 ? this.removeAttribute(e6) : this.setAttribute(e6, h6), this._$Em = null;
     }
   }
   _$AK(t5, s6) {
-    const i8 = this.constructor, e6 = i8._$Eh.get(t5);
+    const i7 = this.constructor, e6 = i7._$Eh.get(t5);
     if (void 0 !== e6 && this._$Em !== e6) {
-      const t6 = i8.getPropertyOptions(e6), h6 = "function" == typeof t6.converter ? { fromAttribute: t6.converter } : void 0 !== t6.converter?.fromAttribute ? t6.converter : u;
+      const t6 = i7.getPropertyOptions(e6), h6 = "function" == typeof t6.converter ? { fromAttribute: t6.converter } : void 0 !== t6.converter?.fromAttribute ? t6.converter : u;
       this._$Em = e6;
       const r6 = h6.fromAttribute(s6, t6.type);
       this[e6] = r6 ?? this._$Ej?.get(e6) ?? r6, this._$Em = null;
     }
   }
-  requestUpdate(t5, s6, i8, e6 = false, h6) {
+  requestUpdate(t5, s6, i7, e6 = false, h6) {
     if (void 0 !== t5) {
       const r6 = this.constructor;
-      if (false === e6 && (h6 = this[t5]), i8 ??= r6.getPropertyOptions(t5), !((i8.hasChanged ?? f)(h6, s6) || i8.useDefault && i8.reflect && h6 === this._$Ej?.get(t5) && !this.hasAttribute(r6._$Eu(t5, i8)))) return;
-      this.C(t5, s6, i8);
+      if (false === e6 && (h6 = this[t5]), i7 ??= r6.getPropertyOptions(t5), !((i7.hasChanged ?? f)(h6, s6) || i7.useDefault && i7.reflect && h6 === this._$Ej?.get(t5) && !this.hasAttribute(r6._$Eu(t5, i7)))) return;
+      this.C(t5, s6, i7);
     }
     false === this.isUpdatePending && (this._$ES = this._$EP());
   }
-  C(t5, s6, { useDefault: i8, reflect: e6, wrapped: h6 }, r6) {
-    i8 && !(this._$Ej ??= /* @__PURE__ */ new Map()).has(t5) && (this._$Ej.set(t5, r6 ?? s6 ?? this[t5]), true !== h6 || void 0 !== r6) || (this._$AL.has(t5) || (this.hasUpdated || i8 || (s6 = void 0), this._$AL.set(t5, s6)), true === e6 && this._$Em !== t5 && (this._$Eq ??= /* @__PURE__ */ new Set()).add(t5));
+  C(t5, s6, { useDefault: i7, reflect: e6, wrapped: h6 }, r6) {
+    i7 && !(this._$Ej ??= /* @__PURE__ */ new Map()).has(t5) && (this._$Ej.set(t5, r6 ?? s6 ?? this[t5]), true !== h6 || void 0 !== r6) || (this._$AL.has(t5) || (this.hasUpdated || i7 || (s6 = void 0), this._$AL.set(t5, s6)), true === e6 && this._$Em !== t5 && (this._$Eq ??= /* @__PURE__ */ new Set()).add(t5));
   }
   async _$EP() {
     this.isUpdatePending = true;
@@ -7277,9 +7277,9 @@ var y = class extends HTMLElement {
         this._$Ep = void 0;
       }
       const t6 = this.constructor.elementProperties;
-      if (t6.size > 0) for (const [s7, i8] of t6) {
-        const { wrapped: t7 } = i8, e6 = this[s7];
-        true !== t7 || this._$AL.has(s7) || void 0 === e6 || this.C(s7, void 0, i8, e6);
+      if (t6.size > 0) for (const [s7, i7] of t6) {
+        const { wrapped: t7 } = i7, e6 = this[s7];
+        true !== t7 || this._$AL.has(s7) || void 0 === e6 || this.C(s7, void 0, i7, e6);
       }
     }
     let t5 = false;
@@ -7339,7 +7339,7 @@ var p2 = RegExp(`>|${f2}(?:([^\\s"'>=/]+)(${f2}*=${f2}*(?:[^
 var g = /'/g;
 var $ = /"/g;
 var y2 = /^(?:script|style|textarea|title)$/i;
-var x = (t5) => (i8, ...s6) => ({ _$litType$: t5, strings: i8, values: s6 });
+var x = (t5) => (i7, ...s6) => ({ _$litType$: t5, strings: i7, values: s6 });
 var b2 = x(1);
 var w = x(2);
 var T = x(3);
@@ -7347,44 +7347,44 @@ var E = Symbol.for("lit-noChange");
 var A = Symbol.for("lit-nothing");
 var C = /* @__PURE__ */ new WeakMap();
 var P = l2.createTreeWalker(l2, 129);
-function V(t5, i8) {
+function V(t5, i7) {
   if (!u2(t5) || !t5.hasOwnProperty("raw")) throw Error("invalid template strings array");
-  return void 0 !== e3 ? e3.createHTML(i8) : i8;
+  return void 0 !== e3 ? e3.createHTML(i7) : i7;
 }
-var N = (t5, i8) => {
+var N = (t5, i7) => {
   const s6 = t5.length - 1, e6 = [];
-  let n6, l3 = 2 === i8 ? "<svg>" : 3 === i8 ? "<math>" : "", c6 = v;
-  for (let i9 = 0; i9 < s6; i9++) {
-    const s7 = t5[i9];
+  let n6, l3 = 2 === i7 ? "<svg>" : 3 === i7 ? "<math>" : "", c6 = v;
+  for (let i8 = 0; i8 < s6; i8++) {
+    const s7 = t5[i8];
     let a3, u5, d3 = -1, f4 = 0;
     for (; f4 < s7.length && (c6.lastIndex = f4, u5 = c6.exec(s7), null !== u5); ) f4 = c6.lastIndex, c6 === v ? "!--" === u5[1] ? c6 = _ : void 0 !== u5[1] ? c6 = m : void 0 !== u5[2] ? (y2.test(u5[2]) && (n6 = RegExp("</" + u5[2], "g")), c6 = p2) : void 0 !== u5[3] && (c6 = p2) : c6 === p2 ? ">" === u5[0] ? (c6 = n6 ?? v, d3 = -1) : void 0 === u5[1] ? d3 = -2 : (d3 = c6.lastIndex - u5[2].length, a3 = u5[1], c6 = void 0 === u5[3] ? p2 : '"' === u5[3] ? $ : g) : c6 === $ || c6 === g ? c6 = p2 : c6 === _ || c6 === m ? c6 = v : (c6 = p2, n6 = void 0);
-    const x2 = c6 === p2 && t5[i9 + 1].startsWith("/>") ? " " : "";
-    l3 += c6 === v ? s7 + r3 : d3 >= 0 ? (e6.push(a3), s7.slice(0, d3) + h2 + s7.slice(d3) + o3 + x2) : s7 + o3 + (-2 === d3 ? i9 : x2);
+    const x2 = c6 === p2 && t5[i8 + 1].startsWith("/>") ? " " : "";
+    l3 += c6 === v ? s7 + r3 : d3 >= 0 ? (e6.push(a3), s7.slice(0, d3) + h2 + s7.slice(d3) + o3 + x2) : s7 + o3 + (-2 === d3 ? i8 : x2);
   }
-  return [V(t5, l3 + (t5[s6] || "<?>") + (2 === i8 ? "</svg>" : 3 === i8 ? "</math>" : "")), e6];
+  return [V(t5, l3 + (t5[s6] || "<?>") + (2 === i7 ? "</svg>" : 3 === i7 ? "</math>" : "")), e6];
 };
 var S2 = class _S {
-  constructor({ strings: t5, _$litType$: i8 }, e6) {
+  constructor({ strings: t5, _$litType$: i7 }, e6) {
     let r6;
     this.parts = [];
     let l3 = 0, a3 = 0;
-    const u5 = t5.length - 1, d3 = this.parts, [f4, v3] = N(t5, i8);
-    if (this.el = _S.createElement(f4, e6), P.currentNode = this.el.content, 2 === i8 || 3 === i8) {
+    const u5 = t5.length - 1, d3 = this.parts, [f4, v3] = N(t5, i7);
+    if (this.el = _S.createElement(f4, e6), P.currentNode = this.el.content, 2 === i7 || 3 === i7) {
       const t6 = this.el.content.firstChild;
       t6.replaceWith(...t6.childNodes);
     }
     for (; null !== (r6 = P.nextNode()) && d3.length < u5; ) {
       if (1 === r6.nodeType) {
         if (r6.hasAttributes()) for (const t6 of r6.getAttributeNames()) if (t6.endsWith(h2)) {
-          const i9 = v3[a3++], s6 = r6.getAttribute(t6).split(o3), e7 = /([.?@])?(.*)/.exec(i9);
+          const i8 = v3[a3++], s6 = r6.getAttribute(t6).split(o3), e7 = /([.?@])?(.*)/.exec(i8);
           d3.push({ type: 1, index: l3, name: e7[2], strings: s6, ctor: "." === e7[1] ? I : "?" === e7[1] ? L : "@" === e7[1] ? z : H }), r6.removeAttribute(t6);
         } else t6.startsWith(o3) && (d3.push({ type: 6, index: l3 }), r6.removeAttribute(t6));
         if (y2.test(r6.tagName)) {
-          const t6 = r6.textContent.split(o3), i9 = t6.length - 1;
-          if (i9 > 0) {
+          const t6 = r6.textContent.split(o3), i8 = t6.length - 1;
+          if (i8 > 0) {
             r6.textContent = s2 ? s2.emptyScript : "";
-            for (let s6 = 0; s6 < i9; s6++) r6.append(t6[s6], c3()), P.nextNode(), d3.push({ type: 2, index: ++l3 });
-            r6.append(t6[i9], c3());
+            for (let s6 = 0; s6 < i8; s6++) r6.append(t6[s6], c3()), P.nextNode(), d3.push({ type: 2, index: ++l3 });
+            r6.append(t6[i8], c3());
           }
         }
       } else if (8 === r6.nodeType) if (r6.data === n3) d3.push({ type: 2, index: l3 });
@@ -7395,20 +7395,20 @@ var S2 = class _S {
       l3++;
     }
   }
-  static createElement(t5, i8) {
+  static createElement(t5, i7) {
     const s6 = l2.createElement("template");
     return s6.innerHTML = t5, s6;
   }
 };
-function M(t5, i8, s6 = t5, e6) {
-  if (i8 === E) return i8;
+function M(t5, i7, s6 = t5, e6) {
+  if (i7 === E) return i7;
   let h6 = void 0 !== e6 ? s6._$Co?.[e6] : s6._$Cl;
-  const o7 = a2(i8) ? void 0 : i8._$litDirective$;
-  return h6?.constructor !== o7 && (h6?._$AO?.(false), void 0 === o7 ? h6 = void 0 : (h6 = new o7(t5), h6._$AT(t5, s6, e6)), void 0 !== e6 ? (s6._$Co ??= [])[e6] = h6 : s6._$Cl = h6), void 0 !== h6 && (i8 = M(t5, h6._$AS(t5, i8.values), h6, e6)), i8;
+  const o7 = a2(i7) ? void 0 : i7._$litDirective$;
+  return h6?.constructor !== o7 && (h6?._$AO?.(false), void 0 === o7 ? h6 = void 0 : (h6 = new o7(t5), h6._$AT(t5, s6, e6)), void 0 !== e6 ? (s6._$Co ??= [])[e6] = h6 : s6._$Cl = h6), void 0 !== h6 && (i7 = M(t5, h6._$AS(t5, i7.values), h6, e6)), i7;
 }
 var R = class {
-  constructor(t5, i8) {
-    this._$AV = [], this._$AN = void 0, this._$AD = t5, this._$AM = i8;
+  constructor(t5, i7) {
+    this._$AV = [], this._$AN = void 0, this._$AD = t5, this._$AM = i7;
   }
   get parentNode() {
     return this._$AM.parentNode;
@@ -7417,34 +7417,34 @@ var R = class {
     return this._$AM._$AU;
   }
   u(t5) {
-    const { el: { content: i8 }, parts: s6 } = this._$AD, e6 = (t5?.creationScope ?? l2).importNode(i8, true);
+    const { el: { content: i7 }, parts: s6 } = this._$AD, e6 = (t5?.creationScope ?? l2).importNode(i7, true);
     P.currentNode = e6;
     let h6 = P.nextNode(), o7 = 0, n6 = 0, r6 = s6[0];
     for (; void 0 !== r6; ) {
       if (o7 === r6.index) {
-        let i9;
-        2 === r6.type ? i9 = new k(h6, h6.nextSibling, this, t5) : 1 === r6.type ? i9 = new r6.ctor(h6, r6.name, r6.strings, this, t5) : 6 === r6.type && (i9 = new Z(h6, this, t5)), this._$AV.push(i9), r6 = s6[++n6];
+        let i8;
+        2 === r6.type ? i8 = new k(h6, h6.nextSibling, this, t5) : 1 === r6.type ? i8 = new r6.ctor(h6, r6.name, r6.strings, this, t5) : 6 === r6.type && (i8 = new Z(h6, this, t5)), this._$AV.push(i8), r6 = s6[++n6];
       }
       o7 !== r6?.index && (h6 = P.nextNode(), o7++);
     }
     return P.currentNode = l2, e6;
   }
   p(t5) {
-    let i8 = 0;
-    for (const s6 of this._$AV) void 0 !== s6 && (void 0 !== s6.strings ? (s6._$AI(t5, s6, i8), i8 += s6.strings.length - 2) : s6._$AI(t5[i8])), i8++;
+    let i7 = 0;
+    for (const s6 of this._$AV) void 0 !== s6 && (void 0 !== s6.strings ? (s6._$AI(t5, s6, i7), i7 += s6.strings.length - 2) : s6._$AI(t5[i7])), i7++;
   }
 };
 var k = class _k {
   get _$AU() {
     return this._$AM?._$AU ?? this._$Cv;
   }
-  constructor(t5, i8, s6, e6) {
-    this.type = 2, this._$AH = A, this._$AN = void 0, this._$AA = t5, this._$AB = i8, this._$AM = s6, this.options = e6, this._$Cv = e6?.isConnected ?? true;
+  constructor(t5, i7, s6, e6) {
+    this.type = 2, this._$AH = A, this._$AN = void 0, this._$AA = t5, this._$AB = i7, this._$AM = s6, this.options = e6, this._$Cv = e6?.isConnected ?? true;
   }
   get parentNode() {
     let t5 = this._$AA.parentNode;
-    const i8 = this._$AM;
-    return void 0 !== i8 && 11 === t5?.nodeType && (t5 = i8.parentNode), t5;
+    const i7 = this._$AM;
+    return void 0 !== i7 && 11 === t5?.nodeType && (t5 = i7.parentNode), t5;
   }
   get startNode() {
     return this._$AA;
@@ -7452,8 +7452,8 @@ var k = class _k {
   get endNode() {
     return this._$AB;
   }
-  _$AI(t5, i8 = this) {
-    t5 = M(this, t5, i8), a2(t5) ? t5 === A || null == t5 || "" === t5 ? (this._$AH !== A && this._$AR(), this._$AH = A) : t5 !== this._$AH && t5 !== E && this._(t5) : void 0 !== t5._$litType$ ? this.$(t5) : void 0 !== t5.nodeType ? this.T(t5) : d2(t5) ? this.k(t5) : this._(t5);
+  _$AI(t5, i7 = this) {
+    t5 = M(this, t5, i7), a2(t5) ? t5 === A || null == t5 || "" === t5 ? (this._$AH !== A && this._$AR(), this._$AH = A) : t5 !== this._$AH && t5 !== E && this._(t5) : void 0 !== t5._$litType$ ? this.$(t5) : void 0 !== t5.nodeType ? this.T(t5) : d2(t5) ? this.k(t5) : this._(t5);
   }
   O(t5) {
     return this._$AA.parentNode.insertBefore(t5, this._$AB);
@@ -7465,23 +7465,23 @@ var k = class _k {
     this._$AH !== A && a2(this._$AH) ? this._$AA.nextSibling.data = t5 : this.T(l2.createTextNode(t5)), this._$AH = t5;
   }
   $(t5) {
-    const { values: i8, _$litType$: s6 } = t5, e6 = "number" == typeof s6 ? this._$AC(t5) : (void 0 === s6.el && (s6.el = S2.createElement(V(s6.h, s6.h[0]), this.options)), s6);
-    if (this._$AH?._$AD === e6) this._$AH.p(i8);
+    const { values: i7, _$litType$: s6 } = t5, e6 = "number" == typeof s6 ? this._$AC(t5) : (void 0 === s6.el && (s6.el = S2.createElement(V(s6.h, s6.h[0]), this.options)), s6);
+    if (this._$AH?._$AD === e6) this._$AH.p(i7);
     else {
       const t6 = new R(e6, this), s7 = t6.u(this.options);
-      t6.p(i8), this.T(s7), this._$AH = t6;
+      t6.p(i7), this.T(s7), this._$AH = t6;
     }
   }
   _$AC(t5) {
-    let i8 = C.get(t5.strings);
-    return void 0 === i8 && C.set(t5.strings, i8 = new S2(t5)), i8;
+    let i7 = C.get(t5.strings);
+    return void 0 === i7 && C.set(t5.strings, i7 = new S2(t5)), i7;
   }
   k(t5) {
     u2(this._$AH) || (this._$AH = [], this._$AR());
-    const i8 = this._$AH;
+    const i7 = this._$AH;
     let s6, e6 = 0;
-    for (const h6 of t5) e6 === i8.length ? i8.push(s6 = new _k(this.O(c3()), this.O(c3()), this, this.options)) : s6 = i8[e6], s6._$AI(h6), e6++;
-    e6 < i8.length && (this._$AR(s6 && s6._$AB.nextSibling, e6), i8.length = e6);
+    for (const h6 of t5) e6 === i7.length ? i7.push(s6 = new _k(this.O(c3()), this.O(c3()), this, this.options)) : s6 = i7[e6], s6._$AI(h6), e6++;
+    e6 < i7.length && (this._$AR(s6 && s6._$AB.nextSibling, e6), i7.length = e6);
   }
   _$AR(t5 = this._$AA.nextSibling, s6) {
     for (this._$AP?.(false, true, s6); t5 !== this._$AB; ) {
@@ -7500,17 +7500,17 @@ var H = class {
   get _$AU() {
     return this._$AM._$AU;
   }
-  constructor(t5, i8, s6, e6, h6) {
-    this.type = 1, this._$AH = A, this._$AN = void 0, this.element = t5, this.name = i8, this._$AM = e6, this.options = h6, s6.length > 2 || "" !== s6[0] || "" !== s6[1] ? (this._$AH = Array(s6.length - 1).fill(new String()), this.strings = s6) : this._$AH = A;
+  constructor(t5, i7, s6, e6, h6) {
+    this.type = 1, this._$AH = A, this._$AN = void 0, this.element = t5, this.name = i7, this._$AM = e6, this.options = h6, s6.length > 2 || "" !== s6[0] || "" !== s6[1] ? (this._$AH = Array(s6.length - 1).fill(new String()), this.strings = s6) : this._$AH = A;
   }
-  _$AI(t5, i8 = this, s6, e6) {
+  _$AI(t5, i7 = this, s6, e6) {
     const h6 = this.strings;
     let o7 = false;
-    if (void 0 === h6) t5 = M(this, t5, i8, 0), o7 = !a2(t5) || t5 !== this._$AH && t5 !== E, o7 && (this._$AH = t5);
+    if (void 0 === h6) t5 = M(this, t5, i7, 0), o7 = !a2(t5) || t5 !== this._$AH && t5 !== E, o7 && (this._$AH = t5);
     else {
       const e7 = t5;
       let n6, r6;
-      for (t5 = h6[0], n6 = 0; n6 < h6.length - 1; n6++) r6 = M(this, e7[s6 + n6], i8, n6), r6 === E && (r6 = this._$AH[n6]), o7 ||= !a2(r6) || r6 !== this._$AH[n6], r6 === A ? t5 = A : t5 !== A && (t5 += (r6 ?? "") + h6[n6 + 1]), this._$AH[n6] = r6;
+      for (t5 = h6[0], n6 = 0; n6 < h6.length - 1; n6++) r6 = M(this, e7[s6 + n6], i7, n6), r6 === E && (r6 = this._$AH[n6]), o7 ||= !a2(r6) || r6 !== this._$AH[n6], r6 === A ? t5 = A : t5 !== A && (t5 += (r6 ?? "") + h6[n6 + 1]), this._$AH[n6] = r6;
     }
     o7 && !e6 && this.j(t5);
   }
@@ -7535,11 +7535,11 @@ var L = class extends H {
   }
 };
 var z = class extends H {
-  constructor(t5, i8, s6, e6, h6) {
-    super(t5, i8, s6, e6, h6), this.type = 5;
+  constructor(t5, i7, s6, e6, h6) {
+    super(t5, i7, s6, e6, h6), this.type = 5;
   }
-  _$AI(t5, i8 = this) {
-    if ((t5 = M(this, t5, i8, 0) ?? A) === E) return;
+  _$AI(t5, i7 = this) {
+    if ((t5 = M(this, t5, i7, 0) ?? A) === E) return;
     const s6 = this._$AH, e6 = t5 === A && s6 !== A || t5.capture !== s6.capture || t5.once !== s6.once || t5.passive !== s6.passive, h6 = t5 !== A && (s6 === A || e6);
     e6 && this.element.removeEventListener(this.name, this, s6), h6 && this.element.addEventListener(this.name, this, t5), this._$AH = t5;
   }
@@ -7548,8 +7548,8 @@ var z = class extends H {
   }
 };
 var Z = class {
-  constructor(t5, i8, s6) {
-    this.element = t5, this.type = 6, this._$AN = void 0, this._$AM = i8, this.options = s6;
+  constructor(t5, i7, s6) {
+    this.element = t5, this.type = 6, this._$AN = void 0, this._$AM = i7, this.options = s6;
   }
   get _$AU() {
     return this._$AM._$AU;
@@ -7561,12 +7561,12 @@ var Z = class {
 var j = { M: h2, P: o3, A: n3, C: 1, L: N, R, D: d2, V: M, I: k, H, N: L, U: z, B: I, F: Z };
 var B = t2.litHtmlPolyfillSupport;
 B?.(S2, k), (t2.litHtmlVersions ??= []).push("3.3.3");
-var D = (t5, i8, s6) => {
-  const e6 = s6?.renderBefore ?? i8;
+var D = (t5, i7, s6) => {
+  const e6 = s6?.renderBefore ?? i7;
   let h6 = e6._$litPart$;
   if (void 0 === h6) {
     const t6 = s6?.renderBefore ?? null;
-    e6._$litPart$ = h6 = new k(i8.insertBefore(c3(), t6), t6, void 0, s6 ?? {});
+    e6._$litPart$ = h6 = new k(i7.insertBefore(c3(), t6), t6, void 0, s6 ?? {});
   }
   return h6._$AI(t5), h6;
 };
@@ -7732,13 +7732,47 @@ function relativeTimeSentence(from, now) {
   const word = elapsed.unit === "minutes" ? "min" : elapsed.unit === "hours" ? "h" : "d";
   return `${elapsed.value} ${word} ago`;
 }
-var INITIAL_STATE = { data: null, error: null, loading: false };
+var realTimers = {
+  setTimeout: (callback, ms) => globalThis.setTimeout(callback, ms),
+  clearTimeout: (handle) => globalThis.clearTimeout(handle),
+  now: () => Date.now()
+};
+var RETRY_SCHEDULE_MS = [1e3, 2e3, 5e3, 1e4, 3e4];
+var CALL_TIMEOUT_MS = 15e3;
+function retryDelay(failures, schedule = RETRY_SCHEDULE_MS) {
+  const index = Math.min(Math.max(0, Math.floor(failures)), schedule.length - 1);
+  return schedule[index];
+}
+function errorCode(err) {
+  return err && typeof err === "object" && "code" in err && typeof err.code === "string" ? err.code : null;
+}
+function withTimeout(promise, ms, timers = realTimers) {
+  return new Promise((resolve, reject) => {
+    const handle = timers.setTimeout(() => reject({ code: "timeout", message: "Kibble took too long to answer." }), ms);
+    promise.then(
+      (value) => {
+        timers.clearTimeout(handle);
+        resolve(value);
+      },
+      (err) => {
+        timers.clearTimeout(handle);
+        reject(err);
+      }
+    );
+  });
+}
+var INITIAL_STATE = { data: null, error: null, loading: false, reconnecting: false };
 var WsQuery = class {
-  constructor(onChange) {
+  constructor(onChange, options = {}) {
     this._lastWatched = null;
     this._requestId = 0;
     this._state = INITIAL_STATE;
+    this._failures = 0;
+    this._retryHandle = null;
+    this._lastRun = null;
     this._onChange = onChange;
+    this._options = options;
+    this._timers = options.timers ?? realTimers;
   }
   get state() {
     return this._state;
@@ -7753,21 +7787,15 @@ var WsQuery = class {
   }
   /** Force a refetch regardless of the watch key -- a manual retry/refresh action. */
   refresh(run) {
-    const requestId = ++this._requestId;
-    this._state = { ...this._state, loading: true, error: null };
-    this._onChange();
-    run().then(
-      (data) => {
-        if (requestId !== this._requestId) return;
-        this._state = { data, error: null, loading: false };
-        this._onChange();
-      },
-      (err) => {
-        if (requestId !== this._requestId) return;
-        this._state = { ...this._state, error: describeWsError(err), loading: false };
-        this._onChange();
-      }
-    );
+    this._lastRun = run;
+    this._failures = 0;
+    this._cancelRetry();
+    this._start(run, { error: null, reconnecting: false });
+  }
+  /** Re-runs the last read right now (a "Retry" button, or the connection coming back). A no-op
+   * before the first read. */
+  retryNow() {
+    if (this._lastRun) this.refresh(this._lastRun);
   }
   /** Optimistically rewrites cached `data` in place, without touching `loading`/`error` or
    * starting a new request -- for a mutation whose own response already tells the caller the
@@ -7777,6 +7805,53 @@ var WsQuery = class {
     if (this._state.data === null) return;
     this._state = { ...this._state, data: updater(this._state.data) };
     this._onChange();
+  }
+  /** Stops any pending retry and ignores whatever is still in flight. Call from the owner's
+   * `disconnectedCallback`. */
+  dispose() {
+    this._requestId++;
+    this._cancelRetry();
+  }
+  _start(run, keep) {
+    const requestId = ++this._requestId;
+    this._state = { ...this._state, loading: true, ...keep };
+    this._onChange();
+    let pending;
+    try {
+      pending = run();
+    } catch (err) {
+      pending = Promise.reject(err);
+    }
+    const timeoutMs = this._options.timeoutMs;
+    if (timeoutMs) pending = withTimeout(pending, timeoutMs, this._timers);
+    pending.then(
+      (data) => {
+        if (requestId !== this._requestId) return;
+        this._failures = 0;
+        this._state = { data, error: null, loading: false, reconnecting: false };
+        this._onChange();
+      },
+      (err) => {
+        if (requestId !== this._requestId) return;
+        const retry = this._options.retry;
+        this._state = { ...this._state, error: describeWsError(err), loading: false, reconnecting: Boolean(retry) && this._state.data !== null };
+        this._onChange();
+        if (retry) this._scheduleRetry(run, retry);
+      }
+    );
+  }
+  _scheduleRetry(run, schedule) {
+    const delay = retryDelay(this._failures++, schedule);
+    this._cancelRetry();
+    this._retryHandle = this._timers.setTimeout(() => {
+      this._retryHandle = null;
+      this._start(run, { error: this._state.error, reconnecting: this._state.reconnecting });
+    }, delay);
+  }
+  _cancelRetry() {
+    if (this._retryHandle === null) return;
+    this._timers.clearTimeout(this._retryHandle);
+    this._retryHandle = null;
   }
 };
 function watchKey(hass, entityIds) {
@@ -7838,8 +7913,8 @@ function scheduleSummary(entries, now, locale) {
   return `Next feed ${formatClock(next.entry.time, locale)}, ${countWord} a day`;
 }
 var MAX_SCHEDULE_PORTIONS = 20;
-function portionsWord(count) {
-  return count === 1 ? "1 portion" : `${count} portions`;
+function portionsWord(count2) {
+  return count2 === 1 ? "1 portion" : `${count2} portions`;
 }
 function hopperLabel(index, food) {
   const name = food?.trim();
@@ -8091,7 +8166,7 @@ var MDI = {
 function mdiIcon(name) {
   return w`<svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor" aria-hidden="true"><path d=${MDI[name]}></path></svg>`;
 }
-var version = "0.29.0";
+var version = "0.29.1";
 var KIOSK_MIN_HEIGHT_PX = 440;
 var HOLD_TO_FEED_MS = 1500;
 var KIBBLE_FALL_DURATION_MS = 900;
@@ -8275,9 +8350,9 @@ function calibratedPercent(hopper, rawScore) {
   if (!first) return null;
   if (rawScore <= first.score) return 0;
   if (rawScore >= hopper.full_score) return 100;
-  for (let i8 = 1; i8 < points.length; i8 += 1) {
-    const prev = points[i8 - 1];
-    const curr = points[i8];
+  for (let i7 = 1; i7 < points.length; i7 += 1) {
+    const prev = points[i7 - 1];
+    const curr = points[i7];
     if (rawScore > curr.score) continue;
     const span = curr.score - prev.score;
     const fraction = span <= 0 ? 0 : (rawScore - prev.score) / span;
@@ -8531,10 +8606,10 @@ var POUR_LANES = [
 function pourPieces(colors, portions, outletX, outletY, targetY) {
   const lanes = portions >= 3 ? POUR_LANES : POUR_LANES.slice(0, 2);
   const distance = (targetY - outletY).toFixed(1);
-  const pieces = lanes.map((lane, i8) => {
+  const pieces = lanes.map((lane, i7) => {
     const delayMs = Math.round(lane.phase * POUR_CYCLE_MS);
     const style = `--fall-delay:${delayMs}ms;--fall-duration:${POUR_CYCLE_MS}ms;--fall-to:${distance}px;`;
-    return w`<g class="pour-piece" style=${style} fill=${colors[i8 % colors.length]}>${cloverPiece(outletX + lane.dx, outletY, 3.6, lane.rotationDeg)}</g>`;
+    return w`<g class="pour-piece" style=${style} fill=${colors[i7 % colors.length]}>${cloverPiece(outletX + lane.dx, outletY, 3.6, lane.rotationDeg)}</g>`;
   });
   return w`
     <defs>
@@ -9083,8 +9158,8 @@ var s4 = () => document.createComment("");
 var v2 = (o7, n6, e6) => {
   const l3 = o7._$AA.parentNode, d3 = void 0 === n6 ? o7._$AB : n6._$AA;
   if (void 0 === e6) {
-    const i8 = l3.insertBefore(s4(), d3), n7 = l3.insertBefore(s4(), d3);
-    e6 = new t3(i8, n7, o7, o7.options);
+    const i7 = l3.insertBefore(s4(), d3), n7 = l3.insertBefore(s4(), d3);
+    e6 = new t3(i7, n7, o7, o7.options);
   } else {
     const t5 = e6._$AB.nextSibling, n7 = e6._$AM, c6 = n7 !== o7;
     if (c6) {
@@ -9101,7 +9176,7 @@ var v2 = (o7, n6, e6) => {
   }
   return e6;
 };
-var u3 = (o7, t5, i8 = o7) => (o7._$AI(t5, i8), o7);
+var u3 = (o7, t5, i7 = o7) => (o7._$AI(t5, i7), o7);
 var m2 = {};
 var p3 = (o7, t5 = m2) => o7._$AH = t5;
 var M2 = (o7) => o7._$AH;
@@ -9116,8 +9191,8 @@ var i6 = class {
   get _$AU() {
     return this._$AM._$AU;
   }
-  _$AT(t5, e6, i8) {
-    this._$Ct = t5, this._$AM = e6, this._$Ci = i8;
+  _$AT(t5, e6, i7) {
+    this._$Ct = t5, this._$AM = e6, this._$Ci = i7;
   }
   _$AS(t5, e6) {
     return this.update(t5, e6);
@@ -9126,54 +9201,54 @@ var i6 = class {
     return this.render(...e6);
   }
 };
-var s5 = (i8, t5) => {
-  const e6 = i8._$AN;
+var s5 = (i7, t5) => {
+  const e6 = i7._$AN;
   if (void 0 === e6) return false;
-  for (const i9 of e6) i9._$AO?.(t5, false), s5(i9, t5);
+  for (const i8 of e6) i8._$AO?.(t5, false), s5(i8, t5);
   return true;
 };
-var o5 = (i8) => {
+var o5 = (i7) => {
   let t5, e6;
   do {
-    if (void 0 === (t5 = i8._$AM)) break;
-    e6 = t5._$AN, e6.delete(i8), i8 = t5;
+    if (void 0 === (t5 = i7._$AM)) break;
+    e6 = t5._$AN, e6.delete(i7), i7 = t5;
   } while (0 === e6?.size);
 };
-var r5 = (i8) => {
-  for (let t5; t5 = i8._$AM; i8 = t5) {
+var r5 = (i7) => {
+  for (let t5; t5 = i7._$AM; i7 = t5) {
     let e6 = t5._$AN;
     if (void 0 === e6) t5._$AN = e6 = /* @__PURE__ */ new Set();
-    else if (e6.has(i8)) break;
-    e6.add(i8), c4(t5);
+    else if (e6.has(i7)) break;
+    e6.add(i7), c4(t5);
   }
 };
-function h4(i8) {
-  void 0 !== this._$AN ? (o5(this), this._$AM = i8, r5(this)) : this._$AM = i8;
+function h4(i7) {
+  void 0 !== this._$AN ? (o5(this), this._$AM = i7, r5(this)) : this._$AM = i7;
 }
-function n4(i8, t5 = false, e6 = 0) {
+function n4(i7, t5 = false, e6 = 0) {
   const r6 = this._$AH, h6 = this._$AN;
-  if (void 0 !== h6 && 0 !== h6.size) if (t5) if (Array.isArray(r6)) for (let i9 = e6; i9 < r6.length; i9++) s5(r6[i9], false), o5(r6[i9]);
+  if (void 0 !== h6 && 0 !== h6.size) if (t5) if (Array.isArray(r6)) for (let i8 = e6; i8 < r6.length; i8++) s5(r6[i8], false), o5(r6[i8]);
   else null != r6 && (s5(r6, false), o5(r6));
-  else s5(this, i8);
+  else s5(this, i7);
 }
-var c4 = (i8) => {
-  i8.type == t4.CHILD && (i8._$AP ??= n4, i8._$AQ ??= h4);
+var c4 = (i7) => {
+  i7.type == t4.CHILD && (i7._$AP ??= n4, i7._$AQ ??= h4);
 };
 var f3 = class extends i6 {
   constructor() {
     super(...arguments), this._$AN = void 0;
   }
-  _$AT(i8, t5, e6) {
-    super._$AT(i8, t5, e6), r5(this), this.isConnected = i8._$AU;
+  _$AT(i7, t5, e6) {
+    super._$AT(i7, t5, e6), r5(this), this.isConnected = i7._$AU;
   }
-  _$AO(i8, t5 = true) {
-    i8 !== this.isConnected && (this.isConnected = i8, i8 ? this.reconnected?.() : this.disconnected?.()), t5 && (s5(this, i8), o5(this));
+  _$AO(i7, t5 = true) {
+    i7 !== this.isConnected && (this.isConnected = i7, i7 ? this.reconnected?.() : this.disconnected?.()), t5 && (s5(this, i7), o5(this));
   }
   setValue(t5) {
     if (r4(this._$Ct)) this._$Ct._$AI(t5, this);
     else {
-      const i8 = [...this._$Ct._$AH];
-      i8[this._$Ci] = t5, this._$Ct._$AI(i8, this, 0);
+      const i7 = [...this._$Ct._$AH];
+      i7[this._$Ci] = t5, this._$Ct._$AI(i7, this, 0);
     }
   }
   disconnected() {
@@ -9186,18 +9261,18 @@ var h5 = class {
 };
 var o6 = /* @__PURE__ */ new WeakMap();
 var n5 = e4(class extends f3 {
-  render(i8) {
+  render(i7) {
     return A;
   }
-  update(i8, [s6]) {
+  update(i7, [s6]) {
     const e6 = s6 !== this.G;
-    return e6 && this.rt(void 0), (e6 || this.lt !== this.ct) && (this.G = s6, this.ht = i8.options?.host, this.rt(this.ct = i8.element)), A;
+    return e6 && this.rt(void 0), (e6 || this.lt !== this.ct) && (this.G = s6, this.ht = i7.options?.host, this.rt(this.ct = i7.element)), A;
   }
   rt(t5) {
     if (void 0 !== this.G) if (this.isConnected || (t5 = void 0), "function" == typeof this.G) {
-      const i8 = this.ht ?? globalThis;
-      let s6 = o6.get(i8);
-      void 0 === s6 && (s6 = /* @__PURE__ */ new WeakMap(), o6.set(i8, s6)), void 0 !== s6.get(this.G) && this.G.call(this.ht, void 0), s6.set(this.G, t5), void 0 !== t5 && this.G.call(this.ht, t5);
+      const i7 = this.ht ?? globalThis;
+      let s6 = o6.get(i7);
+      void 0 === s6 && (s6 = /* @__PURE__ */ new WeakMap(), o6.set(i7, s6)), void 0 !== s6.get(this.G) && this.G.call(this.ht, void 0), s6.set(this.G, t5), void 0 !== t5 && this.G.call(this.ht, t5);
     } else this.G.value = t5;
   }
   get lt() {
@@ -11073,8 +11148,8 @@ var KibbleCalibrationDialog = class extends i4 {
     if (points.length === 0) return A;
     return b2`
       <ul class="curve">
-        ${points.map((point, i8) => {
-      const previous = i8 > 0 ? points[i8 - 1] : null;
+        ${points.map((point, i7) => {
+      const previous = i7 > 0 ? points[i7 - 1] : null;
       const dropped = previous !== null && point.score < previous.score;
       return b2`
             <li class="curve-row ${dropped ? "dropped" : ""}">
@@ -13728,8 +13803,8 @@ function catSilhouette() {
 }
 function fallbackCatColor(name) {
   let hash = 0;
-  for (let i8 = 0; i8 < name.length; i8++) {
-    hash = hash * 31 + name.charCodeAt(i8) | 0;
+  for (let i7 = 0; i7 < name.length; i7++) {
+    hash = hash * 31 + name.charCodeAt(i7) | 0;
   }
   return catColorAt(hash);
 }
@@ -13957,44 +14032,319 @@ function onReviewChange(entryId, listener) {
   bus.addEventListener(EVENT, handler);
   return () => bus.removeEventListener(EVENT, handler);
 }
-var REVIEW_PAGE_SIZE = 60;
-var TIMELINE_PAGE_SIZE = 100;
-var MAX_PAGES = 20;
-async function readAllPages(callWS, type, entryId, limit) {
-  const items = [];
-  let cursor = null;
-  let last = null;
-  for (let page = 0; page < MAX_PAGES; page++) {
-    last = await callWS({ type, entry_id: entryId, limit, ...cursor ? { cursor } : {} });
-    items.push(...last.items);
-    if (!last.has_more || !last.cursor) break;
-    cursor = last.cursor;
-  }
-  return { items, last };
+var PHOTO_PAGE_SIZE = 24;
+function count(value) {
+  return typeof value === "number" && Number.isFinite(value) ? Math.max(0, Math.round(value)) : 0;
 }
-async function loadUnknownVisits(callWS, entryId) {
-  const { items, last } = await readAllPages(callWS, "kibble/review", entryId, REVIEW_PAGE_SIZE);
-  return { items, total: last?.total ?? items.length };
+function isItem(value) {
+  if (!value || typeof value !== "object") return false;
+  const { sample, visit } = value;
+  return typeof sample?.uid === "string" && typeof visit?.uid === "string";
 }
-async function loadTimelineVisits(callWS, entryId) {
-  const { items } = await readAllPages(callWS, "kibble/timeline", entryId, TIMELINE_PAGE_SIZE);
-  return items.filter((item) => item.kind === "eat" || item.kind === "visit");
+async function loadPhotoPage(callWS, entryId, cursor = null, limit = PHOTO_PAGE_SIZE) {
+  const raw = await callWS({ type: "kibble/review/photos", entry_id: entryId, limit, ...cursor ? { cursor } : {} });
+  return {
+    items: Array.isArray(raw?.items) ? raw.items.filter(isItem) : [],
+    remaining: count(raw?.remaining),
+    visits: count(raw?.visits),
+    cursor: typeof raw?.cursor === "string" && raw.cursor ? raw.cursor : null,
+    has_more: raw?.has_more === true
+  };
 }
-async function loadUnknownCount(callWS, entryId) {
-  const page = await callWS({ type: "kibble/review", entry_id: entryId, limit: 1 });
-  return page.total;
+async function loadPhotosLeft(callWS, entryId) {
+  return (await loadPhotoPage(callWS, entryId, null, 1)).remaining;
 }
-var i7 = e4(class extends i6 {
-  constructor() {
-    super(...arguments), this.key = A;
+var STORAGE_VERSION = 1;
+var TERMINAL = ["not_found", "agent_rejected"];
+function outboxKey(entryId) {
+  return `kibble:outbox:${entryId}`;
+}
+function answerId(answer) {
+  return answer.kind === "photo" ? `photo:${answer.sampleUid}` : `ate:${answer.visitUid}`;
+}
+function terminalReason(err) {
+  const code = errorCode(err);
+  return code !== null && TERMINAL.includes(code) ? code : null;
+}
+function isAnswer(value) {
+  if (!value || typeof value !== "object") return false;
+  const answer = value;
+  if (answer.kind === "photo") return typeof answer.sampleUid === "string" && typeof answer.label === "string";
+  if (answer.kind === "ate") return typeof answer.visitUid === "string" && Array.isArray(answer.ate) && answer.ate.length > 0 && answer.ate.every((name) => typeof name === "string");
+  return false;
+}
+function parseEntries(raw) {
+  if (!raw) return [];
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return [];
   }
-  render(r6, t5) {
-    return this.key = r6, t5;
+  if (!parsed || typeof parsed !== "object") return [];
+  const saved = parsed;
+  if (saved.v !== STORAGE_VERSION || !Array.isArray(saved.entries)) return [];
+  const newest = /* @__PURE__ */ new Map();
+  for (const item of saved.entries) {
+    if (!item || typeof item !== "object") continue;
+    const { seq, answer } = item;
+    if (typeof seq !== "number" || !Number.isFinite(seq) || !isAnswer(answer)) continue;
+    const id = answerId(answer);
+    const known = newest.get(id);
+    if (!known || known.seq < seq) newest.set(id, { id, seq, answer });
   }
-  update(r6, [t5, e6]) {
-    return t5 !== this.key && (p3(r6), this.key = t5), e6;
+  return [...newest.values()].sort((a3, b3) => a3.seq - b3.seq);
+}
+var AnswerOutbox = class {
+  constructor(options) {
+    this._tries = /* @__PURE__ */ new Map();
+    this._inFlight = null;
+    this._timer = null;
+    this._disposed = false;
+    this._drops = [];
+    this._listeners = /* @__PURE__ */ new Set();
+    this._options = options;
+    this._timers = options.timers ?? realTimers;
+    let raw = null;
+    try {
+      raw = options.storage?.getItem(options.key) ?? null;
+    } catch {
+      raw = null;
+    }
+    this._entries = parseEntries(raw);
+    this._seq = this._entries.reduce((highest, entry2) => Math.max(highest, entry2.seq), 0);
   }
-});
+  /** Starts sending whatever an earlier visit to the page left behind. */
+  start() {
+    this._pump();
+  }
+  get size() {
+    return this._entries.length;
+  }
+  get entries() {
+    return this._entries;
+  }
+  /** Answers the server refused for good, until someone has seen them (`clearDrops`). Kept in
+   * memory for this page only: they are a notice, not work to do. */
+  get drops() {
+    return this._drops;
+  }
+  /** The notice was read. */
+  clearDrops() {
+    if (this._drops.length === 0) return;
+    this._drops = [];
+    this._emit({ type: "change" });
+  }
+  /** The label waiting to be sent for a photo, or `undefined`. A waiting `follow` counts: the
+   * photo is back to unanswered. */
+  pendingLabel(sampleUid) {
+    const entry2 = this._entries.find((candidate) => candidate.id === `photo:${sampleUid}`);
+    return entry2 && entry2.answer.kind === "photo" ? entry2.answer.label : void 0;
+  }
+  /** Every photo with an answer waiting to be sent, to its label. */
+  pendingPhotoLabels() {
+    const labels = /* @__PURE__ */ new Map();
+    for (const entry2 of this._entries) if (entry2.answer.kind === "photo") labels.set(entry2.answer.sampleUid, entry2.answer.label);
+    return labels;
+  }
+  subscribe(listener) {
+    this._listeners.add(listener);
+    return () => this._listeners.delete(listener);
+  }
+  /** Records an answer and starts sending it. The newest answer for the same photo (or visit)
+   * replaces an older one that has not been acknowledged. */
+  enqueue(answer) {
+    const id = answerId(answer);
+    this._entries = [...this._entries.filter((entry2) => entry2.id !== id), { id, seq: ++this._seq, answer }];
+    this._persist();
+    this._emit({ type: "change" });
+    this._pump();
+  }
+  /** "Send now": forgets every backoff and tries again immediately. Nothing waiting, nothing to do. */
+  sendNow() {
+    if (this._entries.length === 0) return;
+    this._tries.clear();
+    this._emit({ type: "change" });
+    this._pump();
+  }
+  dispose() {
+    this._disposed = true;
+    this._cancelTimer();
+    this._listeners.clear();
+  }
+  _emit(event) {
+    for (const listener of [...this._listeners]) listener(event);
+  }
+  _persist() {
+    try {
+      this._options.storage?.setItem(this._options.key, JSON.stringify({ v: STORAGE_VERSION, entries: this._entries.map(({ seq, answer }) => ({ seq, answer })) }));
+    } catch {
+    }
+  }
+  _cancelTimer() {
+    if (this._timer === null) return;
+    this._timers.clearTimeout(this._timer);
+    this._timer = null;
+  }
+  _pump() {
+    if (this._inFlight || this._disposed) return;
+    this._cancelTimer();
+    const now = this._timers.now();
+    let due = null;
+    let wakeAt = Infinity;
+    for (const entry22 of this._entries) {
+      const retryAt = this._tries.get(entry22.seq)?.retryAt ?? 0;
+      if (retryAt <= now) {
+        due = entry22;
+        break;
+      }
+      wakeAt = Math.min(wakeAt, retryAt);
+    }
+    if (!due) {
+      if (wakeAt < Infinity) this._timer = this._timers.setTimeout(() => this._pump(), Math.max(0, wakeAt - now));
+      return;
+    }
+    const entry2 = due;
+    this._inFlight = entry2;
+    let sending;
+    try {
+      sending = this._options.send(entry2.answer);
+    } catch (err) {
+      sending = Promise.reject(err);
+    }
+    sending.then(
+      (result) => this._settled(entry2, { ok: true, result }),
+      (err) => this._settled(entry2, { ok: false, err })
+    );
+  }
+  _settled(entry2, outcome) {
+    this._inFlight = null;
+    if (this._disposed) return;
+    if (this._entries.some((candidate) => candidate.seq === entry2.seq)) {
+      if (outcome.ok) {
+        this._remove(entry2);
+        this._emit({ type: "delivered", answer: entry2.answer, result: outcome.result });
+      } else {
+        const reason = terminalReason(outcome.err);
+        if (reason) {
+          this._remove(entry2);
+          this._drops = [...this._drops, { answer: entry2.answer, reason }];
+          this._emit({ type: "dropped", answer: entry2.answer, reason });
+        } else {
+          const failures = (this._tries.get(entry2.seq)?.failures ?? 0) + 1;
+          this._tries.set(entry2.seq, { failures, retryAt: this._timers.now() + retryDelay(failures - 1, this._options.schedule ?? RETRY_SCHEDULE_MS) });
+        }
+      }
+      this._emit({ type: "change" });
+    }
+    this._pump();
+  }
+  _remove(entry2) {
+    this._entries = this._entries.filter((candidate) => candidate.seq !== entry2.seq);
+    this._tries.delete(entry2.seq);
+    this._persist();
+  }
+};
+function describeWaiting(count2) {
+  if (!(count2 > 0)) return "";
+  return count2 === 1 ? "1 answer waiting to send" : `${count2} answers waiting to send`;
+}
+function describeDrops(drops) {
+  if (drops.length === 0) return "";
+  const many = drops.length > 1;
+  const reasons = new Set(drops.map(({ answer, reason }) => reason === "agent_rejected" ? "rejected" : answer.kind === "ate" ? "visit" : "photo"));
+  const head = many ? `${drops.length} answers could not be saved` : "1 answer could not be saved";
+  if (reasons.size !== 1) return head;
+  const only = [...reasons][0];
+  if (only === "rejected") return `${head}: Kibble did not accept ${many ? "them" : "it"}`;
+  if (only === "visit") return `${head}: ${many ? "those visits no longer exist" : "that visit no longer exists"}`;
+  return `${head}: ${many ? "those photos no longer exist" : "that photo no longer exists"}`;
+}
+async function labelSample(hass, entryId, request) {
+  if (!hass.callWS) throw new Error("Not connected.");
+  return await hass.callWS({
+    type: "kibble/sample/label",
+    entry_id: entryId,
+    sample_uid: request.sampleUid,
+    label: request.label
+  });
+}
+async function labelAte(hass, entryId, request) {
+  if (!hass.callWS) throw new Error("Not connected.");
+  const result = await hass.callWS({
+    type: "kibble/session/ate",
+    entry_id: entryId,
+    uid: request.visitUid,
+    ate: [...request.ate]
+  });
+  return result.visit;
+}
+function browserStorage() {
+  try {
+    return typeof localStorage === "undefined" ? null : localStorage;
+  } catch {
+    return null;
+  }
+}
+function createSender(getHass, entryId, timers = realTimers) {
+  return async (answer) => {
+    const hass = getHass();
+    if (!hass) throw new Error("Not connected.");
+    if (answer.kind === "photo") {
+      const { sample, visit: visit2 } = await withTimeout(labelSample(hass, entryId, { sampleUid: answer.sampleUid, label: answer.label }), CALL_TIMEOUT_MS, timers);
+      return { kind: "photo", sample, visit: visit2 };
+    }
+    const visit = await withTimeout(labelAte(hass, entryId, { visitUid: answer.visitUid, ate: answer.ate }), CALL_TIMEOUT_MS, timers);
+    return { kind: "ate", visit };
+  };
+}
+var slots = /* @__PURE__ */ new Map();
+var ANNOUNCE_DELAY_MS = 600;
+var listening = false;
+function sendAllNow() {
+  for (const slot of slots.values()) slot.outbox.sendNow();
+}
+function listenForWakeups() {
+  if (listening || typeof document === "undefined") return;
+  listening = true;
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") sendAllNow();
+  });
+  if (typeof window !== "undefined") window.addEventListener("online", sendAllNow);
+}
+function announceAfterDelivery(outbox, entryId) {
+  let timer;
+  outbox.subscribe((event) => {
+    if (event.type !== "delivered") return;
+    clearTimeout(timer);
+    timer = setTimeout(() => announceReviewChange(entryId), ANNOUNCE_DELAY_MS);
+  });
+}
+function answerOutbox(hass, entryId) {
+  const connected = hass.connected !== false;
+  const known = slots.get(entryId);
+  if (known) {
+    known.live.hass = hass;
+    if (connected && !known.live.connected) known.outbox.sendNow();
+    known.live.connected = connected;
+    return known.outbox;
+  }
+  const live = { hass, connected };
+  const outbox = new AnswerOutbox({ key: outboxKey(entryId), storage: browserStorage(), send: createSender(() => live.hass, entryId) });
+  slots.set(entryId, { outbox, live });
+  announceAfterDelivery(outbox, entryId);
+  listenForWakeups();
+  outbox.start();
+  return outbox;
+}
+function formatCount(value, locale) {
+  const whole = typeof value === "number" && Number.isFinite(value) ? Math.round(value) : 0;
+  return new Intl.NumberFormat(locale).format(whole);
+}
+function countOf(value, singular, plural, locale) {
+  const whole = typeof value === "number" && Number.isFinite(value) ? Math.round(value) : 0;
+  return `${formatCount(whole, locale)} ${Math.abs(whole) === 1 ? singular : plural}`;
+}
 var u4 = (e6, s6, t5) => {
   const r6 = /* @__PURE__ */ new Map();
   for (let l3 = s6; l3 <= t5; l3++) r6.set(e6[l3], l3);
@@ -14008,8 +14358,8 @@ var c5 = e4(class extends i6 {
     let r6;
     void 0 === t5 ? t5 = s6 : void 0 !== s6 && (r6 = s6);
     const l3 = [], o7 = [];
-    let i8 = 0;
-    for (const s7 of e6) l3[i8] = r6 ? r6(s7, i8) : i8, o7[i8] = t5(s7, i8), i8++;
+    let i7 = 0;
+    for (const s7 of e6) l3[i7] = r6 ? r6(s7, i7) : i7, o7[i7] = t5(s7, i7), i7++;
     return { values: o7, keys: l3 };
   }
   render(e6, s6, t5) {
@@ -14074,111 +14424,65 @@ var ImagePreloader = class {
     this._held.clear();
   }
 };
-function draftFrom(cats, identity) {
-  return { cats: cats.map(({ cat, ate }) => ({ cat, ate })), notACat: identity === "not_a_cat", subjects: {} };
+var NOT_USED_HINT = "Not used for learning";
+function answerOptions(cats) {
+  const options = cats.map((cat) => ({ id: "cat:" + cat.name, kind: "cat", cat: cat.name, text: cat.name, value: cat.name, hint: null }));
+  if (cats.length === 2) options.push({ id: "both", kind: "both", cat: null, text: "Both in this photo", value: "both", hint: NOT_USED_HINT });
+  options.push({ id: "not_a_cat", kind: "not_a_cat", cat: null, text: "Not a cat", value: "not_a_cat", hint: null });
+  options.push({ id: "skip", kind: "skip", cat: null, text: "Don\u2019t use", value: "skip", hint: NOT_USED_HINT });
+  return options.map((option, index) => ({ ...option, hotkey: index < 9 ? String(index + 1) : null }));
 }
-function toggleDraftCat(draft, name, isMeal) {
-  const present = draft.cats.some((cat) => cat.cat === name);
-  return {
-    ...draft,
-    notACat: false,
-    cats: present ? draft.cats.filter((cat) => cat.cat !== name) : [...draft.cats, { cat: name, ate: isMeal }]
-  };
+function optionIdForAnswer(answer) {
+  if (answer === null || answer === "follow") return null;
+  return answer === "both" || answer === "not_a_cat" || answer === "skip" ? answer : "cat:" + answer;
 }
-function toggleDraftNotACat(draft) {
-  return draft.notACat ? { ...draft, notACat: false } : { ...draft, notACat: true, cats: [] };
+var GUESS_SURE = 0.6;
+function guessOptionId(sample, options) {
+  const id = optionIdForAnswer(sample.guess);
+  return id !== null && options.some((option) => option.id === id) ? id : null;
 }
-function setDraftAte(draft, name, ate) {
-  return { ...draft, cats: draft.cats.map((cat) => cat.cat === name ? { ...cat, ate } : cat) };
+function guessCaption(sample) {
+  if (!sample.guess) return null;
+  const sure = sample.guess_confidence === null || sample.guess_confidence >= GUESS_SURE;
+  if (sample.guess === "not_a_cat") return sure ? "Probably not a cat" : "Maybe not a cat";
+  return `${sure ? "Looks like" : "Maybe"} ${sample.guess}`;
 }
-function nameDraftSubject(draft, sid, label, isMeal) {
-  const subjects = { ...draft.subjects, [sid]: label };
-  if (label === "not_a_cat" || draft.cats.some((cat) => cat.cat === label)) return { ...draft, subjects };
-  return { ...draft, subjects, notACat: false, cats: [...draft.cats, { cat: label, ate: isMeal }] };
-}
-function draftChipState(draft, saved, name) {
-  if (!draft.cats.some((cat) => cat.cat === name)) return "neutral";
-  const savedCat = saved.find((cat) => cat.cat === name);
-  return savedCat && !savedCat.confirmed ? "suggested" : "confirmed";
-}
-function confirmAction(draft, saved, identity) {
-  const subjects = Object.entries(draft.subjects).map(([sid, label]) => ({ sid: Number(sid), label }));
-  const extra = subjects.length ? { subjects } : {};
-  if (draft.notACat) {
-    if (identity === "not_a_cat" && !subjects.length) return { kind: "close", text: "Done" };
-    return { kind: "save", text: "Confirm not a cat", request: { verdict: "not_a_cat", ...extra } };
+function photoTag(sample) {
+  switch (sample.review ?? sample.label) {
+    case "skip":
+      return { kind: "skip", text: "Not used" };
+    case "both":
+      return { kind: "both", text: "Both cats" };
+    case "not_a_cat":
+      return { kind: "not_a_cat", text: "Not a cat" };
+    default:
+      return null;
   }
-  if (draft.cats.length === 0) return { kind: "blocked", text: "Pick who was here" };
-  const unchanged = identity !== "not_a_cat" && saved.length === draft.cats.length && saved.every((cat) => cat.confirmed && draft.cats.some((d3) => d3.cat === cat.cat && d3.ate === cat.ate)) && !subjects.length;
-  if (unchanged) return { kind: "close", text: "Done" };
-  return { kind: "save", text: "Confirm " + joinNames(draft.cats.map((cat) => cat.cat)), request: { cats: draft.cats.map((cat) => ({ ...cat })), ...extra } };
 }
-function joinNames(names) {
-  if (names.length <= 1) return names[0] ?? "";
-  if (names.length === 2) return names[0] + " and " + names[1];
-  return names.slice(0, -1).join(", ") + ", and " + names[names.length - 1];
-}
-function sessionTitle(cats, event) {
-  if (event.identity === "not_a_cat") return "Not a cat";
-  if (cats.length === 0) return "Who was here?";
-  const groups = /* @__PURE__ */ new Map();
-  for (const cat of cats) {
-    const verb = event.open ? cat.ate ? "is eating" : "is here" : cat.ate ? "ate" : "came by";
-    const names = groups.get(verb) ?? [];
-    names.push(cat.cat);
-    groups.set(verb, names);
+function tallyAnswers(labels, cats) {
+  const named = /* @__PURE__ */ new Map();
+  const tally = { total: 0, named: [], both: 0, notACat: 0, skipped: 0 };
+  for (const label of labels) {
+    if (label === "follow") continue;
+    tally.total++;
+    if (label === "both") tally.both++;
+    else if (label === "not_a_cat") tally.notACat++;
+    else if (label === "skip") tally.skipped++;
+    else named.set(label, (named.get(label) ?? 0) + 1);
   }
-  return [...groups].map(([verb, names]) => joinNames(names) + " " + verb).join(", ");
+  const order = [...cats, ...[...named.keys()].filter((cat) => !cats.includes(cat))];
+  tally.named = order.filter((cat) => named.has(cat)).map((cat) => ({ cat, count: named.get(cat) }));
+  return tally;
 }
-function clamp2(value, min, max) {
-  return Math.min(max, Math.max(min, value));
+function tallyRows(tally) {
+  const rows = tally.named.map(({ cat, count: count2 }) => ({ kind: "cat", cat, text: cat, count: count2 }));
+  if (tally.both > 0) rows.push({ kind: "both", cat: null, text: "Both cats", count: tally.both });
+  if (tally.notACat > 0) rows.push({ kind: "not_a_cat", cat: null, text: "Not a cat", count: tally.notACat });
+  if (tally.skipped > 0) rows.push({ kind: "skip", cat: null, text: "Not used", count: tally.skipped });
+  return rows;
 }
-function placeNamePicker(box, frameWidth, frameHeight, pickerWidth, pickerHeight, gap = 8, inset = 8) {
-  if (!(frameWidth > 0) || !(frameHeight > 0)) return { left: 0, top: 0, flipped: false };
-  const safeInset = Math.max(0, Math.min(inset, frameWidth / 2, frameHeight / 2));
-  const width = Math.min(Math.max(0, pickerWidth), Math.max(0, frameWidth - safeInset * 2));
-  const height = Math.min(Math.max(0, pickerHeight), Math.max(0, frameHeight - safeInset * 2));
-  const maxLeft = frameWidth - safeInset - width;
-  const maxTop = frameHeight - safeInset - height;
-  const anchorX = (box[0] + box[2]) / 2 * frameWidth;
-  const left = clamp2(anchorX - width / 2, safeInset, maxLeft);
-  const below = box[3] * frameHeight + gap;
-  const above = box[1] * frameHeight - gap - height;
-  const canFitBelow = below <= maxTop;
-  const canFitAbove = above >= safeInset;
-  const flipped = !canFitBelow && canFitAbove;
-  return { left, top: clamp2(flipped ? above : below, safeInset, maxTop), flipped };
-}
-function groupSessionPhotos(samples, cats) {
-  if (cats.length < 2) return [];
-  const sections = cats.map((cat) => ({ cat: cat.cat, samples: [] }));
-  const byName = new Map(sections.map((section) => [section.cat, section]));
-  const unassigned = [];
-  for (const sample of samples) {
-    const section = sample.cat ? byName.get(sample.cat) : void 0;
-    if (section) section.samples.push(sample);
-    else unassigned.push(sample);
-  }
-  if (unassigned.length > 0) {
-    const main2 = sections.reduce((best, section) => section.samples.length > best.samples.length ? section : best);
-    main2.samples.push(...unassigned);
-  }
-  return sections;
-}
-async function labelSession(hass, entryId, request) {
-  const callWS = hass.callWS;
-  if (!callWS) throw new Error("Not connected.");
-  let detail = await callWS({
-    type: "kibble/session/label",
-    entry_id: entryId,
-    uid: request.uid,
-    ...request.cats ? { cats: request.cats } : {},
-    ...request.verdict ? { verdict: request.verdict } : {}
-  });
-  for (const subject of request.subjects ?? []) {
-    detail = await callWS({ type: "kibble/session/subject", entry_id: entryId, uid: detail.event.uid, sid: subject.sid, label: subject.label });
-  }
-  return detail;
+function photosCheckedLabel(total, locale) {
+  return `${countOf(total, "photo", "photos", locale)} checked`;
 }
 function rowThumbAsset(event) {
   if (event.kind === "feed") return null;
@@ -14234,14 +14538,18 @@ function feedTitle(event) {
 function timeLabel(unixSeconds, locale) {
   return new Date(unixSeconds * 1e3).toLocaleTimeString(locale, { hour: "numeric", minute: "2-digit" });
 }
-function visitWhenLabel(unixSeconds, now, locale) {
+function visitDayLabel(unixSeconds, now, locale) {
   const date = new Date(unixSeconds * 1e3);
-  const time = timeLabel(unixSeconds, locale);
   const midnight = (value) => new Date(value.getFullYear(), value.getMonth(), value.getDate()).getTime();
   const daysAgo = Math.round((midnight(now) - midnight(date)) / 864e5);
-  if (daysAgo <= 0) return time;
-  if (daysAgo < 7) return `${date.toLocaleDateString(locale, { weekday: "short" })} ${time}`;
-  return `${date.toLocaleDateString(locale, { month: "short", day: "numeric" })} ${time}`;
+  if (daysAgo <= 0) return null;
+  if (daysAgo < 7) return date.toLocaleDateString(locale, { weekday: "short" });
+  return date.toLocaleDateString(locale, { month: "short", day: "numeric" });
+}
+function visitWhenLabel(unixSeconds, now, locale) {
+  const day = visitDayLabel(unixSeconds, now, locale);
+  const time = timeLabel(unixSeconds, locale);
+  return day ? `${day} ${time}` : time;
 }
 function compareAssets(event) {
   if (event.kind !== "eat" && event.kind !== "feed") return null;
@@ -14324,9 +14632,9 @@ function groupConsecutive(events, now = Date.now() / 1e3) {
   }
   return groups.sort((left, right) => (right.start ?? right.event.start) - (left.start ?? left.event.start));
 }
-function groupCountLabel(kind, count) {
+function groupCountLabel(kind, count2) {
   const noun = kind === "eat" ? "meal" : kind === "feed" ? "feed" : "visit";
-  return `${count} ${noun}${count === 1 ? "" : "s"}`;
+  return `${count2} ${noun}${count2 === 1 ? "" : "s"}`;
 }
 function dayKey(date) {
   return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
@@ -14357,17 +14665,106 @@ function railStyle(maxHeight) {
   if (value === "none") return "";
   return `max-height:${value || DEFAULT_RAIL_MAX_HEIGHT}`;
 }
-var RECONNECT_BASE_MS = 1e3;
-var RECONNECT_MAX_MS = 3e4;
-function nextReconnectDelay(current) {
-  return Math.min(current * 2, RECONNECT_MAX_MS);
+var PREFETCH_AT = 4;
+function freshItems(page, known, hidden) {
+  const seen = new Set(known);
+  const fresh = [];
+  for (const item of page.items) {
+    const uid = item.sample.uid;
+    if (seen.has(uid) || hidden.has(uid)) continue;
+    seen.add(uid);
+    fresh.push(item);
+  }
+  return fresh;
+}
+function serverRemaining(page, hidden) {
+  return Math.max(0, page.remaining - hidden.size);
+}
+function createQueue(page, hidden) {
+  return {
+    items: freshItems(page, /* @__PURE__ */ new Set(), hidden),
+    answers: /* @__PURE__ */ new Map(),
+    history: [],
+    remaining: serverRemaining(page, hidden),
+    cursor: page.cursor,
+    hasMore: page.has_more && Boolean(page.cursor)
+  };
+}
+function appendPage(state2, page, hidden) {
+  const known = new Set(state2.items.map((item) => item.sample.uid));
+  return {
+    ...state2,
+    items: [...state2.items, ...freshItems(page, known, hidden)],
+    remaining: serverRemaining(page, hidden),
+    cursor: page.cursor,
+    hasMore: page.has_more && Boolean(page.cursor)
+  };
+}
+function unanswered(state2) {
+  return state2.items.filter((item) => !state2.answers.has(item.sample.uid));
+}
+function currentPhoto(state2) {
+  return state2.items.find((item) => !state2.answers.has(item.sample.uid)) ?? null;
+}
+function upcomingPhotos(state2, count2) {
+  return unanswered(state2).slice(1, 1 + count2);
+}
+function needsMorePhotos(state2) {
+  return state2.hasMore && unanswered(state2).length <= PREFETCH_AT;
+}
+function isCaughtUp(state2) {
+  return currentPhoto(state2) === null && !state2.hasMore;
+}
+function answerPhoto(state2, label) {
+  const photo = currentPhoto(state2);
+  if (!photo) return state2;
+  const uid = photo.sample.uid;
+  return {
+    ...state2,
+    answers: new Map(state2.answers).set(uid, label),
+    history: [...state2.history, uid],
+    remaining: Math.max(0, state2.remaining - 1)
+  };
+}
+function lastAnswer(state2) {
+  const uid = state2.history[state2.history.length - 1];
+  const label = uid === void 0 ? void 0 : state2.answers.get(uid);
+  return uid !== void 0 && label !== void 0 ? { uid, label } : null;
+}
+function undoLast(state2) {
+  const last = lastAnswer(state2);
+  if (!last) return state2;
+  const answers = new Map(state2.answers);
+  answers.delete(last.uid);
+  return { ...state2, answers, history: state2.history.slice(0, -1), remaining: state2.remaining + 1 };
+}
+function photosLeft(state2) {
+  return Math.max(state2.remaining, currentPhoto(state2) ? 1 : 0);
+}
+function photosLeftLabel(count2, locale) {
+  return `${countOf(count2, "photo", "photos", locale)} left`;
+}
+function photoCaption(visit, now, locale) {
+  const day = visitDayLabel(visit.start, now, locale) ?? "Today";
+  return `${day}, ${timeLabel(visit.start, locale)}, ${visit.kind === "eat" ? "meal" : "visit"}`;
+}
+function queueAsPage(state2) {
+  return { items: unanswered(state2), remaining: state2.remaining, visits: 0, cursor: state2.cursor, has_more: state2.hasMore };
+}
+function ateQuestionFor(visit, start, asked) {
+  if (!visit.needs_ate || asked.has(visit.uid)) return null;
+  const cats = visit.cats.map((entry2) => entry2.cat);
+  return cats.length >= 2 ? { visitUid: visit.uid, cats, start } : null;
+}
+function ateOptions(cats) {
+  const options = cats.map((cat) => ({ id: "ate:" + cat, text: cat, ate: [cat] }));
+  if (cats.length === 2) options.push({ id: "ate:both", text: "Both", ate: [...cats] });
+  return options;
 }
 function keyCommand(press, options) {
   if (press.altKey) return null;
   const key = press.key.length === 1 ? press.key.toLowerCase() : press.key;
   if (press.ctrlKey || press.metaKey) return key === "z" && !press.repeat ? { type: "undo" } : null;
-  if (key === "ArrowLeft") return { type: "photo", delta: -1 };
-  if (key === "ArrowRight") return { type: "photo", delta: 1 };
   if (press.repeat) return null;
   if (key === "z" || key === "u" || key === "Backspace") return { type: "undo" };
   if (key === "s" || key === "ArrowUp" || key === "ArrowDown") return { type: "scene" };
@@ -14398,264 +14795,6 @@ function swipeOptionId(side, options) {
   const cats = options.filter((option) => option.kind === "cat");
   if (cats.length !== 2) return null;
   return (side === "left" ? cats[0] : cats[1]).id;
-}
-var UNSURE_BELOW = 0.75;
-var BATCH_SIZE = 20;
-var TIER_RANK = { unknown: 0, unsure: 1, guess: 2 };
-function buildReviewItems(unknown, timeline) {
-  const groups = /* @__PURE__ */ new Map();
-  const touched = /* @__PURE__ */ new Set();
-  for (const row of [...unknown, ...timeline]) {
-    if (row.kind === "feed") continue;
-    const key = row.session ?? row.uid;
-    if (row.identity === "reviewed" || row.identity === "not_a_cat" || row.open) touched.add(key);
-    const rows = groups.get(key) ?? /* @__PURE__ */ new Map();
-    rows.set(row.uid, row);
-    groups.set(key, rows);
-  }
-  const items = [];
-  for (const [key, byUid] of groups) {
-    if (touched.has(key)) continue;
-    const rows = [...byUid.values()].sort((a3, b3) => a3.start - b3.start || a3.uid.localeCompare(b3.uid));
-    const guessed = rows.filter((row) => row.identity === "auto" && row.cat);
-    const hasUnknown = rows.some((row) => row.identity !== "auto" || !row.cat);
-    const confidences = guessed.map((row) => row.confidence).filter((value) => typeof value === "number");
-    const confidence = confidences.length ? Math.min(...confidences) : null;
-    const tier = hasUnknown ? "unknown" : confidence !== null && confidence < UNSURE_BELOW ? "unsure" : "guess";
-    const shown = rows.find((row) => row.thumb) ?? rows[0];
-    items.push({
-      key,
-      event: { ...shown, start: rows[0].start },
-      tier,
-      guesses: [...new Set(guessed.map((row) => row.cat))],
-      confidence,
-      isMeal: rows.some((row) => row.kind === "eat"),
-      photos: rows.reduce((sum, row) => sum + (row.sample_count ?? 0), 0)
-    });
-  }
-  return items.sort(
-    (a3, b3) => TIER_RANK[a3.tier] - TIER_RANK[b3.tier] || b3.event.start - a3.event.start || a3.key.localeCompare(b3.key)
-  );
-}
-function reviewOptions(cats) {
-  const options = cats.map((cat) => ({ id: "cat:" + cat.name, kind: "cat", cat: cat.name, label: cat.name }));
-  if (cats.length >= 2) options.push({ id: "several", kind: "several", cat: null, label: cats.length === 2 ? "Both" : "More than one" });
-  options.push({ id: "not_a_cat", kind: "not_a_cat", cat: null, label: "Not a cat" });
-  options.push({ id: "unknown", kind: "unknown", cat: null, label: "Can\u2019t tell" });
-  return options.map((option, index) => ({ ...option, hotkey: index < 9 ? String(index + 1) : null }));
-}
-function guessOptionId(guesses, options) {
-  if (guesses.length === 0) return null;
-  const id = guesses.length === 1 ? "cat:" + guesses[0] : "several";
-  return options.some((option) => option.id === id) ? id : null;
-}
-function catAnswer(cat, isMeal) {
-  return { kind: "cats", cats: [{ cat, ate: isMeal }] };
-}
-function severalAnswer(cats, ate, isMeal) {
-  return { kind: "cats", cats: cats.map((cat) => ({ cat, ate: isMeal && ate.includes(cat) })) };
-}
-function ateChoices(cats) {
-  return [
-    { id: "all", label: cats.length === 2 ? "Both" : "All", ate: [...cats] },
-    ...cats.map((cat) => ({ id: "cat:" + cat, label: cat, ate: [cat] }))
-  ];
-}
-function answerRequest(item, answer) {
-  if (answer.kind === "cats") return { uid: item.event.uid, cats: answer.cats.map((cat) => ({ ...cat })) };
-  return { uid: item.event.uid, verdict: answer.kind };
-}
-function sameAnswer(a3, b3) {
-  if (a3.kind !== "cats" || b3.kind !== "cats") return a3.kind === b3.kind;
-  if (a3.cats.length !== b3.cats.length) return false;
-  return a3.cats.every((cat) => b3.cats.some((other) => other.cat === cat.cat && other.ate === cat.ate));
-}
-function answerOptionId(answer) {
-  if (answer.kind !== "cats") return answer.kind;
-  return answer.cats.length === 1 ? "cat:" + answer.cats[0].cat : "several";
-}
-function reviewPhotos(event, samples) {
-  const photos = [];
-  const seen = /* @__PURE__ */ new Set();
-  const add = (asset) => {
-    if (!asset || seen.has(asset.id)) return;
-    seen.add(asset.id);
-    photos.push(asset);
-  };
-  add(event.thumb);
-  for (const sample of samples ?? []) add(sample.body ?? sample.face);
-  return photos;
-}
-function majorityGuess(samples, cats) {
-  const weight = /* @__PURE__ */ new Map();
-  let total = 0;
-  for (const sample of samples) {
-    if (!sample.guess || !cats.includes(sample.guess)) continue;
-    const value = sample.guess_confidence ?? 0.5;
-    weight.set(sample.guess, (weight.get(sample.guess) ?? 0) + value);
-    total += value;
-  }
-  let best = null;
-  for (const [cat, value] of weight) {
-    if (!best || value > best.confidence) best = { cat, confidence: value };
-  }
-  if (!best || total <= 0 || best.confidence / total < 0.6) return null;
-  return { cat: best.cat, confidence: best.confidence / total };
-}
-function createQueue(items, startKey) {
-  const ordered = [...items];
-  if (startKey) {
-    const index = ordered.findIndex((item) => item.key === startKey || item.event.uid === startKey);
-    if (index > 0) ordered.unshift(...ordered.splice(index, 1));
-  }
-  return { items: ordered, position: 0, records: {}, history: [], streak: 0, seq: 0 };
-}
-function currentItem(state2) {
-  return state2.items[state2.position] ?? null;
-}
-function upcomingItems(state2, count) {
-  const answered = new Set(state2.history);
-  const upcoming = [];
-  for (let index = state2.position + 1; index < state2.items.length && upcoming.length < count; index++) {
-    const item = state2.items[index];
-    if (!answered.has(item.key)) upcoming.push(item);
-  }
-  return upcoming;
-}
-function nextPosition(items, history2, from) {
-  const answered = new Set(history2);
-  for (let index = from; index < items.length; index++) {
-    if (!answered.has(items[index].key)) return index;
-  }
-  return items.length;
-}
-function answerCurrent(state2, answer) {
-  const item = currentItem(state2);
-  if (!item) return state2;
-  const existing = state2.records[item.key];
-  const history2 = [...state2.history.filter((key) => key !== item.key), item.key];
-  const unchanged = existing !== void 0 && existing.status !== "failed" && sameAnswer(existing.answer, answer);
-  const seq = unchanged ? state2.seq : state2.seq + 1;
-  const record = unchanged ? existing : { key: item.key, answer, status: "queued", seq, attempts: 0, error: null, gone: false };
-  return {
-    ...state2,
-    seq,
-    records: { ...state2.records, [item.key]: record },
-    history: history2,
-    streak: state2.streak + 1,
-    position: nextPosition(state2.items, history2, state2.position + 1)
-  };
-}
-function undoLast(state2) {
-  const key = state2.history[state2.history.length - 1];
-  if (key === void 0) return state2;
-  const index = state2.items.findIndex((item) => item.key === key);
-  const history2 = state2.history.slice(0, -1);
-  if (index === -1) return { ...state2, history: history2, streak: 0 };
-  const records = { ...state2.records };
-  if (records[key]?.status === "queued") delete records[key];
-  return { ...state2, history: history2, records, streak: 0, position: index };
-}
-function nextToSave(state2) {
-  let next = null;
-  for (const record of Object.values(state2.records)) {
-    if (record.status === "saving") return null;
-    if (record.status === "queued" && (!next || record.seq < next.seq)) next = record;
-  }
-  return next;
-}
-function withRecord(state2, key, seq, update) {
-  const record = state2.records[key];
-  if (!record || record.seq !== seq) return state2;
-  return { ...state2, records: { ...state2.records, [key]: update(record) } };
-}
-function markSaving(state2, key, seq) {
-  return withRecord(state2, key, seq, (record) => ({ ...record, status: "saving", attempts: record.attempts + 1, error: null }));
-}
-function markSaved(state2, key, seq) {
-  return withRecord(state2, key, seq, (record) => ({ ...record, status: "saved", error: null }));
-}
-function markFailed(state2, key, seq, error, gone = false) {
-  return withRecord(state2, key, seq, (record) => ({ ...record, status: "failed", error, gone }));
-}
-function retryFailed(state2) {
-  let changed = false;
-  const records = {};
-  for (const [key, record] of Object.entries(state2.records)) {
-    if (record.status === "failed" && !record.gone) {
-      records[key] = { ...record, status: "queued", error: null };
-      changed = true;
-    } else {
-      records[key] = record;
-    }
-  }
-  return changed ? { ...state2, records } : state2;
-}
-function dismissGone(state2) {
-  const gone = new Set(Object.values(state2.records).filter((record) => record.gone).map((record) => record.key));
-  if (gone.size === 0) return state2;
-  const records = Object.fromEntries(Object.entries(state2.records).filter(([key]) => !gone.has(key)));
-  return { ...state2, records, history: state2.history.filter((key) => !gone.has(key)) };
-}
-function saveCounts(state2) {
-  const counts = { pending: 0, failed: 0, gone: 0 };
-  for (const record of Object.values(state2.records)) {
-    if (record.status === "queued" || record.status === "saving") counts.pending++;
-    else if (record.status === "failed" && record.gone) counts.gone++;
-    else if (record.status === "failed") counts.failed++;
-  }
-  return counts;
-}
-function mergeItems(state2, fresh) {
-  const head = state2.items.slice(0, state2.position + 1);
-  const headKeys = new Set(head.map((item) => item.key));
-  const freshKeys = new Set(fresh.map((item) => item.key));
-  const keptTail = state2.items.slice(state2.position + 1).filter((item) => !freshKeys.has(item.key) && state2.records[item.key] !== void 0);
-  const tail = [...keptTail, ...fresh.filter((item) => !headKeys.has(item.key))];
-  const items = [...head, ...tail];
-  const position = state2.position >= state2.items.length ? nextPosition(items, state2.history, head.length) : state2.position;
-  return { ...state2, items, position };
-}
-function queueProgress(state2, batchSize = BATCH_SIZE) {
-  const done = state2.history.length;
-  const answered = new Set(state2.history);
-  const remaining = state2.items.reduce((count, item) => count + (answered.has(item.key) ? 0 : 1), 0);
-  const batchStart = Math.floor(done / batchSize) * batchSize;
-  return { done, remaining, batchDone: done - batchStart, batchSize: Math.min(batchSize, done - batchStart + remaining) };
-}
-function isBatchBoundary(state2, batchSize = BATCH_SIZE) {
-  const progress = queueProgress(state2, batchSize);
-  return progress.done > 0 && progress.done % batchSize === 0 && progress.remaining > 0;
-}
-function summarize(state2, cats) {
-  const tallies = new Map(cats.map((cat) => [cat, { cat, visits: 0, photos: 0 }]));
-  const summary = { total: 0, cats: [], notACat: 0, cantTell: 0 };
-  const itemsByKey = new Map(state2.items.map((item) => [item.key, item]));
-  for (const key of state2.history) {
-    const record = state2.records[key];
-    if (!record || record.gone) continue;
-    summary.total++;
-    if (record.answer.kind === "not_a_cat") summary.notACat++;
-    else if (record.answer.kind === "unknown") summary.cantTell++;
-    else {
-      for (const choice of record.answer.cats) {
-        const tally = tallies.get(choice.cat) ?? { cat: choice.cat, visits: 0, photos: 0 };
-        tally.visits++;
-        if (record.answer.cats.length === 1) tally.photos += itemsByKey.get(key)?.photos ?? 0;
-        tallies.set(choice.cat, tally);
-      }
-    }
-  }
-  summary.cats = [...tallies.values()];
-  return summary;
-}
-function trainingGains(before, after) {
-  const gains = {};
-  for (const cat of after) {
-    const start = before.find((other) => other.name === cat.name)?.training.total ?? 0;
-    gains[cat.name] = Math.max(0, cat.training.total - start);
-  }
-  return gains;
 }
 var KibbleChoice = class extends i4 {
   static {
@@ -14898,97 +15037,809 @@ var KibbleChoice = class extends i4 {
   }
 };
 customElements.define("kibble-choice", KibbleChoice);
+var KibbleBoxOverlay = class extends i4 {
+  constructor() {
+    super();
+    this._repositionLabels = () => {
+      const bounds = this.getBoundingClientRect();
+      if (bounds.width <= 0 || bounds.height <= 0) return;
+      const labelNodes = [...this.renderRoot.querySelectorAll(".label")];
+      const labels = this.boxes.flatMap((box) => {
+        const text = box.label ?? (box.tone === "not-cat" ? "Not a cat" : null);
+        if (!text) return [];
+        const node = labelNodes.find((element) => element.dataset.labelKey === box.key);
+        const measured = node?.getBoundingClientRect();
+        return [{ key: box.key, box: box.box, width: measured?.width || Math.max(44, text.length * 7 + 34), height: measured?.height || 22 }];
+      });
+      const next = Object.fromEntries(placeLabels(labels, bounds.width, bounds.height, 4, this.labelSafeTop).map((placement) => [placement.key, placement]));
+      const keys = Object.keys(next);
+      if (keys.length === Object.keys(this._labelPositions).length && keys.every((key) => {
+        const before = this._labelPositions[key];
+        const after = next[key];
+        return before?.left === after?.left && before?.top === after?.top && before?.flipped === after?.flipped;
+      })) return;
+      this._labelPositions = next;
+    };
+    this.boxes = [];
+    this.labelSafeTop = 0;
+    this._labelPositions = {};
+  }
+  static {
+    this.properties = {
+      boxes: { attribute: false },
+      hass: { attribute: false },
+      cache: { attribute: false },
+      labelSafeTop: { attribute: false },
+      _labelPositions: { state: true }
+    };
+  }
+  firstUpdated() {
+    this._resizeObserver = new ResizeObserver(() => this._repositionLabels());
+    this._resizeObserver.observe(this);
+    this._repositionLabels();
+  }
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    this._resizeObserver?.disconnect();
+    this._resizeObserver = void 0;
+  }
+  updated(changed) {
+    if (changed.has("boxes") || changed.has("labelSafeTop")) this._repositionLabels();
+  }
+  render() {
+    return b2`<div class="overlay" aria-hidden="true">${this.boxes.map((box) => this._renderBox(box))}</div>`;
+  }
+  _renderBox(box) {
+    const rect = boxRect(box.box);
+    const boundsStyle = `left:${rect.left};top:${rect.top};width:${rect.width};height:${rect.height};--box-color:${box.color ?? "rgba(255,255,255,.9)"};`;
+    const emphasis = box.emphasis ?? "normal";
+    const text = box.label ?? (box.tone === "not-cat" ? "Not a cat" : null);
+    const placement = this._labelPositions[box.key];
+    const labelStyle = placement ? `left:${placement.left}px;top:${placement.top}px;` : `left:${rect.left};top:${rect.top};`;
+    return b2`
+      <div class="box-wrap tone-${box.tone} emphasis-${emphasis}" style=${boundsStyle}>
+        <span class="stroke"></span>
+      </div>
+      ${text ? b2`<span class="label tone-${box.tone} emphasis-${emphasis}" data-label-key=${box.key} style=${labelStyle}>
+        ${box.tone === "cat" ? b2`<span class="avatar-ring" style=${`--box-color:${box.color ?? "var(--primary-color)"}`}><span class="monogram" aria-hidden="true">${text.trim().charAt(0).toUpperCase()}</span>${box.avatar ? b2`<kibble-image .hass=${this.hass} .asset=${box.avatar} .cache=${this.cache} alt=""></kibble-image>` : A}</span>` : box.tone === "unknown" ? b2`<span class="unknown-avatar">?</span>` : A}
+        <span class="label-text">${text}</span>
+      </span>` : A}`;
+  }
+  static {
+    this.styles = i`
+    :host {
+      position: absolute;
+      inset: 0;
+      display: block;
+      overflow: hidden;
+      pointer-events: none;
+      contain: layout paint;
+    }
+    .overlay {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+    }
+    .box-wrap {
+      position: absolute;
+      box-sizing: border-box;
+      pointer-events: none;
+    }
+    /* A solid box is a 2 px colour line between two thin dark lines, so it reads on bright day
+     * scenes and on the dark purple night (IR) image alike. Cat colours are lifted toward white
+     * for the line itself: the darker palette slots (plum) vanish on an IR frame otherwise. */
+    .stroke {
+      position: absolute;
+      inset: 0;
+      box-sizing: border-box;
+      border: 2px solid rgba(255, 255, 255, 0.9);
+      border-radius: 4px;
+      box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.45), inset 0 0 0 1px rgba(0, 0, 0, 0.3);
+    }
+    .tone-cat .stroke {
+      border-color: color-mix(in srgb, var(--box-color) 68%, #fff);
+    }
+    .tone-unknown .stroke {
+      border-color: rgba(255, 255, 255, 0.9);
+    }
+    .tone-not-cat .stroke {
+      border-width: 1.5px;
+      border-style: dashed;
+      border-color: rgba(255, 255, 255, 0.78);
+    }
+    .tone-clutter .stroke {
+      border: 1px dashed rgba(255, 255, 255, 0.45);
+      border-radius: 3px;
+    }
+    .tone-peer .stroke {
+      border: 1px dashed rgba(255, 255, 255, 0.6);
+      border-radius: 3px;
+      box-shadow: none;
+    }
+    .box-wrap.emphasis-selected .stroke {
+      border-width: 3px;
+      box-shadow: 0 0 0 4px color-mix(in srgb, var(--box-color) 40%, transparent), 0 0 0 1px rgba(0, 0, 0, 0.45),
+        inset 0 0 0 1px rgba(0, 0, 0, 0.3);
+    }
+    .box-wrap.emphasis-dim,
+    .label.emphasis-dim {
+      opacity: 0.45;
+    }
+    .label {
+      position: absolute;
+      z-index: 2;
+      height: 22px;
+      box-sizing: border-box;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      max-width: min(240px, calc(100% - 4px));
+      padding: 3px 8px 3px 3px;
+      border-radius: 999px;
+      background: rgba(18, 18, 20, 0.72);
+      color: #fff;
+      font: 600 12px/1.1 var(--paper-font-body1_-_font-family, Roboto, sans-serif);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      pointer-events: none;
+      will-change: left, top;
+    }
+    .avatar-ring,
+    .unknown-avatar {
+      width: 16px;
+      height: 16px;
+      flex: none;
+      box-sizing: border-box;
+      display: inline-grid;
+      place-items: center;
+      border-radius: 50%;
+      overflow: hidden;
+    }
+    .avatar-ring {
+      position: relative;
+      border: 1.5px solid var(--box-color);
+      background: color-mix(in srgb, var(--box-color) 20%, #121214);
+      color: var(--box-color);
+    }
+    .avatar-ring .monogram {
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+      display: grid;
+      place-items: center;
+    }
+    .avatar-ring kibble-image {
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      width: 100%;
+      height: 100%;
+    }
+    .monogram {
+      font-size: 9px;
+      line-height: 1;
+      font-weight: 700;
+    }
+    .unknown-avatar {
+      background: rgba(255, 255, 255, 0.18);
+      color: rgba(255, 255, 255, 0.92);
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .label-text {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .tone-not-cat {
+      color: rgba(255, 255, 255, 0.82);
+    }
+    @media (prefers-reduced-motion: no-preference) {
+      .stroke {
+        transition: border-color 150ms ease, border-width 150ms ease, box-shadow 150ms ease, opacity 150ms ease;
+      }
+      .box-wrap {
+        transition: left 250ms ease, top 250ms ease, width 250ms ease, height 250ms ease, opacity 150ms ease;
+      }
+      .label {
+        transition: left 250ms ease, top 250ms ease, opacity 150ms ease;
+      }
+    }
+  `;
+  }
+};
+customElements.define("kibble-box-overlay", KibbleBoxOverlay);
+var PHASES = ["idle", "waiting", "learning", "rechecking", "retrying"];
+function finite(value) {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+function parseLast(value) {
+  if (!value || typeof value !== "object") return null;
+  const raw = value;
+  const finished = finite(raw.finished);
+  if (finished === null) return null;
+  const learned = {};
+  if (raw.learned && typeof raw.learned === "object") {
+    for (const [cat, change] of Object.entries(raw.learned)) {
+      const whole = finite(change);
+      if (whole !== null && Math.round(whole) !== 0) learned[cat] = Math.round(whole);
+    }
+  }
+  return {
+    finished,
+    duration: Math.max(0, finite(raw.duration) ?? 0),
+    answers: Math.max(0, finite(raw.answers) ?? 0),
+    learned,
+    renamed: Math.max(0, finite(raw.renamed) ?? 0),
+    rechecked: Math.max(0, finite(raw.rechecked) ?? 0)
+  };
+}
+function parseLearning(value) {
+  if (!value || typeof value !== "object") return null;
+  const raw = value;
+  const state2 = PHASES.find((phase) => phase === raw.state);
+  if (!state2) return null;
+  return {
+    state: state2,
+    pending: Math.max(0, finite(raw.pending) ?? 0),
+    done: finite(raw.done),
+    total: finite(raw.total),
+    starts_at: finite(raw.starts_at),
+    retry_at: finite(raw.retry_at),
+    started: finite(raw.started),
+    last: parseLast(raw.last),
+    error: typeof raw.error === "string" && raw.error ? raw.error : null
+  };
+}
+function waitLabel(seconds) {
+  return seconds < 90 ? `${seconds} s` : `${Math.ceil(seconds / 60)} min`;
+}
+function learningLine(status, nowSeconds, locale) {
+  if (!status) return "";
+  const saved = status.pending > 0 ? `${countOf(status.pending, "answer", "answers", locale)} saved` : null;
+  switch (status.state) {
+    case "waiting":
+      return saved ? `${saved}, learning starts when you pause` : "Learning starts when you pause";
+    case "learning":
+      return "Learning from your answers\u2026";
+    case "rechecking": {
+      const total = status.total !== null && status.total > 0 ? Math.round(status.total) : null;
+      const done = Math.min(Math.max(0, Math.round(status.done ?? 0)), total ?? 0);
+      const progress = total === null ? "checking your visits again" : `learning ${formatCount(done, locale)} of ${formatCount(total, locale)} visits`;
+      return saved ? `${saved}, ${progress}` : progress.charAt(0).toUpperCase() + progress.slice(1);
+    }
+    case "retrying": {
+      const left = status.retry_at === null ? null : Math.ceil(status.retry_at - nowSeconds);
+      const when = left === null ? "soon" : left <= 0 ? "now" : `in ${waitLabel(left)}`;
+      return `Something went wrong, trying again ${when}. Your answers are safe.`;
+    }
+    default:
+      return "";
+  }
+}
+function learningProgress(status) {
+  if (!status || status.state !== "rechecking" || status.total === null || status.total <= 0) return null;
+  return Math.min(1, Math.max(0, (status.done ?? 0) / status.total));
+}
+function learningCountsDown(status, nowSeconds) {
+  return status?.state === "retrying" && status.retry_at !== null && status.retry_at > nowSeconds;
+}
+var SUMMARY_MAX_AGE_S = 6 * 60 * 60;
+function learningSummaryText(last, locale) {
+  const parts = Object.entries(last.learned).filter(([, change]) => change !== 0).sort(([nameA, a3], [nameB, b3]) => Math.abs(b3) - Math.abs(a3) || nameA.localeCompare(nameB)).map(([cat, change]) => `${cat} ${change > 0 ? "+" : "-"}${countOf(Math.abs(change), "photo", "photos", locale)}`);
+  const renamed = last.renamed > 0 ? `${countOf(last.renamed, "visit", "visits", locale)} got a new name.` : "";
+  if (parts.length > 0) return ["Kibble learned from your answers: " + parts.join(", ") + ".", renamed].filter(Boolean).join(" ");
+  return ["Kibble checked your answers.", renamed || "Nothing changed."].join(" ");
+}
+function learningSummary(status, nowSeconds, dismissedFinished, locale) {
+  const last = status?.last;
+  if (!last || last.answers <= 0) return null;
+  if (last.finished <= dismissedFinished || nowSeconds - last.finished > SUMMARY_MAX_AGE_S) return null;
+  return { finished: last.finished, text: learningSummaryText(last, locale) };
+}
+function dismissedKey(entryId) {
+  return `kibble:learning-dismissed:${entryId}`;
+}
+function readDismissed(storage, entryId) {
+  try {
+    const stored = Number(storage?.getItem(dismissedKey(entryId)));
+    return Number.isFinite(stored) && stored > 0 ? stored : 0;
+  } catch {
+    return 0;
+  }
+}
+function writeDismissed(storage, entryId, finished) {
+  try {
+    storage?.setItem(dismissedKey(entryId), String(finished));
+  } catch {
+  }
+}
+var LearningFeed = class {
+  constructor(_entryId, _timers = realTimers) {
+    this._entryId = _entryId;
+    this._timers = _timers;
+    this._connected = true;
+    this._status = null;
+    this._unsupported = false;
+    this._generation = 0;
+    this._subscribing = false;
+    this._unsubscribe = null;
+    this._failures = 0;
+    this._retryHandle = null;
+    this._listeners = /* @__PURE__ */ new Set();
+  }
+  /** The newest status, or `null` before the first one arrives (or when Kibble is too old to
+   * report one). */
+  get status() {
+    return this._status;
+  }
+  /** Call from every `willUpdate` with the latest `hass`. */
+  attach(hass) {
+    const connected = hass.connected !== false;
+    const reconnected = connected && !this._connected;
+    this._connected = connected;
+    if (hass.connection !== this._connection) {
+      this._connection = hass.connection;
+      this._stop();
+    }
+    if (reconnected) this._failures = 0;
+    if (this._listeners.size > 0 && (reconnected || !this._unsubscribe)) this._connect();
+  }
+  /** Calls `listener` whenever the status changes; the first listener opens the subscription and
+   * the last one to leave closes it. Returns the way out. */
+  listen(listener) {
+    this._listeners.add(listener);
+    if (this._listeners.size === 1) this._connect();
+    return () => {
+      this._listeners.delete(listener);
+      if (this._listeners.size === 0) this._stop();
+    };
+  }
+  _set(status) {
+    this._status = status;
+    for (const listener of [...this._listeners]) listener();
+  }
+  _connect() {
+    const connection = this._connection;
+    if (!connection || this._unsubscribe || this._subscribing || this._unsupported || this._listeners.size === 0) return;
+    this._cancelRetry();
+    const generation = ++this._generation;
+    this._subscribing = true;
+    let subscribing;
+    try {
+      subscribing = connection.subscribeMessage(
+        (message) => {
+          const status = parseLearning(message?.learning);
+          if (generation === this._generation && status) this._set(status);
+        },
+        { type: "kibble/learning/subscribe", entry_id: this._entryId }
+      );
+    } catch (err) {
+      subscribing = Promise.reject(err);
+    }
+    subscribing.then(
+      (unsubscribe) => {
+        if (generation !== this._generation) {
+          void unsubscribe().catch(() => {
+          });
+          return;
+        }
+        this._subscribing = false;
+        this._unsubscribe = unsubscribe;
+        this._failures = 0;
+      },
+      (err) => {
+        if (generation !== this._generation) return;
+        this._subscribing = false;
+        if (errorCode(err) === "unknown_command") {
+          this._unsupported = true;
+          this._set(null);
+          return;
+        }
+        this._retryHandle = this._timers.setTimeout(() => {
+          this._retryHandle = null;
+          this._connect();
+        }, retryDelay(this._failures++));
+      }
+    );
+  }
+  _stop() {
+    this._generation++;
+    this._subscribing = false;
+    this._cancelRetry();
+    const unsubscribe = this._unsubscribe;
+    this._unsubscribe = null;
+    if (unsubscribe) void unsubscribe().catch(() => {
+    });
+    this._status = null;
+  }
+  _cancelRetry() {
+    if (this._retryHandle === null) return;
+    this._timers.clearTimeout(this._retryHandle);
+    this._retryHandle = null;
+  }
+};
+var feeds = /* @__PURE__ */ new Map();
+function learningFeed(entryId) {
+  let feed = feeds.get(entryId);
+  if (!feed) {
+    feed = new LearningFeed(entryId);
+    feeds.set(entryId, feed);
+  }
+  return feed;
+}
+var KibbleLearningLine = class extends i4 {
+  constructor() {
+    super();
+    this._dismissed = 0;
+    this._feed = null;
+    this._unlisten = null;
+    this._empty = true;
+    this._dismiss = (finished) => {
+      if (!this.entryId) return;
+      writeDismissed(browserStorage(), this.entryId, finished);
+      this._dismissed = finished;
+    };
+    this.summary = false;
+  }
+  static {
+    this.properties = {
+      hass: { attribute: false },
+      entryId: { type: String },
+      /** Also show the summary of the last finished pass (the cats card does; the queue does not). */
+      summary: { type: Boolean },
+      _dismissed: { state: true }
+    };
+  }
+  connectedCallback() {
+    super.connectedCallback();
+    this.requestUpdate();
+  }
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    this._unlisten?.();
+    this._unlisten = null;
+    this._feed = null;
+    clearInterval(this._ticker);
+    this._ticker = void 0;
+  }
+  willUpdate(_changed) {
+    const { hass, entryId } = this;
+    if (!hass || !entryId) return;
+    const feed = learningFeed(entryId);
+    feed.attach(hass);
+    if (feed !== this._feed) {
+      this._unlisten?.();
+      this._feed = feed;
+      this._unlisten = feed.listen(() => this.requestUpdate());
+    }
+    if (this._dismissedFor !== entryId) {
+      this._dismissedFor = entryId;
+      this._dismissed = readDismissed(browserStorage(), entryId);
+    }
+  }
+  updated() {
+    this.toggleAttribute("hidden", this._empty);
+    const status = this._feed?.status ?? null;
+    const ticking = learningCountsDown(status, Date.now() / 1e3);
+    if (ticking && this._ticker === void 0) this._ticker = setInterval(() => this.requestUpdate(), 1e3);
+    else if (!ticking && this._ticker !== void 0) {
+      clearInterval(this._ticker);
+      this._ticker = void 0;
+    }
+  }
+  render() {
+    const status = this._feed?.status ?? null;
+    const now = Date.now() / 1e3;
+    const locale = this.hass?.locale?.language ?? this.hass?.language;
+    const line = learningLine(status, now, locale);
+    const progress = learningProgress(status);
+    const done = this.summary ? learningSummary(status, now, this._dismissed, locale) : null;
+    this._empty = !line && !done;
+    if (this._empty) return A;
+    return b2`
+      ${line ? b2`<div class="line ${status?.state ?? ""}" role="status" title=${status?.error ?? ""}>
+            <span class="dot" aria-hidden="true"></span>
+            <span class="text">${line}</span>
+            ${progress !== null ? b2`<span class="bar" aria-hidden="true"><span style=${`transform:scaleX(${progress})`}></span></span>` : A}
+          </div>` : A}
+      ${done ? b2`<div class="done" role="status">
+            <span class="check">${mdiIcon("check")}</span>
+            <span class="text">${done.text}</span>
+            <button type="button" aria-label="Dismiss" @click=${() => this._dismiss(done.finished)}>${mdiIcon("close")}</button>
+          </div>` : A}
+    `;
+  }
+  static {
+    this.styles = i`
+    :host {
+      display: block;
+    }
+    :host([hidden]) {
+      display: none;
+    }
+    .line,
+    .done {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 4px 8px;
+      font-size: 13px;
+      line-height: 1.3;
+      color: var(--secondary-text-color);
+    }
+    .line + .done {
+      margin-top: 8px;
+    }
+    .text {
+      flex: 1;
+      min-width: 0;
+    }
+    .dot {
+      flex: none;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--primary-color, #03a9f4);
+    }
+    .line.retrying .dot {
+      background: var(--warning-color, #ffa600);
+    }
+    .bar {
+      flex-basis: 100%;
+      height: 3px;
+      border-radius: 2px;
+      overflow: hidden;
+      background: color-mix(in srgb, var(--primary-text-color) 10%, transparent);
+    }
+    .bar span {
+      display: block;
+      height: 100%;
+      background: var(--primary-color, #03a9f4);
+      transform-origin: left center;
+      transition: transform 300ms ease-out;
+    }
+    .done {
+      flex-wrap: nowrap;
+      align-items: flex-start;
+      padding: 8px 4px 8px 12px;
+      border-radius: 8px;
+      font-size: 14px;
+      color: var(--primary-text-color);
+      background: color-mix(in srgb, var(--kibble-feed, #43a96a) 14%, transparent);
+    }
+    .check {
+      flex: none;
+      display: flex;
+      align-items: center;
+      height: 20px;
+      color: var(--kibble-feed, #43a96a);
+      font-size: 18px;
+    }
+    .done button {
+      flex: none;
+      width: 40px;
+      height: 40px;
+      margin: -8px 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 0;
+      border-radius: 50%;
+      background: none;
+      color: var(--secondary-text-color);
+      font-size: 20px;
+      cursor: pointer;
+    }
+    .done button:focus-visible {
+      outline: 2px solid var(--primary-color, #03a9f4);
+    }
+    @media (prefers-reduced-motion: no-preference) {
+      .line.waiting .dot,
+      .line.learning .dot,
+      .line.rechecking .dot {
+        animation: kibble-learning-pulse 1.4s ease-in-out infinite;
+      }
+    }
+    @keyframes kibble-learning-pulse {
+      50% {
+        opacity: 0.35;
+      }
+    }
+  `;
+  }
+};
+customElements.define("kibble-learning-line", KibbleLearningLine);
+var INPUT_GUARD_MS = 350;
+var KibbleWhoAte = class extends i4 {
+  constructor() {
+    super();
+    this._readyAt = 0;
+    this._skip = () => {
+      if (performance.now() < this._readyAt) return;
+      this.dispatchEvent(new CustomEvent("ate-skipped", { bubbles: true, composed: true }));
+    };
+    this.question = null;
+    this.roster = [];
+    this.hotkeys = false;
+    this.skippable = false;
+  }
+  static {
+    this.properties = {
+      hass: { attribute: false },
+      cache: { attribute: false },
+      question: { attribute: false },
+      roster: { attribute: false },
+      hotkeys: { type: Boolean },
+      skippable: { type: Boolean }
+    };
+  }
+  connectedCallback() {
+    super.connectedCallback();
+    this._readyAt = performance.now() + INPUT_GUARD_MS;
+  }
+  /** Picks the button at `index`: what its number key does. */
+  choose(index) {
+    const question = this.question;
+    const option = question ? ateOptions(question.cats)[index] : void 0;
+    if (question && option) this._choose(question, option);
+  }
+  _choiceCat(name, index) {
+    return this.roster.find((cat) => cat.name === name) ?? { name, color: index, avatar: null };
+  }
+  _choose(question, option) {
+    if (performance.now() < this._readyAt) return;
+    const detail = { visitUid: question.visitUid, ate: option.ate };
+    this.dispatchEvent(new CustomEvent("ate-chosen", { detail, bubbles: true, composed: true }));
+  }
+  render() {
+    const question = this.question;
+    if (!question) return A;
+    const locale = this.hass?.locale?.language ?? this.hass?.language;
+    const when = visitWhenLabel(question.start, /* @__PURE__ */ new Date(), locale);
+    return b2`
+      <section aria-labelledby="ask">
+        <h3 id="ask">Who ate? <span class="when">${when}</span></h3>
+        <div class="options">
+          ${ateOptions(question.cats).map((option, index) => {
+      const cats = option.ate.map((name) => this._choiceCat(name, question.cats.indexOf(name)));
+      return b2`<kibble-choice
+              .hass=${this.hass}
+              .cache=${this.cache}
+              .label=${option.text}
+              .cats=${cats}
+              .hint=${this.hotkeys ? String(index + 1) : null}
+              @click=${() => this._choose(question, option)}
+            ></kibble-choice>`;
+    })}
+        </div>
+        ${this.skippable ? b2`<button type="button" class="later" @click=${this._skip}>Not now</button>` : A}
+      </section>
+    `;
+  }
+  static {
+    this.styles = i`
+    :host {
+      display: block;
+    }
+    section {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    h3 {
+      margin: 0;
+      font-size: 20px;
+      font-weight: 500;
+      line-height: 1.2;
+    }
+    .when {
+      margin-left: 4px;
+      font-size: 14px;
+      font-weight: 400;
+      font-variant-numeric: tabular-nums;
+      color: var(--secondary-text-color);
+    }
+    .options {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 8px;
+    }
+    .later {
+      align-self: flex-start;
+      min-height: 48px;
+      padding: 0 16px;
+      border: 0;
+      border-radius: 8px;
+      background: none;
+      color: var(--secondary-text-color);
+      font: inherit;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    .later:focus-visible {
+      outline: 2px solid var(--primary-color, #03a9f4);
+      outline-offset: 2px;
+    }
+  `;
+  }
+};
+customElements.define("kibble-who-ate", KibbleWhoAte);
 var LEAVE_MS = 260;
-var ANNOUNCE_DELAY_MS = 600;
-var SAVE_TIMEOUT_MS = 2e4;
-var FIRST_RETRY_MS = 2e3;
 var PRELOAD_AHEAD = 3;
-var DETAIL_AHEAD = 2;
-var GAIN_READ_DELAYS_MS = [0, 3e3, 9e3];
+function photoImage(sample) {
+  return sample.body ?? sample.face;
+}
 var KibbleReviewQueue = class extends i4 {
   constructor() {
     super();
     this._open = false;
-    this._phase = "loading";
-    this._loadError = null;
     this._queue = null;
-    this._stage = "review";
-    this._follow = null;
-    this._photoIndex = 0;
+    this._ateQueue = [];
     this._scene = false;
     this._leaving = null;
-    this._gains = null;
     this._imageFailed = false;
-    this._ownCats = [];
-    this._catsBefore = null;
-    this._details = /* @__PURE__ */ new Map();
-    this._detailsAsked = /* @__PURE__ */ new Set();
+    this._first = this._makeQuery();
+    this._more = this._makeQuery();
+    this._rosterQuery = this._makeQuery();
+    this._foldedFirst = null;
+    this._foldedMore = null;
+    this._asked = /* @__PURE__ */ new Set();
+    this._outbox = null;
+    this._unsubscribeOutbox = null;
     this._preloader = new ImagePreloader();
-    this._generation = 0;
-    this._gainTimers = [];
-    this._retryDelay = FIRST_RETRY_MS;
     this._connected = true;
     this._swipe = null;
-    this._dragged = false;
     this._focusedKey = null;
+    this._loadFirst = () => {
+      this._first.refresh(() => this._fetchPage(null));
+    };
     this._undo = () => {
-      if (this._follow) {
-        this._follow = null;
-        return;
-      }
       const queue = this._queue;
-      if (!queue || queue.history.length === 0) return;
+      const last = queue ? lastAnswer(queue) : null;
+      if (!queue || !last || !this._outbox) return;
       clearTimeout(this._leaveTimer);
       this._leaving = null;
+      this._outbox.enqueue({ kind: "photo", sampleUid: last.uid, label: "follow" });
+      const visitUid = queue.items.find((item) => item.sample.uid === last.uid)?.visit.uid;
+      if (visitUid) {
+        this._asked.delete(visitUid);
+        this._ateQueue = this._ateQueue.filter((question) => question.visitUid !== visitUid);
+      }
       this._queue = undoLast(queue);
-      this._stage = "review";
-      this._clearGainTimers();
-      this._resetPhoto();
+      this._scene = false;
+      this._imageFailed = false;
       fireHaptic("light");
     };
-    this._keepGoing = () => {
-      this._stage = "review";
-      this._clearGainTimers();
-    };
-    this._enterSummary = () => {
-      this._stage = "summary";
-      this._follow = null;
+    this._onAteChosen = (event) => {
+      const { visitUid, ate } = event.detail;
+      this._outbox?.enqueue({ kind: "ate", visitUid, ate });
+      this._ateQueue = this._ateQueue.filter((question) => question.visitUid !== visitUid);
       fireHaptic("success");
-      this._clearGainTimers();
-      this._gainTimers = GAIN_READ_DELAYS_MS.map((delay) => setTimeout(() => void this._readCats(false), delay));
     };
-    this._retryNow = () => {
-      if (!this._queue) return;
-      this._queue = retryFailed(this._queue);
-      this._pump();
-    };
-    this._dismissGone = () => {
-      if (this._queue) this._queue = dismissGone(this._queue);
+    this._onAteSkipped = () => {
+      this._ateQueue = this._ateQueue.slice(1);
     };
     this._close = () => {
       if (!this._open) return;
       this._open = false;
-      this._follow = null;
-      this._clearGainTimers();
       clearTimeout(this._leaveTimer);
       this._leaving = null;
-      const queue = this._queue;
-      const answered = queue?.history.length ?? 0;
-      const counts = queue ? saveCounts(queue) : { pending: 0, failed: 0, gone: 0 };
-      if (answered > 0) this._announce();
-      if (counts.failed > 0) {
-        const message = counts.failed === 1 ? "1 answer is not saved yet. Open Check visits to try again." : `${counts.failed} answers are not saved yet. Open Check visits to try again.`;
+      this._first.dispose();
+      this._more.dispose();
+      const answered = this._queue?.history.length ?? 0;
+      const waiting = this._outbox?.size ?? 0;
+      if (waiting > 0) {
+        const message = `${describeWaiting(waiting)}. Kibble keeps trying.`;
         this.dispatchEvent(new CustomEvent("hass-notification", { detail: { message }, bubbles: true, composed: true }));
-      }
-      if (counts.pending + counts.failed === 0) {
-        this._queue = null;
-        this._generation++;
       }
       this.dispatchEvent(new CustomEvent("review-closed", { detail: { answered }, bubbles: true, composed: true }));
     };
     this._onCancel = (event) => {
       event.preventDefault();
-      if (this._follow) this._follow = null;
+      if (this._ateQueue.length > 0) this._onAteSkipped();
+      else if (this._scene) this._scene = false;
       else this._close();
     };
     this._onFrameClick = (event) => {
@@ -14997,15 +15848,25 @@ var KibbleReviewQueue = class extends i4 {
     this._onKeydown = (event) => {
       event.stopPropagation();
       if (event.key === "Escape" || event.key === "Tab" || event.key === "Enter" || event.key === " ") return;
-      if (this._view() !== "review") return;
-      const command = keyCommand(event, this._keyOptions());
+      const view = this._view();
+      if (view === "ate") {
+        const question = this._ateQueue[0];
+        const options = question ? ateOptions(question.cats).map((option, index) => ({ id: option.id, hotkey: String(index + 1) })) : [];
+        const command2 = keyCommand(event, options);
+        if (command2?.type !== "answer") return;
+        event.preventDefault();
+        this.renderRoot.querySelector("kibble-who-ate")?.choose(options.findIndex((option) => option.id === command2.optionId));
+        return;
+      }
+      if (view !== "photo") return;
+      const command = keyCommand(event, this._options());
       if (!command) return;
       event.preventDefault();
       this._run(command);
     };
     this._toggleScene = () => {
-      const item = this._queue ? currentItem(this._queue) : null;
-      if (!item?.event.scene) return;
+      const photo = this._queue ? currentPhoto(this._queue) : null;
+      if (!photo?.visit.scene) return;
       this._scene = !this._scene;
       this._imageFailed = false;
     };
@@ -15014,7 +15875,6 @@ var KibbleReviewQueue = class extends i4 {
       this.renderRoot.querySelector(".card.current kibble-image")?.retry();
     };
     this._onPointerDown = (event) => {
-      this._dragged = false;
       if (event.button !== 0 || !this._swipeEnabled()) return;
       if (event.composedPath().some((node) => node instanceof HTMLButtonElement)) return;
       const el = event.currentTarget;
@@ -15033,7 +15893,6 @@ var KibbleReviewQueue = class extends i4 {
         if (swipe.sideways === null) return;
         swipe.el.setPointerCapture(swipe.id);
         swipe.el.classList.add("dragging");
-        this._dragged = true;
       }
       const elapsed = event.timeStamp - swipe.lastT;
       if (elapsed > 0) swipe.velocity = (event.clientX - swipe.lastX) / elapsed;
@@ -15069,14 +15928,6 @@ var KibbleReviewQueue = class extends i4 {
       swipe.el.removeAttribute("data-armed");
       delete swipe.el.dataset.side;
     };
-    this._onCardClick = (event) => {
-      if (this._dragged) {
-        this._dragged = false;
-        return;
-      }
-      if (event.composedPath().some((node) => node instanceof HTMLButtonElement)) return;
-      this._toggleScene();
-    };
     this.cats = [];
   }
   static {
@@ -15086,57 +15937,61 @@ var KibbleReviewQueue = class extends i4 {
       cats: { attribute: false },
       cache: { attribute: false },
       _open: { state: true },
-      _phase: { state: true },
-      _loadError: { state: true },
       _queue: { state: true },
-      _stage: { state: true },
-      _follow: { state: true },
-      _photoIndex: { state: true },
+      _ateQueue: { state: true },
       _scene: { state: true },
       _leaving: { state: true },
-      _gains: { state: true },
-      _imageFailed: { state: true },
-      _ownCats: { state: true }
+      _imageFailed: { state: true }
     };
   }
+  _makeQuery() {
+    return new WsQuery(() => this.requestUpdate(), { retry: RETRY_SCHEDULE_MS, timeoutMs: CALL_TIMEOUT_MS });
+  }
   // ---- Public API ---------------------------------------------------------------------------
-  /** Opens the queue. `startUid` is the visit to show first (a row the person tapped). */
-  show(startUid) {
+  /** Opens the queue. What was left unanswered last time shows at once while Kibble is asked for
+   * the up-to-date list, so a slow Kibble never means a blank sheet. */
+  show() {
     if (this._open) return;
     this._open = true;
-    this._stage = "review";
-    this._follow = null;
-    this._resetPhoto();
-    this._gains = null;
-    if (this._queue && this._unsaved() > 0) {
-      this._queue = retryFailed(this._queue);
-      this._phase = "ready";
-      this._pump();
-      void this._reload();
-      return;
-    }
-    this._queue = null;
-    this._details.clear();
-    this._detailsAsked.clear();
-    void this._load(startUid ?? null);
+    this._scene = false;
+    this._imageFailed = false;
+    this._ateQueue = [];
+    this._asked.clear();
+    const kept = this._queue ? queueAsPage(this._queue) : null;
+    this._queue = kept && kept.items.length > 0 ? createQueue(kept, this._hidden()) : null;
+    this._more.dispose();
+    this._more = this._makeQuery();
+    this._foldedMore = null;
+    this._requestedCursor = void 0;
+    if (this._rosterQuery.state.data === null) this._rosterQuery.retryNow();
+    this._loadFirst();
   }
   // ---- Lifecycle ----------------------------------------------------------------------------
+  connectedCallback() {
+    super.connectedCallback();
+    this.requestUpdate();
+  }
   disconnectedCallback() {
     super.disconnectedCallback();
     clearTimeout(this._leaveTimer);
-    clearTimeout(this._announceTimer);
-    clearTimeout(this._retryTimer);
-    this._clearGainTimers();
+    this._unsubscribeOutbox?.();
+    this._unsubscribeOutbox = null;
+    this._outbox = null;
+    this._first.dispose();
+    this._more.dispose();
+    this._rosterQuery.dispose();
     this._preloader.dispose();
   }
   willUpdate(changed) {
-    if (!changed.has("hass")) return;
-    const connected = this.hass?.connected !== false;
-    if (connected && !this._connected && this._queue) {
-      this._queue = retryFailed(this._queue);
-      queueMicrotask(() => this._pump());
+    const { hass, entryId } = this;
+    if (hass && entryId) {
+      this._joinOutbox(answerOutbox(hass, entryId));
+      if (changed.has("hass")) this._noticeConnection(hass.connected !== false);
     }
-    this._connected = connected;
+    if (!this._open) return;
+    this._loadRoster();
+    this._foldPages();
+    this._prefetch();
   }
   updated() {
     const dialog = this.renderRoot.querySelector("dialog");
@@ -15149,310 +16004,174 @@ var KibbleReviewQueue = class extends i4 {
     this._warmUp();
     void this._moveFocus();
   }
+  // ---- Answers on their way -----------------------------------------------------------------
+  _joinOutbox(outbox) {
+    if (outbox === this._outbox) return;
+    this._unsubscribeOutbox?.();
+    this._outbox = outbox;
+    this._unsubscribeOutbox = outbox.subscribe((event) => this._onOutbox(event));
+  }
+  _onOutbox(event) {
+    if (event.type === "change") this.requestUpdate();
+    else if (event.type === "delivered") this._delivered(event.result);
+  }
+  /** Photos whose answer is waiting to be sent: they count as answered. A waiting "undo" does not. */
+  _hidden() {
+    const hidden = /* @__PURE__ */ new Set();
+    for (const [uid, label] of this._outbox?.pendingPhotoLabels() ?? []) if (label !== "follow") hidden.add(uid);
+    return hidden;
+  }
+  /** Kibble accepted an answer. If it says two cats were at a meal and nobody can tell who ate,
+   * ask once, right away, while the person still remembers. */
+  _delivered(result) {
+    if (result.kind !== "photo" || !this._open || !this._queue) return;
+    const uid = result.sample.uid;
+    const item = this._queue.items.find((candidate) => candidate.sample.uid === uid);
+    if (!item || !this._queue.answers.has(uid)) return;
+    const question = ateQuestionFor(result.visit, item.visit.start, this._asked);
+    if (!question) return;
+    this._asked.add(question.visitUid);
+    this._ateQueue = [...this._ateQueue, question];
+  }
   // ---- Loading ------------------------------------------------------------------------------
-  async _load(startUid) {
+  _call(message) {
     const callWS = this.hass?.callWS;
+    return callWS ? callWS(message) : Promise.reject(new Error("Not connected."));
+  }
+  _fetchPage(cursor) {
     const entryId = this.entryId;
-    const generation = ++this._generation;
-    this._loadError = null;
-    if (!callWS || !entryId) {
-      this._phase = "error";
-      this._loadError = "Not connected.";
-      return;
-    }
-    this._phase = "loading";
-    void this._readCats(true);
-    try {
-      const unknown = await loadUnknownVisits(callWS, entryId);
-      if (generation !== this._generation) return;
-      const first = buildReviewItems(unknown.items, []);
-      const startIsHere = !startUid || first.some((item) => item.key === startUid || item.event.uid === startUid);
-      if (first.length > 0 && startIsHere) {
-        this._queue = createQueue(first, startUid);
-        this._phase = "ready";
-      }
-      const timeline = await loadTimelineVisits(callWS, entryId);
-      if (generation !== this._generation) return;
-      const all = buildReviewItems(unknown.items, timeline);
-      this._queue = this._queue ? mergeItems(this._queue, all) : createQueue(all, startUid);
-      this._phase = "ready";
-    } catch (err) {
-      if (generation !== this._generation) return;
-      if (this._queue) {
-        this._phase = "ready";
-      } else {
-        this._phase = "error";
-        this._loadError = describeWsError(err);
-      }
-    }
+    if (!this.hass?.callWS || !entryId) return Promise.reject(new Error("Not connected."));
+    return loadPhotoPage((message) => this._call(message), entryId, cursor);
   }
-  /** Re-reads the work list and folds it into the sitting in progress. */
-  async _reload() {
-    const callWS = this.hass?.callWS;
+  _loadRoster() {
     const entryId = this.entryId;
-    if (!callWS || !entryId) return;
-    const generation = this._generation;
-    try {
-      const [unknown, timeline] = await Promise.all([loadUnknownVisits(callWS, entryId), loadTimelineVisits(callWS, entryId)]);
-      if (generation !== this._generation || !this._queue) return;
-      this._queue = mergeItems(this._queue, buildReviewItems(unknown.items, timeline));
-    } catch {
+    if (this.cats.length > 0 || !entryId || !this.hass?.callWS) return;
+    this._rosterQuery.sync(entryId, () => this._call({ type: "kibble/cats", entry_id: entryId }));
+  }
+  /** Folds pages that just arrived into the sitting. The first page replaces what was kept from
+   * last time unless something was already answered here; later pages only add. */
+  _foldPages() {
+    const first = this._first.state.data;
+    if (first && first !== this._foldedFirst) {
+      this._foldedFirst = first;
+      this._requestedCursor = void 0;
+      const fresh = !this._queue || this._queue.history.length === 0;
+      this._queue = fresh ? createQueue(first, this._hidden()) : appendPage(this._queue, first, this._hidden());
+    }
+    const more = this._more.state.data;
+    if (more && more !== this._foldedMore) {
+      this._foldedMore = more;
+      if (this._queue) this._queue = appendPage(this._queue, more, this._hidden());
     }
   }
-  async _readCats(first) {
-    const callWS = this.hass?.callWS;
-    const entryId = this.entryId;
-    if (!callWS || !entryId) return;
-    const generation = this._generation;
-    try {
-      const response = await callWS({ type: "kibble/cats", entry_id: entryId });
-      if (generation !== this._generation) return;
-      this._ownCats = response.cats;
-      if (first) this._catsBefore = response.cats;
-      else if (this._catsBefore) this._gains = trainingGains(this._catsBefore, response.cats);
-    } catch {
+  /** Asks for the next page while a few photos are still left to show, so advancing never waits. */
+  _prefetch() {
+    const queue = this._queue;
+    if (!queue || !needsMorePhotos(queue) || !this.hass?.callWS || !this.entryId) return;
+    const cursor = queue.cursor;
+    if (this._requestedCursor === cursor || this._more.state.loading) return;
+    this._requestedCursor = cursor;
+    this._more.refresh(() => this._fetchPage(cursor));
+  }
+  /** The connection to Home Assistant came back: whatever was failing is tried again now. */
+  _noticeConnection(connected) {
+    if (connected && !this._connected && this._open) {
+      for (const query of [this._first, this._more, this._rosterQuery]) if (query.state.error !== null) query.retryNow();
     }
+    this._connected = connected;
   }
-  _roster() {
-    return this.cats.length ? this.cats : this._ownCats;
-  }
-  _options() {
-    return reviewOptions(this._roster());
-  }
-  /** Fetches the photo lists of the visit on screen and the next few, and keeps their pictures
-   * warm so stepping forward never waits. */
+  /** Keeps the next few pictures (and this one's whole scene) warm so stepping forward never waits. */
   _warmUp() {
     const queue = this._queue;
-    const hass = this.hass;
-    const entryId = this.entryId;
-    const item = queue ? currentItem(queue) : null;
-    if (!queue || !item || !hass?.callWS || !entryId) {
+    const photo = queue && this._view() === "photo" ? currentPhoto(queue) : null;
+    if (!queue || !photo) {
       this._preloader.sync(void 0, void 0, []);
       return;
     }
-    const upcoming = upcomingItems(queue, PRELOAD_AHEAD);
-    for (const wanted of [item, ...upcoming.slice(0, DETAIL_AHEAD)]) {
-      if (this._detailsAsked.has(wanted.key)) continue;
-      this._detailsAsked.add(wanted.key);
-      const generation = this._generation;
-      hass.callWS({ type: "kibble/event", entry_id: entryId, uid: wanted.event.uid }).then(
-        (detail) => {
-          if (generation !== this._generation) return;
-          this._details.set(wanted.key, detail);
-          this.requestUpdate();
-        },
-        () => {
-        }
-        // browsing falls back to the one best photo
-      );
-    }
-    const photos = reviewPhotos(item.event, this._details.get(item.key)?.samples ?? null);
-    this._preloader.sync(hass, this.cache, [
-      item.event.scene,
-      ...photos.slice(0, 6),
-      ...upcoming.map((next) => next.event.thumb ?? next.event.scene)
-    ]);
+    this._preloader.sync(this.hass, this.cache, [photoImage(photo.sample), photo.visit.scene, ...upcomingPhotos(queue, PRELOAD_AHEAD).map((next) => photoImage(next.sample))]);
+  }
+  _roster() {
+    return this.cats.length ? this.cats : this._rosterQuery.state.data?.cats ?? [];
+  }
+  _options() {
+    return answerOptions(this._roster());
+  }
+  _rosterPending() {
+    return this.cats.length === 0 && this._rosterQuery.state.data === null;
+  }
+  /** Something is wrong with reading, but a screen of photos is up: say so quietly, retry alone. */
+  _reconnecting() {
+    return this._queue !== null && (this._first.state.error !== null || this._more.state.error !== null);
   }
   // ---- Answers ------------------------------------------------------------------------------
-  _resetPhoto() {
-    this._photoIndex = 0;
-    this._scene = false;
-    this._imageFailed = false;
-  }
   _choose(optionId, swipeSide) {
     const queue = this._queue;
-    const item = queue ? currentItem(queue) : null;
-    if (!queue || !item || this._view() !== "review") return;
-    const options = this._options();
-    const option = options.find((candidate) => candidate.id === optionId);
+    const photo = queue ? currentPhoto(queue) : null;
+    const outbox = this._outbox;
+    if (!queue || !photo || !outbox || this._view() !== "photo") return;
+    const roster = this._roster();
+    const option = this._options().find((candidate) => candidate.id === optionId);
     if (!option) return;
-    const roster = this._roster();
-    if (option.kind === "cat") {
-      const index = roster.findIndex((cat) => cat.name === option.cat);
-      const side = swipeSide ?? (roster.length === 2 ? index === 0 ? "left" : "right" : "up");
-      this._commit(item, catAnswer(option.cat, item.isMeal), side, option.label, roster.filter((cat) => cat.name === option.cat));
-      return;
-    }
-    if (option.kind === "several") {
-      const names = roster.map((cat) => cat.name);
-      if (names.length > 2) this._follow = { mode: "pick", cats: [] };
-      else if (item.isMeal) this._follow = { mode: "ate", cats: names };
-      else this._commit(item, severalAnswer(names, [], false), "up", option.label, roster);
-      return;
-    }
-    this._commit(item, { kind: option.kind }, "down", option.label, []);
-  }
-  _togglePicked(name) {
-    const follow = this._follow;
-    if (!follow || follow.mode !== "pick") return;
-    const cats = follow.cats.includes(name) ? follow.cats.filter((cat) => cat !== name) : [...follow.cats, name];
-    this._follow = { mode: "pick", cats };
-  }
-  _finishPick() {
-    const follow = this._follow;
-    const item = this._queue ? currentItem(this._queue) : null;
-    if (!follow || !item || follow.cats.length < 2) return;
-    const roster = this._roster();
-    const cats = roster.filter((cat) => follow.cats.includes(cat.name));
-    if (item.isMeal) this._follow = { mode: "ate", cats: cats.map((cat) => cat.name) };
-    else this._commit(item, severalAnswer(cats.map((cat) => cat.name), [], false), "up", "More than one", cats);
-  }
-  _chooseAte(ate) {
-    const follow = this._follow;
-    const item = this._queue ? currentItem(this._queue) : null;
-    if (!follow || follow.mode !== "ate" || !item) return;
-    const cats = this._roster().filter((cat) => follow.cats.includes(cat.name));
-    this._commit(item, severalAnswer(follow.cats, ate, true), "up", follow.cats.length === 2 ? "Both" : "More than one", cats);
-  }
-  _commit(item, answer, side, label, cats) {
-    const queue = this._queue;
-    if (!queue) return;
-    this._leaving = { item, side, label, cats };
+    const named = option.kind === "cat" ? roster.filter((cat) => cat.name === option.cat) : option.kind === "both" ? roster : [];
+    let side = option.kind === "cat" || option.kind === "both" ? "up" : "down";
+    if (option.kind === "cat" && roster.length === 2) side = roster[0]?.name === option.cat ? "left" : "right";
+    outbox.enqueue({ kind: "photo", sampleUid: photo.sample.uid, label: option.value });
+    this._leaving = { photo, side: swipeSide ?? side, label: option.kind === "both" ? "Both cats" : option.kind === "skip" ? "Not used" : option.text, cats: named };
     clearTimeout(this._leaveTimer);
     this._leaveTimer = setTimeout(() => {
       this._leaving = null;
     }, LEAVE_MS);
-    this._queue = answerCurrent(queue, answer);
-    this._follow = null;
-    this._resetPhoto();
-    if (isBatchBoundary(this._queue)) {
-      this._stage = "batch";
-      fireHaptic("success");
-      void this._reload();
-    } else if (!currentItem(this._queue)) {
-      this._enterSummary();
-    } else {
-      fireHaptic("light");
-    }
-    this._pump();
-  }
-  _clearGainTimers() {
-    for (const timer of this._gainTimers) clearTimeout(timer);
-    this._gainTimers = [];
-  }
-  // ---- Saving -------------------------------------------------------------------------------
-  _unsaved() {
-    if (!this._queue) return 0;
-    const counts = saveCounts(this._queue);
-    return counts.pending + counts.failed;
-  }
-  /** Sends the next waiting answer, if nothing is in flight. Called after every change. */
-  _pump() {
-    const queue = this._queue;
-    const hass = this.hass;
-    const entryId = this.entryId;
-    if (!queue || !hass?.callWS || !entryId) return;
-    const record = nextToSave(queue);
-    const item = record ? queue.items.find((candidate) => candidate.key === record.key) : void 0;
-    if (!record || !item) return;
-    const { key, seq } = record;
-    this._queue = markSaving(queue, key, seq);
-    let settled = false;
-    const settle = (err, saved) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timeout);
-      if (saved) {
-        if (this._queue) this._queue = markSaved(this._queue, key, seq);
-        this._retryDelay = FIRST_RETRY_MS;
-        this._scheduleAnnounce();
-      } else {
-        const gone = typeof err === "object" && err !== null && "code" in err && err.code === "not_found";
-        if (this._queue) this._queue = markFailed(this._queue, key, seq, describeWsError(err), gone);
-        if (!gone) this._scheduleRetry();
-      }
-      this._pump();
-    };
-    const timeout = setTimeout(() => settle(new Error("Timed out."), false), SAVE_TIMEOUT_MS);
-    labelSession(hass, entryId, answerRequest(item, record.answer)).then(
-      () => settle(null, true),
-      (err) => settle(err, false)
-    );
-  }
-  _scheduleRetry() {
-    if (this._retryTimer !== void 0) return;
-    this._retryTimer = setTimeout(() => {
-      this._retryTimer = void 0;
-      this._retryDelay = nextReconnectDelay(this._retryDelay);
-      this._retryNow();
-    }, this._retryDelay);
-  }
-  /** Tells the other cards something was named, shortly after the last save of a burst. */
-  _scheduleAnnounce() {
-    clearTimeout(this._announceTimer);
-    this._announceTimer = setTimeout(() => this._announce(), ANNOUNCE_DELAY_MS);
-  }
-  _announce() {
-    clearTimeout(this._announceTimer);
-    this._announceTimer = void 0;
-    if (this.entryId) announceReviewChange(this.entryId);
-  }
-  // ---- Keys ---------------------------------------------------------------------------------
-  _keyOptions() {
-    const follow = this._follow;
-    if (!follow) return this._options();
-    if (follow.mode === "ate") return ateChoices(follow.cats).map((choice, index) => ({ id: "ate:" + choice.id, hotkey: String(index + 1) }));
-    return this._roster().map((cat, index) => ({ id: "pick:" + cat.name, hotkey: index < 9 ? String(index + 1) : null }));
+    this._queue = answerPhoto(queue, option.value);
+    this._scene = false;
+    this._imageFailed = false;
+    fireHaptic(isCaughtUp(this._queue) ? "success" : "light");
   }
   _run(command) {
     if (command.type === "undo") this._undo();
     else if (command.type === "scene") this._toggleScene();
-    else if (command.type === "photo") this._stepPhoto(command.delta);
-    else if (command.optionId.startsWith("ate:")) {
-      const choice = ateChoices(this._follow?.cats ?? []).find((candidate) => "ate:" + candidate.id === command.optionId);
-      if (choice) this._chooseAte(choice.ate);
-    } else if (command.optionId.startsWith("pick:")) this._togglePicked(command.optionId.slice(5));
     else this._choose(command.optionId);
   }
-  /** Puts keyboard focus on Kibble's guess (or the earlier answer) when a new visit appears, so
-   * Enter agrees with it; with no guess, focus rests on the answer group and Enter does nothing.
-   * A guess read from the photos arrives a moment after the visit does: focus follows it only
-   * if it is still resting on the group. A just-created answer button has nothing to focus
-   * until its own first render, so that is waited for. */
+  /** Puts keyboard focus on Kibble's guess when a new photo appears, so Enter agrees with it; with
+   * no guess, focus rests on the answer group and Enter does nothing. A just-created answer button
+   * has nothing to focus until its own first render, so that is waited for. */
   async _moveFocus() {
-    const queue = this._queue;
-    const item = queue ? currentItem(queue) : null;
-    const key = this._view() + ":" + (item?.key ?? "") + ":" + (this._follow?.mode ?? "");
-    const marked = this.renderRoot.querySelector("[data-autofocus]");
-    const answers = this.renderRoot.querySelector(".answers");
-    const guessArrived = marked !== null && answers !== null && this.shadowRoot?.activeElement === answers;
-    if (key === this._focusedKey && !guessArrived) return;
+    const photo = this._queue ? currentPhoto(this._queue) : null;
+    const key = this._view() + ":" + (photo?.sample.uid ?? "") + ":" + (this._ateQueue[0]?.visitUid ?? "");
+    if (key === this._focusedKey) return;
     this._focusedKey = key;
-    const target = marked ?? answers;
+    const marked = this.renderRoot.querySelector("[data-autofocus]");
+    const target = marked ?? this.renderRoot.querySelector(".answers");
     if (target instanceof KibbleChoice) await target.updateComplete;
     if (key === this._focusedKey) target?.focus({ preventScroll: true });
   }
-  // ---- Photos -------------------------------------------------------------------------------
-  _photosFor(item) {
-    return reviewPhotos(item.event, this._details.get(item.key)?.samples ?? null);
-  }
-  _stepPhoto(delta) {
-    const item = this._queue ? currentItem(this._queue) : null;
-    if (!item) return;
-    const count = this._photosFor(item).length;
-    if (count < 2) return;
-    this._showPhoto((this._photoIndex + delta + count) % count);
-  }
-  _showPhoto(index) {
-    this._photoIndex = index;
-    this._scene = false;
-    this._imageFailed = false;
+  /** This photo's animal marked in the whole picture, the others dimmed. Nothing is drawn when
+   * the photo's box does not point into this picture. */
+  _sceneBoxes(photo) {
+    const { sample, visit } = photo;
+    if (!visit.in_scene || !sample.box) return [];
+    const boxes = sample.peers.map((box, index) => ({ key: `peer-${index}`, box, tone: "peer", emphasis: "dim" }));
+    boxes.push({ key: "this", box: sample.box, tone: "cat", emphasis: "selected", color: "var(--primary-color, #03a9f4)" });
+    return boxes;
   }
   // ---- Swipe --------------------------------------------------------------------------------
+  /** Swiping left or right means the first or second cat: only meaningful with exactly two. */
   _swipeEnabled() {
-    return this._view() === "review" && !this._follow && this._roster().length === 2;
+    return this._view() === "photo" && !this._scene && this._roster().length === 2;
   }
   // ---- Render -------------------------------------------------------------------------------
   _view() {
     const queue = this._queue;
-    if (this._phase !== "ready" || !queue) return this._phase === "ready" ? "loading" : this._phase;
-    if (this._stage !== "review") return this._stage;
-    if (currentItem(queue)) return "review";
-    return queue.history.length > 0 ? "summary" : "empty";
+    if (!queue || this._rosterPending()) {
+      const failed = queue === null && this._first.state.error !== null || this._rosterPending() && this._rosterQuery.state.error !== null;
+      return failed ? "error" : "loading";
+    }
+    if (this._ateQueue.length > 0) return "ate";
+    if (currentPhoto(queue)) return "photo";
+    return isCaughtUp(queue) ? "caught-up" : "loading";
   }
   render() {
     return b2`
-      <dialog aria-label="Check visits" @cancel=${this._onCancel} @keydown=${this._onKeydown}>
+      <dialog aria-label="Check photos" @cancel=${this._onCancel} @keydown=${this._onKeydown}>
         ${this._open ? this._renderFrame() : A}
       </dialog>
     `;
@@ -15460,79 +16179,93 @@ var KibbleReviewQueue = class extends i4 {
   _renderFrame() {
     const view = this._view();
     const queue = this._queue;
-    const item = queue ? currentItem(queue) : null;
+    const photo = queue && view === "photo" ? currentPhoto(queue) : null;
     return b2`
       <div class="frame" @click=${this._onFrameClick}>
         <div class="panel view-${view}">
           ${this._renderTop(view, queue)}
-          <div class="stage">${this._renderStage(view, queue, item)}</div>
-          <div class="answers" tabindex="-1" role="group" aria-label=${this._title(view, queue)}>${this._renderAnswers(view, queue, item)}</div>
+          <div class="stage">${this._renderStage(view, queue, photo)}</div>
+          <div class="answers" tabindex="-1" role="group" aria-label=${view === "ate" ? "Who ate?" : "Who is in this photo?"}>${this._renderAnswers(view, photo)}</div>
           ${this._renderFooter(view, queue)}
-          <p class="sr-only" aria-live="polite">${view === "review" && item ? this._spoken(item) : ""}</p>
+          <p class="sr-only" aria-live="polite">${photo ? this._spoken(photo) : ""}</p>
         </div>
       </div>
     `;
   }
-  _title(view, queue) {
-    if (view === "review") return this._follow?.mode === "ate" ? "Who ate?" : "Who was here?";
-    if (view === "batch") return "Batch done";
-    if (view === "summary") return queue && queueProgress(queue).remaining > 0 ? "Done for now" : "All caught up";
-    if (view === "empty") return "Nothing to check";
-    return "Check visits";
+  _locale() {
+    return this.hass?.locale?.language ?? this.hass?.language;
+  }
+  _spoken(photo) {
+    const guess = guessCaption(photo.sample);
+    return `Photo, ${photoCaption(photo.visit, /* @__PURE__ */ new Date(), this._locale())}.${guess ? " " + guess + "." : ""}`;
   }
   _renderTop(view, queue) {
-    const progress = queue && (view === "review" || view === "batch") ? queueProgress(queue) : null;
-    const batchFull = view === "batch";
-    const shown = progress ? batchFull ? progress.batchSize : Math.min(progress.batchDone + 1, progress.batchSize) : 0;
-    const later = progress ? progress.remaining - (progress.batchSize - progress.batchDone) : 0;
-    const fraction = progress ? batchFull ? 1 : progress.batchDone / Math.max(1, progress.batchSize) : 0;
-    const streak = queue?.streak ?? 0;
+    const left = queue && view === "photo" ? photosLeftLabel(photosLeft(queue), this._locale()) : null;
     return b2`
       <header class="top">
-        <div class="titles">
-          <h2 class="title">${this._title(view, queue)}</h2>
-          ${progress && view === "review" ? b2`<span class="count">${shown} of ${progress.batchSize}</span>${later > 0 ? b2`<span class="later">${later} more after</span>` : A}` : A}
+        <div class="head">
+          <div class="titles">
+            <h2 class="title">Check photos</h2>
+            ${left ? b2`<span class="count">${left}</span>` : A}
+          </div>
+          <button type="button" class="icon-btn" aria-label="Close" @click=${this._close}>${mdiIcon("close")}</button>
         </div>
-        ${streak >= 3 && view === "review" ? i7(streak, b2`<span class="streak" aria-label=${`${streak} in a row`}>${mdiIcon("flash")}${streak}</span>`) : A}
-        <button type="button" class="icon-btn" aria-label="Close" @click=${this._close}>${mdiIcon("close")}</button>
-        ${progress ? b2`<div class="bar" role="progressbar" aria-label="This batch" aria-valuemin="0" aria-valuemax=${progress.batchSize} aria-valuenow=${batchFull ? progress.batchSize : progress.batchDone}>
-              <span style=${`transform:scaleX(${fraction})`}></span>
-            </div>` : A}
+        ${this._renderNotices()}
       </header>
     `;
   }
-  _renderStage(view, queue, item) {
-    if (view === "loading") return b2`<div class="card placeholder" aria-label="Loading"></div>`;
-    if (view === "error") return b2`<div class="result"><span class="result-glyph muted">${mdiIcon("cloudAlert")}</span><p class="result-line">${this._loadError ?? "Couldn\u2019t load visits."}</p></div>`;
-    if (view === "empty") return b2`<div class="result"><span class="result-glyph muted cat">${catSilhouette()}</span><p class="result-line">Every visit has a name.</p></div>`;
-    if (!queue) return A;
-    if (view === "batch" || view === "summary") return this._renderResult(view, queue);
-    const deck = [];
-    if (this._leaving && this._leaving.item.key !== item?.key) deck.push({ item: this._leaving.item, role: "leaving" });
-    if (item) deck.push({ item, role: "current" });
-    const next = upcomingItems(queue, 1)[0];
-    if (next && !deck.some((entry2) => entry2.item.key === next.key)) deck.push({ item: next, role: "next" });
+  /** Quiet lines about what is happening behind the screen. Each shows only when it applies. */
+  _renderNotices() {
+    const outbox = this._outbox;
+    const waiting = outbox?.size ?? 0;
+    const drops = outbox?.drops ?? [];
     return b2`
-      <div class="deck">${c5(deck, (entry2) => entry2.item.key, (entry2) => this._renderCard(entry2.item, entry2.role))}</div>
-      ${item ? this._renderStrip(item) : A}
+      <div class="notices">
+        ${drops.length > 0 ? b2`<div class="notice" role="status"><span class="notice-text">${describeDrops(drops)}</span><button type="button" class="pill-btn" @click=${() => outbox?.clearDrops()}>OK</button></div>` : A}
+        ${waiting > 0 ? b2`<div class="notice" role="status"><span class="notice-text">${describeWaiting(waiting)}</span><button type="button" class="pill-btn" @click=${() => outbox?.sendNow()}>Send now</button></div>` : A}
+        ${this._reconnecting() ? b2`<div class="notice quiet" role="status"><span class="spin">${mdiIcon("refresh")}</span><span class="notice-text">Reconnecting\u2026</span></div>` : A}
+        <kibble-learning-line .hass=${this.hass} .entryId=${this.entryId}></kibble-learning-line>
+      </div>
     `;
   }
-  _renderCard(item, role) {
-    const locale = this.hass?.locale?.language ?? this.hass?.language;
-    const when = visitWhenLabel(item.event.start, /* @__PURE__ */ new Date(), locale);
+  _renderStage(view, queue, photo) {
+    if (view === "loading") {
+      return b2`<div class="card placeholder" aria-label="Loading photos"></div><p class="when">Loading photos\u2026</p>`;
+    }
+    if (view === "error") {
+      return b2`<div class="result"><span class="result-glyph muted">${mdiIcon("cloudAlert")}</span><p class="result-line">Couldn\u2019t load photos. Trying again\u2026</p></div>`;
+    }
+    if (view === "ate") return b2`<div class="result ask">${this._renderAte()}</div>`;
+    if (view === "caught-up" && queue) return this._renderCaughtUp(queue);
+    if (!queue || !photo) return A;
+    const deck = [];
+    if (this._leaving && this._leaving.photo.sample.uid !== photo.sample.uid) deck.push({ photo: this._leaving.photo, role: "leaving" });
+    deck.push({ photo, role: "current" });
+    const next = upcomingPhotos(queue, 1)[0];
+    if (next && !deck.some((entry2) => entry2.photo.sample.uid === next.sample.uid)) deck.push({ photo: next, role: "next" });
+    return b2`
+      <div class="deck">${c5(deck, (entry2) => entry2.photo.sample.uid, (entry2) => this._renderCard(entry2.photo, entry2.role))}</div>
+      <div class="meta">
+        <p class="when">${photoCaption(photo.visit, /* @__PURE__ */ new Date(), this._locale())}</p>
+        ${photo.visit.scene ? b2`<button type="button" class="scene-btn" aria-pressed=${this._scene} @click=${this._toggleScene}>${mdiIcon(this._scene ? "arrowCollapse" : "arrowExpand")}<span>${this._scene ? "Back to close-up" : "See whole picture"}</span></button>` : A}
+      </div>
+    `;
+  }
+  _renderCard(photo, role) {
+    const crop = photoImage(photo.sample);
     if (role !== "current") {
       const leaving = role === "leaving" ? this._leaving : null;
       return b2`
         <div class="card ${role} ${leaving ? "to-" + leaving.side : ""}" aria-hidden="true">
-          ${this._renderPhoto(item.event.thumb ?? item.event.scene, "")}
+          ${this._renderPhoto(crop, "")}
           ${leaving ? b2`<span class="stamp shown">${this._renderStampBody(leaving.cats, leaving.label)}</span>` : A}
         </div>
       `;
     }
-    const photos = this._photosFor(item);
-    const asset = this._scene ? item.event.scene : photos[this._photoIndex] ?? photos[0] ?? item.event.scene;
     const roster = this._roster();
     const swipe = this._swipeEnabled();
+    const first = roster[0];
+    const second = roster[1];
     return b2`
       <div
         class="card current ${swipe ? "swipeable" : ""}"
@@ -15540,23 +16273,17 @@ var KibbleReviewQueue = class extends i4 {
         @pointermove=${this._onPointerMove}
         @pointerup=${this._onPointerUp}
         @pointercancel=${this._onPointerUp}
-        @click=${this._onCardClick}
         @image-failed=${() => {
       this._imageFailed = true;
     }}
       >
-        ${this._renderPhoto(asset, `${item.isMeal ? "Meal" : "Visit"}, ${when}`)}
+        ${this._scene ? this._renderScene(photo) : this._renderPhoto(crop, photoCaption(photo.visit, /* @__PURE__ */ new Date(), this._locale()))}
         ${this._imageFailed ? b2`<div class="photo-error">${mdiIcon("imageBroken")}<span>Photo didn\u2019t load</span><button type="button" class="pill-btn" @click=${this._retryImage}>Retry</button></div>` : A}
-        <div class="chips">
-          <span class="chip">${when}</span>
-          <span class="chip">${item.isMeal ? "Meal" : "Visit"}</span>
-        </div>
-        ${item.event.scene ? b2`<button type="button" class="icon-btn on-photo scene-btn" aria-pressed=${this._scene} aria-label=${this._scene ? "Show close-up" : "Show whole scene"} @click=${this._toggleScene}>${mdiIcon(this._scene ? "arrowCollapse" : "arrowExpand")}</button>` : A}
-        ${swipe ? b2`
-              <span class="stamp left">${this._renderStampBody([roster[0]], roster[0].name)}</span>
-              <span class="stamp right">${this._renderStampBody([roster[1]], roster[1].name)}</span>
-              <span class="swipe-hint left" aria-hidden="true">${mdiIcon("chevronLeft")}<kibble-avatar .hass=${this.hass} .name=${roster[0].name} .colorIndex=${roster[0].color} .asset=${roster[0].avatar} .cache=${this.cache}></kibble-avatar></span>
-              <span class="swipe-hint right" aria-hidden="true"><kibble-avatar .hass=${this.hass} .name=${roster[1].name} .colorIndex=${roster[1].color} .asset=${roster[1].avatar} .cache=${this.cache}></kibble-avatar>${mdiIcon("chevronRight")}</span>
+        ${swipe && first && second ? b2`
+              <span class="stamp left">${this._renderStampBody([first], first.name)}</span>
+              <span class="stamp right">${this._renderStampBody([second], second.name)}</span>
+              <span class="swipe-hint left" aria-hidden="true">${mdiIcon("chevronLeft")}<kibble-avatar .hass=${this.hass} .name=${first.name} .colorIndex=${first.color} .asset=${first.avatar} .cache=${this.cache}></kibble-avatar></span>
+              <span class="swipe-hint right" aria-hidden="true"><kibble-avatar .hass=${this.hass} .name=${second.name} .colorIndex=${second.color} .asset=${second.avatar} .cache=${this.cache}></kibble-avatar>${mdiIcon("chevronRight")}</span>
             ` : A}
       </div>
     `;
@@ -15565,166 +16292,94 @@ var KibbleReviewQueue = class extends i4 {
     if (!asset) return b2`<span class="no-photo">${catSilhouette()}</span>`;
     return b2`<kibble-image eager fit="contain" .hass=${this.hass} .cache=${this.cache} .asset=${asset} alt=${alt}></kibble-image>`;
   }
+  _renderScene(photo) {
+    return b2`
+      <div class="scene">
+        <div class="scene-frame">
+          ${this._renderPhoto(photo.visit.scene, "The whole picture")}
+          <kibble-box-overlay .boxes=${this._sceneBoxes(photo)} .hass=${this.hass} .cache=${this.cache}></kibble-box-overlay>
+        </div>
+      </div>
+    `;
+  }
   _renderStampBody(cats, label) {
     return b2`
-      <span class="stamp-body" style=${cats.length === 1 ? `--stamp-color:${catColorAt(cats[0].color)}` : ""}>
+      <span class="stamp-body ${cats.length ? "" : "bare"}" style=${cats.length === 1 ? `--stamp-color:${catColorAt(cats[0].color)}` : ""}>
         ${cats.map((cat) => b2`<kibble-avatar .hass=${this.hass} .name=${cat.name} .colorIndex=${cat.color} .asset=${cat.avatar} .cache=${this.cache}></kibble-avatar>`)}
         <span>${label}</span>
       </span>
     `;
   }
-  /** The visit's other photos, one tap each, without leaving the visit. */
-  _renderStrip(item) {
-    const photos = this._photosFor(item);
-    if (photos.length < 2) return A;
-    return b2`
-      <div class="strip" role="group" aria-label="Photos of this visit">
-        ${photos.map(
-      (photo, index) => b2`
-            <button type="button" class="strip-btn" aria-pressed=${!this._scene && index === this._photoIndex} aria-label=${`Photo ${index + 1} of ${photos.length}`} @click=${() => this._showPhoto(index)}>
-              <kibble-image .hass=${this.hass} .cache=${this.cache} .asset=${photo} alt=""></kibble-image>
-            </button>
-          `
-    )}
-      </div>
-    `;
+  _renderAte() {
+    return b2`<kibble-who-ate
+      .hass=${this.hass}
+      .cache=${this.cache}
+      .question=${this._ateQueue[0] ?? null}
+      .roster=${this._roster()}
+      hotkeys
+      skippable
+      @ate-chosen=${this._onAteChosen}
+      @ate-skipped=${this._onAteSkipped}
+    ></kibble-who-ate>`;
   }
-  _renderResult(view, queue) {
+  /** Everything is answered: say so calmly, and show what this sitting did. */
+  _renderCaughtUp(queue) {
     const roster = this._roster();
-    const summary = summarize(queue, roster.map((cat) => cat.name));
-    const progress = queueProgress(queue);
-    const named = summary.cats.filter((tally) => tally.visits > 0);
+    const tally = tallyAnswers(queue.answers.values(), roster.map((cat) => cat.name));
+    const rows = tallyRows(tally);
     return b2`
       <div class="result">
         <span class="result-glyph done">${mdiIcon("check")}</span>
-        <p class="result-big">${summary.total} ${summary.total === 1 ? "visit" : "visits"} done</p>
-        ${view === "batch" ? b2`<p class="result-line">${progress.remaining} to go</p>` : A}
-        ${named.length ? b2`<ul class="tallies">
-              ${named.map((tally) => {
-      const cat = roster.find((candidate) => candidate.name === tally.cat);
-      const gain = view === "summary" ? this._gains?.[tally.cat] ?? 0 : 0;
+        <p class="result-big">All caught up</p>
+        <p class="result-line">${tally.total > 0 ? photosCheckedLabel(tally.total, this._locale()) : "Every photo has an answer."}</p>
+        ${rows.length ? b2`<ul class="tallies">
+              ${rows.map((row) => {
+      const cat = row.kind === "cat" ? roster.find((candidate) => candidate.name === row.cat) : void 0;
       return b2`
-                  <li class="tally" style=${cat ? `--tally-color:${catColorAt(cat.color)}` : ""}>
-                    <kibble-avatar .hass=${this.hass} .name=${tally.cat} .colorIndex=${cat?.color ?? null} .asset=${cat?.avatar ?? null} .cache=${this.cache}></kibble-avatar>
-                    <span class="tally-text"><span class="tally-name">${tally.cat}</span><span class="tally-sub">${tally.visits} ${tally.visits === 1 ? "visit" : "visits"}</span></span>
-                    ${gain > 0 ? i7(gain, b2`<span class="tally-gain"><strong>+${gain}</strong><span>photos learned</span></span>`) : A}
+                  <li class="tally ${row.kind}" style=${cat ? `--tally-color:${catColorAt(cat.color)}` : ""}>
+                    ${row.kind === "cat" ? b2`<kibble-avatar .hass=${this.hass} .name=${row.text} .colorIndex=${cat?.color ?? null} .asset=${cat?.avatar ?? null} .cache=${this.cache}></kibble-avatar>` : row.kind === "both" ? b2`<span class="tally-glyph pair">${roster.slice(0, 2).map((pair) => b2`<kibble-avatar .hass=${this.hass} .name=${pair.name} .colorIndex=${pair.color} .asset=${pair.avatar} .cache=${this.cache}></kibble-avatar>`)}</span>` : b2`<span class="tally-glyph">${mdiIcon(row.kind === "not_a_cat" ? "cancel" : "eyeOff")}</span>`}
+                    <span class="tally-text"><span class="tally-name">${row.text}</span><span class="tally-sub">${countOf(row.count, "photo", "photos", this._locale())}</span></span>
                   </li>
                 `;
     })}
             </ul>` : A}
-        ${summary.notACat + summary.cantTell > 0 ? b2`<p class="result-others">
-              ${summary.notACat > 0 ? b2`<span class="chip">${mdiIcon("cancel")}${summary.notACat} not a cat</span>` : A}
-              ${summary.cantTell > 0 ? b2`<span class="chip">${mdiIcon("helpCircle")}${summary.cantTell} can\u2019t tell</span>` : A}
-            </p>` : A}
       </div>
     `;
   }
-  _renderAnswers(view, queue, item) {
-    if (view === "loading") return A;
-    if (view === "error") return b2`<div class="actions"><button type="button" class="primary-btn" data-autofocus @click=${() => void this._load(null)}>Try again</button></div>`;
-    if (view === "empty") return b2`<div class="actions"><button type="button" class="primary-btn" data-autofocus @click=${this._close}>Done</button></div>`;
-    if (view === "batch") {
-      return b2`<div class="actions">
-        <button type="button" class="primary-btn" data-autofocus @click=${this._keepGoing}>Keep going</button>
-        <button type="button" class="plain-btn" @click=${this._enterSummary}>Stop here</button>
-      </div>`;
-    }
-    if (view === "summary") {
-      const more = queue ? queueProgress(queue).remaining > 0 : false;
-      return b2`<div class="actions">
-        ${more ? b2`<button type="button" class="plain-btn" @click=${this._keepGoing}>Keep going</button>` : A}
-        <button type="button" class="primary-btn" data-autofocus @click=${this._close}>Done</button>
-      </div>`;
-    }
-    if (!queue || !item) return A;
+  _renderAnswers(view, photo) {
+    if (view === "error") return b2`<div class="actions"><button type="button" class="primary-btn" data-autofocus @click=${this._loadFirst}>Retry</button></div>`;
+    if (view === "caught-up") return b2`<div class="actions"><button type="button" class="primary-btn" data-autofocus @click=${this._close}>Done</button></div>`;
+    if (view !== "photo" || !photo) return A;
     const roster = this._roster();
-    const follow = this._follow;
-    if (follow?.mode === "ate") {
-      const cats = roster.filter((cat) => follow.cats.includes(cat.name));
-      const saved = this._details.get(item.key)?.cats.filter((cat) => cat.ate).map((cat) => cat.cat) ?? [];
-      return b2`<div class="answer-row">
-        ${ateChoices(follow.cats).map((choice2, index) => {
-        const guessed = saved.length > 0 && saved.length === choice2.ate.length && choice2.ate.every((cat) => saved.includes(cat));
-        return b2`<kibble-choice
-            .hass=${this.hass}
-            .cache=${this.cache}
-            .label=${choice2.label}
-            .cats=${cats.filter((cat) => choice2.ate.includes(cat.name))}
-            .state=${guessed ? "suggested" : "neutral"}
-            .hint=${String(index + 1)}
-            @click=${() => this._chooseAte(choice2.ate)}
-          ></kibble-choice>`;
-      })}
-      </div>`;
-    }
-    if (follow?.mode === "pick") {
-      return b2`
-        <div class="answer-row">
-          ${roster.map(
-        (cat, index) => b2`<kibble-choice
-              .hass=${this.hass}
-              .cache=${this.cache}
-              .label=${cat.name}
-              .cats=${[cat]}
-              .state=${follow.cats.includes(cat.name) ? "selected" : "neutral"}
-              .hint=${index < 9 ? String(index + 1) : null}
-              @click=${() => this._togglePicked(cat.name)}
-            ></kibble-choice>`
-      )}
-        </div>
-        <div class="actions"><button type="button" class="primary-btn" ?disabled=${follow.cats.length < 2} @click=${() => this._finishPick()}>Next</button></div>
-      `;
-    }
     const options = this._options();
-    const guess = this._guessFor(item, options);
-    const earlier = queue.records[item.key];
-    const earlierId = earlier ? answerOptionId(earlier.answer) : null;
+    const guessId = guessOptionId(photo.sample, options);
     const choice = (option) => {
-      const state2 = option.id === earlierId ? "selected" : !earlierId && option.id === guess.optionId ? "suggested" : "neutral";
-      const cats = option.kind === "cat" ? roster.filter((cat) => cat.name === option.cat) : option.kind === "several" ? roster : [];
+      const state2 = option.id === guessId ? "suggested" : "neutral";
+      const cats = option.kind === "cat" ? roster.filter((cat) => cat.name === option.cat) : option.kind === "both" ? roster : [];
       return b2`<kibble-choice
         .hass=${this.hass}
         .cache=${this.cache}
-        .label=${option.label}
+        .label=${option.text}
         .cats=${cats}
-        .icon=${option.kind === "not_a_cat" ? "cancel" : option.kind === "unknown" ? "helpCircle" : null}
+        .icon=${option.kind === "not_a_cat" ? "cancel" : option.kind === "skip" ? "eyeOff" : null}
         .state=${state2}
         .hint=${option.hotkey}
-        .caption=${state2 === "suggested" ? guess.caption : state2 === "selected" ? "Your answer" : null}
-        ?data-autofocus=${state2 !== "neutral"}
+        .caption=${state2 === "suggested" ? guessCaption(photo.sample) : option.hint}
+        ?data-autofocus=${state2 === "suggested"}
         @click=${() => this._choose(option.id)}
       ></kibble-choice>`;
     };
     return b2`
       <div class="answer-row cats">${options.filter((option) => option.kind === "cat").map(choice)}</div>
-      <div class="answer-row">${options.filter((option) => option.kind !== "cat").map(choice)}</div>
+      <div class="answer-row others">${options.filter((option) => option.kind !== "cat").map(choice)}</div>
     `;
   }
-  _guessFor(item, options) {
-    if (item.guesses.length > 0) {
-      const percent2 = item.confidence !== null ? ` ${Math.round(item.confidence * 100)}%` : "";
-      return { optionId: guessOptionId(item.guesses, options), caption: "Guess" + percent2 };
-    }
-    const samples = this._details.get(item.key)?.samples;
-    const majority = samples ? majorityGuess(samples, this._roster().map((cat) => cat.name)) : null;
-    return majority ? { optionId: "cat:" + majority.cat, caption: "Guess" } : { optionId: null, caption: null };
-  }
-  _spoken(item) {
-    const locale = this.hass?.locale?.language ?? this.hass?.language;
-    const guess = item.guesses.length ? ` Kibble guesses ${item.guesses.join(" and ")}.` : "";
-    return `${item.isMeal ? "Meal" : "Visit"}, ${visitWhenLabel(item.event.start, /* @__PURE__ */ new Date(), locale)}.${guess}`;
-  }
   _renderFooter(view, queue) {
-    const counts = queue ? saveCounts(queue) : { pending: 0, failed: 0, gone: 0 };
-    const canUndo = Boolean(this._follow) || queue !== null && queue.history.length > 0;
-    const showUndo = view === "review" || view === "batch" || view === "summary";
-    const offline = this.hass?.connected === false;
+    if (view !== "photo" && view !== "caught-up") return A;
+    const canUndo = queue !== null && lastAnswer(queue) !== null;
     return b2`
       <footer class="footer">
-        ${showUndo ? b2`<button type="button" class="plain-btn undo" ?disabled=${!canUndo} @click=${this._undo}>${mdiIcon("undo")}<span>${this._follow ? "Back" : "Undo"}</span><kbd aria-hidden="true">Z</kbd></button>` : b2`<span></span>`}
-        <div class="status" role="status">
-          ${counts.failed > 0 ? b2`<span class="status-text error">${mdiIcon("cloudAlert")}${counts.failed} not saved</span><button type="button" class="pill-btn" @click=${this._retryNow}>Retry</button>` : counts.gone > 0 ? b2`<span class="status-text">${counts.gone === 1 ? "1 visit no longer exists" : `${counts.gone} visits no longer exist`}</span><button type="button" class="pill-btn" @click=${this._dismissGone}>OK</button>` : offline ? b2`<span class="status-text">${mdiIcon("cloudAlert")}Offline</span>` : counts.pending > 0 ? b2`<span class="status-text saving" aria-label="Saving">${mdiIcon("refresh")}${counts.pending > 3 ? counts.pending : A}</span>` : queue && queue.history.length > 0 ? b2`<span class="status-text" aria-label="All saved">${mdiIcon("cloudCheck")}</span>` : A}
-        </div>
+        <button type="button" class="plain-btn undo" ?disabled=${!canUndo} @click=${this._undo}>${mdiIcon("undo")}<span>Undo</span><kbd aria-hidden="true">Z</kbd></button>
       </footer>
     `;
   }
@@ -15773,8 +16428,11 @@ var KibbleReviewQueue = class extends i4 {
     }
     .top {
       grid-area: top;
+      min-width: 0;
+    }
+    .head {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) auto auto;
+      grid-template-columns: minmax(0, 1fr) auto;
       align-items: center;
       gap: 8px;
     }
@@ -15796,37 +16454,32 @@ var KibbleReviewQueue = class extends i4 {
       font-variant-numeric: tabular-nums;
       color: var(--secondary-text-color);
     }
-    .later {
-      font-size: 12px;
-      font-variant-numeric: tabular-nums;
+    .notices {
+      display: flex;
+      flex-direction: column;
+    }
+    .notices > * {
+      margin-top: 6px;
+    }
+    .notice {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 36px;
+      font-size: 13px;
+      line-height: 1.3;
       color: var(--secondary-text-color);
     }
-    .streak {
+    .notice-text {
+      flex: 1;
+      min-width: 0;
+    }
+    .notice.quiet {
+      min-height: 0;
+    }
+    .notice .spin {
       display: inline-flex;
-      align-items: center;
-      gap: 2px;
-      padding: 4px 8px 4px 4px;
-      border-radius: 999px;
-      font-size: 14px;
-      font-weight: 500;
-      font-variant-numeric: tabular-nums;
-      color: var(--primary-color, #03a9f4);
-      background: color-mix(in srgb, var(--primary-color, #03a9f4) 14%, transparent);
-    }
-    .bar {
-      grid-column: 1 / -1;
-      height: 4px;
-      border-radius: 2px;
-      overflow: hidden;
-      background: color-mix(in srgb, var(--primary-text-color) 10%, transparent);
-    }
-    .bar span {
-      display: block;
-      height: 100%;
-      border-radius: 2px;
-      background: var(--primary-color, #03a9f4);
-      transform-origin: left center;
-      transition: transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+      font-size: 16px;
     }
     .icon-btn {
       width: 48px;
@@ -15847,14 +16500,6 @@ var KibbleReviewQueue = class extends i4 {
     .icon-btn:active {
       transform: scale(0.92);
     }
-    .icon-btn.on-photo {
-      position: absolute;
-      background: color-mix(in srgb, var(--card-background-color, #fff) 86%, transparent);
-    }
-    .scene-btn {
-      top: 8px;
-      right: 8px;
-    }
 
     /* ---- Stage ---- */
     .stage {
@@ -15862,7 +16507,7 @@ var KibbleReviewQueue = class extends i4 {
       min-height: 0;
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 4px;
     }
     .deck {
       position: relative;
@@ -15891,7 +16536,6 @@ var KibbleReviewQueue = class extends i4 {
     .card.current {
       z-index: 2;
       transform: translate3d(var(--dx, 0px), 0, 0) rotate(var(--tilt, 0deg));
-      cursor: pointer;
     }
     .card.swipeable {
       touch-action: pan-y;
@@ -15968,6 +16612,7 @@ var KibbleReviewQueue = class extends i4 {
     .photo-error {
       position: absolute;
       inset: 0;
+      z-index: 3;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -15983,29 +16628,55 @@ var KibbleReviewQueue = class extends i4 {
       fill: currentColor;
       opacity: 0.6;
     }
-    .chips {
+    /* The whole camera picture, framed the way the event sheet frames it (16:10) so the boxes
+       it draws land on the right animals. */
+    .scene {
       position: absolute;
-      left: 8px;
-      bottom: 8px;
-      display: flex;
-      gap: 4px;
-      pointer-events: none;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      container-type: size;
+      background: #000;
     }
-    .chip {
+    .scene-frame {
+      position: relative;
+      width: min(100cqw, 160cqh);
+      aspect-ratio: 1.6;
+    }
+    .meta {
+      flex: none;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      min-height: 48px;
+    }
+    .when {
+      margin: 0;
+      min-width: 0;
+      font-size: 14px;
+      font-variant-numeric: tabular-nums;
+      color: var(--secondary-text-color);
+    }
+    .scene-btn {
+      flex: none;
+      min-height: 48px;
       display: inline-flex;
       align-items: center;
-      gap: 4px;
-      padding: 4px 8px;
-      border-radius: 999px;
-      font-size: 12px;
-      line-height: 16px;
-      font-variant-numeric: tabular-nums;
-      background: color-mix(in srgb, var(--card-background-color, #fff) 86%, transparent);
-      color: var(--primary-text-color);
-    }
-    .chip svg {
+      gap: 6px;
+      padding: 0 12px;
+      border: 0;
+      border-radius: 8px;
+      background: none;
+      color: var(--primary-color, #03a9f4);
+      font: inherit;
       font-size: 14px;
-      color: var(--secondary-text-color);
+      font-weight: 500;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .scene-btn svg {
+      font-size: 20px;
     }
     .stamp {
       position: absolute;
@@ -16036,6 +16707,9 @@ var KibbleReviewQueue = class extends i4 {
       font-size: 16px;
       font-weight: 500;
       --kibble-avatar-size: 36px;
+    }
+    .stamp-body.bare {
+      padding-left: 16px;
     }
     .stamp-body kibble-avatar + kibble-avatar {
       margin-left: -20px;
@@ -16072,39 +16746,8 @@ var KibbleReviewQueue = class extends i4 {
         opacity: 0;
       }
     }
-    .strip {
-      flex: none;
-      display: flex;
-      gap: 8px;
-      overflow-x: auto;
-      padding: 2px;
-      scrollbar-width: none;
-    }
-    .strip-btn {
-      flex: none;
-      width: 48px;
-      height: 48px;
-      padding: 0;
-      border: 0;
-      border-radius: 8px;
-      overflow: hidden;
-      background: none;
-      cursor: pointer;
-      opacity: 0.6;
-      transition:
-        opacity 150ms ease-out,
-        transform 90ms ease-out;
-    }
-    .strip-btn[aria-pressed="true"] {
-      opacity: 1;
-      outline: 2px solid var(--primary-color, #03a9f4);
-      outline-offset: 0;
-    }
-    .strip-btn:active {
-      transform: scale(0.94);
-    }
 
-    /* ---- Result cards (batch, summary, empty, error) ---- */
+    /* ---- Result cards (all caught up, a question, an error) ---- */
     .result {
       flex: 1;
       min-height: 0;
@@ -16115,6 +16758,11 @@ var KibbleReviewQueue = class extends i4 {
       justify-content: center;
       gap: 12px;
       text-align: center;
+    }
+    .result.ask {
+      align-items: stretch;
+      justify-content: flex-end;
+      text-align: left;
     }
     .result-glyph {
       width: 64px;
@@ -16132,16 +16780,11 @@ var KibbleReviewQueue = class extends i4 {
     .result-glyph.muted {
       color: color-mix(in srgb, var(--primary-text-color) 32%, transparent);
     }
-    .result-glyph.cat svg {
-      width: 56px;
-      height: 56px;
-    }
     .result-big {
       margin: 0;
       font-size: 34px;
       font-weight: 500;
       line-height: 1.1;
-      font-variant-numeric: tabular-nums;
     }
     .result-line {
       margin: 0;
@@ -16167,6 +16810,22 @@ var KibbleReviewQueue = class extends i4 {
       background: color-mix(in srgb, var(--tally-color, var(--primary-text-color)) 10%, transparent);
       --kibble-avatar-size: 48px;
     }
+    .tally-glyph {
+      width: 48px;
+      height: 48px;
+      flex: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 28px;
+      color: var(--secondary-text-color);
+    }
+    .tally-glyph.pair {
+      --kibble-avatar-size: 32px;
+    }
+    .tally-glyph.pair kibble-avatar + kibble-avatar {
+      margin-left: -12px;
+    }
     .tally-text {
       flex: 1;
       min-width: 0;
@@ -16183,30 +16842,6 @@ var KibbleReviewQueue = class extends i4 {
       color: var(--secondary-text-color);
       font-variant-numeric: tabular-nums;
     }
-    .tally-gain {
-      display: flex;
-      flex-direction: column;
-      align-items: flex-end;
-      font-size: 12px;
-      color: var(--secondary-text-color);
-    }
-    .tally-gain strong {
-      font-size: 22px;
-      font-weight: 500;
-      line-height: 1.1;
-      color: var(--primary-text-color);
-      font-variant-numeric: tabular-nums;
-    }
-    .result-others {
-      margin: 0;
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: center;
-      gap: 8px;
-    }
-    .result-others .chip {
-      background: color-mix(in srgb, var(--primary-text-color) 6%, transparent);
-    }
 
     /* ---- Answers ---- */
     .answers {
@@ -16218,8 +16853,15 @@ var KibbleReviewQueue = class extends i4 {
     }
     .answer-row {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(88px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
       gap: 8px;
+    }
+    .answer-row.others {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    /* "Don't use" sits alone on the last row when the answers before it are an odd number. */
+    .answer-row.others > :last-child:nth-child(odd) {
+      grid-column: 1 / -1;
     }
     .actions {
       display: flex;
@@ -16267,8 +16909,6 @@ var KibbleReviewQueue = class extends i4 {
       grid-area: footer;
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      gap: 12px;
       min-height: 48px;
     }
     .plain-btn.undo {
@@ -16298,35 +16938,16 @@ var KibbleReviewQueue = class extends i4 {
         display: inline-block;
       }
     }
-    .status {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      min-height: 48px;
-    }
-    .status-text {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      font-size: 14px;
-      color: var(--secondary-text-color);
-      font-variant-numeric: tabular-nums;
-    }
-    .status-text svg {
-      font-size: 20px;
-    }
-    .status-text.error {
-      color: var(--error-color, #db4437);
-    }
     .pill-btn {
-      min-height: 48px;
-      padding: 0 16px;
+      flex: none;
+      min-height: 36px;
+      padding: 0 12px;
       border: 0;
       border-radius: 8px;
       background: color-mix(in srgb, var(--primary-text-color) 8%, transparent);
       color: var(--primary-text-color);
       font: inherit;
-      font-size: 14px;
+      font-size: 13px;
       font-weight: 500;
       cursor: pointer;
     }
@@ -16342,6 +16963,16 @@ var KibbleReviewQueue = class extends i4 {
       overflow: hidden;
       clip-path: inset(50%);
       white-space: nowrap;
+    }
+
+    /* A screen with nothing in its footer gives the row back (the two-pane layout below keeps its own). */
+    @container review (max-width: 699px) {
+      .panel.view-loading,
+      .panel.view-error,
+      .panel.view-ate {
+        grid-template-rows: auto minmax(0, 1fr) auto;
+        grid-template-areas: "top" "stage" "answers";
+      }
     }
 
     /* ---- Two panes: tablet and desktop ---- */
@@ -16362,8 +16993,12 @@ var KibbleReviewQueue = class extends i4 {
         align-content: start;
         padding: 2px;
       }
-      .answer-row {
+      .answer-row,
+      .answer-row.others {
         grid-template-columns: minmax(0, 1fr);
+      }
+      .answer-row.others > :last-child:nth-child(odd) {
+        grid-column: auto;
       }
       .titles {
         flex-direction: column;
@@ -16380,9 +17015,15 @@ var KibbleReviewQueue = class extends i4 {
         gap: 8px;
         --kibble-choice-height: 60px;
       }
-      /* Too short for five stacked answers: back to the phone's two rows, so none scrolls away. */
+      /* Too short for five stacked answers: back to rows, so none scrolls away. */
       .answer-row {
         grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+      }
+      .answer-row.others {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .answer-row.others > :last-child:nth-child(odd) {
+        grid-column: 1 / -1;
       }
       .title {
         font-size: 16px;
@@ -16392,9 +17033,6 @@ var KibbleReviewQueue = class extends i4 {
     @media (prefers-reduced-motion: no-preference) {
       .card.placeholder {
         animation: kibble-review-pulse 1.2s ease-in-out infinite alternate;
-      }
-      .streak {
-        animation: kibble-review-bump 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
       }
       .result-glyph.done {
         animation: kibble-review-pop 400ms cubic-bezier(0.2, 0.8, 0.2, 1);
@@ -16408,20 +17046,15 @@ var KibbleReviewQueue = class extends i4 {
       .tally:nth-child(3) {
         animation-delay: 120ms;
       }
-      .tally-gain {
-        animation: kibble-review-bump 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
-      }
-      .status-text.saving svg {
+      .notice .spin svg {
         animation: kibble-review-spin 0.9s linear infinite;
       }
     }
     @media (prefers-reduced-motion: reduce) {
       .card,
-      .bar span,
       .icon-btn,
       .primary-btn,
-      .plain-btn,
-      .strip-btn {
+      .plain-btn {
         transition: opacity 120ms linear;
       }
       .card.current,
@@ -16439,8 +17072,7 @@ var KibbleReviewQueue = class extends i4 {
       }
       .icon-btn:active,
       .primary-btn:active:not(:disabled),
-      .plain-btn:active:not(:disabled),
-      .strip-btn:active {
+      .plain-btn:active:not(:disabled) {
         transform: none;
       }
     }
@@ -16454,16 +17086,6 @@ var KibbleReviewQueue = class extends i4 {
         opacity: 0.5;
       }
       to {
-        opacity: 1;
-      }
-    }
-    @keyframes kibble-review-bump {
-      from {
-        transform: scale(0.8);
-        opacity: 0.4;
-      }
-      to {
-        transform: scale(1);
         opacity: 1;
       }
     }
@@ -16502,22 +17124,24 @@ customElements.define("kibble-review-queue", KibbleReviewQueue);
 var KibbleReviewEntry = class extends i4 {
   constructor() {
     super();
-    this._count = null;
+    this._remaining = null;
     this._generation = 0;
     this._stopListening = null;
+    this._outbox = null;
+    this._unsubscribeOutbox = null;
     this._loadCount = () => {
       const callWS = this.hass?.callWS;
       const entryId = this.entryId;
       if (!callWS || !entryId) return;
       this._countedEntry = entryId;
       const generation = ++this._generation;
-      loadUnknownCount(callWS, entryId).then(
-        (count) => {
-          if (generation === this._generation) this._count = count;
+      loadPhotosLeft(callWS, entryId).then(
+        (remaining) => {
+          if (generation === this._generation) this._remaining = remaining;
         },
         () => {
         }
-        // the button still opens the queue; only the number is missing
+        // the button still opens the queue; the number keeps its last value
       );
     };
     this.cats = [];
@@ -16531,12 +17155,12 @@ var KibbleReviewEntry = class extends i4 {
       cache: { attribute: false },
       variant: { type: String, reflect: true },
       revision: { attribute: false },
-      _count: { state: true }
+      _remaining: { state: true }
     };
   }
-  /** Opens the queue; `startUid` is the visit to show first. */
-  open(startUid) {
-    this.renderRoot.querySelector("kibble-review-queue")?.show(startUid);
+  /** Opens the queue. */
+  open() {
+    this.renderRoot.querySelector("kibble-review-queue")?.show();
   }
   connectedCallback() {
     super.connectedCallback();
@@ -16549,20 +17173,36 @@ var KibbleReviewEntry = class extends i4 {
     super.disconnectedCallback();
     this._stopListening?.();
     this._stopListening = null;
+    this._unsubscribeOutbox?.();
+    this._unsubscribeOutbox = null;
+    this._outbox = null;
     this._generation++;
   }
   willUpdate(changed) {
-    const ready = Boolean(this.hass?.callWS && this.entryId);
-    if (ready && (this.entryId !== this._countedEntry || changed.has("revision"))) this._loadCount();
+    const { hass, entryId } = this;
+    if (hass && entryId) this._joinOutbox(answerOutbox(hass, entryId));
+    const ready = Boolean(hass?.callWS && entryId);
+    if (ready && (entryId !== this._countedEntry || changed.has("revision"))) this._loadCount();
+  }
+  _joinOutbox(outbox) {
+    if (outbox === this._outbox) return;
+    this._unsubscribeOutbox?.();
+    this._outbox = outbox;
+    this._unsubscribeOutbox = outbox.subscribe(() => this.requestUpdate());
+  }
+  /** Photos still waiting for an answer: Kibble's count, less answers this device has not sent yet. */
+  _waitingCount() {
+    const unsent = [...this._outbox?.pendingPhotoLabels().values() ?? []].filter((label) => label !== "follow").length;
+    return Math.max(0, (this._remaining ?? 0) - unsent);
   }
   render() {
-    const count = this._count ?? 0;
-    const label = count > 0 ? `Check visits, ${count} ${count === 1 ? "needs" : "need"} a name` : "Check visits";
+    const count2 = this._waitingCount();
+    const label = count2 > 0 ? `Check photos, ${countOf(count2, "photo", "photos")} waiting` : "Check photos";
     return b2`
-      ${this.variant === "chip" ? count > 0 ? b2`<button type="button" class="chip" aria-label=${label} @click=${() => this.open()}>${mdiIcon("helpCircle")}<span>${count} to check</span></button>` : A : b2`<button type="button" class="bar" aria-label=${label} @click=${() => this.open()}>
+      ${this.variant === "chip" ? count2 > 0 ? b2`<button type="button" class="chip" aria-label=${label} @click=${() => this.open()}>${mdiIcon("helpCircle")}<span>${count2} to check</span></button>` : A : b2`<button type="button" class="bar" aria-label=${label} @click=${() => this.open()}>
             <span class="bar-glyph">${mdiIcon("helpCircle")}</span>
-            <span class="bar-label">Check visits</span>
-            ${count > 0 ? b2`<span class="badge">${count}</span>` : A}
+            <span class="bar-label">Check photos</span>
+            ${count2 > 0 ? b2`<span class="badge">${count2}</span>` : A}
             <span class="bar-chevron">${mdiIcon("chevronRight")}</span>
           </button>`}
       <kibble-review-queue .hass=${this.hass} .entryId=${this.entryId} .cats=${this.cats} .cache=${this.cache} @review-closed=${this._loadCount}></kibble-review-queue>
@@ -16829,6 +17469,11 @@ function pickVideoSource(scryptedId, scryptedToken, cameraEntity) {
   if (scryptedId && scryptedToken) return { kind: "scrypted", deviceId: scryptedId, token: scryptedToken };
   if (cameraEntity) return { kind: "ha-camera", entityId: cameraEntity };
   return { kind: "none" };
+}
+var RECONNECT_BASE_MS = 1e3;
+var RECONNECT_MAX_MS = 3e4;
+function nextReconnectDelay(current) {
+  return Math.min(current * 2, RECONNECT_MAX_MS);
 }
 var IDLE_MS = 5e3;
 var VISIBLE = { visible: true };
@@ -17992,423 +18637,48 @@ var TimelineFeed = class {
     this._live.dispose();
   }
 };
-async function labelSample(hass, entryId, request) {
-  if (!hass.callWS) throw new Error("Not connected.");
-  const result = await hass.callWS({
-    type: "kibble/sample/label",
-    entry_id: entryId,
-    sample_uid: request.sampleUid,
-    label: request.label
-  });
-  return result.sample;
+function reviewSummaryMessage(photosUpdated, locale) {
+  if (!(photosUpdated > 0)) return null;
+  return `${countOf(photosUpdated, "photo", "photos", locale)} updated`;
 }
-function eventFragment(entry2, locale) {
-  if (entry2.label === "unknown") return null;
-  if (entry2.label === "not_a_cat") return "Not a cat";
-  return `${entry2.label} ${catVerb(entry2.event)} at ${timeLabel(entry2.event.start, locale)}`;
+function joinNames(names) {
+  if (names.length <= 1) return names[0] ?? "";
+  if (names.length === 2) return names[0] + " and " + names[1];
+  return names.slice(0, -1).join(", ") + ", and " + names[names.length - 1];
 }
-function photosFragment(count) {
-  if (count <= 0) return null;
-  return `${count} photo${count === 1 ? "" : "s"} updated`;
-}
-function reviewSummaryMessage(input, locale) {
-  const latestByUid = /* @__PURE__ */ new Map();
-  for (const entry2 of input.events) latestByUid.set(entry2.uid, entry2);
-  const fragments = [];
-  for (const entry2 of latestByUid.values()) {
-    const fragment = eventFragment(entry2, locale);
-    if (fragment) fragments.push(fragment);
+function sessionTitle(cats, event) {
+  if (event.identity === "not_a_cat") return "Not a cat";
+  if (cats.length === 0) return "Who was here?";
+  const groups = /* @__PURE__ */ new Map();
+  for (const cat of cats) {
+    const verb = event.open ? cat.ate ? "is eating" : "is here" : cat.ate ? "ate" : "came by";
+    const names = groups.get(verb) ?? [];
+    names.push(cat.cat);
+    groups.set(verb, names);
   }
-  const photos = photosFragment(input.photosUpdated);
-  if (photos) fragments.push(photos);
-  if (fragments.length === 0) return null;
-  return `Saved: ${fragments.join(", ")}`;
+  return [...groups].map(([verb, names]) => joinNames(names) + " " + verb).join(", ");
+}
+function groupSessionPhotos(samples, cats) {
+  if (cats.length < 2) return [];
+  const sections = cats.map((cat) => ({ cat: cat.cat, samples: [] }));
+  const byName = new Map(sections.map((section) => [section.cat, section]));
+  const unassigned = [];
+  for (const sample of samples) {
+    const section = sample.cat ? byName.get(sample.cat) : void 0;
+    if (section) section.samples.push(sample);
+    else unassigned.push(sample);
+  }
+  if (unassigned.length > 0) {
+    const main2 = sections.reduce((best, section) => section.samples.length > best.samples.length ? section : best);
+    main2.samples.push(...unassigned);
+  }
+  return sections;
 }
 var CLIP_SEEK_LEAD_MS = 3e3;
 function clipSeekOffsetSeconds(eventStartSeconds, clipStartMs) {
   const offsetMs = eventStartSeconds * 1e3 - clipStartMs - CLIP_SEEK_LEAD_MS;
   return Math.max(0, offsetMs) / 1e3;
 }
-var KibbleBoxOverlay = class extends i4 {
-  constructor() {
-    super();
-    this._focusTrigger = null;
-    this._pointerDown = (event) => {
-      if (this._pickerKey && !event.composedPath().includes(this)) this._closePicker(false);
-    };
-    this._keyDown = (event) => {
-      if (event.key !== "Escape" || !this._pickerKey) return;
-      event.preventDefault();
-      event.stopPropagation();
-      this._closePicker(true);
-    };
-    this._repositionLabels = () => {
-      const bounds = this.getBoundingClientRect();
-      if (bounds.width <= 0 || bounds.height <= 0) return;
-      const labelNodes = [...this.renderRoot.querySelectorAll(".label")];
-      const labels = this.boxes.flatMap((box) => {
-        const text = box.label ?? (box.tone === "not-cat" ? "Not a cat" : null);
-        if (!text) return [];
-        const node = labelNodes.find((element) => element.dataset.labelKey === box.key);
-        const measured = node?.getBoundingClientRect();
-        return [{ key: box.key, box: box.box, width: measured?.width || Math.max(44, text.length * 7 + 34), height: measured?.height || 22 }];
-      });
-      const next = Object.fromEntries(placeLabels(labels, bounds.width, bounds.height, 4, this.labelSafeTop).map((placement) => [placement.key, placement]));
-      const keys = Object.keys(next);
-      if (keys.length === Object.keys(this._labelPositions).length && keys.every((key) => {
-        const before = this._labelPositions[key];
-        const after = next[key];
-        return before?.left === after?.left && before?.top === after?.top && before?.flipped === after?.flipped;
-      })) return;
-      this._labelPositions = next;
-    };
-    this._repositionPicker = () => {
-      if (!this._pickerKey) return;
-      const box = this.boxes.find((candidate) => candidate.key === this._pickerKey);
-      const picker = this.renderRoot.querySelector(".picker");
-      const frame = this.getBoundingClientRect();
-      if (!box || !picker || frame.width <= 0 || frame.height <= 0) return;
-      const bounds = picker.getBoundingClientRect();
-      const placement = placeNamePicker(box.box, frame.width, frame.height, bounds.width, bounds.height);
-      const before = this._pickerPlacement;
-      if (before?.left === placement.left && before.top === placement.top && before.flipped === placement.flipped) return;
-      this._pickerPlacement = placement;
-    };
-    this.boxes = [];
-    this.cats = [];
-    this.busy = false;
-    this.labelSafeTop = 0;
-    this._labelPositions = {};
-    this._pickerKey = null;
-    this._pickerPlacement = null;
-  }
-  static {
-    this.properties = {
-      boxes: { attribute: false },
-      hass: { attribute: false },
-      cache: { attribute: false },
-      cats: { attribute: false },
-      busy: { type: Boolean },
-      labelSafeTop: { attribute: false },
-      _labelPositions: { state: true },
-      _pickerKey: { state: true },
-      _pickerPlacement: { state: true }
-    };
-  }
-  connectedCallback() {
-    super.connectedCallback();
-    window.addEventListener("pointerdown", this._pointerDown, true);
-    window.addEventListener("keydown", this._keyDown, true);
-  }
-  firstUpdated() {
-    this._resizeObserver = new ResizeObserver(() => {
-      this._repositionLabels();
-      this._repositionPicker();
-    });
-    this._resizeObserver.observe(this);
-    this._repositionLabels();
-  }
-  disconnectedCallback() {
-    super.disconnectedCallback();
-    window.removeEventListener("pointerdown", this._pointerDown, true);
-    window.removeEventListener("keydown", this._keyDown, true);
-    this._resizeObserver?.disconnect();
-    this._resizeObserver = void 0;
-  }
-  updated(changed) {
-    if (changed.has("boxes") || changed.has("labelSafeTop")) this._repositionLabels();
-    if (changed.has("boxes") && this._pickerKey && !this.boxes.some((box) => box.key === this._pickerKey)) this._closePicker(false);
-    if (changed.has("_pickerKey") || changed.has("boxes") || changed.has("cats")) this._repositionPicker();
-  }
-  _openPicker(box, event) {
-    if (this.busy || box.subjectSid == null) return;
-    this._focusTrigger = event.currentTarget;
-    this._pickerPlacement = null;
-    this._pickerKey = box.key;
-    void this.updateComplete.then(async () => {
-      this._repositionPicker();
-      await this.updateComplete;
-      this.renderRoot.querySelector(".picker-option:not([disabled])")?.focus();
-    });
-  }
-  _closePicker(restoreFocus) {
-    const trigger = this._focusTrigger;
-    this._pickerKey = null;
-    this._pickerPlacement = null;
-    this._focusTrigger = null;
-    if (restoreFocus) trigger?.focus();
-  }
-  _chooseSubject(box, label) {
-    if (this.busy || box.subjectSid == null) return;
-    this._closePicker(true);
-    this.dispatchEvent(new CustomEvent("subject-label-requested", {
-      detail: { sid: box.subjectSid, label },
-      bubbles: true,
-      composed: true
-    }));
-  }
-  render() {
-    const selectable = this.boxes.some((box) => box.selectable);
-    const pickerBox = this.boxes.find((box) => box.key === this._pickerKey);
-    return b2`
-      <div class="overlay ${selectable ? "interactive" : "passive"}" ?aria-hidden=${!selectable}>
-        ${this.boxes.map((box) => this._renderBox(box))}
-        ${pickerBox ? this._renderPicker(pickerBox) : A}
-      </div>`;
-  }
-  _renderPicker(box) {
-    const visible = this._pickerPlacement !== null;
-    const style = visible ? `left:${this._pickerPlacement.left}px;top:${this._pickerPlacement.top}px;` : "left:8px;top:8px;visibility:hidden;";
-    return b2`<div class="picker" role="group" aria-label="Name this animal" style=${style}>
-      ${this.cats.map((cat) => b2`<button type="button" class="picker-option" aria-pressed=${box.subjectLabel === cat.name} ?disabled=${this.busy} @click=${() => this._chooseSubject(box, cat.name)}>
-        <kibble-avatar .hass=${this.hass} .name=${cat.name} .colorIndex=${cat.color} .asset=${cat.avatar} .cache=${this.cache}></kibble-avatar><span>${cat.name}</span>${box.subjectLabel === cat.name ? b2`<span class="picker-check" aria-hidden="true">✓</span>` : A}
-      </button>`)}
-      <button type="button" class="picker-option" aria-pressed=${box.subjectLabel === "not_a_cat"} ?disabled=${this.busy} @click=${() => this._chooseSubject(box, "not_a_cat")}>
-        <kibble-avatar .name=${null}></kibble-avatar><span>Not a cat</span>${box.subjectLabel === "not_a_cat" ? b2`<span class="picker-check" aria-hidden="true">✓</span>` : A}
-      </button>
-    </div>`;
-  }
-  _renderBox(box) {
-    const rect = boxRect(box.box);
-    const boundsStyle = `left:${rect.left};top:${rect.top};width:${rect.width};height:${rect.height};--box-color:${box.color ?? "rgba(255,255,255,.9)"};`;
-    const emphasis = box.emphasis ?? "normal";
-    const text = box.label ?? (box.tone === "not-cat" ? "Not a cat" : null);
-    const placement = this._labelPositions[box.key];
-    const labelStyle = placement ? `left:${placement.left}px;top:${placement.top}px;` : `left:${rect.left};top:${rect.top};`;
-    return b2`
-      <div class="box-wrap tone-${box.tone} emphasis-${emphasis}" style=${boundsStyle}>
-        <span class="stroke"></span>
-        ${box.selectable ? b2`<button type="button" class="hit" aria-label=${text ? `Name ${text}` : "Name this animal"} @click=${(event) => this._openPicker(box, event)}></button>` : A}
-      </div>
-      ${text ? b2`<span class="label tone-${box.tone} emphasis-${emphasis}" data-label-key=${box.key} style=${labelStyle}>
-        ${box.tone === "cat" ? b2`<span class="avatar-ring" style=${`--box-color:${box.color ?? "var(--primary-color)"}`}><span class="monogram" aria-hidden="true">${text.trim().charAt(0).toUpperCase()}</span>${box.avatar ? b2`<kibble-image .hass=${this.hass} .asset=${box.avatar} .cache=${this.cache} alt=""></kibble-image>` : A}</span>` : box.tone === "unknown" ? b2`<span class="unknown-avatar">?</span>` : A}
-        <span class="label-text">${text}</span>
-      </span>` : A}`;
-  }
-  static {
-    this.styles = i`
-    :host {
-      position: absolute;
-      inset: 0;
-      display: block;
-      overflow: hidden;
-      pointer-events: none;
-      contain: layout paint;
-    }
-    .overlay {
-      position: absolute;
-      inset: 0;
-      overflow: hidden;
-    }
-    .overlay.passive,
-    .overlay.interactive {
-      pointer-events: none;
-    }
-    .picker {
-      position: absolute;
-      z-index: 20;
-      box-sizing: border-box;
-      display: flex;
-      flex-direction: column;
-      width: min(264px, calc(100% - 16px));
-      max-height: calc(100% - 16px);
-      overflow: auto;
-      padding: 6px;
-      border: 1px solid rgba(255, 255, 255, 0.24);
-      border-radius: 14px;
-      background: rgba(18, 18, 20, 0.94);
-      color: #fff;
-      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.38);
-      backdrop-filter: blur(12px);
-      pointer-events: auto;
-      overscroll-behavior: contain;
-    }
-    .picker-option {
-      box-sizing: border-box;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      width: 100%;
-      min-height: 48px;
-      padding: 4px 8px;
-      border: 0;
-      border-radius: 9px;
-      background: transparent;
-      color: inherit;
-      font: inherit;
-      text-align: left;
-      cursor: pointer;
-    }
-    .picker-option kibble-avatar {
-      flex: none;
-      --kibble-avatar-size: 30px;
-    }
-    .picker-option[aria-pressed="true"] {
-      background: rgba(255, 255, 255, 0.14);
-    }
-    .picker-option:focus-visible {
-      outline: 2px solid var(--primary-color, #9c7bff);
-      outline-offset: -2px;
-    }
-    .picker-option:disabled {
-      opacity: 0.55;
-      cursor: default;
-    }
-    .picker-check {
-      margin-left: auto;
-      color: var(--kibble-feed, #6fd398);
-      font-weight: 700;
-    }
-    .box-wrap {
-      position: absolute;
-      box-sizing: border-box;
-      pointer-events: none;
-    }
-    /* A solid box is a 2 px colour line between two thin dark lines, so it reads on bright day
-     * scenes and on the dark purple night (IR) image alike. Cat colours are lifted toward white
-     * for the line itself: the darker palette slots (plum) vanish on an IR frame otherwise. */
-    .stroke {
-      position: absolute;
-      inset: 0;
-      box-sizing: border-box;
-      border: 2px solid rgba(255, 255, 255, 0.9);
-      border-radius: 4px;
-      box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.45), inset 0 0 0 1px rgba(0, 0, 0, 0.3);
-    }
-    .tone-cat .stroke {
-      border-color: color-mix(in srgb, var(--box-color) 68%, #fff);
-    }
-    .tone-unknown .stroke {
-      border-color: rgba(255, 255, 255, 0.9);
-    }
-    .tone-not-cat .stroke {
-      border-width: 1.5px;
-      border-style: dashed;
-      border-color: rgba(255, 255, 255, 0.78);
-    }
-    .tone-clutter .stroke {
-      border: 1px dashed rgba(255, 255, 255, 0.45);
-      border-radius: 3px;
-    }
-    .tone-peer .stroke {
-      border: 1px dashed rgba(255, 255, 255, 0.6);
-      border-radius: 3px;
-      box-shadow: none;
-    }
-    .box-wrap.emphasis-selected .stroke {
-      border-width: 3px;
-      box-shadow: 0 0 0 4px color-mix(in srgb, var(--box-color) 40%, transparent), 0 0 0 1px rgba(0, 0, 0, 0.45),
-        inset 0 0 0 1px rgba(0, 0, 0, 0.3);
-    }
-    .box-wrap.emphasis-dim,
-    .label.emphasis-dim {
-      opacity: 0.45;
-    }
-    .hit {
-      position: absolute;
-      left: 50%;
-      top: 50%;
-      width: 100%;
-      height: 100%;
-      min-width: 48px;
-      min-height: 48px;
-      padding: 0;
-      border: 0;
-      border-radius: 4px;
-      background: transparent;
-      opacity: 0;
-      pointer-events: auto;
-      transform: translate(-50%, -50%);
-      cursor: pointer;
-    }
-    .box-wrap:focus-within .stroke {
-      box-shadow: 0 0 0 3px var(--primary-text-color), 0 0 0 5px rgba(0, 0, 0, 0.65);
-    }
-    .label {
-      position: absolute;
-      z-index: 2;
-      height: 22px;
-      box-sizing: border-box;
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      max-width: min(240px, calc(100% - 4px));
-      padding: 3px 8px 3px 3px;
-      border-radius: 999px;
-      background: rgba(18, 18, 20, 0.72);
-      color: #fff;
-      font: 600 12px/1.1 var(--paper-font-body1_-_font-family, Roboto, sans-serif);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      pointer-events: none;
-      will-change: left, top;
-    }
-    .avatar-ring,
-    .unknown-avatar {
-      width: 16px;
-      height: 16px;
-      flex: none;
-      box-sizing: border-box;
-      display: inline-grid;
-      place-items: center;
-      border-radius: 50%;
-      overflow: hidden;
-    }
-    .avatar-ring {
-      position: relative;
-      border: 1.5px solid var(--box-color);
-      background: color-mix(in srgb, var(--box-color) 20%, #121214);
-      color: var(--box-color);
-    }
-    .avatar-ring .monogram {
-      position: absolute;
-      inset: 0;
-      z-index: 0;
-      display: grid;
-      place-items: center;
-    }
-    .avatar-ring kibble-image {
-      position: absolute;
-      inset: 0;
-      z-index: 1;
-      width: 100%;
-      height: 100%;
-    }
-    .monogram {
-      font-size: 9px;
-      line-height: 1;
-      font-weight: 700;
-    }
-    .unknown-avatar {
-      background: rgba(255, 255, 255, 0.18);
-      color: rgba(255, 255, 255, 0.92);
-      font-size: 11px;
-      font-weight: 700;
-    }
-    .label-text {
-      min-width: 0;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .tone-not-cat {
-      color: rgba(255, 255, 255, 0.82);
-    }
-    @media (prefers-reduced-motion: no-preference) {
-      .stroke {
-        transition: border-color 150ms ease, border-width 150ms ease, box-shadow 150ms ease, opacity 150ms ease;
-      }
-      .box-wrap {
-        transition: left 250ms ease, top 250ms ease, width 250ms ease, height 250ms ease, opacity 150ms ease;
-      }
-      .label {
-        transition: left 250ms ease, top 250ms ease, opacity 150ms ease;
-      }
-    }
-  `;
-  }
-};
-customElements.define("kibble-box-overlay", KibbleBoxOverlay);
 var FOCUSABLE_SELECTOR = [
   "button:not([disabled])",
   "[href]",
@@ -18424,8 +18694,7 @@ var KibblePhotoViewer = class extends i4 {
   constructor() {
     super();
     this._index = 0;
-    this._pendingOption = null;
-    this._justSavedUid = null;
+    this._pulse = null;
     this._closeRef = e5();
     this._touchStartX = 0;
     this._touchStartY = 0;
@@ -18485,9 +18754,6 @@ var KibblePhotoViewer = class extends i4 {
     this.cats = [];
     this.samples = [];
     this.initialIndex = 0;
-    this.event = null;
-    this.busyUid = null;
-    this.error = null;
     this.showBoxes = true;
   }
   static {
@@ -18498,12 +18764,9 @@ var KibblePhotoViewer = class extends i4 {
       cats: { attribute: false },
       samples: { attribute: false },
       initialIndex: { type: Number },
-      event: { attribute: false },
-      busyUid: { attribute: false },
-      error: { type: String },
       showBoxes: { type: Boolean },
       _index: { state: true },
-      _justSavedUid: { state: true }
+      _pulse: { state: true }
     };
   }
   connectedCallback() {
@@ -18513,42 +18776,23 @@ var KibblePhotoViewer = class extends i4 {
   disconnectedCallback() {
     super.disconnectedCallback();
     window.removeEventListener("keydown", this._keydownHandler);
-    clearTimeout(this._justSavedTimer);
+    clearTimeout(this._pulseTimer);
     clearTimeout(this._advanceTimer);
   }
   willUpdate(changed) {
     if (changed.has("open") && this.open) {
       this._index = this.initialIndex;
-      this._justSavedUid = null;
-      this._pendingOption = null;
-    }
-    if (changed.has("busyUid")) {
-      const previous = changed.get("busyUid");
-      this._pendingOption = null;
-      if (previous && this.busyUid === null && !this.error && this.samples[this._index]?.uid === previous) {
-        this._flashSaved(previous);
-      }
+      this._pulse = null;
     }
   }
   updated(changed) {
     if (changed.has("open") && this.open) this._closeRef.value?.focus();
   }
-  _flashSaved(uid) {
-    clearTimeout(this._justSavedTimer);
-    this._justSavedUid = uid;
-    this._justSavedTimer = setTimeout(() => {
-      this._justSavedUid = null;
-    }, SAVED_PULSE_MS);
-    clearTimeout(this._advanceTimer);
-    this._advanceTimer = setTimeout(() => {
-      if (this._index < this.samples.length - 1) this._go(1);
-    }, AUTO_ADVANCE_MS);
-  }
   _go(delta) {
     const next = this._index + delta;
     if (next < 0 || next >= this.samples.length) return;
     this._index = next;
-    this._justSavedUid = null;
+    this._pulse = null;
   }
   _catColor(name) {
     const cat = this.cats.find((c6) => c6.name === name);
@@ -18559,10 +18803,11 @@ var KibblePhotoViewer = class extends i4 {
     const ownBox = boxInCrop(sample.box, sample.crop);
     if (!ownBox) return [];
     const name = sample.label ?? sample.guess;
-    const tone = name === "not_a_cat" ? "not-cat" : name && name !== "skip" ? "cat" : "unknown";
-    const cat = tone === "cat" ? this.cats.find((candidate) => candidate.name === name) : null;
+    const named = name !== null && name !== "not_a_cat" && name !== "skip" && name !== "both" ? name : null;
+    const tone = named ? "cat" : name === "not_a_cat" ? "not-cat" : "unknown";
+    const cat = named ? this.cats.find((candidate) => candidate.name === named) : null;
     return [
-      { key: "sample:" + sample.uid, box: ownBox, tone, label: name && name !== "not_a_cat" && name !== "skip" ? name : tone === "not-cat" ? "Not a cat" : "Who?", color: name && name !== "not_a_cat" && name !== "skip" ? this._catColor(name) : void 0, avatar: cat?.avatar ?? null },
+      { key: "sample:" + sample.uid, box: ownBox, tone, label: named ?? (tone === "not-cat" ? "Not a cat" : "Who?"), color: named ? this._catColor(named) : void 0, avatar: cat?.avatar ?? null },
       ...sample.peers.flatMap((peer, index) => {
         const box = boxInCrop(peer, sample.crop);
         return box ? [{ key: "peer:" + sample.uid + ":" + index, box, tone: "peer" }] : [];
@@ -18576,7 +18821,7 @@ var KibblePhotoViewer = class extends i4 {
     const total = this.samples.length;
     const image = sample.body ?? sample.face;
     const faceInset = sample.body && sample.face ? sample.face : null;
-    const busy = this.busyUid !== null;
+    const tag = photoTag(sample);
     return b2`
       <div class="scrim" role="dialog" aria-modal="true" aria-label=${`Photo ${this._index + 1} of ${total}`} @click=${this._requestClose}>
         <div class="panel" @click=${(e6) => e6.stopPropagation()} @touchstart=${this._onTouchStart} @touchend=${this._onTouchEnd}>
@@ -18586,6 +18831,7 @@ var KibblePhotoViewer = class extends i4 {
           </div>
           <div class="stage">
             ${image ? b2`<div class="image-frame"><kibble-image .hass=${this.hass} .asset=${image} .cache=${this.cache} alt="" fit="contain"></kibble-image>${sample.body && this.showBoxes ? b2`<kibble-box-overlay .boxes=${this._photoOverlayBoxes(sample)} .hass=${this.hass} .cache=${this.cache}></kibble-box-overlay>` : A}</div>` : A}
+            ${tag ? b2`<span class="tag">${tag.text}</span>` : A}
             ${sample.body && sample.box && sample.crop ? b2`<button type="button" class="box-toggle" aria-pressed=${this.showBoxes} aria-label=${this.showBoxes ? "Hide boxes" : "Show boxes"} @click=${this._requestBoxesVisibility}>${mdiIcon(this.showBoxes ? "eye" : "eyeOff")}</button>` : A}
             ${faceInset ? b2`<span class="face-inset"><kibble-image .hass=${this.hass} .asset=${faceInset} .cache=${this.cache} alt="" rounded></kibble-image></span>` : A}
             <button type="button" class="nav prev" aria-label="Previous photo" ?disabled=${this._index === 0} @click=${() => this._go(-1)}>
@@ -18595,43 +18841,55 @@ var KibblePhotoViewer = class extends i4 {
               <span class="chevron chevron-right">${mdiIcon("chevronDown")}</span>
             </button>
           </div>
-          <div class="chip-row" role="group" aria-label="Who is this, in this photo">
-            ${this.cats.map((cat) => this._renderChoice(cat.name, cat, sample, busy))}
-            ${this._renderChoice("not_a_cat", null, sample, busy)}
-            ${this._renderChoice("skip", null, sample, busy)}
-          </div>
-          ${this.error ? b2`<p class="viewer-error">${this.error}</p>` : A}
+          ${this._renderAnswers(sample)}
         </div>
       </div>
     `;
   }
-  _choiceState(option, sample) {
-    if (option === "skip") return sample.review === "skip" ? "confirmed" : "neutral";
-    if (sample.review !== null) return sample.review === option ? "confirmed" : "neutral";
-    if (sample.label === option) return "suggested";
-    return "neutral";
+  _renderAnswers(sample) {
+    const options = answerOptions(this.cats);
+    const answered = optionIdForAnswer(sample.review);
+    const guessed = sample.review === null ? guessOptionId(sample, options) : null;
+    return b2`
+      <div class="answers">
+        <div class="chip-row" role="group" aria-label="Who is in this photo?">
+          ${options.map((option) => {
+      const state2 = option.id === answered ? "selected" : option.id === guessed ? "suggested" : "neutral";
+      const cats = option.kind === "cat" ? this.cats.filter((cat) => cat.name === option.cat) : option.kind === "both" ? this.cats : [];
+      return b2`<kibble-choice
+              .hass=${this.hass}
+              .cache=${this.cache}
+              .label=${option.text}
+              .cats=${cats}
+              .icon=${option.kind === "not_a_cat" ? "cancel" : option.kind === "skip" ? "eyeOff" : null}
+              .state=${state2}
+              .caption=${state2 === "suggested" ? guessCaption(sample) : option.hint}
+              .pop=${this._pulse?.uid === sample.uid && this._pulse.optionId === option.id}
+              @click=${() => this._answer(sample, option.value, option.id)}
+            ></kibble-choice>`;
+    })}
+        </div>
+        ${sample.review !== null ? b2`<button type="button" class="undo" @click=${() => this._answer(sample, "follow", null)}>${mdiIcon("undo")}<span>Undo</span></button>` : A}
+      </div>
+    `;
   }
-  _renderChoice(option, cat, sample, rowBusy) {
-    const state2 = this._choiceState(option, sample);
-    return b2`<kibble-choice
-      .hass=${this.hass}
-      .cache=${this.cache}
-      .label=${cat ? cat.name : option === "skip" ? "Don\u2019t use" : "Not a cat"}
-      .cats=${cat ? [cat] : []}
-      .icon=${cat ? null : option === "skip" ? "eyeOff" : "cancel"}
-      .state=${state2 === "confirmed" ? "selected" : state2}
-      .busy=${rowBusy && this.busyUid === sample.uid && this._pendingOption === option}
-      .pop=${this._justSavedUid === sample.uid && state2 === "confirmed"}
-      ?disabled=${rowBusy}
-      @click=${() => this._choose(option, sample)}
-    ></kibble-choice>`;
-  }
-  _choose(option, sample) {
-    const follows = this.event?.identity === "reviewed" && this.event.cat === option;
-    this._pendingOption = option;
-    this.dispatchEvent(
-      new CustomEvent("sample-label-requested", { detail: { sampleUid: sample.uid, label: follows ? "follow" : option }, bubbles: true, composed: true })
-    );
+  /** One tap: the answer goes up to the card that saves it, the chosen button pulses a check, and
+   * the viewer moves on to the next photo. Undo stays on the photo it takes back. */
+  _answer(sample, label, optionId) {
+    this.dispatchEvent(new CustomEvent("sample-answer-requested", { detail: { sampleUid: sample.uid, label }, bubbles: true, composed: true }));
+    clearTimeout(this._pulseTimer);
+    clearTimeout(this._advanceTimer);
+    if (optionId === null) {
+      this._pulse = null;
+      return;
+    }
+    this._pulse = { uid: sample.uid, optionId };
+    this._pulseTimer = setTimeout(() => {
+      this._pulse = null;
+    }, SAVED_PULSE_MS);
+    this._advanceTimer = setTimeout(() => {
+      if (this._index < this.samples.length - 1) this._go(1);
+    }, AUTO_ADVANCE_MS);
   }
   static {
     this.styles = i`
@@ -18797,26 +19055,55 @@ var KibblePhotoViewer = class extends i4 {
     /* The answers sit on their own solid HA-theme surface, distinct from the black photo
      * chrome above (image on top, flexing; answers beneath, never overlapping), so the shared
      * answer buttons read the same here as everywhere else in light and dark. */
-    .chip-row {
+    .answers {
       flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      padding-bottom: max(8px, env(safe-area-inset-bottom));
+      background: var(--ha-card-background, var(--card-background-color, #fff));
+    }
+    .chip-row {
       display: flex;
       gap: 8px;
       overflow-x: auto;
-      padding: 12px 12px max(12px, env(safe-area-inset-bottom));
-      background: var(--ha-card-background, var(--card-background-color, #fff));
+      padding: 12px 12px 4px;
     }
     .chip-row kibble-choice {
       flex: 1 1 0;
-      min-width: 76px;
+      min-width: 96px;
     }
-    .viewer-error {
-      flex-shrink: 0;
-      margin: 0;
-      padding: 8px 10px;
+    .undo {
+      align-self: flex-start;
+      min-height: 48px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin: 0 12px;
+      padding: 0 12px;
+      border: 0;
       border-radius: 8px;
-      background: rgba(219, 68, 55, 0.25);
-      color: #ffb4ac;
+      background: none;
+      color: var(--primary-color, #03a9f4);
+      font: inherit;
       font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+    }
+    .undo:focus-visible {
+      outline: 2px solid var(--primary-color, #03a9f4);
+      outline-offset: 2px;
+    }
+    .tag {
+      position: absolute;
+      z-index: 8;
+      top: 8px;
+      left: 16px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: rgba(0, 0, 0, 0.7);
+      color: #fff;
+      font-size: 13px;
+      font-weight: 600;
     }
     .box-toggle:focus-visible,
     .close:focus-visible,
@@ -18852,7 +19139,6 @@ function readBoxesVisible() {
 var KibbleLabelSheet = class extends i4 {
   constructor() {
     super();
-    this._draft = null;
     this._photosExpanded = false;
     this._viewerIndex = null;
     this._zoom = null;
@@ -18867,7 +19153,6 @@ var KibbleLabelSheet = class extends i4 {
     this._clipEventUid = null;
     this._keydownHandler = (event) => {
       if (!this.open) return;
-      if (event.key === "Escape" && event.composedPath().some((target) => target instanceof Element && target.matches(".picker"))) return;
       if (this._viewerIndex !== null) return;
       if (event.key === "Escape") {
         event.preventDefault();
@@ -18898,12 +19183,6 @@ var KibbleLabelSheet = class extends i4 {
       if (event.key === BOXES_STORAGE_KEY) this._showBoxes = event.newValue !== "false";
     };
     this._toggleBoxes = () => this._setBoxesVisible(!this._showBoxes);
-    this._onSubjectLabelSelected = (request) => {
-      const event = this.summary;
-      if (!event) return;
-      const draft = this._draft ?? draftFrom(this._sessionCatsFor(event), event.identity);
-      this._draft = nameDraftSubject(draft, request.detail.sid, request.detail.label, event.kind === "eat");
-    };
     this._onBoxesVisibilityRequested = (request) => {
       const visible = request.detail?.visible;
       if (typeof visible === "boolean") this._setBoxesVisible(visible);
@@ -18924,12 +19203,8 @@ var KibbleLabelSheet = class extends i4 {
     this.samplesFailed = false;
     this.group = [];
     this.groupTogether = false;
-    this.busy = false;
-    this.error = null;
-    this.sampleBusyUid = null;
     this.sceneSubjects = [];
     this.sessionCats = null;
-    this.multipleCats = false;
     this._showBoxes = readBoxesVisible();
   }
   static {
@@ -18943,20 +19218,15 @@ var KibbleLabelSheet = class extends i4 {
       samples: { attribute: false },
       sceneSubjects: { attribute: false },
       sessionCats: { attribute: false },
-      multipleCats: { type: Boolean },
       samplesFailed: { type: Boolean },
       group: { attribute: false },
       groupTogether: { type: Boolean },
-      busy: { type: Boolean },
-      error: { type: String },
-      sampleBusyUid: { attribute: false },
       _photosExpanded: { state: true },
       _viewerIndex: { state: true },
       _zoom: { state: true },
       _clipSrc: { state: true },
       _clipError: { state: true },
-      _showBoxes: { state: true },
-      _draft: { state: true }
+      _showBoxes: { state: true }
     };
   }
   connectedCallback() {
@@ -18995,10 +19265,6 @@ var KibbleLabelSheet = class extends i4 {
       this._photosExpanded = false;
       this._viewerIndex = null;
       this._zoom = null;
-      this._draft = null;
-    }
-    if (changed.has("sessionCats")) {
-      this._draft = null;
     }
     if (changed.has("open") && !this.open || eventUid !== this._clipEventUid) {
       this._clipEventUid = eventUid;
@@ -19009,15 +19275,14 @@ var KibbleLabelSheet = class extends i4 {
     const event = this.summary;
     if (!this.open || !event) return A;
     const sessionCats = this._sessionCatsFor(event);
-    const draft = this._draft ?? draftFrom(sessionCats, event.identity);
     const isFeed = event.kind === "feed";
     const locale = this.hass?.locale?.language ?? this.hass?.language;
-    const ariaTitle = isFeed ? feedTitle(event) : this._draftTitle(event, draft);
+    const title = isFeed ? feedTitle(event) : sessionTitle(sessionCats, event);
     const stageKind = this._stageKind(event);
     return b2`
       <div class="backdrop" @click=${this._close}>
-        <div class="sheet" role="dialog" aria-modal="true" aria-label=${ariaTitle} @click=${(e6) => e6.stopPropagation()}>
-          ${this._renderHeader(event, isFeed, locale, draft)}
+        <div class="sheet" role="dialog" aria-modal="true" aria-label=${title} @click=${(e6) => e6.stopPropagation()}>
+          ${this._renderHeader(event, locale, title, sessionCats)}
           <div class="scroll">
             <div class="layout ${stageKind === "none" ? "no-media" : ""}">
               ${stageKind !== "none" ? b2`
@@ -19026,10 +19291,10 @@ var KibbleLabelSheet = class extends i4 {
                       ${stageKind === "media" && event.before && event.after ? this._renderCompare() : A}
                     </div>
                   ` : A}
-              <div class="info-col">${!isFeed ? b2`${this._renderIdentity(event, sessionCats, draft)}${this._renderPhotos(event, sessionCats)}` : A}</div>
+              <div class="info-col">${!isFeed ? b2`${this._renderAsk(event, sessionCats)}${this._renderPhotos(event, sessionCats)}` : A}</div>
             </div>
           </div>
-          ${!isFeed ? this._renderFooter(event, sessionCats, draft) : b2`<footer><button type="button" class="primary-btn" @click=${this._close}>Done</button></footer>`}
+          <footer><button type="button" class="primary-btn" @click=${this._close}>Done</button></footer>
         </div>
         ${this._zoom ? this._renderZoom() : A}
       </div>
@@ -19042,9 +19307,6 @@ var KibbleLabelSheet = class extends i4 {
         .showBoxes=${this._showBoxes}
         @boxes-visibility-requested=${this._onBoxesVisibilityRequested}
         .initialIndex=${this._viewerIndex ?? 0}
-        .event=${event}
-        .busyUid=${this.sampleBusyUid}
-        .error=${this.error}
         @viewer-close-requested=${this._onViewerClose}
       ></kibble-photo-viewer>
     `;
@@ -19054,22 +19316,17 @@ var KibbleLabelSheet = class extends i4 {
     return cat ? catColorAt(cat.color) : fallbackCatColor(name);
   }
   _sceneOverlayBoxes() {
-    const drafted = this._draft?.subjects ?? {};
     return this.sceneSubjects.map((subject, index) => {
-      const labelNow = subject.sid !== null && drafted[subject.sid] !== void 0 ? drafted[subject.sid] : subject.label;
-      const name = labelNow && labelNow !== "not_a_cat" ? labelNow : null;
+      const name = subject.label && subject.label !== "not_a_cat" ? subject.label : null;
       const cat = name ? this.cats.find((candidate) => candidate.name === name) : null;
-      const tone = name ? "cat" : labelNow === "not_a_cat" ? "not-cat" : "unknown";
+      const tone = name ? "cat" : subject.label === "not_a_cat" ? "not-cat" : "unknown";
       return {
         key: "scene:" + index,
         box: subject.box,
         tone,
         label: name ?? (tone === "not-cat" ? "Not a cat" : "Who?"),
         color: name ? this._catColor(name) : void 0,
-        avatar: cat?.avatar ?? null,
-        selectable: subject.sid !== null,
-        subjectSid: subject.sid,
-        subjectLabel: labelNow
+        avatar: cat?.avatar ?? null
       };
     });
   }
@@ -19084,10 +19341,11 @@ var KibbleLabelSheet = class extends i4 {
     const ownBox = boxInCrop(sample.box, sample.crop);
     if (!ownBox) return [];
     const name = sample.label ?? sample.guess;
-    const tone = name === "not_a_cat" ? "not-cat" : name && name !== "skip" ? "cat" : "unknown";
-    const cat = tone === "cat" ? this.cats.find((candidate) => candidate.name === name) : null;
+    const named = name !== null && name !== "not_a_cat" && name !== "skip" && name !== "both" ? name : null;
+    const tone = named ? "cat" : name === "not_a_cat" ? "not-cat" : "unknown";
+    const cat = named ? this.cats.find((candidate) => candidate.name === named) : null;
     return [
-      { key: "sample:" + sample.uid, box: ownBox, tone, color: name && name !== "not_a_cat" && name !== "skip" ? this._catColor(name) : void 0, avatar: cat?.avatar ?? null },
+      { key: "sample:" + sample.uid, box: ownBox, tone, color: named ? this._catColor(named) : void 0, avatar: cat?.avatar ?? null },
       ...sample.peers.flatMap((peer, index) => {
         const box = boxInCrop(peer, sample.crop);
         return box ? [{ key: "peer:" + sample.uid + ":" + index, box, tone: "peer" }] : [];
@@ -19095,14 +19353,10 @@ var KibbleLabelSheet = class extends i4 {
     ];
   }
   // ---- Header + pager ----
-  _draftTitle(event, draft) {
-    return sessionTitle(draft.cats, { identity: draft.notACat ? "not_a_cat" : "auto", open: event.open });
-  }
-  _renderHeader(event, isFeed, locale, draft) {
+  _renderHeader(event, locale, title, cats) {
     const duration = eventDuration(event);
-    const liveCat = draft.cats.find((cat) => cat.ate)?.cat ?? draft.cats[0]?.cat ?? event.cat;
+    const liveCat = cats.find((cat) => cat.ate)?.cat ?? cats[0]?.cat ?? event.cat;
     const color = liveCat ? this._catColor(liveCat) : null;
-    const title = isFeed ? feedTitle(event) : this._draftTitle(event, draft);
     const index = this.group.findIndex((member) => member.uid === event.uid);
     return b2`
       <header>
@@ -19200,7 +19454,7 @@ var KibbleLabelSheet = class extends i4 {
                     </button>
                   ` : A}
             ` : A}
-        ${this._showBoxes && this.sceneSubjects.length ? b2`<kibble-box-overlay .boxes=${this._sceneOverlayBoxes()} .hass=${this.hass} .cache=${this.cache} .cats=${this.cats} .busy=${this.busy} @subject-label-requested=${this._onSubjectLabelSelected}></kibble-box-overlay>` : A}
+        ${this._showBoxes && this.sceneSubjects.length ? b2`<kibble-box-overlay .boxes=${this._sceneOverlayBoxes()} .hass=${this.hass} .cache=${this.cache}></kibble-box-overlay>` : A}
         ${this.sceneSubjects.length ? this._renderBoxesToggle() : A}
       </div>
     `;
@@ -19268,7 +19522,7 @@ var KibbleLabelSheet = class extends i4 {
     }}>
         <div class="zoom-scene" @click=${(e6) => e6.stopPropagation()}>
           <kibble-image .hass=${this.hass} .asset=${this._zoom} .cache=${this.cache} alt="" fit="contain"></kibble-image>
-          ${event && this._showBoxes && this.sceneSubjects.length ? b2`<kibble-box-overlay .boxes=${this._sceneOverlayBoxes()} .hass=${this.hass} .cache=${this.cache} .cats=${this.cats} .busy=${this.busy} @subject-label-requested=${this._onSubjectLabelSelected}></kibble-box-overlay>` : A}
+          ${event && this._showBoxes && this.sceneSubjects.length ? b2`<kibble-box-overlay .boxes=${this._sceneOverlayBoxes()} .hass=${this.hass} .cache=${this.cache}></kibble-box-overlay>` : A}
         </div>
         ${this.sceneSubjects.length ? this._renderBoxesToggle() : A}
         <button type="button" class="zoom-close" aria-label="Close photo" @click=${(e6) => {
@@ -19278,71 +19532,22 @@ var KibbleLabelSheet = class extends i4 {
       </div>
     `;
   }
-  // ---- Identity ----
+  // ---- What the sheet asks ----
   _sessionCatsFor(event) {
     if (this.sessionCats) return this.sessionCats;
     if (!event.cat) return [];
     return [{ cat: event.cat, ate: event.kind === "eat", confirmed: event.identity === "reviewed", confidence: event.confidence ?? null, photos: event.sample_count ?? 0 }];
   }
-  _requestSessionLabel(request, closeOnSuccess = false) {
-    this.dispatchEvent(new CustomEvent("session-label-requested", {
-      detail: { ...request, closeOnSuccess },
-      bubbles: true,
-      composed: true
-    }));
-  }
-  _setDraft(event, update) {
-    if (this.busy) return;
-    this._draft = update(this._draft ?? draftFrom(this._sessionCatsFor(event), event.identity));
-  }
-  _renderIdentity(event, saved, draft) {
-    const isMeal = event.kind === "eat";
+  /** "Who ate?" on a meal that still needs it, and a hint to tap a photo to name it. */
+  _renderAsk(event, sessionCats) {
+    const cats = sessionCats.map((cat) => cat.cat);
+    const question = event.needs_ate && cats.length >= 2 ? { visitUid: event.uid, cats, start: event.start } : null;
     return b2`
-      <div class="identity">
-        <div class="identity-heading">
-          <span class="identity-title">Who was here?</span>
-          <span class="identity-hint ${this.multipleCats && draft.cats.length < 2 && !draft.notACat ? "identity-hint-multiple" : ""}">${this.multipleCats && draft.cats.length < 2 && !draft.notACat ? "Looks like more than one cat. Tap everyone who was here" : "Tap everyone who was here"}</span>
-        </div>
-        <div class="chip-grid" role="group" aria-label="Who was here?">
-          ${this.cats.map((cat) => this._renderIdentityChip(cat, event, saved, draft))}
-          ${this._renderNotACatChip(event, draft)}
-          <kibble-choice
-            label="Can\u2019t tell"
-            .icon=${"helpCircle"}
-            .state=${event.identity === "unknown" ? "selected" : "neutral"}
-            ?disabled=${this.busy || event.identity === "unknown"}
-            @click=${() => this._requestSessionLabel({ uid: event.uid, verdict: "unknown" }, true)}
-          ></kibble-choice>
-        </div>
-        ${isMeal && draft.cats.length >= 2 ? b2`<div class="meal-roles" role="group" aria-label="Who ate?">${draft.cats.map((cat) => b2`
-          <div class="meal-role"><span class="meal-cat">${cat.cat}</span><div class="meal-role-options" role="group" aria-label=${cat.cat}>
-            <button type="button" aria-pressed=${cat.ate} ?disabled=${this.busy} @click=${() => this._setDraft(event, (d3) => setDraftAte(d3, cat.cat, true))}>Ate</button>
-            <button type="button" aria-pressed=${!cat.ate} ?disabled=${this.busy} @click=${() => this._setDraft(event, (d3) => setDraftAte(d3, cat.cat, false))}>Came by</button>
-          </div></div>`)}</div>` : A}
-        ${this.error ? b2`<p class="identity-error">${this.error}</p>` : A}
+      <div class="ask">
+        ${question ? b2`<kibble-who-ate .hass=${this.hass} .cache=${this.cache} .question=${question} .roster=${this.cats}></kibble-who-ate>` : A}
+        ${this.samples?.length ? b2`<p class="hint">Tap a photo to say who is in it.</p>` : A}
       </div>
     `;
-  }
-  _renderIdentityChip(cat, event, saved, draft) {
-    const state2 = draftChipState(draft, saved, cat.name);
-    return b2`<kibble-choice
-      .hass=${this.hass}
-      .cache=${this.cache}
-      .label=${cat.name}
-      .cats=${[cat]}
-      .state=${state2 === "confirmed" ? "selected" : state2}
-      ?disabled=${this.busy}
-      @click=${() => this._setDraft(event, (d3) => toggleDraftCat(d3, cat.name, event.kind === "eat"))}
-    ></kibble-choice>`;
-  }
-  _renderNotACatChip(event, draft) {
-    return b2`<kibble-choice
-      label="Not a cat"
-      .icon=${"cancel"}
-      .state=${draft.notACat ? "selected" : "neutral"}
-      ?disabled=${this.busy}
-      @click=${() => this._setDraft(event, toggleDraftNotACat)}
-    ></kibble-choice>`;
   }
   // ---- Photos ----
   _renderPhotos(_event, cats) {
@@ -19368,35 +19573,25 @@ var KibbleLabelSheet = class extends i4 {
     }}>+${remaining}</button>` : A}
     </div>`;
   }
-  _sampleBadge(sample) {
-    if (sample.review === null) return null;
-    if (sample.review === "skip") return { kind: "skip" };
-    if (sample.review === "not_a_cat") return { kind: "not_a_cat" };
-    if (sample.review !== sample.cat) return { kind: "cat", name: sample.review, cat: this.cats.find((cat) => cat.name === sample.review) ?? null };
-    return null;
+  /** A photo someone named differently from its visit wears that cat's face in its corner. */
+  _catBadge(sample) {
+    if (sample.review === null || sample.review === sample.cat) return null;
+    return this.cats.find((cat) => cat.name === sample.review) ?? null;
   }
   _renderPhotoTile(sample, index) {
     const asset = sample.body ?? sample.face;
-    const badge = this._sampleBadge(sample);
-    const dimmed = badge !== null && badge.kind !== "cat";
+    const tag = photoTag(sample);
+    const badge = this._catBadge(sample);
+    const label = `Photo ${index + 1} of ${this.samples.length}${tag ? ", " + tag.text.toLowerCase() : ""}`;
     return b2`
-      <button type="button" class="photo-tile ${dimmed ? "dim" : ""}" aria-label=${`Photo ${index + 1} of ${this.samples.length}`} @click=${() => {
+      <button type="button" class="photo-tile ${tag?.kind === "skip" ? "dim" : ""}" aria-label=${label} @click=${() => {
       this._viewerIndex = index;
     }}>
         ${asset ? b2`<kibble-image .hass=${this.hass} .asset=${asset} .cache=${this.cache} alt=""></kibble-image>` : b2`<span class="photo-neutral">${catSilhouette()}</span>`}
-        ${badge ? this._renderPhotoBadge(badge) : A}
+        ${tag ? b2`<span class="photo-tag">${tag.text}</span>` : A}
+        ${badge ? b2`<span class="photo-badge photo-badge-avatar"><kibble-avatar .hass=${this.hass} .name=${badge.name} .colorIndex=${badge.color ?? null} .asset=${badge.avatar ?? null} .cache=${this.cache}></kibble-avatar></span>` : A}
         ${this._showBoxes && sample.body && sample.box && sample.crop ? b2`<kibble-box-overlay .boxes=${this._photoOverlayBoxes(sample)} .hass=${this.hass} .cache=${this.cache}></kibble-box-overlay>` : A}
       </button>`;
-  }
-  _renderPhotoBadge(badge) {
-    if (badge.kind === "cat") return b2`<span class="photo-badge photo-badge-avatar"><kibble-avatar .hass=${this.hass} .name=${badge.name} .colorIndex=${badge.cat?.color ?? null} .asset=${badge.cat?.avatar ?? null} .cache=${this.cache}></kibble-avatar></span>`;
-    return b2`<span class="photo-badge photo-badge-icon">${mdiIcon(badge.kind === "skip" ? "eyeOff" : "close")}</span>`;
-  }
-  // ---- Footer ----
-  _renderFooter(event, saved, draft) {
-    const action = confirmAction(draft, saved, event.identity);
-    const onClick = action.kind === "save" ? () => this._requestSessionLabel({ uid: event.uid, ...action.request }, true) : this._close;
-    return b2`<footer><button type="button" class="primary-btn" ?disabled=${this.busy || action.kind === "blocked"} @click=${onClick}>${this.busy && action.kind === "save" ? "Saving" : action.text}</button></footer>`;
   }
   static {
     this.styles = i`
@@ -19780,82 +19975,15 @@ var KibbleLabelSheet = class extends i4 {
     }
 
 
-    .identity {
+    .ask {
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 12px;
     }
-    .identity-heading {
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-    }
-    .identity-title {
-      font-size: var(--kibble-text-body, 14px);
-      font-weight: 600;
-      color: var(--primary-text-color);
-    }
-    .identity-hint {
+    .hint {
+      margin: 0;
       font-size: var(--kibble-text-caption, 12px);
       color: var(--secondary-text-color);
-    }
-    .identity-hint-multiple {
-      color: var(--warning-color, #f4a452);
-      font-weight: 500;
-    }
-    .chip-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-      gap: 8px;
-    }
-    .meal-roles {
-      display: grid;
-      gap: 6px;
-      padding-top: 4px;
-    }
-    .meal-role {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
-      align-items: center;
-      gap: 8px;
-    }
-    .meal-cat {
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      font-size: 14px;
-      font-weight: 600;
-    }
-    .meal-role-options {
-      display: flex;
-      gap: 4px;
-    }
-    .meal-role-options button {
-      min-width: 72px;
-      min-height: 48px;
-      padding: 0 8px;
-      border: 1px solid var(--divider-color);
-      border-radius: 8px;
-      background: transparent;
-      color: var(--primary-text-color);
-      font: inherit;
-      font-size: 12px;
-      cursor: pointer;
-    }
-    .meal-role-options button[aria-pressed="true"] {
-      border-color: var(--primary-color);
-      background: color-mix(in srgb, var(--primary-color) 16%, transparent);
-    }
-    .meal-role-options button:disabled {
-      cursor: default;
-    }
-    .identity-error {
-      margin: 0;
-      padding: 8px 10px;
-      border-radius: 8px;
-      background: color-mix(in srgb, var(--error-color, #db4437) 10%, transparent);
-      color: var(--error-color, #db4437);
-      font-size: 14px;
     }
     .photos {
       display: flex;
@@ -19952,10 +20080,22 @@ var KibbleLabelSheet = class extends i4 {
     .photo-badge-avatar kibble-avatar {
       --kibble-avatar-size: 22px;
     }
-    .photo-badge-icon {
-      background: rgba(0, 0, 0, 0.62);
+    .photo-tag {
+      position: absolute;
+      left: 4px;
+      bottom: 4px;
+      max-width: calc(100% - 8px);
+      padding: 2px 6px;
+      border-radius: 999px;
+      background: rgba(0, 0, 0, 0.7);
       color: #fff;
-      box-shadow: 0 0 0 2px var(--ha-card-background, var(--card-background-color, #fff));
+      font-size: 11px;
+      font-weight: 600;
+      line-height: 1.3;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      pointer-events: none;
     }
     .photo-skeleton {
       aspect-ratio: 1;
@@ -20129,6 +20269,10 @@ var KibbleTimelineCardEditor = class extends i4 {
 customElements.define("kibble-timeline-card-editor", KibbleTimelineCardEditor);
 var EMPTY_ENTITIES = { deviceId: "", catPresence: [] };
 var DEFAULT_LIMIT = 30;
+function answeredSample(sample, label) {
+  const answer = label === "follow" ? null : label;
+  return { ...sample, review: answer, label: answer };
+}
 var KibbleTimelineCard = class extends i4 {
   constructor() {
     super();
@@ -20145,9 +20289,10 @@ var KibbleTimelineCard = class extends i4 {
     this._observedSentinelCapped = null;
     this._newestKnownUid = null;
     this._animateUids = /* @__PURE__ */ new Set();
-    this._sheetReviewedEvents = /* @__PURE__ */ new Map();
     this._sheetPhotoUids = /* @__PURE__ */ new Set();
     this._stopReviewListening = null;
+    this._outbox = null;
+    this._unsubscribeOutbox = null;
     this._onRailScroll = () => {
       this._updateEdges();
     };
@@ -20159,74 +20304,31 @@ var KibbleTimelineCard = class extends i4 {
       if (uid) this._loadEventDetail(uid);
     };
     this._closeSheet = () => {
-      const message = reviewSummaryMessage({ events: [...this._sheetReviewedEvents.values()], photosUpdated: this._sheetPhotoUids.size }, this._locale());
+      const message = reviewSummaryMessage(this._sheetPhotoUids.size, this._locale());
       this._sheetSummary = null;
       this._sheetSamples = null;
       this._sheetSceneSubjects = [];
       this._sheetSessionCats = null;
-      this._sheetMultipleCats = false;
       this._sheetSamplesFailed = false;
-      this._sheetSampleBusyUid = null;
       this._sheetGroup = [];
       this._sheetTogether = false;
-      this._sheetError = null;
-      this._sheetReviewedEvents = /* @__PURE__ */ new Map();
       this._sheetPhotoUids = /* @__PURE__ */ new Set();
       this._sheetTrigger?.focus();
       this._sheetTrigger = null;
       if (message) this.dispatchEvent(new CustomEvent("hass-notification", { detail: { message }, bubbles: true, composed: true }));
     };
-    this._onSessionLabelRequested = (event) => {
-      const entryId = this._entryId;
-      const hass = this.hass;
-      if (!entryId || !hass?.callWS) return;
-      const { uid, cats, verdict, subjects, closeOnSuccess } = event.detail;
-      const request = { uid, ...cats ? { cats } : {}, ...verdict ? { verdict } : {}, ...subjects?.length ? { subjects } : {} };
-      this._sheetBusy = true;
-      this._sheetError = null;
-      labelSession(hass, entryId, request).then((detail) => {
-        this._sheetBusy = false;
-        this._applySheetDetail(detail);
-        announceReviewChange(entryId);
-        for (const key of this._sheetReviewedEvents.keys()) {
-          if (key === detail.event.uid || key.startsWith(detail.event.uid + ":")) this._sheetReviewedEvents.delete(key);
-        }
-        if (request.verdict) {
-          this._sheetReviewedEvents.set(detail.event.uid, { uid: detail.event.uid, event: detail.event, label: request.verdict });
-        } else {
-          for (const cat of request.cats ?? []) {
-            const uid2 = detail.event.uid + ":" + cat.cat;
-            this._sheetReviewedEvents.set(uid2, { uid: uid2, event: { kind: cat.ate ? "eat" : "visit", open: detail.event.open, start: detail.event.start }, label: cat.cat });
-          }
-        }
-        if (closeOnSuccess) this._closeSheet();
-        else this.requestUpdate();
-      }).catch((err) => {
-        this._sheetBusy = false;
-        this._sheetError = err instanceof Error ? err.message : "Couldn't save this label.";
-        this.requestUpdate();
-      });
-    };
-    this._onSampleLabelRequested = (event) => {
-      const entryId = this._entryId;
-      const hass = this.hass;
-      if (!entryId || !hass?.callWS) return;
+    this._onSampleAnswer = (event) => {
       const { sampleUid, label } = event.detail;
-      this._sheetSampleBusyUid = sampleUid;
-      this._sheetError = null;
-      labelSample(hass, entryId, { sampleUid, label }).then((sample) => {
-        this._sheetSampleBusyUid = null;
-        if (this._sheetSamples) this._sheetSamples = this._sheetSamples.map((item) => item.uid === sample.uid ? sample : item);
-        this._sheetPhotoUids.add(sampleUid);
-        const uid = this._sheetSummary?.uid;
-        if (uid) this._loadEventDetail(uid, true);
-        announceReviewChange(entryId);
-        this.requestUpdate();
-      }).catch((err) => {
-        this._sheetSampleBusyUid = null;
-        this._sheetError = err instanceof Error ? err.message : "Couldn't save this label.";
-        this.requestUpdate();
-      });
+      if (!this._outbox) return;
+      this._outbox.enqueue({ kind: "photo", sampleUid, label });
+      this._sheetPhotoUids.add(sampleUid);
+      if (this._sheetSamples) this._sheetSamples = this._sheetSamples.map((item) => item.uid === sampleUid ? answeredSample(item, label) : item);
+    };
+    this._onAteChosen = (event) => {
+      const { visitUid, ate } = event.detail;
+      if (!this._outbox) return;
+      this._outbox.enqueue({ kind: "ate", visitUid, ate });
+      if (this._sheetSummary?.uid === visitUid) this._sheetSummary = { ...this._sheetSummary, needs_ate: false };
     };
     this._loadOlder = () => {
       this._timelineFeed.loadMore(this.hass, this._entryId, this._config?.limit ?? DEFAULT_LIMIT);
@@ -20238,13 +20340,9 @@ var KibbleTimelineCard = class extends i4 {
     this._sheetSamples = null;
     this._sheetSceneSubjects = [];
     this._sheetSessionCats = null;
-    this._sheetMultipleCats = false;
     this._sheetSamplesFailed = false;
-    this._sheetSampleBusyUid = null;
     this._sheetGroup = [];
     this._sheetTogether = false;
-    this._sheetBusy = false;
-    this._sheetError = null;
     this._edgeTop = false;
     this._edgeBottom = false;
   }
@@ -20256,13 +20354,9 @@ var KibbleTimelineCard = class extends i4 {
       _sheetSamples: { state: true },
       _sheetSceneSubjects: { state: true },
       _sheetSessionCats: { state: true },
-      _sheetMultipleCats: { state: true },
       _sheetSamplesFailed: { state: true },
-      _sheetSampleBusyUid: { state: true },
       _sheetGroup: { state: true },
       _sheetTogether: { state: true },
-      _sheetBusy: { state: true },
-      _sheetError: { state: true },
       _edgeTop: { state: true },
       _edgeBottom: { state: true }
     };
@@ -20290,6 +20384,8 @@ var KibbleTimelineCard = class extends i4 {
       () => {
         this._timelineFeed.refresh(this.hass, this._entryId, this._config?.limit ?? DEFAULT_LIMIT);
         this._refreshCats();
+        const open = this._sheetSummary?.uid;
+        if (open) this._loadEventDetail(open, true);
       }
     );
   }
@@ -20297,6 +20393,9 @@ var KibbleTimelineCard = class extends i4 {
     super.disconnectedCallback();
     this._stopReviewListening?.();
     this._stopReviewListening = null;
+    this._unsubscribeOutbox?.();
+    this._unsubscribeOutbox = null;
+    this._outbox = null;
     this._imageCache.dispose();
     this._timelineFeed.dispose();
     this._sentinelObserver?.disconnect();
@@ -20311,6 +20410,7 @@ var KibbleTimelineCard = class extends i4 {
       this._entities = resolveKibbleEntities(this.hass.entities ?? {}, deviceId);
       this._entryId = resolveEntryId(this.hass.devices ?? {}, deviceId);
     }
+    if (this.hass && this._entryId) this._joinOutbox(answerOutbox(this.hass, this._entryId));
     this._timelineFeed.sync(this.hass, this._entryId, this._config?.limit ?? DEFAULT_LIMIT);
     const callWS = this.hass?.callWS;
     if (this.hass && this._entryId && callWS && this._entryId !== this._catsEntryId) {
@@ -20436,16 +20536,12 @@ var KibbleTimelineCard = class extends i4 {
         .samples=${this._sheetSamples}
         .sceneSubjects=${this._sheetSceneSubjects}
         .sessionCats=${this._sheetSessionCats}
-        .multipleCats=${this._sheetMultipleCats}
         .samplesFailed=${this._sheetSamplesFailed}
         .group=${this._sheetGroup}
         .groupTogether=${this._sheetTogether}
-        .busy=${this._sheetBusy}
-        .error=${this._sheetError}
-        .sampleBusyUid=${this._sheetSampleBusyUid}
         @close-requested=${this._closeSheet}
-        @session-label-requested=${this._onSessionLabelRequested}
-        @sample-label-requested=${this._onSampleLabelRequested}
+        @sample-answer-requested=${this._onSampleAnswer}
+        @ate-chosen=${this._onAteChosen}
         @event-requested=${this._onEventRequested}
         @samples-retry-requested=${this._onSamplesRetryRequested}
       ></kibble-label-sheet>
@@ -20549,23 +20645,13 @@ var KibbleTimelineCard = class extends i4 {
     const titleBody = event.kind === "feed" ? b2`${feedTitle(event)}` : event.cat ? b2`<span class="cat-name" style="color:${color}">${event.cat}</span> ${catVerb(event)}` : b2`${event.open ? event.kind === "eat" ? "Someone is eating" : "Someone is here" : "Who was here?"}`;
     const asks = needsIdentification(event);
     const label = asks ? `Who was here? ${timeLabel(event.start, this._locale())}` : `Review ${eventTitle(event)}, ${timeLabel(event.start, this._locale())}`;
-    return b2`<button type="button" class="title-open ${asks ? "asks" : ""}" aria-label=${label} @click=${(click) => this._openRow(group, click.currentTarget)}>
+    return b2`<button type="button" class="title-open ${asks ? "asks" : ""}" aria-label=${label} @click=${(click) => this._openSheet(group, click.currentTarget)}>
       <span class="title-line">
         <span class="title">${titleBody}</span>
         ${asks ? b2`<span class="ask-chevron">${mdiIcon("chevronRight")}</span>` : A}
         ${event.open ? this._renderLiveRing(color) : A}
         ${group.events.length > 1 ? b2`<span class="count-badge">${groupCountLabel(event.kind, group.events.length)}</span>` : A}
       </span></button>`;
-  }
-  /** A row's tap: a visit nobody has named goes straight to the review queue at that visit;
-   * everything else opens the event sheet. */
-  _openRow(group, trigger) {
-    const event = group.event;
-    if (group.together !== true && needsIdentification(event)) {
-      this.renderRoot.querySelector("kibble-review-entry")?.open(event.session ?? event.uid);
-    } else {
-      this._openSheet(group, trigger);
-    }
   }
   _renderLiveRing(color) {
     return b2`
@@ -20604,7 +20690,7 @@ var KibbleTimelineCard = class extends i4 {
     const hasClip = event.kind === "eat" && Boolean(event.clip);
     const label = `View and correct: ${eventTitle(event)}, ${timeLabel(event.start, this._locale())}${hasClip ? ". Has video." : ""}`;
     return b2`
-      <button type="button" class="${extraClass}" aria-label=${label} @click=${(e6) => this._openRow(group, e6.currentTarget)}>
+      <button type="button" class="${extraClass}" aria-label=${label} @click=${(e6) => this._openSheet(group, e6.currentTarget)}>
         ${asset ? b2`<kibble-image .hass=${this.hass} .asset=${asset} .cache=${this._imageCache} alt=""></kibble-image>` : b2`<span class="neutral-icon">${catSilhouette()}</span>`}
         ${hasClip ? b2`<span class="clip-badge">${mdiIcon("play")}</span>` : A}
       </button>
@@ -20614,11 +20700,11 @@ var KibbleTimelineCard = class extends i4 {
     const label = `View and correct: ${eventTitle(group.event)}, ${timeLabel(group.event.start, this._locale())}`;
     return b2`
       <div class="compare-pair ${size === "full" ? "compare-full" : "compare-third"}">
-        <button type="button" class="compare-tile" aria-label=${`${label}. Before.`} @click=${(e6) => this._openRow(group, e6.currentTarget)}>
+        <button type="button" class="compare-tile" aria-label=${`${label}. Before.`} @click=${(e6) => this._openSheet(group, e6.currentTarget)}>
           ${compare.before ? b2`<kibble-image .hass=${this.hass} .asset=${compare.before} .cache=${this._imageCache} alt=""></kibble-image>` : A}
           <span class="compare-label">Before</span>
         </button>
-        <button type="button" class="compare-tile" aria-label=${`${label}. After.`} @click=${(e6) => this._openRow(group, e6.currentTarget)}>
+        <button type="button" class="compare-tile" aria-label=${`${label}. After.`} @click=${(e6) => this._openSheet(group, e6.currentTarget)}>
           ${compare.after ? b2`<kibble-image .hass=${this.hass} .asset=${compare.after} .cache=${this._imageCache} alt=""></kibble-image>` : A}
           <span class="compare-label">After</span>
         </button>
@@ -20632,12 +20718,18 @@ var KibbleTimelineCard = class extends i4 {
     if (!callWS || !entryId) return;
     this._catsQuery.refresh(() => callWS({ type: "kibble/cats", entry_id: entryId }).then((r6) => r6));
   }
+  /** Shows a session's detail. Answers still waiting in the outbox are laid over it, so a refresh
+   * never flips a photo that was just answered back to unanswered. */
   _applySheetDetail(detail) {
-    this._sheetSummary = detail.event;
-    this._sheetSamples = detail.samples;
+    const pending = this._outbox?.pendingPhotoLabels();
+    const askedAte = this._outbox?.entries.some((entry2) => entry2.answer.kind === "ate" && entry2.answer.visitUid === detail.event.uid) ?? false;
+    this._sheetSummary = askedAte ? { ...detail.event, needs_ate: false } : detail.event;
+    this._sheetSamples = detail.samples.map((sample) => {
+      const label = pending?.get(sample.uid);
+      return label === void 0 ? sample : answeredSample(sample, label);
+    });
     this._sheetSceneSubjects = detail.scene_subjects;
     this._sheetSessionCats = detail.cats;
-    this._sheetMultipleCats = detail.multiple_cats;
     this._sheetSamplesFailed = false;
     this.requestUpdate();
   }
@@ -20649,10 +20741,8 @@ var KibbleTimelineCard = class extends i4 {
       this._sheetSamples = null;
       this._sheetSceneSubjects = [];
       this._sheetSessionCats = null;
-      this._sheetMultipleCats = false;
       this._sheetSamplesFailed = false;
     }
-    this._sheetError = null;
     const generation = ++this._detailGeneration;
     const callWS = this.hass?.callWS;
     const entryId = this._entryId;
@@ -20673,11 +20763,24 @@ var KibbleTimelineCard = class extends i4 {
     this._sheetTrigger = trigger;
     this._sheetGroup = group.events;
     this._sheetTogether = group.together === true;
-    this._sheetReviewedEvents = /* @__PURE__ */ new Map();
     this._sheetPhotoUids = /* @__PURE__ */ new Set();
     this._sheetSessionCats = null;
-    this._sheetMultipleCats = false;
     this._loadEventDetail(group.event.uid);
+  }
+  _joinOutbox(outbox) {
+    if (outbox === this._outbox) return;
+    this._unsubscribeOutbox?.();
+    this._outbox = outbox;
+    this._unsubscribeOutbox = outbox.subscribe((event) => this._onOutbox(event));
+  }
+  /** An answer Kibble refused for good: say so once, then show what Kibble really has. */
+  _onOutbox(event) {
+    const outbox = this._outbox;
+    const uid = this._sheetSummary?.uid;
+    if (event.type !== "dropped" || !outbox || !uid) return;
+    this.dispatchEvent(new CustomEvent("hass-notification", { detail: { message: describeDrops(outbox.drops) }, bubbles: true, composed: true }));
+    outbox.clearDrops();
+    this._loadEventDetail(uid, true);
   }
   static {
     this.styles = i`
@@ -22714,7 +22817,7 @@ var KibbleCatsCard = class extends i4 {
   constructor() {
     super();
     this._entities = EMPTY_ENTITIES2;
-    this._catsQuery = new WsQuery(() => this.requestUpdate());
+    this._catsQuery = new WsQuery(() => this.requestUpdate(), { retry: RETRY_SCHEDULE_MS, timeoutMs: CALL_TIMEOUT_MS });
     this._trainingFeeds = /* @__PURE__ */ new Map();
     this._imageCache = new ImageUrlCache();
     this._stopReviewListening = null;
@@ -22780,6 +22883,7 @@ var KibbleCatsCard = class extends i4 {
   }
   connectedCallback() {
     super.connectedCallback();
+    this._catsQuery.retryNow();
     this._stopReviewListening = onReviewChange(
       () => this._entryId,
       () => {
@@ -22793,6 +22897,7 @@ var KibbleCatsCard = class extends i4 {
     super.disconnectedCallback();
     this._stopReviewListening?.();
     this._stopReviewListening = null;
+    this._catsQuery.dispose();
     this._imageCache.dispose();
     for (const feed of this._trainingFeeds.values()) feed.dispose();
     clearTimeout(this._deleteConfirmTimer);
@@ -22834,12 +22939,16 @@ var KibbleCatsCard = class extends i4 {
         <div class="container">
           ${this._config.name ? b2`<div class="label">${this._config.name}</div>` : A}
           ${this._actionError ? this._renderActionError() : A}
+          ${this._catsQuery.state.reconnecting ? b2`<p class="storage-line" role="status"><span>Reconnecting\u2026</span></p>` : A}
           <section class="roster">
-            ${cats.length === 0 ? b2`<p class="empty">No cats yet. Add one to start training.</p>` : b2`<div class="cat-list">${cats.map((cat) => this._renderCatTile(cat))}</div>`}
+            ${this._renderRosterBody(cats)}
             ${this._renderAddCat()}
           </section>
           ${this._expandedTraining ? this._renderTrainingPanel(this._expandedTraining) : A}
-          ${cats.length > 0 ? b2`<kibble-review-entry .hass=${this.hass} .entryId=${this._entryId} .cats=${cats} .cache=${this._imageCache} .revision=${this._catsQuery.state.data}></kibble-review-entry>` : A}
+          ${cats.length > 0 ? b2`
+                <kibble-review-entry .hass=${this.hass} .entryId=${this._entryId} .cats=${cats} .cache=${this._imageCache} .revision=${this._catsQuery.state.data}></kibble-review-entry>
+                <kibble-learning-line summary .hass=${this.hass} .entryId=${this._entryId}></kibble-learning-line>
+              ` : A}
           ${storage ? b2`
                 <p class="storage-line">
                   <span>${storageSummary(storage)}</span>
@@ -22867,6 +22976,14 @@ var KibbleCatsCard = class extends i4 {
         @avatar-changed=${this._onAvatarChanged}
       ></kibble-avatar-picker>
     `;
+  }
+  /** The cat list, or what stands in for it until the first read answers: never a false "No cats yet". */
+  _renderRosterBody(cats) {
+    const { data, error } = this._catsQuery.state;
+    if (data === null) {
+      return error ? b2`<div class="error"><span>Couldn\u2019t load your cats.</span><button type="button" @click=${() => this._catsQuery.retryNow()}>Try again</button></div>` : b2`<p class="empty">Loading your cats\u2026</p>`;
+    }
+    return cats.length === 0 ? b2`<p class="empty">No cats yet. Add one to start training.</p>` : b2`<div class="cat-list">${cats.map((cat) => this._renderCatTile(cat))}</div>`;
   }
   _renderActionError() {
     const error = this._actionError;
@@ -25004,17 +25121,17 @@ function localTime(hour, minute, daysAgo = 0) {
 function assetFor(id) {
   return { id, url: `/api/kibble/${ENTRY_ID}/media/${id}` };
 }
-function makeSamples(uidPrefix, start, count, opts = {}) {
+function makeSamples(uidPrefix, start, count2, opts = {}) {
   const faceEvery = opts.faceEvery ?? 1;
-  return Array.from({ length: count }, (_2, i8) => {
-    const sUid = `${uidPrefix}-s${i8 + 1}`;
+  return Array.from({ length: count2 }, (_2, i7) => {
+    const sUid = `${uidPrefix}-s${i7 + 1}`;
     return {
       uid: sUid,
-      t: start + i8 * 20,
+      t: start + i7 * 20,
       body: assetFor(`${sUid}-body`),
-      face: (i8 + 1) % faceEvery === 0 ? assetFor(`${sUid}-face`) : null,
+      face: (i7 + 1) % faceEvery === 0 ? assetFor(`${sUid}-face`) : null,
       guess: opts.guess ?? null,
-      guess_confidence: opts.guess ? 0.55 + i8 % 4 * 0.08 : null,
+      guess_confidence: opts.guess ? 0.55 + i7 % 4 * 0.08 : null,
       review: null,
       cat: null,
       sid: null,
@@ -25163,7 +25280,7 @@ function importEvent(index) {
   };
   return { event, samples: [sample] };
 }
-var IMPORT_FIXTURES = Array.from({ length: 26 }, (_2, i8) => importEvent(i8));
+var IMPORT_FIXTURES = Array.from({ length: 26 }, (_2, i7) => importEvent(i7));
 var REVIEW_EVENTS = [
   ...FIXTURES.filter((f4) => f4.event.kind !== "feed" && f4.event.cat === null).map((f4) => f4.event),
   ...IMPORT_FIXTURES.map((f4) => f4.event)
@@ -25271,6 +25388,7 @@ var REVIEW_SPECS = [
     return { who: kitty2 ? "kitty" : "pancake", kind: index % 3 ? "visit" : "eat", cat: kitty2 ? "Kitty" : "Pancake", confidence: 0.8 + index * 0.015, photos: 3 };
   })
 ];
+var MIXED_SPECS = [...REVIEW_SPECS, { who: "hand", kind: "visit", photos: 2 }];
 function buildReviewFixture(specs) {
   const fixtures = specs.map((spec, index) => {
     const start = secondsAgo(25 + index * 95);
@@ -25301,7 +25419,8 @@ function reviewFixture(fixtures) {
 }
 var REVIEW_FIXTURES = {
   review: reviewFixture(buildReviewFixture(REVIEW_SPECS)),
-  "review-empty": reviewFixture(REVIEWED_FIXTURES)
+  "review-empty": reviewFixture(REVIEWED_FIXTURES),
+  mixed: reviewFixture(buildReviewFixture(MIXED_SPECS))
 };
 var MULTICAT_LIVE_DETECTIONS = [
   { x1: 0.24, y1: 0.09, x2: 0.36, y2: 0.5, score: 0.96, admitted: true, sid: 1, cat: "Kitty" },
@@ -25356,10 +25475,10 @@ function trainingSample(cat, index, faceEvery) {
   };
 }
 var TRAINING_BY_CAT = {
-  Kitty: Array.from({ length: 152 }, (_2, i8) => trainingSample("Kitty", i8, 1)),
+  Kitty: Array.from({ length: 152 }, (_2, i7) => trainingSample("Kitty", i7, 1)),
   // Pancake is black -- her face rarely detects, so most of her training photos are body-only.
-  Pancake: Array.from({ length: 24 }, (_2, i8) => trainingSample("Pancake", i8, 5)),
-  Whiskers: Array.from({ length: 3 }, (_2, i8) => trainingSample("Whiskers", i8, 1))
+  Pancake: Array.from({ length: 24 }, (_2, i7) => trainingSample("Pancake", i7, 5)),
+  Whiskers: Array.from({ length: 3 }, (_2, i7) => trainingSample("Whiskers", i7, 1))
 };
 var STORAGE_FIXTURE = {
   used_bytes: Math.round(184.3 * 1024 * 1024),
@@ -25402,7 +25521,7 @@ function jsonResponse(data, status = 200) {
 function createMockHass(scenario, onChange, harnessFixture = "default") {
   const fixture = buildFixture(scenario);
   const activeMultiFixture = harnessFixture === "multicat-a" || harnessFixture === "multicat-b" || harnessFixture === "multicat-c" ? MULTICAT_FIXTURES[harnessFixture] : null;
-  const reviewFixture2 = harnessFixture === "review" || harnessFixture === "review-empty" ? REVIEW_FIXTURES[harnessFixture] : null;
+  const reviewFixture2 = harnessFixture === "review" || harnessFixture === "review-empty" || harnessFixture === "mixed" ? REVIEW_FIXTURES[harnessFixture] : null;
   const states = { ...fixture.states };
   if (activeMultiFixture) {
     const camera = states[CAMERA_ENTITY_ID];
@@ -25421,7 +25540,7 @@ function createMockHass(scenario, onChange, harnessFixture = "default") {
     [`${ENTRY_ID}-e1208-s2`]: "Pancake",
     [`${ENTRY_ID}-e1208-s3`]: "skip"
   };
-  const subjectReviewSources = /* @__PURE__ */ new Set();
+  const ateByVisit = {};
   const sampleTrainedAs = {
     [`${ENTRY_ID}-e1208-s1`]: "Pancake",
     [`${ENTRY_ID}-e1208-s2`]: "Pancake",
@@ -25444,6 +25563,21 @@ function createMockHass(scenario, onChange, harnessFixture = "default") {
   }
   function withSampleState(sample) {
     return { ...sample, review: sampleReview[sample.uid] ?? null, label: sampleLabelOf(sample.uid) };
+  }
+  function visitFor(event) {
+    const members = event?.session ? events.filter((member) => member.session === event.session) : event ? [event] : [];
+    const answers = members.flatMap((member) => (eventSamples[member.uid] ?? []).map((sample) => sampleReview[sample.uid]));
+    const named = new Set(cats.map((cat) => cat.name).filter((name) => answers.includes(name)));
+    if (answers.includes("both")) for (const cat of cats) named.add(cat.name);
+    const kind = members.some((member) => member.kind === "eat") ? "eat" : "visit";
+    const uid = event?.session ?? event?.uid ?? "";
+    const ate = ateByVisit[uid];
+    return {
+      uid,
+      kind,
+      cats: [...named].map((cat) => ({ cat, ate: ate ? ate.includes(cat) : kind === "eat" && named.size === 1 })),
+      needs_ate: kind === "eat" && named.size === 2 && !ate
+    };
   }
   function bumpTrainingCount(cat, sample, delta) {
     const rosterEntry = cats.find((c6) => c6.name === cat);
@@ -25500,25 +25634,6 @@ function createMockHass(scenario, onChange, harnessFixture = "default") {
     if (event.identity === "reviewed" && event.cat) return event.cat;
     if (event.identity === "not_a_cat") return "not_a_cat";
     return null;
-  }
-  function applyLabel(uids, label) {
-    const updated = [];
-    for (const uid of uids) {
-      const event = findEvent(uid);
-      if (!event) continue;
-      const cat = label === "not_a_cat" || label === "unknown" ? null : label;
-      event.cat = cat;
-      event.identity = label === "not_a_cat" ? "not_a_cat" : label === "unknown" ? "unknown" : "reviewed";
-      event.confidence = null;
-      updated.push(event);
-      if (label === "unknown") continue;
-      for (const sample of eventSamples[uid] ?? []) {
-        const review = sampleReview[sample.uid] ?? null;
-        if (review === "skip") setTrained(sample, null);
-        else if (review === null) setTrained(sample, label);
-      }
-    }
-    return updated;
   }
   function paginate(items, limit, cursor) {
     const offset = typeof cursor === "string" ? Number(cursor) || 0 : 0;
@@ -25620,7 +25735,9 @@ function createMockHass(scenario, onChange, harnessFixture = "default") {
         const sessionEnds = sessionEvents.map((member) => member.end).filter((end) => end !== null);
         const samples = sessionEvents.flatMap((member) => (member ? eventSamples[member.uid] ?? [] : []).map((sample) => ({ ...withSampleState(sample), cat: sample.cat ?? member.cat })));
         const details = activeMultiFixture?.details[event.uid];
-        const cats2 = details?.cats ?? (event.cat ? [{ cat: event.cat, ate: event.kind === "eat", confirmed: event.identity === "reviewed", confidence: event.identity === "auto" ? event.confidence : null, photos: samples.filter((sample) => sample.cat === event.cat).length }] : []);
+        const rowCats = details?.cats ?? (event.cat ? [{ cat: event.cat, ate: event.kind === "eat", confirmed: event.identity === "reviewed", confidence: event.identity === "auto" ? event.confidence : null, photos: samples.filter((sample) => sample.cat === event.cat).length }] : []);
+        const visit = visitFor(event);
+        const cats2 = !details && visit.cats.length >= 2 ? visit.cats.map(({ cat, ate }) => ({ cat, ate, confirmed: true, confidence: null, photos: samples.filter((sample) => sample.cat === cat).length })) : rowCats;
         const open = sessionEvents.some((member) => member.open);
         const detailEvent = {
           ...event,
@@ -25632,113 +25749,10 @@ function createMockHass(scenario, onChange, harnessFixture = "default") {
           cat: cats2.length === 1 ? cats2[0].cat : null,
           identity: cats2.length > 0 ? cats2.every((cat) => cat.confirmed) ? "reviewed" : "auto" : event.identity,
           confidence: cats2.length === 1 ? cats2[0].confidence : null,
-          sample_count: samples.length
+          sample_count: samples.length,
+          needs_ate: visit.needs_ate
         };
         return { event: detailEvent, samples, scene_subjects: details?.scene_subjects.map((subject) => ({ ...subject, box: [...subject.box] })) ?? [], cats: cats2.map((cat) => ({ ...cat })), multiple_cats: (details?.scene_subjects.length ?? 0) >= 2 };
-      }
-      if (type === "kibble/session/label") {
-        const uid = msg.uid;
-        const event = uid ? findEvent(uid) : void 0;
-        if (!event) throw { code: "not_found", message: `Unknown event ${String(uid)}` };
-        const details = activeMultiFixture?.details[event.uid];
-        const sessionEvents = event.session ? events.filter((member) => member.session === event.session) : [event];
-        const sessionSamples = sessionEvents.flatMap((member) => eventSamples[member.uid] ?? []);
-        const verdict = msg.verdict;
-        const requestedCats = Array.isArray(msg.cats) ? msg.cats : null;
-        if (verdict === "not_a_cat" || verdict === "unknown") {
-          applyLabel(sessionEvents.map((member) => member.uid), verdict);
-          for (const sample of sessionSamples) {
-            if (sampleReview[sample.uid] == null) sample.cat = null;
-          }
-          if (details) {
-            details.cats.splice(0);
-            for (const subject of details.scene_subjects) {
-              subject.label = verdict === "not_a_cat" ? "not_a_cat" : null;
-              subject.reviewed = verdict === "not_a_cat";
-            }
-          }
-        } else if (requestedCats?.length) {
-          for (const member of sessionEvents) {
-            const selected = requestedCats.find((cat) => cat.cat === member.cat) ?? (requestedCats.length === 1 ? requestedCats[0] : void 0);
-            if (selected) {
-              member.cat = selected.cat;
-              member.kind = selected.ate ? "eat" : "visit";
-            } else if (requestedCats.length > 1 && member.cat && !requestedCats.some((cat) => cat.cat === member.cat)) {
-              member.cat = null;
-              member.kind = "visit";
-            }
-            member.identity = "reviewed";
-            member.confidence = null;
-          }
-          for (const sample of sessionSamples) {
-            if (sampleReview[sample.uid] != null) continue;
-            if (requestedCats.length === 1) {
-              sample.cat = requestedCats[0].cat;
-              setTrained(sample, sample.cat);
-            } else if (sample.cat && !requestedCats.some((cat) => cat.cat === sample.cat)) sample.cat = null;
-          }
-          if (details) details.cats.splice(0, details.cats.length, ...requestedCats.map((cat) => ({ ...cat, confirmed: true, confidence: null, photos: sessionSamples.filter((sample) => sample.cat === cat.cat).length })));
-        } else {
-          throw { code: "agent_rejected", message: "Nothing to label" };
-        }
-        notify();
-        return await hass.callWS({ type: "kibble/event", uid });
-      }
-      if (type === "kibble/session/subject") {
-        const uid = msg.uid;
-        const sid = msg.sid;
-        const label = msg.label;
-        const event = uid ? findEvent(uid) : void 0;
-        if (!event || sid == null || !label) throw { code: "agent_rejected", message: "Nothing to label" };
-        const details = activeMultiFixture?.details[event.uid];
-        const sessionEvents = event.session ? events.filter((member) => member.session === event.session) : [event];
-        const sessionSamples = sessionEvents.flatMap((member) => eventSamples[member.uid] ?? []);
-        const subject = details?.scene_subjects.find((candidate) => candidate.sid === sid);
-        const oldLabel = subject?.label ?? null;
-        if (subject) {
-          subject.label = label === "follow" ? null : label;
-          subject.reviewed = label !== "follow";
-        }
-        const subjectSamples = sessionSamples.flatMap((sample) => sample.sid === sid ? [{ sample, member: sessionEvents.find((member) => (eventSamples[member.uid] ?? []).includes(sample)) ?? event }] : []);
-        for (const { sample, member } of subjectSamples) {
-          if (sampleReview[sample.uid] != null && !subjectReviewSources.has(sample.uid)) continue;
-          if (label === "follow") {
-            delete sampleReview[sample.uid];
-            subjectReviewSources.delete(sample.uid);
-            sample.cat = member.cat;
-            setTrained(sample, eventTrainingTarget(member));
-          } else {
-            sampleReview[sample.uid] = label;
-            subjectReviewSources.add(sample.uid);
-            sample.cat = label === "not_a_cat" ? null : label;
-            setTrained(sample, label === "not_a_cat" ? null : label);
-          }
-        }
-        if (details) {
-          if (label !== "follow" && oldLabel && oldLabel !== "not_a_cat" && !details.scene_subjects.some((candidate) => candidate.label === oldLabel)) {
-            details.cats.splice(0, details.cats.length, ...details.cats.filter((cat) => cat.cat !== oldLabel));
-          }
-          if (label !== "not_a_cat" && label !== "follow") {
-            const current = details.cats.find((cat) => cat.cat === label);
-            const photos = sessionSamples.filter((sample) => sample.cat === label).length;
-            if (current) {
-              current.confirmed = true;
-              current.confidence = null;
-              current.photos = photos;
-            } else details.cats.push({ cat: label, ate: sessionEvents.some((member) => member.kind === "eat"), confirmed: true, confidence: null, photos });
-          }
-          for (const cat of details.cats) cat.photos = sessionSamples.filter((sample) => sample.cat === cat.cat).length;
-        }
-        notify();
-        return await hass.callWS({ type: "kibble/event", uid });
-      }
-      if (type === "kibble/label") {
-        const uids = Array.isArray(msg.uids) ? msg.uids : [];
-        const label = msg.label;
-        if (!label || uids.length === 0) throw { code: "agent_rejected", message: "Nothing to label" };
-        const updated = applyLabel(uids, label);
-        notify();
-        return { events: updated.map((event) => ({ ...event })) };
       }
       if (type === "kibble/sample/label") {
         const sampleUid = msg.sample_uid;
@@ -25749,26 +25763,22 @@ function createMockHass(scenario, onChange, harnessFixture = "default") {
         const [eventUid, list] = owner;
         const sample = list.find((item) => item.uid === sampleUid);
         if (!sample) throw { code: "not_found", message: `Unknown sample ${sampleUid}` };
-        if (label !== "not_a_cat" && label !== "skip" && label !== "follow" && !cats.some((cat) => cat.name === label)) {
-          throw { code: "agent_rejected", message: `Unknown cat ${label}` };
-        }
+        const allowed = label === "both" ? cats.length === 2 : label === "not_a_cat" || label === "skip" || label === "follow" || cats.some((cat) => cat.name === label);
+        if (!allowed) throw { code: "agent_rejected", message: `Cannot answer ${label}` };
         const oldCat = sample.cat;
         const event = findEvent(eventUid);
         const sessionEvents = event?.session ? events.filter((member) => member.session === event.session) : event ? [event] : [];
         const sessionSamples = sessionEvents.flatMap((member) => eventSamples[member.uid] ?? []);
         if (label === "follow") {
           delete sampleReview[sampleUid];
-          subjectReviewSources.delete(sampleUid);
           sample.cat = event?.cat ?? null;
           setTrained(sample, eventTrainingTarget(event));
-        } else if (label === "skip") {
-          sampleReview[sampleUid] = "skip";
-          subjectReviewSources.delete(sampleUid);
+        } else if (label === "skip" || label === "both") {
+          sampleReview[sampleUid] = label;
           sample.cat = null;
           setTrained(sample, null);
         } else {
           sampleReview[sampleUid] = label;
-          subjectReviewSources.delete(sampleUid);
           sample.cat = label === "not_a_cat" ? null : label;
           setTrained(sample, label);
         }
@@ -25789,7 +25799,17 @@ function createMockHass(scenario, onChange, harnessFixture = "default") {
           for (const cat of details.cats) cat.photos = sessionSamples.filter((item) => item.cat === cat.cat).length;
         }
         notify();
-        return { sample: withSampleState(sample) };
+        return { sample: withSampleState(sample), visit: visitFor(event) };
+      }
+      if (type === "kibble/session/ate") {
+        const uid = msg.uid;
+        const ate = Array.isArray(msg.ate) ? msg.ate : null;
+        const event = uid ? findEvent(uid) : void 0;
+        if (!uid || !event) throw { code: "not_found", message: `Unknown visit ${String(uid)}` };
+        if (!ate || ate.some((name) => !cats.some((cat) => cat.name === name))) throw { code: "agent_rejected", message: "Unknown cat" };
+        ateByVisit[uid] = ate;
+        notify();
+        return { visit: visitFor(event) };
       }
       if (type === "kibble/cats") {
         return { cats: cats.map((cat) => ({ ...cat })), storage: { ...storage } };
@@ -25846,10 +25866,15 @@ function createMockHass(scenario, onChange, harnessFixture = "default") {
         notify();
         return { avatar: rosterEntry.avatar };
       }
-      if (type === "kibble/review") {
-        const pool = events.filter((event) => event.identity === "unknown" && event.cat === null).slice().sort((a3, b3) => b3.start - a3.start);
-        const page = paginate(pool, Math.max(1, Number(msg.limit) || 24), msg.cursor);
-        return { ...page, total: pool.length };
+      if (type === "kibble/review/photos") {
+        const ordered = events.filter((event) => event.kind !== "feed" && event.identity !== "reviewed").slice().sort((a3, b3) => b3.start - a3.start).flatMap((event) => {
+          const visit = visitFor(event);
+          const where = { uid: visit.uid, start: event.start, kind: visit.kind, scene: event.scene };
+          return (eventSamples[event.uid] ?? []).map((sample) => ({ sample: { ...withSampleState(sample), cat: sample.cat ?? event.cat }, visit: { ...where, in_scene: Boolean(event.scene && sample.box) } }));
+        });
+        const waiting = ordered.filter((item) => !item.sample.review);
+        const page = paginate(ordered, Math.min(60, Math.max(1, Number(msg.limit) || 24)), msg.cursor);
+        return { ...page, items: page.items.filter((item) => !item.sample.review), remaining: waiting.length, visits: new Set(waiting.map((item) => item.visit.uid)).size };
       }
       if (type === "kibble/training") {
         const cat = msg.cat;
@@ -25962,6 +25987,7 @@ function createMockHass(scenario, onChange, harnessFixture = "default") {
         const id = path.slice(path.lastIndexOf("/") + 1);
         if (id.includes("-rq-") && id.endsWith("-scene")) return fetch("./multicat-scene.jpg");
         if (id.includes("-rq-broken-")) return new Response(null, { status: 404 });
+        if (id.includes("-rq-hand-")) return fetch("./hand-crop.svg");
         if (id.includes("-rq-kitty-")) return fetch("./multicat-kitty-body.jpg");
         if (id.includes("-rq-pancake-")) return fetch("./multicat-pancake-body.jpg");
         if (id === "e2060-scene-1") return fetch("./e2060-scene-1.jpg");
@@ -26067,12 +26093,44 @@ function setupToastListener() {
     toastEl.textContent = message;
   });
 }
+function learningStatus(phase) {
+  const now = Math.floor(Date.now() / 1e3);
+  const working = phase === "learning" || phase === "rechecking";
+  return {
+    state: phase,
+    pending: phase === "idle" ? 0 : 12,
+    done: phase === "rechecking" ? 340 : null,
+    total: phase === "rechecking" ? 1400 : null,
+    starts_at: phase === "waiting" ? now + 90 : null,
+    retry_at: phase === "retrying" ? now + 30 : null,
+    started: working ? now - 20 : null,
+    last: { finished: now - 600, duration: 95, answers: 14, learned: { Kitty: 6, Pancake: 5 }, renamed: 3, rechecked: 1400 },
+    error: phase === "retrying" ? "Training did not finish" : null
+  };
+}
+function scriptedLearning(script) {
+  const walk = ["waiting", "rechecking", "learning", "retrying", "idle"];
+  return {
+    subscribeMessage: async (callback) => {
+      const send = (phase) => callback({ learning: learningStatus(phase) });
+      if (script !== "walk") {
+        setTimeout(() => send(script), 50);
+        return async () => {
+        };
+      }
+      let step = 0;
+      setTimeout(() => send(walk[0]), 50);
+      const timer = setInterval(() => send(walk[++step % walk.length]), 4e3);
+      return async () => clearInterval(timer);
+    }
+  };
+}
 async function main() {
   const params = new URLSearchParams(location.search);
   const card = params.get("card") ?? "hero";
   const scenario = params.get("scenario") ?? "idle";
   const fixtureParam = params.get("fixture");
-  const harnessFixture = fixtureParam === "multicat-a" || fixtureParam === "multicat-b" || fixtureParam === "multicat-c" || fixtureParam === "review" || fixtureParam === "review-empty" ? fixtureParam : "default";
+  const harnessFixture = fixtureParam === "multicat-a" || fixtureParam === "multicat-b" || fixtureParam === "multicat-c" || fixtureParam === "review" || fixtureParam === "review-empty" || fixtureParam === "mixed" ? fixtureParam : "default";
   const theme = params.get("theme") ?? "light";
   const width = Number(params.get("width") ?? "400");
   const heightParam = params.get("height");
@@ -26093,17 +26151,35 @@ async function main() {
     element.hass = { ...hass };
   }, harnessFixture);
   applyHopperOverrides(hass, params);
+  const slowMs = Number(params.get("slow") ?? "0");
+  let pageFailuresLeft = Number(params.get("page_fail") ?? "0");
   let saveFailuresLeft = Number(params.get("save_fail") ?? "0");
+  let dropNext = params.get("drop") === "1";
   const callWS = hass.callWS;
-  if (saveFailuresLeft > 0 && callWS) {
+  if (callWS) {
     hass.callWS = async (message) => {
-      if (message.type === "kibble/session/label" && saveFailuresLeft > 0) {
-        saveFailuresLeft--;
-        throw { code: "unknown_error", message: "The harness refused this save" };
+      if (message.type === "kibble/review/photos") {
+        if (slowMs > 0) await new Promise((resolve) => setTimeout(resolve, slowMs));
+        if (pageFailuresLeft > 0) {
+          pageFailuresLeft--;
+          throw { code: "unknown_error", message: "The harness refused this page" };
+        }
+      }
+      if (message.type === "kibble/sample/label" || message.type === "kibble/session/ate") {
+        if (dropNext) {
+          dropNext = false;
+          throw { code: "not_found", message: "The harness says this photo is gone" };
+        }
+        if (saveFailuresLeft > 0) {
+          saveFailuresLeft--;
+          throw { code: "unknown_error", message: "The harness refused this save" };
+        }
       }
       return callWS(message);
     };
   }
+  const learning = params.get("learning");
+  if (learning) hass.connection = scriptedLearning(learning);
   if (params.get("schedule_fail") === "1") {
     const callService = hass.callService;
     hass.callService = async (domain, service, data, target) => {
@@ -26187,13 +26263,6 @@ lit-html/directives/ref.js:
   (**
    * @license
    * Copyright 2020 Google LLC
-   * SPDX-License-Identifier: BSD-3-Clause
-   *)
-
-lit-html/directives/keyed.js:
-  (**
-   * @license
-   * Copyright 2021 Google LLC
    * SPDX-License-Identifier: BSD-3-Clause
    *)
 

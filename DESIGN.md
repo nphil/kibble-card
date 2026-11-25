@@ -104,67 +104,83 @@ View "Cats":
 | (o) Pancake   24 photos trained   86% recognized, learned         |
 |                                                     + Add a cat   |
 +------------------------------------------------------------------+
-| (?) Check visits                                         [8]  >   |
+| (?) Check photos                                         [8]  >   |
 +------------------------------------------------------------------+
 | Kitty, 152 photos       [crop][crop][crop]...  x removes          |
 +------------------------------------------------------------------+
 ```
 
-One card, `kibble-cats-card`, full width. It no longer names visits itself: the "Check visits"
-bar opens the review queue below, the one place a visit gets a name. Empty cats: "No cats yet.
-Add one to start training." Errors say what failed and what to do.
+One card, `kibble-cats-card`, full width. It no longer names photos itself: the "Check photos"
+bar opens the review screen below, the one place photos get answered, with a live line about
+what Kibble is learning from those answers. Empty cats: "No cats yet. Add one to start
+training." Errors say what failed and what to do; once cats have been shown, a failed read shows
+a quiet "Reconnecting…" and retries by itself.
 
-## Checking visits: one way to name a cat
+## Checking photos: one photo, one answer
 
-Naming who was at the bowl is the job that makes recognition better, and it is repetitive, so
-it gets one purpose-built screen (`components/kibble-review-queue.ts`, a native top-layer
-`<dialog>`) and every other surface leads into it.
+Telling Kibble who is in a photo is the job that makes recognition better, and it is
+repetitive, so it gets one purpose-built screen (`components/kibble-review-queue.ts`, a native
+top-layer `<dialog>`) and every other surface leads into it.
 
 ```
-phone                              tablet, desktop
-+---------------------------+      +-------------------------+----------------+
-| Who was here?   3 of 20  x|      |                         | Who was here? x|
-| =====----------------     |      |                         | 3 of 20        |
-| +-----------------------+ |      |        photo            | [ Kitty  Guess]|
-| |        photo          | |      |   (tap: whole scene)    | [ Pancake     ]|
-| | 7:02 PM  Meal         | |      |                         | [ Both        ]|
-| +-----------------------+ |      |                         | [ Not a cat   ]|
-| [o][o][o][o]              |      | 7:02 PM  Meal           | [ Can't tell  ]|
-| [ Kitty Guess ][ Pancake ]|      +-------------------------+                |
-| [Both][Not a cat][Can't  ]|      | [o][o][o][o]            | Undo           |
-| Undo                      |      +-------------------------+----------------+
+phone
++---------------------------+
+| 12 photos left          x |
+| +-----------------------+ |
+| |      big crop         | |
+| | Nov 11, 1:05 PM, meal | |
+| +-----------------------+ |
+| See whole picture         |
+| [ Kitty  looks like ]     |
+| [ Pancake ]               |
+| [ Both in this photo ]    |
+| [ Not a cat ]             |
+| [ Don't use ]             |
+|   Not used for learning   |
+| Undo                      |
 +---------------------------+
 ```
 
-- **The unit is the visit**, not the photo: one answer names every photo in it
-  (`kibble/session/label`). Single photos are still corrected in the event sheet's viewer.
-- **One decision per screen, one action per answer.** Tap a button, press its number key, or
-  (two cats) swipe the photo towards that cat. It saves and moves on; there is no confirm step.
-  Enter agrees with the highlighted guess. A meal that both cats attended asks one extra
-  question, "Who ate?".
-- **Order**: visits Kibble could not name, then guesses under 75% sure, then confident guesses
-  nobody confirmed; newest first in each group. Built in `lib/review-queue.ts` from
-  `kibble/review` plus `kibble/timeline`; a visit a person already answered never comes back.
-- **Saving** is optimistic and serial. An answer that fails stays in the list, shows "N not
-  saved" with Retry, and is retried with the next answer; it is never dropped or sent twice. A
-  visit that no longer exists is skipped quietly.
-- **Undo** steps back to the last visit with its answer shown; a new answer replaces it.
-- **Batches of 20** end on a "Batch done" card (Keep going, Stop here). The end shows visits
-  per cat and how many photos each cat learned (read from `kibble/cats` before and after).
-- **Entry points** are one component, `kibble-review-entry`: a "Check visits" bar on the
-  timeline and cats cards, an "N to check" chip on the hero. An unnamed timeline row opens the
-  queue at that visit. Every save announces itself (`lib/review-bus.ts`) so the other cards
-  refresh without a reload.
+- **The unit is the photo**, not the visit: each screen is one photo and up to five answers.
+  A cat's name; "Both in this photo" (only with exactly two cats); "Not a cat"; "Don't use"
+  (never used for learning, and taken out of training if it was). Kibble's server chooses which
+  photos and in what order (`kibble/review/photos`); the card only asks for the next page and
+  shows "N photos left" from the server's own count.
+- **One tap answers and moves on**: tap a button, press its number key, or (two cats) swipe
+  towards that cat. Kibble's guess is highlighted ("looks like Kitty"); there is no confirm
+  step. "See whole picture" shows the full frame with the photo's box outlined. Undo takes the
+  last answer back (`follow`).
+- **Who ate?** After an answer that makes a meal two-cat, the server says so (`needs_ate`) and
+  the card asks once, "Who ate?" with the time of the meal. It can be skipped or closed.
+- **Answers are never lost.** Every answer goes into a saved list first
+  (`lib/answer-outbox.ts`, one per Home Assistant entry, kept in the browser), and is sent in
+  order. A failed send is retried after 1, 2, 5, 10, then every 30 seconds, or at once with
+  "Send now"; the list survives closing the screen or reloading the page and is sent again
+  when a card loads. The server accepts every answer immediately and repeating one is harmless.
+  Only a photo that no longer exists, or an answer Kibble refuses, is dropped, with one calm
+  line saying so. The screen says "N answers waiting to send" while any are waiting.
+- **The screen is never blank**: a placeholder while loading, then the photo, then "All caught
+  up" with a summary (per cat, both, not a cat, not used), or a short message with Retry. After
+  something was shown, a failed read shows a quiet "Reconnecting…" and retries by itself
+  (`lib/ws-query.ts`, 15 second timeout, last good data kept).
+- **Learning is visible** (`kibble-learning-line`, fed by `kibble/learning/subscribe`, one
+  shared subscription per entry): "12 answers saved, learning 340 of 1,400 visits", "12 answers
+  saved, learning starts when you pause", "Learning from your answers…", or "Something went
+  wrong, trying again in 30 s. Your answers are safe." Nothing is shown when idle. The cats
+  card also shows a short, dismissible summary of the last finished pass.
+- **Entry points** are one component, `kibble-review-entry`: a "Check photos" bar on the
+  timeline and cats cards, an "N to check" chip on the hero. Every delivered answer announces
+  itself (`lib/review-bus.ts`) so the other cards refresh without a reload.
+- **The event sheet and photo viewer** use the same answers per photo (`kibble/sample/label`)
+  with Undo, and the sheet shows "Who ate?" when the server asks. Photo tags read "Not used"
+  (dimmed), "Both cats" and "Not a cat". No surface names a whole visit any more.
 - **One answer button everywhere**, `components/kibble-choice.ts`: the queue, the event sheet
   and the photo viewer use it, with three states (plain, dashed "Guess", filled "Your answer")
   in the cat's own colour.
-- **Wording**, the same on every surface: "Check visits", "Who was here?", the cats' names,
-  "Both", "Not a cat", "Can't tell", "Who ate?", "Undo".
 
-Borrowed, deliberately: the swipe deck with a name stamp from dating apps (Tinder), the fixed
-number-key answers and pre-selected model guess from labelling tools (Label Studio, Prodigy),
-short batches with a running count and an end card from Anki and Duolingo, and the outbox that
-keeps unsent answers from offline-first mail and chat apps.
+Borrowed, deliberately: the fixed number-key answers and pre-selected model guess from
+labelling tools (Label Studio, Prodigy), and the outbox that keeps unsent answers from
+offline-first mail and chat apps.
 
 ## Review against the generic defaults
 

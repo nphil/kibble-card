@@ -4,9 +4,9 @@
  * plus `callWS`/`fetchWithAuth` for the timeline/cats cards' `kibble/*` WS commands and
  * authenticated image loading.
  *
- * `callWS`'s `kibble/label`, `kibble/cats/add`, `kibble/cats/delete` and `kibble/training/
- * remove` share one mutable store seeded from the fixtures: labelling an event in the harness
- * really does move it out of the review queue and add its samples to that cat's training set,
+ * `callWS`'s `kibble/sample/label`, `kibble/session/ate`, `kibble/cats/add`, `kibble/cats/delete` and
+ * `kibble/training/remove` share one mutable store seeded from the fixtures: answering a photo in
+ * the harness really does move it out of the review queue and add it to that cat's training set,
  * exactly like the real integration's fast DB update followed by a background retrain.
  *
  * `onChange`: real Home Assistant always hands a card a *new* `hass` object reference on every
@@ -19,7 +19,7 @@
  * like the real frontend instead of silently going stale after the first click.
  */
 
-import type { Asset, CalibrationHopper, CalibrationState, CatSummary, HomeAssistant, Sample, Storage, TimelineEvent, TrainingSample } from "../src/types";
+import type { Asset, CalibrationHopper, CalibrationState, CatSummary, HomeAssistant, Sample, Storage, TimelineEvent, TrainingSample, VisitResult } from "../src/types";
 import { resolveKibbleEntities } from "../src/lib/resolve-entities";
 import { buildFixture, CAMERA_ENTITY_ID, CATS, DEVICE_ID, ENTRY_ID, EVENT_SAMPLES, INITIAL_CALIBRATION, MULTICAT_FIXTURES, MULTICAT_LIVE_DETECTIONS, REVIEW_EVENTS, REVIEW_FIXTURES, STORAGE_FIXTURE, TIMELINE_EVENTS, TRAINING_BY_CAT, type HarnessFixture, type ScenarioName } from "./fixtures";
 
@@ -62,7 +62,7 @@ declare global {
 export function createMockHass(scenario: ScenarioName, onChange?: () => void, harnessFixture: HarnessFixture = "default"): HomeAssistant {
   const fixture = buildFixture(scenario);
   const activeMultiFixture = harnessFixture === "multicat-a" || harnessFixture === "multicat-b" || harnessFixture === "multicat-c" ? MULTICAT_FIXTURES[harnessFixture] : null;
-  const reviewFixture = harnessFixture === "review" || harnessFixture === "review-empty" ? REVIEW_FIXTURES[harnessFixture] : null;
+  const reviewFixture = harnessFixture === "review" || harnessFixture === "review-empty" || harnessFixture === "mixed" ? REVIEW_FIXTURES[harnessFixture] : null;
   const states = { ...fixture.states };
   if (activeMultiFixture) {
     const camera = states[CAMERA_ENTITY_ID]!;
@@ -91,7 +91,8 @@ export function createMockHass(scenario: ScenarioName, onChange?: () => void, ha
     [`${ENTRY_ID}-e1208-s2`]: "Pancake",
     [`${ENTRY_ID}-e1208-s3`]: "skip",
   };
-  const subjectReviewSources = new Set<string>();
+  /** What each visit's "who ate?" was answered with, by visit uid. */
+  const ateByVisit: Record<string, string[]> = {};
   const sampleTrainedAs: Record<string, string> = {
     [`${ENTRY_ID}-e1208-s1`]: "Pancake",
     [`${ENTRY_ID}-e1208-s2`]: "Pancake",
@@ -119,6 +120,24 @@ export function createMockHass(scenario: ScenarioName, onChange?: () => void, ha
 
   function withSampleState(sample: Sample): Sample {
     return { ...sample, review: sampleReview[sample.uid] ?? null, label: sampleLabelOf(sample.uid) };
+  }
+
+  /** What Kibble answers about a visit once its photos are named: which cats they were named for,
+   * and whether a meal of two cats still needs "who ate?" (only a person can say). */
+  function visitFor(event: TimelineEvent | undefined): VisitResult {
+    const members = event?.session ? events.filter((member) => member.session === event.session) : event ? [event] : [];
+    const answers = members.flatMap((member) => (eventSamples[member.uid] ?? []).map((sample) => sampleReview[sample.uid]));
+    const named = new Set(cats.map((cat) => cat.name).filter((name) => answers.includes(name)));
+    if (answers.includes("both")) for (const cat of cats) named.add(cat.name);
+    const kind = members.some((member) => member.kind === "eat") ? "eat" : "visit";
+    const uid = event?.session ?? event?.uid ?? "";
+    const ate = ateByVisit[uid];
+    return {
+      uid,
+      kind,
+      cats: [...named].map((cat) => ({ cat, ate: ate ? ate.includes(cat) : kind === "eat" && named.size === 1 })),
+      needs_ate: kind === "eat" && named.size === 2 && !ate,
+    };
   }
 
   function bumpTrainingCount(cat: string, sample: Pick<Sample, "body" | "face">, delta: number): void {
@@ -193,32 +212,6 @@ export function createMockHass(scenario: ScenarioName, onChange?: () => void, ha
     if (event.identity === "reviewed" && event.cat) return event.cat;
     if (event.identity === "not_a_cat") return "not_a_cat";
     return null;
-  }
-
-  /** Mirrors the real `kibble/label`: marks each uid reviewed with `label`, then reconciles
-   * every one of its samples' mock training state to match -- a sample with no override of its
-   * own follows `label`, a skip stays untrained, and an existing override is left exactly
-   * alone, the same rule `reconcile_event_training` applies server-side. Never touches
-   * training at all for `"unknown"`, matching the real store. */
-  function applyLabel(uids: string[], label: string): TimelineEvent[] {
-    const updated: TimelineEvent[] = [];
-    for (const uid of uids) {
-      const event = findEvent(uid);
-      if (!event) continue;
-      const cat = label === "not_a_cat" || label === "unknown" ? null : label;
-      event.cat = cat;
-      event.identity = label === "not_a_cat" ? "not_a_cat" : label === "unknown" ? "unknown" : "reviewed";
-      event.confidence = null;
-      updated.push(event);
-      if (label === "unknown") continue;
-      for (const sample of eventSamples[uid] ?? []) {
-        const review = sampleReview[sample.uid] ?? null;
-        if (review === "skip") setTrained(sample, null);
-        else if (review === null) setTrained(sample, label);
-        // else: an override -- already reflects itself, untouched by relabelling.
-      }
-    }
-    return updated;
   }
 
   function paginate<T>(items: T[], limit: number, cursor: unknown): { items: T[]; cursor: string | null; has_more: boolean } {
@@ -340,7 +333,10 @@ export function createMockHass(scenario: ScenarioName, onChange?: () => void, ha
         const sessionEnds = sessionEvents.map((member) => member.end).filter((end): end is number => end !== null);
         const samples = sessionEvents.flatMap((member) => (member ? eventSamples[member.uid] ?? [] : []).map((sample) => ({ ...withSampleState(sample), cat: sample.cat ?? member!.cat })));
         const details = activeMultiFixture?.details[event.uid];
-        const cats = details?.cats ?? (event.cat ? [{ cat: event.cat, ate: event.kind === "eat", confirmed: event.identity === "reviewed", confidence: event.identity === "auto" ? event.confidence : null, photos: samples.filter((sample) => sample.cat === event.cat).length }] : []);
+        const rowCats = details?.cats ?? (event.cat ? [{ cat: event.cat, ate: event.kind === "eat", confirmed: event.identity === "reviewed", confidence: event.identity === "auto" ? event.confidence : null, photos: samples.filter((sample) => sample.cat === event.cat).length }] : []);
+        const visit = visitFor(event);
+        // Photos named for two cats make it a two-cat visit, whatever the event row says.
+        const cats: typeof rowCats = !details && visit.cats.length >= 2 ? visit.cats.map(({ cat, ate }) => ({ cat, ate, confirmed: true, confidence: null, photos: samples.filter((sample) => sample.cat === cat).length })) : rowCats;
         const open = sessionEvents.some((member) => member.open);
         const detailEvent: TimelineEvent = {
           ...event,
@@ -353,110 +349,9 @@ export function createMockHass(scenario: ScenarioName, onChange?: () => void, ha
           identity: cats.length > 0 ? cats.every((cat) => cat.confirmed) ? "reviewed" : "auto" : event.identity,
           confidence: cats.length === 1 ? cats[0]!.confidence : null,
           sample_count: samples.length,
+          needs_ate: visit.needs_ate,
         };
         return { event: detailEvent, samples, scene_subjects: details?.scene_subjects.map((subject) => ({ ...subject, box: [...subject.box] })) ?? [], cats: cats.map((cat) => ({ ...cat })), multiple_cats: (details?.scene_subjects.length ?? 0) >= 2 };
-      }
-      if (type === "kibble/session/label") {
-        const uid = msg.uid as string | undefined;
-        const event = uid ? findEvent(uid) : undefined;
-        if (!event) throw { code: "not_found", message: `Unknown event ${String(uid)}` };
-        const details = activeMultiFixture?.details[event.uid];
-        const sessionEvents = event.session ? events.filter((member) => member.session === event.session) : [event];
-        const sessionSamples = sessionEvents.flatMap((member) => eventSamples[member.uid] ?? []);
-        const verdict = msg.verdict as string | undefined;
-        const requestedCats = Array.isArray(msg.cats) ? msg.cats as { cat: string; ate: boolean }[] : null;
-        if (verdict === "not_a_cat" || verdict === "unknown") {
-          applyLabel(sessionEvents.map((member) => member.uid), verdict);
-          for (const sample of sessionSamples) {
-            if (sampleReview[sample.uid] == null) sample.cat = null;
-          }
-          if (details) {
-            details.cats.splice(0);
-            for (const subject of details.scene_subjects) {
-              subject.label = verdict === "not_a_cat" ? "not_a_cat" : null;
-              subject.reviewed = verdict === "not_a_cat";
-            }
-          }
-        } else if (requestedCats?.length) {
-          for (const member of sessionEvents) {
-            const selected = requestedCats.find((cat) => cat.cat === member.cat) ?? (requestedCats.length === 1 ? requestedCats[0] : undefined);
-            if (selected) {
-              member.cat = selected.cat;
-              member.kind = selected.ate ? "eat" : "visit";
-            } else if (requestedCats.length > 1 && member.cat && !requestedCats.some((cat) => cat.cat === member.cat)) {
-              member.cat = null;
-              member.kind = "visit";
-            }
-            member.identity = "reviewed";
-            member.confidence = null;
-          }
-          for (const sample of sessionSamples) {
-            if (sampleReview[sample.uid] != null) continue;
-            if (requestedCats.length === 1) {
-              sample.cat = requestedCats[0]!.cat;
-              // One cat named for the whole visit: every photo that follows it trains as that cat.
-              setTrained(sample, sample.cat);
-            } else if (sample.cat && !requestedCats.some((cat) => cat.cat === sample.cat)) sample.cat = null;
-          }
-          if (details) details.cats.splice(0, details.cats.length, ...requestedCats.map((cat) => ({ ...cat, confirmed: true, confidence: null, photos: sessionSamples.filter((sample) => sample.cat === cat.cat).length })));
-        } else {
-          throw { code: "agent_rejected", message: "Nothing to label" };
-        }
-        notify();
-        return await hass.callWS!({ type: "kibble/event", uid });
-      }
-      if (type === "kibble/session/subject") {
-        const uid = msg.uid as string | undefined;
-        const sid = msg.sid as number | undefined;
-        const label = msg.label as string | undefined;
-        const event = uid ? findEvent(uid) : undefined;
-        if (!event || sid == null || !label) throw { code: "agent_rejected", message: "Nothing to label" };
-        const details = activeMultiFixture?.details[event.uid];
-        const sessionEvents = event.session ? events.filter((member) => member.session === event.session) : [event];
-        const sessionSamples = sessionEvents.flatMap((member) => eventSamples[member.uid] ?? []);
-        const subject = details?.scene_subjects.find((candidate) => candidate.sid === sid);
-        const oldLabel = subject?.label ?? null;
-        if (subject) {
-          subject.label = label === "follow" ? null : label;
-          subject.reviewed = label !== "follow";
-        }
-        const subjectSamples = sessionSamples.flatMap((sample) => sample.sid === sid ? [{ sample, member: sessionEvents.find((member) => (eventSamples[member.uid] ?? []).includes(sample)) ?? event }] : []);
-        for (const { sample, member } of subjectSamples) {
-          if (sampleReview[sample.uid] != null && !subjectReviewSources.has(sample.uid)) continue;
-          if (label === "follow") {
-            delete sampleReview[sample.uid];
-            subjectReviewSources.delete(sample.uid);
-            sample.cat = member.cat;
-            setTrained(sample, eventTrainingTarget(member));
-          } else {
-            sampleReview[sample.uid] = label;
-            subjectReviewSources.add(sample.uid);
-            sample.cat = label === "not_a_cat" ? null : label;
-            setTrained(sample, label === "not_a_cat" ? null : label);
-          }
-        }
-        if (details) {
-          if (label !== "follow" && oldLabel && oldLabel !== "not_a_cat" && !details.scene_subjects.some((candidate) => candidate.label === oldLabel)) {
-            details.cats.splice(0, details.cats.length, ...details.cats.filter((cat) => cat.cat !== oldLabel));
-          }
-          if (label !== "not_a_cat" && label !== "follow") {
-            const current = details.cats.find((cat) => cat.cat === label);
-            const photos = sessionSamples.filter((sample) => sample.cat === label).length;
-            if (current) { current.confirmed = true; current.confidence = null; current.photos = photos; }
-            else details.cats.push({ cat: label, ate: sessionEvents.some((member) => member.kind === "eat"), confirmed: true, confidence: null, photos });
-          }
-          for (const cat of details.cats) cat.photos = sessionSamples.filter((sample) => sample.cat === cat.cat).length;
-        }
-        notify();
-        return await hass.callWS!({ type: "kibble/event", uid });
-      }
-      if (type === "kibble/label") {
-        const uids = Array.isArray(msg.uids) ? (msg.uids as string[]) : [];
-        const label = msg.label as string | undefined;
-        if (!label || uids.length === 0) throw { code: "agent_rejected", message: "Nothing to label" };
-        const updated = applyLabel(uids, label);
-        notify();
-        return { events: updated.map((event) => ({ ...event })) };
       }
       if (type === "kibble/sample/label") {
         const sampleUid = msg.sample_uid as string | undefined;
@@ -467,26 +362,23 @@ export function createMockHass(scenario: ScenarioName, onChange?: () => void, ha
         const [eventUid, list] = owner;
         const sample = list.find((item) => item.uid === sampleUid);
         if (!sample) throw { code: "not_found", message: `Unknown sample ${sampleUid}` };
-        if (label !== "not_a_cat" && label !== "skip" && label !== "follow" && !cats.some((cat) => cat.name === label)) {
-          throw { code: "agent_rejected", message: `Unknown cat ${label}` };
-        }
+        const allowed = label === "both" ? cats.length === 2 : label === "not_a_cat" || label === "skip" || label === "follow" || cats.some((cat) => cat.name === label);
+        if (!allowed) throw { code: "agent_rejected", message: `Cannot answer ${label}` };
         const oldCat = sample.cat;
         const event = findEvent(eventUid);
         const sessionEvents = event?.session ? events.filter((member) => member.session === event.session) : event ? [event] : [];
         const sessionSamples = sessionEvents.flatMap((member) => eventSamples[member.uid] ?? []);
         if (label === "follow") {
           delete sampleReview[sampleUid];
-          subjectReviewSources.delete(sampleUid);
           sample.cat = event?.cat ?? null;
           setTrained(sample, eventTrainingTarget(event));
-        } else if (label === "skip") {
-          sampleReview[sampleUid] = "skip";
-          subjectReviewSources.delete(sampleUid);
+        } else if (label === "skip" || label === "both") {
+          // Neither is ever used for learning; a photo used before is taken out of training.
+          sampleReview[sampleUid] = label;
           sample.cat = null;
           setTrained(sample, null);
         } else {
           sampleReview[sampleUid] = label;
-          subjectReviewSources.delete(sampleUid);
           sample.cat = label === "not_a_cat" ? null : label;
           setTrained(sample, label);
         }
@@ -504,7 +396,17 @@ export function createMockHass(scenario: ScenarioName, onChange?: () => void, ha
           for (const cat of details.cats) cat.photos = sessionSamples.filter((item) => item.cat === cat.cat).length;
         }
         notify();
-        return { sample: withSampleState(sample) };
+        return { sample: withSampleState(sample), visit: visitFor(event) };
+      }
+      if (type === "kibble/session/ate") {
+        const uid = msg.uid as string | undefined;
+        const ate = Array.isArray(msg.ate) ? (msg.ate as string[]) : null;
+        const event = uid ? findEvent(uid) : undefined;
+        if (!uid || !event) throw { code: "not_found", message: `Unknown visit ${String(uid)}` };
+        if (!ate || ate.some((name) => !cats.some((cat) => cat.name === name))) throw { code: "agent_rejected", message: "Unknown cat" };
+        ateByVisit[uid] = ate;
+        notify();
+        return { visit: visitFor(event) };
       }
       if (type === "kibble/cats") {
         return { cats: cats.map((cat) => ({ ...cat })), storage: { ...storage } };
@@ -562,10 +464,22 @@ export function createMockHass(scenario: ScenarioName, onChange?: () => void, ha
         notify();
         return { avatar: rosterEntry.avatar };
       }
-      if (type === "kibble/review") {
-        const pool = events.filter((event) => event.identity === "unknown" && event.cat === null).slice().sort((a, b) => b.start - a.start);
-        const page = paginate(pool, Math.max(1, Number(msg.limit) || 24), msg.cursor);
-        return { ...page, total: pool.length };
+      if (type === "kibble/review/photos") {
+        // Newest visit first, each photo with the visit it belongs to. The order is fixed and a
+        // cursor is a position in it, so answering photos never shifts a later page: answered
+        // photos are just left out of what is sent.
+        const ordered = events
+          .filter((event) => event.kind !== "feed" && event.identity !== "reviewed")
+          .slice()
+          .sort((a, b) => b.start - a.start)
+          .flatMap((event) => {
+            const visit = visitFor(event);
+            const where = { uid: visit.uid, start: event.start, kind: visit.kind, scene: event.scene };
+            return (eventSamples[event.uid] ?? []).map((sample) => ({ sample: { ...withSampleState(sample), cat: sample.cat ?? event.cat }, visit: { ...where, in_scene: Boolean(event.scene && sample.box) } }));
+          });
+        const waiting = ordered.filter((item) => !item.sample.review);
+        const page = paginate(ordered, Math.min(60, Math.max(1, Number(msg.limit) || 24)), msg.cursor);
+        return { ...page, items: page.items.filter((item) => !item.sample.review), remaining: waiting.length, visits: new Set(waiting.map((item) => item.visit.uid)).size };
       }
       if (type === "kibble/training") {
         const cat = msg.cat as string | undefined;
@@ -680,6 +594,7 @@ export function createMockHass(scenario: ScenarioName, onChange?: () => void, ha
         const id = path.slice(path.lastIndexOf("/") + 1);
         if (id.includes("-rq-") && id.endsWith("-scene")) return fetch("./multicat-scene.jpg");
         if (id.includes("-rq-broken-")) return new Response(null, { status: 404 });
+        if (id.includes("-rq-hand-")) return fetch("./hand-crop.svg");
         if (id.includes("-rq-kitty-")) return fetch("./multicat-kitty-body.jpg");
         if (id.includes("-rq-pancake-")) return fetch("./multicat-pancake-body.jpg");
         if (id === "e2060-scene-1") return fetch("./e2060-scene-1.jpg");

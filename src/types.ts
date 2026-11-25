@@ -192,6 +192,8 @@ export interface TimelineEvent {
    * overlap were at the feeder together (docs/42-multi-cat.md). */
   session: string | null;
   feed?: TimelineFeedDetail;
+  /** `kibble/event`'s session row only: an open "who ate?" question (see `VisitResult`). */
+  needs_ate?: boolean;
 }
 
 /** One hopper's contribution to a `feed`-kind row, only present when it actually dispensed
@@ -230,9 +232,9 @@ export interface Sample {
    * average several samples that individually disagree. */
   guess: string | null;
   guess_confidence: number | null;
-  /** This sample's own override, or `null` to follow whatever the event ends up labelled:
-   * a cat name, `"not_a_cat"`, or `"skip"` (left out of training regardless of the event).
-   * The raw `samples.review` column -- most rendering wants `label` instead. */
+  /** This sample's own answer, or `null` to follow whatever the visit's names derive to:
+   * a cat name, `"both"` (two cats in this one photo; the photo is never used for learning),
+   * `"not_a_cat"`, or `"skip"` (never used for learning). The raw `samples.review` column. */
   review: string | null;
   /** The feeder's own per-session animal id: which animal of this session this photo shows.
    * `null` on photos from before multi-cat tracking. */
@@ -250,8 +252,8 @@ export interface Sample {
    * the cat its animal was identified as, else the session's main cat); `null` while the
    * session has no cat. Groups the sheet's photo grid when two cats were there. */
   cat: string | null;
-  /** What this photo actually, currently teaches: the saved cat name, `"not_a_cat"`, or
-   * `"skip"`; `null` when nothing has been saved for it yet (still just `guess`). */
+  /** What this photo actually, currently teaches: the saved cat name, `"not_a_cat"`, `"skip"` or
+   * `"both"`; `null` when nothing has been saved for it yet (still just `guess`). */
   label: string | null;
 }
 
@@ -292,19 +294,10 @@ export interface Storage {
   device_spool: { used_bytes: number; cap_bytes: number } | null;
 }
 
-/** `kibble/timeline` and `kibble/review`'s shared page shape (also `kibble/training`, item type
- * substituted -- see `TrainingPage`). */
+/** `kibble/timeline`'s page shape (also `kibble/training`, item type substituted -- see
+ * `TrainingPage`). */
 export interface TimelinePage {
   items: TimelineEvent[];
-  cursor: string | null;
-  has_more: boolean;
-}
-
-/** `kibble/review`'s page shape -- same as `TimelinePage` plus a `total` count across every page,
- * shown next to the paging controls so "24 of 61" is honest rather than guessed. */
-export interface ReviewPage {
-  items: TimelineEvent[];
-  total: number;
   cursor: string | null;
   has_more: boolean;
 }
@@ -314,7 +307,7 @@ export interface SceneSubject {
   /** 0..1 of the full frame -- the scene photo IS that frame. */
   box: Box;
   /** The feeder's id for this animal within the session; `null` on boxes that cannot be named
-   * (older sessions). Only boxes with a `sid` are tappable: `kibble/session/subject`. */
+   * (older sessions). */
   sid: number | null;
   /** Who this animal is: a cat name, `"not_a_cat"`, or `null` while nobody knows. */
   label: string | null;
@@ -353,6 +346,83 @@ export interface EventDetail {
   /** The vision judge saw more than one cat in this session's photos (a hint for the person
    * when fewer cats are ticked; never applied on its own). */
   multiple_cats: boolean;
+}
+
+/** The one visit a photo answer rolls up into: the cats the server now derives from every
+ * photo answer of it (may be empty) and whether the one question left -- who ate -- is open.
+ * `kibble/sample/label` and `kibble/session/ate` both return it. */
+export interface VisitResult {
+  uid: string;
+  kind: "eat" | "visit";
+  cats: { cat: string; ate: boolean }[];
+  /** True ONLY for a meal where the photo answers name two cats and the feeder's own data
+   * cannot say who ate. */
+  needs_ate: boolean;
+}
+
+/** `kibble/sample/label`'s response. */
+export interface SampleLabelResult {
+  sample: Sample;
+  visit: VisitResult;
+}
+
+/** One photo waiting for an answer (`kibble/review/photos`), with the visit it came from. */
+export interface PhotoQueueItem {
+  sample: Sample;
+  visit: {
+    uid: string;
+    start: number;
+    kind: "eat" | "visit";
+    /** The whole camera picture, one tap away. */
+    scene: Asset | null;
+    /** True when `sample.box` points at an animal INSIDE `scene`. */
+    in_scene: boolean;
+  };
+}
+
+/** `kibble/review/photos`'s response. The items are already in their final order. */
+export interface PhotoQueuePage {
+  items: PhotoQueueItem[];
+  /** Photos still waiting for an answer in the WHOLE queue (all pages). */
+  remaining: number;
+  /** How many visits those photos come from (information only). */
+  visits: number;
+  cursor: string | null;
+  has_more: boolean;
+}
+
+export type LearningPhase = "idle" | "waiting" | "learning" | "rechecking" | "retrying";
+
+/** `kibble/learning/subscribe`: where the server's background learning stands. Times are unix
+ * seconds. */
+export interface LearningStatus {
+  state: LearningPhase;
+  /** Answers saved on the server that learning has not used yet (0 when idle). */
+  pending: number;
+  /** Progress inside the current step ("rechecking": visits rechecked so far, of `total`). */
+  done: number | null;
+  total: number | null;
+  /** When learning is expected to start (state "waiting"). */
+  starts_at: number | null;
+  /** The next automatic retry (state "retrying"). */
+  retry_at: number | null;
+  /** When the running pass started ("learning" / "rechecking"). */
+  started: number | null;
+  /** The last pass that finished OK (`null` until the first one). */
+  last: {
+    finished: number;
+    duration: number;
+    /** Answers that pass learned from. */
+    answers: number;
+    /** Net training photos per cat: added (+) or removed (-). */
+    learned: Record<string, number>;
+    /** Unreviewed visits whose guessed name changed during the recheck. */
+    renamed: number;
+    /** Visits looked at again. */
+    rechecked: number;
+  } | null;
+  /** The most recent failure text while retrying. Show it quietly. */
+  error: string | null;
 }
 
 /** `kibble/cats`'s response. */

@@ -1,14 +1,14 @@
 import { describe, expect, test } from "bun:test";
 import { isSidewaysDrag, keyCommand, swipeCommit, swipeCommitDistance, swipeOptionId, swipeProgress } from "../src/lib/review-input";
-import { reviewOptions } from "../src/lib/review-queue";
+import { answerOptions } from "../src/lib/photo-answers";
 
-const options = reviewOptions([{ name: "Kitty" }, { name: "Pancake" }]);
+const options = answerOptions([{ name: "Kitty" }, { name: "Pancake" }]);
 
 describe("keyCommand", () => {
   test("number keys pick the option with that number", () => {
     expect(keyCommand({ key: "1" }, options)).toEqual({ type: "answer", optionId: "cat:Kitty" });
-    expect(keyCommand({ key: "3" }, options)).toEqual({ type: "answer", optionId: "several" });
-    expect(keyCommand({ key: "5" }, options)).toEqual({ type: "answer", optionId: "unknown" });
+    expect(keyCommand({ key: "3" }, options)).toEqual({ type: "answer", optionId: "both" });
+    expect(keyCommand({ key: "5" }, options)).toEqual({ type: "answer", optionId: "skip" });
     expect(keyCommand({ key: "6" }, options)).toBeNull();
   });
 
@@ -18,18 +18,17 @@ describe("keyCommand", () => {
     expect(keyCommand({ key: "z", metaKey: true }, options)).toEqual({ type: "undo" });
   });
 
-  test("arrows browse photos, S and up/down flip to the whole scene", () => {
-    expect(keyCommand({ key: "ArrowLeft" }, options)).toEqual({ type: "photo", delta: -1 });
-    expect(keyCommand({ key: "ArrowRight" }, options)).toEqual({ type: "photo", delta: 1 });
+  test("S and up/down flip to the whole picture; left and right are left alone", () => {
     expect(keyCommand({ key: "s" }, options)).toEqual({ type: "scene" });
     expect(keyCommand({ key: "ArrowUp" }, options)).toEqual({ type: "scene" });
+    expect(keyCommand({ key: "ArrowLeft" }, options)).toBeNull();
+    expect(keyCommand({ key: "ArrowRight" }, options)).toBeNull();
   });
 
-  test("a held key never answers or undoes, but still browses photos", () => {
+  test("a held key never answers or undoes", () => {
     expect(keyCommand({ key: "1", repeat: true }, options)).toBeNull();
     expect(keyCommand({ key: "z", repeat: true }, options)).toBeNull();
     expect(keyCommand({ key: "z", ctrlKey: true, repeat: true }, options)).toBeNull();
-    expect(keyCommand({ key: "ArrowRight", repeat: true }, options)).toEqual({ type: "photo", delta: 1 });
   });
 
   test("browser shortcuts and unrelated keys are left alone", () => {
@@ -73,7 +72,7 @@ describe("swipes", () => {
   test("swiping names a cat only when there are exactly two", () => {
     expect(swipeOptionId("left", options)).toBe("cat:Kitty");
     expect(swipeOptionId("right", options)).toBe("cat:Pancake");
-    expect(swipeOptionId("left", reviewOptions([{ name: "Kitty" }]))).toBeNull();
-    expect(swipeOptionId("right", reviewOptions([{ name: "A" }, { name: "B" }, { name: "C" }]))).toBeNull();
+    expect(swipeOptionId("left", answerOptions([{ name: "Kitty" }]))).toBeNull();
+    expect(swipeOptionId("right", answerOptions([{ name: "A" }, { name: "B" }, { name: "C" }]))).toBeNull();
   });
 });

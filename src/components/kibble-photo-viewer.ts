@@ -1,15 +1,11 @@
 /** The full-screen (phone) / large centred (wide) layer a photo-grid tile opens onto: one big
  * body crop at a time, `object-fit: contain` so nothing is ever cropped, a small round face-crop
- * inset when the sample has one, a "3 / 12" counter, and one chip row that corrects THIS one
- * photo -- every enrolled cat, "Not a cat", "Don't use" -- highlighted exactly like
- * `kibble-label-sheet`'s own identity row (a confirmed override gets the solid-fill check style,
- * a photo simply following the event's own confirmed cat gets the dashed "suggested" style, per
- * ux-spec.md section A.6). Choosing the event's own already-confirmed cat sends `"follow"`
- * (clears any override) instead of redundantly re-saving that same cat as one; anything else
- * saves the explicit label. A successful save pulses a check on the chip, then auto-advances to
- * the next photo after ~350ms (stays put on the last one) -- the whole reason this lives as its
- * own layer rather than inline in the grid: one photo, one decision, one quiet confirmation,
- * repeatable without a re-tap back into the grid every time.
+ * inset when the sample has one, a "3 / 12" counter, and the same five answers the review queue
+ * gives one photo: each enrolled cat, "Both in this photo" (only with two cats), "Not a cat" and
+ * "Don't use". The photo's own answer is filled in; with none yet, Kibble's guess gets the dashed
+ * "suggested" outline. "Undo" takes the answer back, so the photo follows its visit again. An
+ * answer pulses a check on its button, then moves to the next photo after ~350ms (it stays put
+ * on the last one): one photo, one decision, repeatable without a trip back to the grid.
  *
  * Fully self-contained as a dialog: owns its own Escape (closes just this layer, via
  * `viewer-close-requested` -- never the sheet's own `close-requested`), its own Tab focus trap
@@ -17,19 +13,20 @@
  * parent sheet's global keydown handler defers to this component entirely while `open`, so the
  * two never fight over the same keystroke.
  *
- * Never touches a WS call itself: `sample-label-requested` bubbles (composed, so it crosses this
- * element's own shadow boundary and the sheet's) straight up to whichever parent card already
- * owns that request, exactly like every other action in this card set.
+ * Never touches a WS call itself: `sample-answer-requested` bubbles (composed, so it crosses this
+ * element's own shadow boundary and the sheet's) straight up to the card that owns the answer
+ * outbox, which saves it and hands back the updated `samples`.
  */
 
 import { LitElement, css, html, nothing, type PropertyValues } from "lit";
 import { createRef, ref } from "lit/directives/ref.js";
-import type { CatSummary, HomeAssistant, Sample, TimelineEvent } from "../types";
+import type { CatSummary, HomeAssistant, Sample } from "../types";
 import type { ImageUrlCache } from "../lib/image-cache";
 import { catColorAt } from "../styles/tokens";
 import { fallbackCatColor } from "../lib/cat-colors";
 import { boxInCrop, type OverlayBox } from "../lib/boxes";
 import { mdiIcon } from "../lib/mdi-icons";
+import { answerOptions, guessCaption, guessOptionId, optionIdForAnswer, photoTag } from "../lib/photo-answers";
 import "./kibble-image";
 import "./kibble-choice";
 import "./kibble-box-overlay";
@@ -47,8 +44,6 @@ const AUTO_ADVANCE_MS = 350;
 const SAVED_PULSE_MS = 700;
 const SWIPE_MIN_PX = 48;
 
-type ChipState = "confirmed" | "suggested" | "neutral";
-
 export class KibblePhotoViewer extends LitElement {
   static properties = {
     open: { type: Boolean, reflect: true },
@@ -57,12 +52,9 @@ export class KibblePhotoViewer extends LitElement {
     cats: { attribute: false },
     samples: { attribute: false },
     initialIndex: { type: Number },
-    event: { attribute: false },
-    busyUid: { attribute: false },
-    error: { type: String },
     showBoxes: { type: Boolean },
     _index: { state: true },
-    _justSavedUid: { state: true },
+    _pulse: { state: true },
   };
 
   declare open: boolean;
@@ -72,21 +64,12 @@ export class KibblePhotoViewer extends LitElement {
   declare samples: Sample[];
   /** Which photo to open on -- read once, the instant `open` flips true. */
   declare initialIndex: number;
-  /** The sheet's own event summary -- only its `identity`/`cat` matter here, for the
-   * follow-vs-override choice. */
-  declare event: TimelineEvent | null;
-  /** The one sample uid currently mid-save, or `null` -- shared with the grid, sourced from the
-   * same parent state every other save in this sheet already uses. */
-  declare busyUid: string | null;
-  declare error: string | null;
   declare showBoxes: boolean;
 
   private _index = 0;
-  /** Which chip choice is mid-save for the CURRENT photo, or `null` -- distinct from `busyUid`
-   * (a sample uid) so the spinner lands on the exact tapped option, not just "some chip". */
-  private _pendingOption: string | null = null;
-  private _justSavedUid: string | null = null;
-  private _justSavedTimer: ReturnType<typeof setTimeout> | undefined;
+  /** The answer just given (photo uid and button id): that button pulses a check for a moment. */
+  private _pulse: { uid: string; optionId: string } | null = null;
+  private _pulseTimer: ReturnType<typeof setTimeout> | undefined;
   private _advanceTimer: ReturnType<typeof setTimeout> | undefined;
   private _closeRef = createRef<HTMLButtonElement>();
   private _touchStartX = 0;
@@ -131,9 +114,6 @@ export class KibblePhotoViewer extends LitElement {
     this.cats = [];
     this.samples = [];
     this.initialIndex = 0;
-    this.event = null;
-    this.busyUid = null;
-    this.error = null;
     this.showBoxes = true;
   }
 
@@ -145,22 +125,14 @@ export class KibblePhotoViewer extends LitElement {
   disconnectedCallback(): void {
     super.disconnectedCallback();
     window.removeEventListener("keydown", this._keydownHandler);
-    clearTimeout(this._justSavedTimer);
+    clearTimeout(this._pulseTimer);
     clearTimeout(this._advanceTimer);
   }
 
   protected willUpdate(changed: PropertyValues): void {
     if (changed.has("open") && this.open) {
       this._index = this.initialIndex;
-      this._justSavedUid = null;
-      this._pendingOption = null;
-    }
-    if (changed.has("busyUid")) {
-      const previous = changed.get("busyUid") as string | null | undefined;
-      this._pendingOption = null; // the spinner stops the instant a save settles, success or not
-      if (previous && this.busyUid === null && !this.error && this.samples[this._index]?.uid === previous) {
-        this._flashSaved(previous);
-      }
+      this._pulse = null;
     }
   }
 
@@ -168,23 +140,11 @@ export class KibblePhotoViewer extends LitElement {
     if (changed.has("open") && this.open) this._closeRef.value?.focus();
   }
 
-  private _flashSaved(uid: string): void {
-    clearTimeout(this._justSavedTimer);
-    this._justSavedUid = uid;
-    this._justSavedTimer = setTimeout(() => {
-      this._justSavedUid = null;
-    }, SAVED_PULSE_MS);
-    clearTimeout(this._advanceTimer);
-    this._advanceTimer = setTimeout(() => {
-      if (this._index < this.samples.length - 1) this._go(1);
-    }, AUTO_ADVANCE_MS);
-  }
-
   private _go(delta: number): void {
     const next = this._index + delta;
     if (next < 0 || next >= this.samples.length) return;
     this._index = next;
-    this._justSavedUid = null;
+    this._pulse = null;
   }
 
   private _requestClose = (): void => {
@@ -217,10 +177,11 @@ export class KibblePhotoViewer extends LitElement {
     const ownBox = boxInCrop(sample.box, sample.crop);
     if (!ownBox) return [];
     const name = sample.label ?? sample.guess;
-    const tone = name === "not_a_cat" ? "not-cat" : name && name !== "skip" ? "cat" : "unknown";
-    const cat = tone === "cat" ? this.cats.find((candidate) => candidate.name === name) : null;
+    const named = name !== null && name !== "not_a_cat" && name !== "skip" && name !== "both" ? name : null;
+    const tone = named ? "cat" : name === "not_a_cat" ? "not-cat" : "unknown";
+    const cat = named ? this.cats.find((candidate) => candidate.name === named) : null;
     return [
-      { key: "sample:" + sample.uid, box: ownBox, tone, label: name && name !== "not_a_cat" && name !== "skip" ? name : tone === "not-cat" ? "Not a cat" : "Who?", color: name && name !== "not_a_cat" && name !== "skip" ? this._catColor(name) : undefined, avatar: cat?.avatar ?? null },
+      { key: "sample:" + sample.uid, box: ownBox, tone, label: named ?? (tone === "not-cat" ? "Not a cat" : "Who?"), color: named ? this._catColor(named) : undefined, avatar: cat?.avatar ?? null },
       ...sample.peers.flatMap((peer, index) => {
         const box = boxInCrop(peer, sample.crop!);
         return box ? [{ key: "peer:" + sample.uid + ":" + index, box, tone: "peer" as const }] : [];
@@ -239,7 +200,7 @@ export class KibblePhotoViewer extends LitElement {
     const total = this.samples.length;
     const image = sample.body ?? sample.face;
     const faceInset = sample.body && sample.face ? sample.face : null;
-    const busy = this.busyUid !== null;
+    const tag = photoTag(sample);
     return html`
       <div class="scrim" role="dialog" aria-modal="true" aria-label=${`Photo ${this._index + 1} of ${total}`} @click=${this._requestClose}>
         <div class="panel" @click=${(e: Event) => e.stopPropagation()} @touchstart=${this._onTouchStart} @touchend=${this._onTouchEnd}>
@@ -251,6 +212,7 @@ export class KibblePhotoViewer extends LitElement {
             ${image
               ? html`<div class="image-frame"><kibble-image .hass=${this.hass} .asset=${image} .cache=${this.cache} alt="" fit="contain"></kibble-image>${sample.body && this.showBoxes ? html`<kibble-box-overlay .boxes=${this._photoOverlayBoxes(sample)} .hass=${this.hass} .cache=${this.cache}></kibble-box-overlay>` : nothing}</div>`
               : nothing}
+            ${tag ? html`<span class="tag">${tag.text}</span>` : nothing}
             ${sample.body && sample.box && sample.crop ? html`<button type="button" class="box-toggle" aria-pressed=${this.showBoxes} aria-label=${this.showBoxes ? "Hide boxes" : "Show boxes"} @click=${this._requestBoxesVisibility}>${mdiIcon(this.showBoxes ? "eye" : "eyeOff")}</button>` : nothing}
             ${faceInset ? html`<span class="face-inset"><kibble-image .hass=${this.hass} .asset=${faceInset} .cache=${this.cache} alt="" rounded></kibble-image></span>` : nothing}
             <button type="button" class="nav prev" aria-label="Previous photo" ?disabled=${this._index === 0} @click=${() => this._go(-1)}>
@@ -260,48 +222,58 @@ export class KibblePhotoViewer extends LitElement {
               <span class="chevron chevron-right">${mdiIcon("chevronDown")}</span>
             </button>
           </div>
-          <div class="chip-row" role="group" aria-label="Who is this, in this photo">
-            ${this.cats.map((cat) => this._renderChoice(cat.name, cat, sample, busy))}
-            ${this._renderChoice("not_a_cat", null, sample, busy)}
-            ${this._renderChoice("skip", null, sample, busy)}
-          </div>
-          ${this.error ? html`<p class="viewer-error">${this.error}</p>` : nothing}
+          ${this._renderAnswers(sample)}
         </div>
       </div>
     `;
   }
 
-  private _choiceState(option: string, sample: Sample): ChipState {
-    if (option === "skip") return sample.review === "skip" ? "confirmed" : "neutral";
-    if (sample.review !== null) return sample.review === option ? "confirmed" : "neutral";
-    if (sample.label === option) return "suggested";
-    return "neutral";
+  private _renderAnswers(sample: Sample) {
+    const options = answerOptions(this.cats);
+    const answered = optionIdForAnswer(sample.review);
+    const guessed = sample.review === null ? guessOptionId(sample, options) : null;
+    return html`
+      <div class="answers">
+        <div class="chip-row" role="group" aria-label="Who is in this photo?">
+          ${options.map((option) => {
+            const state = option.id === answered ? "selected" : option.id === guessed ? "suggested" : "neutral";
+            const cats = option.kind === "cat" ? this.cats.filter((cat) => cat.name === option.cat) : option.kind === "both" ? this.cats : [];
+            return html`<kibble-choice
+              .hass=${this.hass}
+              .cache=${this.cache}
+              .label=${option.text}
+              .cats=${cats}
+              .icon=${option.kind === "not_a_cat" ? "cancel" : option.kind === "skip" ? "eyeOff" : null}
+              .state=${state}
+              .caption=${state === "suggested" ? guessCaption(sample) : option.hint}
+              .pop=${this._pulse?.uid === sample.uid && this._pulse.optionId === option.id}
+              @click=${() => this._answer(sample, option.value, option.id)}
+            ></kibble-choice>`;
+          })}
+        </div>
+        ${sample.review !== null ? html`<button type="button" class="undo" @click=${() => this._answer(sample, "follow", null)}>${mdiIcon("undo")}<span>Undo</span></button>` : nothing}
+      </div>
+    `;
   }
 
-  private _renderChoice(option: string, cat: CatSummary | null, sample: Sample, rowBusy: boolean) {
-    const state = this._choiceState(option, sample);
-    return html`<kibble-choice
-      .hass=${this.hass}
-      .cache=${this.cache}
-      .label=${cat ? cat.name : option === "skip" ? "Don\u2019t use" : "Not a cat"}
-      .cats=${cat ? [cat] : []}
-      .icon=${cat ? null : option === "skip" ? "eyeOff" : "cancel"}
-      .state=${state === "confirmed" ? "selected" : state}
-      .busy=${rowBusy && this.busyUid === sample.uid && this._pendingOption === option}
-      .pop=${this._justSavedUid === sample.uid && state === "confirmed"}
-      ?disabled=${rowBusy}
-      @click=${() => this._choose(option, sample)}
-    ></kibble-choice>`;
+  /** One tap: the answer goes up to the card that saves it, the chosen button pulses a check, and
+   * the viewer moves on to the next photo. Undo stays on the photo it takes back. */
+  private _answer(sample: Sample, label: string, optionId: string | null): void {
+    this.dispatchEvent(new CustomEvent("sample-answer-requested", { detail: { sampleUid: sample.uid, label }, bubbles: true, composed: true }));
+    clearTimeout(this._pulseTimer);
+    clearTimeout(this._advanceTimer);
+    if (optionId === null) {
+      this._pulse = null;
+      return;
+    }
+    this._pulse = { uid: sample.uid, optionId };
+    this._pulseTimer = setTimeout(() => {
+      this._pulse = null;
+    }, SAVED_PULSE_MS);
+    this._advanceTimer = setTimeout(() => {
+      if (this._index < this.samples.length - 1) this._go(1);
+    }, AUTO_ADVANCE_MS);
   }
-
-  private _choose(option: string, sample: Sample): void {
-    const follows = this.event?.identity === "reviewed" && this.event.cat === option;
-    this._pendingOption = option;
-    this.dispatchEvent(
-      new CustomEvent("sample-label-requested", { detail: { sampleUid: sample.uid, label: follows ? "follow" : option }, bubbles: true, composed: true }),
-    );
-  }
-
   static styles = css`
     :host {
       display: contents;
@@ -465,26 +437,55 @@ export class KibblePhotoViewer extends LitElement {
     /* The answers sit on their own solid HA-theme surface, distinct from the black photo
      * chrome above (image on top, flexing; answers beneath, never overlapping), so the shared
      * answer buttons read the same here as everywhere else in light and dark. */
-    .chip-row {
+    .answers {
       flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      padding-bottom: max(8px, env(safe-area-inset-bottom));
+      background: var(--ha-card-background, var(--card-background-color, #fff));
+    }
+    .chip-row {
       display: flex;
       gap: 8px;
       overflow-x: auto;
-      padding: 12px 12px max(12px, env(safe-area-inset-bottom));
-      background: var(--ha-card-background, var(--card-background-color, #fff));
+      padding: 12px 12px 4px;
     }
     .chip-row kibble-choice {
       flex: 1 1 0;
-      min-width: 76px;
+      min-width: 96px;
     }
-    .viewer-error {
-      flex-shrink: 0;
-      margin: 0;
-      padding: 8px 10px;
+    .undo {
+      align-self: flex-start;
+      min-height: 48px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin: 0 12px;
+      padding: 0 12px;
+      border: 0;
       border-radius: 8px;
-      background: rgba(219, 68, 55, 0.25);
-      color: #ffb4ac;
+      background: none;
+      color: var(--primary-color, #03a9f4);
+      font: inherit;
       font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+    }
+    .undo:focus-visible {
+      outline: 2px solid var(--primary-color, #03a9f4);
+      outline-offset: 2px;
+    }
+    .tag {
+      position: absolute;
+      z-index: 8;
+      top: 8px;
+      left: 16px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: rgba(0, 0, 0, 0.7);
+      color: #fff;
+      font-size: 13px;
+      font-weight: 600;
     }
     .box-toggle:focus-visible,
     .close:focus-visible,

@@ -1,84 +1,49 @@
 import { LitElement, css, html, nothing, type PropertyValues } from "lit";
-import type { CatSummary, HomeAssistant } from "../types";
+import type { HomeAssistant } from "../types";
 import type { ImageUrlCache } from "../lib/image-cache";
 import { boxRect, placeLabels, type LabelPlacement, type OverlayBox } from "../lib/boxes";
-import { placeNamePicker, type NamePickerPlacement } from "../lib/session-label";
 import "./kibble-image";
-import "./kibble-avatar";
 
+/** Boxes, and optionally name tags, drawn over a picture. Purely visual: it never takes a tap,
+ * so whatever sits under it (a photo, a swipe) keeps working. */
 export class KibbleBoxOverlay extends LitElement {
   static properties = {
     boxes: { attribute: false },
     hass: { attribute: false },
     cache: { attribute: false },
-    cats: { attribute: false },
-    busy: { type: Boolean },
     labelSafeTop: { attribute: false },
     _labelPositions: { state: true },
-    _pickerKey: { state: true },
-    _pickerPlacement: { state: true },
   };
 
   declare boxes: OverlayBox[];
   declare hass: HomeAssistant | undefined;
   declare cache: ImageUrlCache | undefined;
-  declare cats: CatSummary[];
-  declare busy: boolean;
   declare labelSafeTop: number;
   declare private _labelPositions: Record<string, LabelPlacement>;
-  declare private _pickerKey: string | null;
-  declare private _pickerPlacement: NamePickerPlacement | null;
 
   private _resizeObserver: ResizeObserver | undefined;
-  private _focusTrigger: HTMLButtonElement | null = null;
-  private _pointerDown = (event: PointerEvent): void => {
-    if (this._pickerKey && !event.composedPath().includes(this)) this._closePicker(false);
-  };
-  private _keyDown = (event: KeyboardEvent): void => {
-    if (event.key !== "Escape" || !this._pickerKey) return;
-    event.preventDefault();
-    event.stopPropagation();
-    this._closePicker(true);
-  };
 
   constructor() {
     super();
     this.boxes = [];
-    this.cats = [];
-    this.busy = false;
     this.labelSafeTop = 0;
     this._labelPositions = {};
-    this._pickerKey = null;
-    this._pickerPlacement = null;
-  }
-
-  connectedCallback(): void {
-    super.connectedCallback();
-    window.addEventListener("pointerdown", this._pointerDown, true);
-    window.addEventListener("keydown", this._keyDown, true);
   }
 
   firstUpdated(): void {
-    this._resizeObserver = new ResizeObserver(() => {
-      this._repositionLabels();
-      this._repositionPicker();
-    });
+    this._resizeObserver = new ResizeObserver(() => this._repositionLabels());
     this._resizeObserver.observe(this);
     this._repositionLabels();
   }
 
   disconnectedCallback(): void {
     super.disconnectedCallback();
-    window.removeEventListener("pointerdown", this._pointerDown, true);
-    window.removeEventListener("keydown", this._keyDown, true);
     this._resizeObserver?.disconnect();
     this._resizeObserver = undefined;
   }
 
   updated(changed: PropertyValues): void {
     if (changed.has("boxes") || changed.has("labelSafeTop")) this._repositionLabels();
-    if (changed.has("boxes") && this._pickerKey && !this.boxes.some((box) => box.key === this._pickerKey)) this._closePicker(false);
-    if (changed.has("_pickerKey") || changed.has("boxes") || changed.has("cats")) this._repositionPicker();
   }
 
   private _repositionLabels = (): void => {
@@ -102,70 +67,8 @@ export class KibbleBoxOverlay extends LitElement {
     this._labelPositions = next;
   };
 
-  private _openPicker(box: OverlayBox, event: MouseEvent): void {
-    if (this.busy || box.subjectSid == null) return;
-    this._focusTrigger = event.currentTarget as HTMLButtonElement;
-    this._pickerPlacement = null;
-    this._pickerKey = box.key;
-    void this.updateComplete.then(async () => {
-      this._repositionPicker();
-      await this.updateComplete;
-      this.renderRoot.querySelector<HTMLElement>(".picker-option:not([disabled])")?.focus();
-    });
-  }
-
-  private _closePicker(restoreFocus: boolean): void {
-    const trigger = this._focusTrigger;
-    this._pickerKey = null;
-    this._pickerPlacement = null;
-    this._focusTrigger = null;
-    if (restoreFocus) trigger?.focus();
-  }
-
-  private _repositionPicker = (): void => {
-    if (!this._pickerKey) return;
-    const box = this.boxes.find((candidate) => candidate.key === this._pickerKey);
-    const picker = this.renderRoot.querySelector<HTMLElement>(".picker");
-    const frame = this.getBoundingClientRect();
-    if (!box || !picker || frame.width <= 0 || frame.height <= 0) return;
-    const bounds = picker.getBoundingClientRect();
-    const placement = placeNamePicker(box.box, frame.width, frame.height, bounds.width, bounds.height);
-    const before = this._pickerPlacement;
-    if (before?.left === placement.left && before.top === placement.top && before.flipped === placement.flipped) return;
-    this._pickerPlacement = placement;
-  };
-
-  private _chooseSubject(box: OverlayBox, label: string): void {
-    if (this.busy || box.subjectSid == null) return;
-    this._closePicker(true);
-    this.dispatchEvent(new CustomEvent("subject-label-requested", {
-      detail: { sid: box.subjectSid, label },
-      bubbles: true,
-      composed: true,
-    }));
-  }
-
   render() {
-    const selectable = this.boxes.some((box) => box.selectable);
-    const pickerBox = this.boxes.find((box) => box.key === this._pickerKey);
-    return html`
-      <div class="overlay ${selectable ? "interactive" : "passive"}" ?aria-hidden=${!selectable}>
-        ${this.boxes.map((box) => this._renderBox(box))}
-        ${pickerBox ? this._renderPicker(pickerBox) : nothing}
-      </div>`;
-  }
-
-  private _renderPicker(box: OverlayBox) {
-    const visible = this._pickerPlacement !== null;
-    const style = visible ? `left:${this._pickerPlacement!.left}px;top:${this._pickerPlacement!.top}px;` : "left:8px;top:8px;visibility:hidden;";
-    return html`<div class="picker" role="group" aria-label="Name this animal" style=${style}>
-      ${this.cats.map((cat) => html`<button type="button" class="picker-option" aria-pressed=${box.subjectLabel === cat.name} ?disabled=${this.busy} @click=${() => this._chooseSubject(box, cat.name)}>
-        <kibble-avatar .hass=${this.hass} .name=${cat.name} .colorIndex=${cat.color} .asset=${cat.avatar} .cache=${this.cache}></kibble-avatar><span>${cat.name}</span>${box.subjectLabel === cat.name ? html`<span class="picker-check" aria-hidden="true">✓</span>` : nothing}
-      </button>`) }
-      <button type="button" class="picker-option" aria-pressed=${box.subjectLabel === "not_a_cat"} ?disabled=${this.busy} @click=${() => this._chooseSubject(box, "not_a_cat")}>
-        <kibble-avatar .name=${null}></kibble-avatar><span>Not a cat</span>${box.subjectLabel === "not_a_cat" ? html`<span class="picker-check" aria-hidden="true">✓</span>` : nothing}
-      </button>
-    </div>`;
+    return html`<div class="overlay" aria-hidden="true">${this.boxes.map((box) => this._renderBox(box))}</div>`;
   }
 
   private _renderBox(box: OverlayBox) {
@@ -178,7 +81,6 @@ export class KibbleBoxOverlay extends LitElement {
     return html`
       <div class="box-wrap tone-${box.tone} emphasis-${emphasis}" style=${boundsStyle}>
         <span class="stroke"></span>
-        ${box.selectable ? html`<button type="button" class="hit" aria-label=${text ? `Name ${text}` : "Name this animal"} @click=${(event: MouseEvent) => this._openPicker(box, event)}></button>` : nothing}
       </div>
       ${text ? html`<span class="label tone-${box.tone} emphasis-${emphasis}" data-label-key=${box.key} style=${labelStyle}>
         ${box.tone === "cat" ? html`<span class="avatar-ring" style=${`--box-color:${box.color ?? "var(--primary-color)"}`}><span class="monogram" aria-hidden="true">${text.trim().charAt(0).toUpperCase()}</span>${box.avatar ? html`<kibble-image .hass=${this.hass} .asset=${box.avatar} .cache=${this.cache} alt=""></kibble-image>` : nothing}</span>` : box.tone === "unknown" ? html`<span class="unknown-avatar">?</span>` : nothing}
@@ -198,65 +100,6 @@ export class KibbleBoxOverlay extends LitElement {
       position: absolute;
       inset: 0;
       overflow: hidden;
-    }
-    .overlay.passive,
-    .overlay.interactive {
-      pointer-events: none;
-    }
-    .picker {
-      position: absolute;
-      z-index: 20;
-      box-sizing: border-box;
-      display: flex;
-      flex-direction: column;
-      width: min(264px, calc(100% - 16px));
-      max-height: calc(100% - 16px);
-      overflow: auto;
-      padding: 6px;
-      border: 1px solid rgba(255, 255, 255, 0.24);
-      border-radius: 14px;
-      background: rgba(18, 18, 20, 0.94);
-      color: #fff;
-      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.38);
-      backdrop-filter: blur(12px);
-      pointer-events: auto;
-      overscroll-behavior: contain;
-    }
-    .picker-option {
-      box-sizing: border-box;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      width: 100%;
-      min-height: 48px;
-      padding: 4px 8px;
-      border: 0;
-      border-radius: 9px;
-      background: transparent;
-      color: inherit;
-      font: inherit;
-      text-align: left;
-      cursor: pointer;
-    }
-    .picker-option kibble-avatar {
-      flex: none;
-      --kibble-avatar-size: 30px;
-    }
-    .picker-option[aria-pressed="true"] {
-      background: rgba(255, 255, 255, 0.14);
-    }
-    .picker-option:focus-visible {
-      outline: 2px solid var(--primary-color, #9c7bff);
-      outline-offset: -2px;
-    }
-    .picker-option:disabled {
-      opacity: 0.55;
-      cursor: default;
-    }
-    .picker-check {
-      margin-left: auto;
-      color: var(--kibble-feed, #6fd398);
-      font-weight: 700;
     }
     .box-wrap {
       position: absolute;
@@ -302,26 +145,6 @@ export class KibbleBoxOverlay extends LitElement {
     .box-wrap.emphasis-dim,
     .label.emphasis-dim {
       opacity: 0.45;
-    }
-    .hit {
-      position: absolute;
-      left: 50%;
-      top: 50%;
-      width: 100%;
-      height: 100%;
-      min-width: 48px;
-      min-height: 48px;
-      padding: 0;
-      border: 0;
-      border-radius: 4px;
-      background: transparent;
-      opacity: 0;
-      pointer-events: auto;
-      transform: translate(-50%, -50%);
-      cursor: pointer;
-    }
-    .box-wrap:focus-within .stroke {
-      box-shadow: 0 0 0 3px var(--primary-text-color), 0 0 0 5px rgba(0, 0, 0, 0.65);
     }
     .label {
       position: absolute;

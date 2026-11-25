@@ -20,9 +20,6 @@ export interface OverlayBox {
   label?: string;
   avatar?: Asset | null;
   emphasis?: OverlayEmphasis;
-  selectable?: boolean;
-  subjectSid?: number | null;
-  subjectLabel?: string | null;
 }
 
 export interface LabelRequest {

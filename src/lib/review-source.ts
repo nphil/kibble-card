@@ -1,45 +1,39 @@
-/** Loads the review queue's raw material: every visit Kibble could not name (`kibble/review`)
- * and the recent timeline with its unconfirmed guesses (`kibble/timeline`). Both are read to
- * the end through their cursors, so the queue is never capped at one page. The two reads are
- * separate so the screen can start on the unknown visits while the timeline is still loading.
+/** Reads the review queue from Kibble: `kibble/review/photos`, one page of photos waiting for an
+ * answer. The server decides which photos and in what order; the card only asks for the next
+ * page. A page is cleaned up on the way in, so the screen never meets a photo without a uid or
+ * a count that is not a number.
  */
 
-import type { ReviewPage, TimelineEvent, TimelinePage } from "../types";
+import type { PhotoQueueItem, PhotoQueuePage } from "../types";
 
 export type CallWS = (message: Record<string, unknown>) => Promise<unknown>;
 
-const REVIEW_PAGE_SIZE = 60;
-const TIMELINE_PAGE_SIZE = 100;
-/** A hard stop so a server that keeps answering `has_more` can never loop this forever. */
-const MAX_PAGES = 20;
+/** Photos per page: enough to keep ahead of a quick thumb, small enough to load at once. */
+export const PHOTO_PAGE_SIZE = 24;
 
-async function readAllPages<P extends TimelinePage>(callWS: CallWS, type: string, entryId: string, limit: number): Promise<{ items: TimelineEvent[]; last: P | null }> {
-  const items: TimelineEvent[] = [];
-  let cursor: string | null = null;
-  let last: P | null = null;
-  for (let page = 0; page < MAX_PAGES; page++) {
-    last = (await callWS({ type, entry_id: entryId, limit, ...(cursor ? { cursor } : {}) })) as P;
-    items.push(...last.items);
-    if (!last.has_more || !last.cursor) break;
-    cursor = last.cursor;
-  }
-  return { items, last };
+function count(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) ? Math.max(0, Math.round(value)) : 0;
 }
 
-/** Every visit waiting for a name, newest first, and how many there are in total. */
-export async function loadUnknownVisits(callWS: CallWS, entryId: string): Promise<{ items: TimelineEvent[]; total: number }> {
-  const { items, last } = await readAllPages<ReviewPage>(callWS, "kibble/review", entryId, REVIEW_PAGE_SIZE);
-  return { items, total: last?.total ?? items.length };
+function isItem(value: unknown): value is PhotoQueueItem {
+  if (!value || typeof value !== "object") return false;
+  const { sample, visit } = value as { sample?: { uid?: unknown }; visit?: { uid?: unknown } };
+  return typeof sample?.uid === "string" && typeof visit?.uid === "string";
 }
 
-/** Every visit and meal the timeline still keeps, newest first (feeds left out). */
-export async function loadTimelineVisits(callWS: CallWS, entryId: string): Promise<TimelineEvent[]> {
-  const { items } = await readAllPages<TimelinePage>(callWS, "kibble/timeline", entryId, TIMELINE_PAGE_SIZE);
-  return items.filter((item) => item.kind === "eat" || item.kind === "visit");
+/** One page of photos waiting for an answer, `cursor` continuing the previous page. */
+export async function loadPhotoPage(callWS: CallWS, entryId: string, cursor: string | null = null, limit = PHOTO_PAGE_SIZE): Promise<PhotoQueuePage> {
+  const raw = (await callWS({ type: "kibble/review/photos", entry_id: entryId, limit, ...(cursor ? { cursor } : {}) })) as Partial<PhotoQueuePage> | null;
+  return {
+    items: Array.isArray(raw?.items) ? raw.items.filter(isItem) : [],
+    remaining: count(raw?.remaining),
+    visits: count(raw?.visits),
+    cursor: typeof raw?.cursor === "string" && raw.cursor ? raw.cursor : null,
+    has_more: raw?.has_more === true,
+  };
 }
 
-/** Just the count of visits waiting for a name: what an entry button's badge shows. */
-export async function loadUnknownCount(callWS: CallWS, entryId: string): Promise<number> {
-  const page = (await callWS({ type: "kibble/review", entry_id: entryId, limit: 1 })) as ReviewPage;
-  return page.total;
+/** Just how many photos are waiting: what an entry button's badge shows. */
+export async function loadPhotosLeft(callWS: CallWS, entryId: string): Promise<number> {
+  return (await loadPhotoPage(callWS, entryId, null, 1)).remaining;
 }

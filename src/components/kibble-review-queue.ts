@@ -1,94 +1,72 @@
-/** The review queue: the one place visits get named. It opens as a native modal dialog (top
- * layer, so no theme can clip it), shows one visit per screen with its best photo, and takes
- * one tap, key or swipe per answer. The answer shows at once; saving happens behind it, one
- * request at a time, with a visible retry when one fails.
+/** The review queue: the one place photos get named. It opens as a native modal dialog (top
+ * layer, so no theme can clip it) and shows ONE photo per screen: a big crop, one button per
+ * cat, "Both in this photo" when two cats are enrolled, "Not a cat" and "Don't use". One tap,
+ * key or swipe answers and moves on; Undo takes the last answer back.
  *
- * The rules (ordering, answers, undo, the save line) are `lib/review-queue.ts`; the key and
- * swipe mapping is `lib/review-input.ts`. This file is the screen and the plumbing around them.
+ * An answer never waits for Kibble. It goes into the answer outbox (`lib/answer-sync.ts`), which
+ * saves it on this device and delivers it in the background, in order, retrying by itself. The
+ * outbox outlives this sheet, so closing it (or reloading the page) loses nothing.
+ *
+ * The rules (what is shown, advancing, undo, counts) are `lib/photo-queue.ts` and
+ * `lib/photo-answers.ts`; the key and swipe mapping is `lib/review-input.ts`; the live learning
+ * line is `kibble-learning-line`. This file is the screen and the plumbing around them.
  *
  * A host card renders one instance, passes `hass`, `entryId`, `cats` and its `ImageUrlCache`,
- * and calls `show()` (optionally with the uid of the visit to start on). Every saved answer is
- * announced on `lib/review-bus.ts` so every Kibble card on the page refreshes.
+ * and calls `show()`.
  */
 
 import { LitElement, css, html, nothing, type PropertyValues, type TemplateResult } from "lit";
-import { keyed } from "lit/directives/keyed.js";
 import { repeat } from "lit/directives/repeat.js";
-import type { Asset, CatSummary, CatsResponse, EventDetail, HomeAssistant } from "../types";
+import type { Asset, CatSummary, CatsResponse, HomeAssistant, PhotoQueueItem, PhotoQueuePage, Sample } from "../types";
 import type { ImageUrlCache } from "../lib/image-cache";
 import { ImagePreloader } from "../lib/image-preload";
 import { fireHaptic } from "../lib/haptics";
 import { mdiIcon } from "../lib/mdi-icons";
 import { catSilhouette } from "../lib/brand-shapes";
-import { labelSession } from "../lib/session-label";
-import { describeWsError } from "../lib/ws-query";
-import { visitWhenLabel } from "../lib/timeline";
-import { nextReconnectDelay } from "../lib/reconnect";
-import { announceReviewChange } from "../lib/review-bus";
-import { loadTimelineVisits, loadUnknownVisits } from "../lib/review-source";
-import { isSidewaysDrag, keyCommand, swipeCommit, swipeOptionId, swipeProgress, type ReviewCommand, type SwipeSide } from "../lib/review-input";
+import { CALL_TIMEOUT_MS, RETRY_SCHEDULE_MS } from "../lib/backoff";
+import { WsQuery } from "../lib/ws-query";
+import { loadPhotoPage } from "../lib/review-source";
+import { answerOutbox, type Delivery, type EntryOutbox } from "../lib/answer-sync";
+import { describeDrops, describeWaiting, type OutboxEvent } from "../lib/answer-outbox";
+import { answerOptions, guessCaption, guessOptionId, photosCheckedLabel, tallyAnswers, tallyRows, type AnswerOption } from "../lib/photo-answers";
 import {
-  answerCurrent,
-  answerOptionId,
-  answerRequest,
-  ateChoices,
-  buildReviewItems,
-  catAnswer,
+  answerPhoto,
+  appendPage,
   createQueue,
-  currentItem,
-  dismissGone,
-  guessOptionId,
-  isBatchBoundary,
-  majorityGuess,
-  markFailed,
-  markSaved,
-  markSaving,
-  mergeItems,
-  nextToSave,
-  queueProgress,
-  retryFailed,
-  reviewOptions,
-  reviewPhotos,
-  saveCounts,
-  severalAnswer,
-  summarize,
-  trainingGains,
+  currentPhoto,
+  isCaughtUp,
+  lastAnswer,
+  needsMorePhotos,
+  photoCaption,
+  photosLeft,
+  photosLeftLabel,
+  queueAsPage,
   undoLast,
-  upcomingItems,
-  type ReviewAnswer,
-  type ReviewItem,
-  type ReviewOption,
-  type ReviewQueueState,
-} from "../lib/review-queue";
+  upcomingPhotos,
+  type PhotoQueueState,
+} from "../lib/photo-queue";
+import { ateOptions, ateQuestionFor, type AteQuestion } from "../lib/who-ate";
+import { countOf } from "../lib/format-count";
+import { isSidewaysDrag, keyCommand, swipeCommit, swipeOptionId, swipeProgress, type ReviewCommand, type SwipeSide } from "../lib/review-input";
+import type { OverlayBox } from "../lib/boxes";
 import { catColorAt } from "../styles/tokens";
 import { KibbleChoice, type ChoiceCat, type ChoiceState } from "./kibble-choice";
 import type { KibbleImage } from "./kibble-image";
+import type { AteChosenDetail, KibbleWhoAte } from "./kibble-who-ate";
 import "./kibble-image";
 import "./kibble-avatar";
+import "./kibble-box-overlay";
+import "./kibble-learning-line";
+import "./kibble-who-ate";
 
 const LEAVE_MS = 260;
-const ANNOUNCE_DELAY_MS = 600;
-const SAVE_TIMEOUT_MS = 20_000;
-const FIRST_RETRY_MS = 2000;
 const PRELOAD_AHEAD = 3;
-const DETAIL_AHEAD = 2;
-/** When to re-read the cats' photo counts for the summary: the server retrains in the
- * background, so the real gain lands a few seconds after the last answer. */
-const GAIN_READ_DELAYS_MS = [0, 3000, 9000];
 
-type Phase = "loading" | "error" | "ready";
-type Stage = "review" | "batch" | "summary";
-type View = Phase | Stage | "empty";
+type View = "loading" | "error" | "photo" | "ate" | "caught-up";
 type LeaveSide = "left" | "right" | "up" | "down";
 
-interface FollowUp {
-  /** `pick`: choose which cats (three or more in the roster). `ate`: choose who ate. */
-  mode: "pick" | "ate";
-  cats: string[];
-}
-
 interface Leaving {
-  item: ReviewItem;
+  photo: PhotoQueueItem;
   side: LeaveSide;
   label: string;
   cats: ChoiceCat[];
@@ -107,6 +85,11 @@ interface Swipe {
   width: number;
 }
 
+/** The picture the person judges: the body crop, else the face. */
+function photoImage(sample: Sample): Asset | null {
+  return sample.body ?? sample.face;
+}
+
 export class KibbleReviewQueue extends LitElement {
   static properties = {
     hass: { attribute: false },
@@ -114,17 +97,11 @@ export class KibbleReviewQueue extends LitElement {
     cats: { attribute: false },
     cache: { attribute: false },
     _open: { state: true },
-    _phase: { state: true },
-    _loadError: { state: true },
     _queue: { state: true },
-    _stage: { state: true },
-    _follow: { state: true },
-    _photoIndex: { state: true },
+    _ateQueue: { state: true },
     _scene: { state: true },
     _leaving: { state: true },
-    _gains: { state: true },
     _imageFailed: { state: true },
-    _ownCats: { state: true },
   };
 
   declare hass: HomeAssistant | undefined;
@@ -134,31 +111,29 @@ export class KibbleReviewQueue extends LitElement {
   declare cache: ImageUrlCache | undefined;
 
   private _open = false;
-  private _phase: Phase = "loading";
-  private _loadError: string | null = null;
-  private _queue: ReviewQueueState | null = null;
-  private _stage: Stage = "review";
-  private _follow: FollowUp | null = null;
-  private _photoIndex = 0;
+  private _queue: PhotoQueueState | null = null;
+  /** "Who ate?" questions raised by delivered answers, oldest first; the first one is on screen. */
+  private _ateQueue: AteQuestion[] = [];
   private _scene = false;
   private _leaving: Leaving | null = null;
-  private _gains: Record<string, number> | null = null;
   private _imageFailed = false;
-  private _ownCats: CatSummary[] = [];
 
-  private _catsBefore: CatSummary[] | null = null;
-  private readonly _details = new Map<string, EventDetail>();
-  private readonly _detailsAsked = new Set<string>();
+  private readonly _first = this._makeQuery<PhotoQueuePage>();
+  private _more = this._makeQuery<PhotoQueuePage>();
+  private readonly _rosterQuery = this._makeQuery<CatsResponse>();
+  private _foldedFirst: PhotoQueuePage | null = null;
+  private _foldedMore: PhotoQueuePage | null = null;
+  /** The cursor the next page was last asked for, so a failing read retries by itself instead of
+   * being asked again on every render. */
+  private _requestedCursor: string | null | undefined;
+  /** Visits already asked "who ate?" in this sitting. */
+  private readonly _asked = new Set<string>();
+  private _outbox: EntryOutbox | null = null;
+  private _unsubscribeOutbox: (() => void) | null = null;
   private readonly _preloader = new ImagePreloader();
-  private _generation = 0;
-  private _leaveTimer: ReturnType<typeof setTimeout> | undefined;
-  private _announceTimer: ReturnType<typeof setTimeout> | undefined;
-  private _retryTimer: ReturnType<typeof setTimeout> | undefined;
-  private _gainTimers: ReturnType<typeof setTimeout>[] = [];
-  private _retryDelay = FIRST_RETRY_MS;
   private _connected = true;
+  private _leaveTimer: ReturnType<typeof setTimeout> | undefined;
   private _swipe: Swipe | null = null;
-  private _dragged = false;
   private _focusedKey: string | null = null;
 
   constructor() {
@@ -166,49 +141,60 @@ export class KibbleReviewQueue extends LitElement {
     this.cats = [];
   }
 
+  private _makeQuery<T>(): WsQuery<T> {
+    return new WsQuery<T>(() => this.requestUpdate(), { retry: RETRY_SCHEDULE_MS, timeoutMs: CALL_TIMEOUT_MS });
+  }
+
   // ---- Public API ---------------------------------------------------------------------------
 
-  /** Opens the queue. `startUid` is the visit to show first (a row the person tapped). */
-  show(startUid?: string | null): void {
+  /** Opens the queue. What was left unanswered last time shows at once while Kibble is asked for
+   * the up-to-date list, so a slow Kibble never means a blank sheet. */
+  show(): void {
     if (this._open) return;
     this._open = true;
-    this._stage = "review";
-    this._follow = null;
-    this._resetPhoto();
-    this._gains = null;
-    if (this._queue && this._unsaved() > 0) {
-      // An earlier sitting left answers unsent: keep them, try again, and refresh what is left.
-      this._queue = retryFailed(this._queue);
-      this._phase = "ready";
-      this._pump();
-      void this._reload();
-      return;
-    }
-    this._queue = null;
-    this._details.clear();
-    this._detailsAsked.clear();
-    void this._load(startUid ?? null);
+    this._scene = false;
+    this._imageFailed = false;
+    this._ateQueue = [];
+    this._asked.clear();
+    const kept = this._queue ? queueAsPage(this._queue) : null;
+    this._queue = kept && kept.items.length > 0 ? createQueue(kept, this._hidden()) : null;
+    this._more.dispose();
+    this._more = this._makeQuery<PhotoQueuePage>();
+    this._foldedMore = null;
+    this._requestedCursor = undefined;
+    if (this._rosterQuery.state.data === null) this._rosterQuery.retryNow(); // a read cut short by leaving the page
+    this._loadFirst();
   }
 
   // ---- Lifecycle ----------------------------------------------------------------------------
 
+  connectedCallback(): void {
+    super.connectedCallback();
+    this.requestUpdate(); // `willUpdate` joins the outbox again after a reattach
+  }
+
   disconnectedCallback(): void {
     super.disconnectedCallback();
     clearTimeout(this._leaveTimer);
-    clearTimeout(this._announceTimer);
-    clearTimeout(this._retryTimer);
-    this._clearGainTimers();
+    this._unsubscribeOutbox?.();
+    this._unsubscribeOutbox = null;
+    this._outbox = null;
+    this._first.dispose();
+    this._more.dispose();
+    this._rosterQuery.dispose();
     this._preloader.dispose();
   }
 
   protected willUpdate(changed: PropertyValues): void {
-    if (!changed.has("hass")) return;
-    const connected = this.hass?.connected !== false;
-    if (connected && !this._connected && this._queue) {
-      this._queue = retryFailed(this._queue);
-      queueMicrotask(() => this._pump());
+    const { hass, entryId } = this;
+    if (hass && entryId) {
+      this._joinOutbox(answerOutbox(hass, entryId));
+      if (changed.has("hass")) this._noticeConnection(hass.connected !== false);
     }
-    this._connected = connected;
+    if (!this._open) return;
+    this._loadRoster();
+    this._foldPages();
+    this._prefetch();
   }
 
   protected updated(): void {
@@ -223,333 +209,202 @@ export class KibbleReviewQueue extends LitElement {
     void this._moveFocus();
   }
 
+  // ---- Answers on their way -----------------------------------------------------------------
+
+  private _joinOutbox(outbox: EntryOutbox): void {
+    if (outbox === this._outbox) return;
+    this._unsubscribeOutbox?.();
+    this._outbox = outbox;
+    this._unsubscribeOutbox = outbox.subscribe((event) => this._onOutbox(event));
+  }
+
+  private _onOutbox(event: OutboxEvent<Delivery>): void {
+    if (event.type === "change") this.requestUpdate();
+    else if (event.type === "delivered") this._delivered(event.result);
+  }
+
+  /** Photos whose answer is waiting to be sent: they count as answered. A waiting "undo" does not. */
+  private _hidden(): Set<string> {
+    const hidden = new Set<string>();
+    for (const [uid, label] of this._outbox?.pendingPhotoLabels() ?? []) if (label !== "follow") hidden.add(uid);
+    return hidden;
+  }
+
+  /** Kibble accepted an answer. If it says two cats were at a meal and nobody can tell who ate,
+   * ask once, right away, while the person still remembers. */
+  private _delivered(result: Delivery): void {
+    if (result.kind !== "photo" || !this._open || !this._queue) return;
+    const uid = result.sample.uid;
+    const item = this._queue.items.find((candidate) => candidate.sample.uid === uid);
+    if (!item || !this._queue.answers.has(uid)) return; // not answered in this sitting, or taken back since
+    const question = ateQuestionFor(result.visit, item.visit.start, this._asked);
+    if (!question) return;
+    this._asked.add(question.visitUid);
+    this._ateQueue = [...this._ateQueue, question];
+  }
+
   // ---- Loading ------------------------------------------------------------------------------
 
-  private async _load(startUid: string | null): Promise<void> {
+  private _call(message: Record<string, unknown>): Promise<unknown> {
     const callWS = this.hass?.callWS;
+    return callWS ? callWS(message) : Promise.reject(new Error("Not connected."));
+  }
+
+  private _fetchPage(cursor: string | null): Promise<PhotoQueuePage> {
     const entryId = this.entryId;
-    const generation = ++this._generation;
-    this._loadError = null;
-    if (!callWS || !entryId) {
-      this._phase = "error";
-      this._loadError = "Not connected.";
-      return;
-    }
-    this._phase = "loading";
-    void this._readCats(true);
-    try {
-      const unknown = await loadUnknownVisits(callWS, entryId);
-      if (generation !== this._generation) return;
-      const first = buildReviewItems(unknown.items, []);
-      const startIsHere = !startUid || first.some((item) => item.key === startUid || item.event.uid === startUid);
-      if (first.length > 0 && startIsHere) {
-        this._queue = createQueue(first, startUid);
-        this._phase = "ready";
-      }
-      const timeline = await loadTimelineVisits(callWS, entryId);
-      if (generation !== this._generation) return;
-      const all = buildReviewItems(unknown.items, timeline);
-      this._queue = this._queue ? mergeItems(this._queue, all) : createQueue(all, startUid);
-      this._phase = "ready";
-    } catch (err) {
-      if (generation !== this._generation) return;
-      if (this._queue) {
-        this._phase = "ready"; // the unknown visits loaded; carry on with those
-      } else {
-        this._phase = "error";
-        this._loadError = describeWsError(err);
-      }
-    }
+    if (!this.hass?.callWS || !entryId) return Promise.reject(new Error("Not connected."));
+    return loadPhotoPage((message) => this._call(message), entryId, cursor);
   }
 
-  /** Re-reads the work list and folds it into the sitting in progress. */
-  private async _reload(): Promise<void> {
-    const callWS = this.hass?.callWS;
+  private _loadFirst = (): void => {
+    this._first.refresh(() => this._fetchPage(null));
+  };
+
+  private _loadRoster(): void {
     const entryId = this.entryId;
-    if (!callWS || !entryId) return;
-    const generation = this._generation;
-    try {
-      const [unknown, timeline] = await Promise.all([loadUnknownVisits(callWS, entryId), loadTimelineVisits(callWS, entryId)]);
-      if (generation !== this._generation || !this._queue) return;
-      this._queue = mergeItems(this._queue, buildReviewItems(unknown.items, timeline));
-    } catch {
-      // The list on screen is still valid; the next reload gets another chance.
+    if (this.cats.length > 0 || !entryId || !this.hass?.callWS) return;
+    this._rosterQuery.sync(entryId, () => this._call({ type: "kibble/cats", entry_id: entryId }) as Promise<CatsResponse>);
+  }
+
+  /** Folds pages that just arrived into the sitting. The first page replaces what was kept from
+   * last time unless something was already answered here; later pages only add. */
+  private _foldPages(): void {
+    const first = this._first.state.data;
+    if (first && first !== this._foldedFirst) {
+      this._foldedFirst = first;
+      this._requestedCursor = undefined;
+      const fresh = !this._queue || this._queue.history.length === 0;
+      this._queue = fresh ? createQueue(first, this._hidden()) : appendPage(this._queue!, first, this._hidden());
+    }
+    const more = this._more.state.data;
+    if (more && more !== this._foldedMore) {
+      this._foldedMore = more;
+      if (this._queue) this._queue = appendPage(this._queue, more, this._hidden());
     }
   }
 
-  private async _readCats(first: boolean): Promise<void> {
-    const callWS = this.hass?.callWS;
-    const entryId = this.entryId;
-    if (!callWS || !entryId) return;
-    const generation = this._generation;
-    try {
-      const response = (await callWS({ type: "kibble/cats", entry_id: entryId })) as CatsResponse;
-      if (generation !== this._generation) return;
-      this._ownCats = response.cats;
-      if (first) this._catsBefore = response.cats;
-      else if (this._catsBefore) this._gains = trainingGains(this._catsBefore, response.cats);
-    } catch {
-      // The summary simply shows visit counts without photo gains.
+  /** Asks for the next page while a few photos are still left to show, so advancing never waits. */
+  private _prefetch(): void {
+    const queue = this._queue;
+    if (!queue || !needsMorePhotos(queue) || !this.hass?.callWS || !this.entryId) return;
+    const cursor = queue.cursor;
+    if (this._requestedCursor === cursor || this._more.state.loading) return;
+    this._requestedCursor = cursor;
+    this._more.refresh(() => this._fetchPage(cursor));
+  }
+
+  /** The connection to Home Assistant came back: whatever was failing is tried again now. */
+  private _noticeConnection(connected: boolean): void {
+    if (connected && !this._connected && this._open) {
+      for (const query of [this._first, this._more, this._rosterQuery]) if (query.state.error !== null) query.retryNow();
     }
+    this._connected = connected;
   }
 
-  private _roster(): CatSummary[] {
-    return this.cats.length ? this.cats : this._ownCats;
-  }
-
-  private _options(): ReviewOption[] {
-    return reviewOptions(this._roster());
-  }
-
-  /** Fetches the photo lists of the visit on screen and the next few, and keeps their pictures
-   * warm so stepping forward never waits. */
+  /** Keeps the next few pictures (and this one's whole scene) warm so stepping forward never waits. */
   private _warmUp(): void {
     const queue = this._queue;
-    const hass = this.hass;
-    const entryId = this.entryId;
-    const item = queue ? currentItem(queue) : null;
-    if (!queue || !item || !hass?.callWS || !entryId) {
+    const photo = queue && this._view() === "photo" ? currentPhoto(queue) : null;
+    if (!queue || !photo) {
       this._preloader.sync(undefined, undefined, []);
       return;
     }
-    const upcoming = upcomingItems(queue, PRELOAD_AHEAD);
-    for (const wanted of [item, ...upcoming.slice(0, DETAIL_AHEAD)]) {
-      if (this._detailsAsked.has(wanted.key)) continue;
-      this._detailsAsked.add(wanted.key);
-      const generation = this._generation;
-      hass.callWS({ type: "kibble/event", entry_id: entryId, uid: wanted.event.uid }).then(
-        (detail) => {
-          if (generation !== this._generation) return;
-          this._details.set(wanted.key, detail as EventDetail);
-          this.requestUpdate();
-        },
-        () => {}, // browsing falls back to the one best photo
-      );
-    }
-    const photos = reviewPhotos(item.event, this._details.get(item.key)?.samples ?? null);
-    this._preloader.sync(hass, this.cache, [
-      item.event.scene,
-      ...photos.slice(0, 6),
-      ...upcoming.map((next) => next.event.thumb ?? next.event.scene),
-    ]);
+    this._preloader.sync(this.hass, this.cache, [photoImage(photo.sample), photo.visit.scene, ...upcomingPhotos(queue, PRELOAD_AHEAD).map((next) => photoImage(next.sample))]);
+  }
+
+  private _roster(): CatSummary[] {
+    return this.cats.length ? this.cats : (this._rosterQuery.state.data?.cats ?? []);
+  }
+
+  private _options(): AnswerOption[] {
+    return answerOptions(this._roster());
+  }
+
+  private _rosterPending(): boolean {
+    return this.cats.length === 0 && this._rosterQuery.state.data === null;
+  }
+
+  /** Something is wrong with reading, but a screen of photos is up: say so quietly, retry alone. */
+  private _reconnecting(): boolean {
+    return this._queue !== null && (this._first.state.error !== null || this._more.state.error !== null);
   }
 
   // ---- Answers ------------------------------------------------------------------------------
 
-  private _resetPhoto(): void {
-    this._photoIndex = 0;
-    this._scene = false;
-    this._imageFailed = false;
-  }
-
   private _choose(optionId: string, swipeSide?: SwipeSide): void {
     const queue = this._queue;
-    const item = queue ? currentItem(queue) : null;
-    if (!queue || !item || this._view() !== "review") return;
-    const options = this._options();
-    const option = options.find((candidate) => candidate.id === optionId);
+    const photo = queue ? currentPhoto(queue) : null;
+    const outbox = this._outbox;
+    if (!queue || !photo || !outbox || this._view() !== "photo") return;
+    const roster = this._roster();
+    const option = this._options().find((candidate) => candidate.id === optionId);
     if (!option) return;
-    const roster = this._roster();
-    if (option.kind === "cat") {
-      const index = roster.findIndex((cat) => cat.name === option.cat);
-      const side: LeaveSide = swipeSide ?? (roster.length === 2 ? (index === 0 ? "left" : "right") : "up");
-      this._commit(item, catAnswer(option.cat!, item.isMeal), side, option.label, roster.filter((cat) => cat.name === option.cat));
-      return;
-    }
-    if (option.kind === "several") {
-      const names = roster.map((cat) => cat.name);
-      if (names.length > 2) this._follow = { mode: "pick", cats: [] };
-      else if (item.isMeal) this._follow = { mode: "ate", cats: names };
-      else this._commit(item, severalAnswer(names, [], false), "up", option.label, roster);
-      return;
-    }
-    this._commit(item, { kind: option.kind }, "down", option.label, []);
-  }
-
-  private _togglePicked(name: string): void {
-    const follow = this._follow;
-    if (!follow || follow.mode !== "pick") return;
-    const cats = follow.cats.includes(name) ? follow.cats.filter((cat) => cat !== name) : [...follow.cats, name];
-    this._follow = { mode: "pick", cats };
-  }
-
-  private _finishPick(): void {
-    const follow = this._follow;
-    const item = this._queue ? currentItem(this._queue) : null;
-    if (!follow || !item || follow.cats.length < 2) return;
-    const roster = this._roster();
-    const cats = roster.filter((cat) => follow.cats.includes(cat.name));
-    if (item.isMeal) this._follow = { mode: "ate", cats: cats.map((cat) => cat.name) };
-    else this._commit(item, severalAnswer(cats.map((cat) => cat.name), [], false), "up", "More than one", cats);
-  }
-
-  private _chooseAte(ate: string[]): void {
-    const follow = this._follow;
-    const item = this._queue ? currentItem(this._queue) : null;
-    if (!follow || follow.mode !== "ate" || !item) return;
-    const cats = this._roster().filter((cat) => follow.cats.includes(cat.name));
-    this._commit(item, severalAnswer(follow.cats, ate, true), "up", follow.cats.length === 2 ? "Both" : "More than one", cats);
-  }
-
-  private _commit(item: ReviewItem, answer: ReviewAnswer, side: LeaveSide, label: string, cats: ChoiceCat[]): void {
-    const queue = this._queue;
-    if (!queue) return;
-    this._leaving = { item, side, label, cats };
+    const named = option.kind === "cat" ? roster.filter((cat) => cat.name === option.cat) : option.kind === "both" ? roster : [];
+    let side: LeaveSide = option.kind === "cat" || option.kind === "both" ? "up" : "down";
+    if (option.kind === "cat" && roster.length === 2) side = roster[0]?.name === option.cat ? "left" : "right";
+    outbox.enqueue({ kind: "photo", sampleUid: photo.sample.uid, label: option.value });
+    this._leaving = { photo, side: swipeSide ?? side, label: option.kind === "both" ? "Both cats" : option.kind === "skip" ? "Not used" : option.text, cats: named };
     clearTimeout(this._leaveTimer);
     this._leaveTimer = setTimeout(() => {
       this._leaving = null;
     }, LEAVE_MS);
-    this._queue = answerCurrent(queue, answer);
-    this._follow = null;
-    this._resetPhoto();
-    if (isBatchBoundary(this._queue)) {
-      this._stage = "batch";
-      fireHaptic("success");
-      void this._reload();
-    } else if (!currentItem(this._queue)) {
-      this._enterSummary();
-    } else {
-      fireHaptic("light");
-    }
-    this._pump();
+    this._queue = answerPhoto(queue, option.value);
+    this._scene = false;
+    this._imageFailed = false;
+    fireHaptic(isCaughtUp(this._queue) ? "success" : "light");
   }
 
   private _undo = (): void => {
-    if (this._follow) {
-      this._follow = null;
-      return;
-    }
     const queue = this._queue;
-    if (!queue || queue.history.length === 0) return;
+    const last = queue ? lastAnswer(queue) : null;
+    if (!queue || !last || !this._outbox) return;
     clearTimeout(this._leaveTimer);
     this._leaving = null;
+    this._outbox.enqueue({ kind: "photo", sampleUid: last.uid, label: "follow" });
+    const visitUid = queue.items.find((item) => item.sample.uid === last.uid)?.visit.uid;
+    if (visitUid) {
+      this._asked.delete(visitUid); // a different answer may raise the question again
+      this._ateQueue = this._ateQueue.filter((question) => question.visitUid !== visitUid);
+    }
     this._queue = undoLast(queue);
-    this._stage = "review";
-    this._clearGainTimers();
-    this._resetPhoto();
+    this._scene = false;
+    this._imageFailed = false;
     fireHaptic("light");
   };
 
-  private _keepGoing = (): void => {
-    this._stage = "review";
-    this._clearGainTimers();
-  };
-
-  private _enterSummary = (): void => {
-    this._stage = "summary";
-    this._follow = null;
+  private _onAteChosen = (event: CustomEvent<AteChosenDetail>): void => {
+    const { visitUid, ate } = event.detail;
+    this._outbox?.enqueue({ kind: "ate", visitUid, ate });
+    this._ateQueue = this._ateQueue.filter((question) => question.visitUid !== visitUid);
     fireHaptic("success");
-    this._clearGainTimers();
-    this._gainTimers = GAIN_READ_DELAYS_MS.map((delay) => setTimeout(() => void this._readCats(false), delay));
   };
 
-  private _clearGainTimers(): void {
-    for (const timer of this._gainTimers) clearTimeout(timer);
-    this._gainTimers = [];
-  }
-
-  // ---- Saving -------------------------------------------------------------------------------
-
-  private _unsaved(): number {
-    if (!this._queue) return 0;
-    const counts = saveCounts(this._queue);
-    return counts.pending + counts.failed;
-  }
-
-  /** Sends the next waiting answer, if nothing is in flight. Called after every change. */
-  private _pump(): void {
-    const queue = this._queue;
-    const hass = this.hass;
-    const entryId = this.entryId;
-    if (!queue || !hass?.callWS || !entryId) return;
-    const record = nextToSave(queue);
-    const item = record ? queue.items.find((candidate) => candidate.key === record.key) : undefined;
-    if (!record || !item) return;
-    const { key, seq } = record;
-    this._queue = markSaving(queue, key, seq);
-    // Exactly one of three things ends an attempt: saved, refused, or no reply in time (a
-    // request in flight when the connection drops never reports back).
-    let settled = false;
-    const settle = (err: unknown, saved: boolean): void => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timeout);
-      if (saved) {
-        if (this._queue) this._queue = markSaved(this._queue, key, seq);
-        this._retryDelay = FIRST_RETRY_MS;
-        this._scheduleAnnounce();
-      } else {
-        const gone = typeof err === "object" && err !== null && "code" in err && err.code === "not_found";
-        if (this._queue) this._queue = markFailed(this._queue, key, seq, describeWsError(err), gone);
-        if (!gone) this._scheduleRetry();
-      }
-      this._pump();
-    };
-    const timeout = setTimeout(() => settle(new Error("Timed out."), false), SAVE_TIMEOUT_MS);
-    labelSession(hass, entryId, answerRequest(item, record.answer)).then(
-      () => settle(null, true),
-      (err: unknown) => settle(err, false),
-    );
-  }
-
-  private _scheduleRetry(): void {
-    if (this._retryTimer !== undefined) return;
-    this._retryTimer = setTimeout(() => {
-      this._retryTimer = undefined;
-      this._retryDelay = nextReconnectDelay(this._retryDelay);
-      this._retryNow();
-    }, this._retryDelay);
-  }
-
-  private _retryNow = (): void => {
-    if (!this._queue) return;
-    this._queue = retryFailed(this._queue);
-    this._pump();
+  private _onAteSkipped = (): void => {
+    this._ateQueue = this._ateQueue.slice(1);
   };
-
-  private _dismissGone = (): void => {
-    if (this._queue) this._queue = dismissGone(this._queue);
-  };
-
-  /** Tells the other cards something was named, shortly after the last save of a burst. */
-  private _scheduleAnnounce(): void {
-    clearTimeout(this._announceTimer);
-    this._announceTimer = setTimeout(() => this._announce(), ANNOUNCE_DELAY_MS);
-  }
-
-  private _announce(): void {
-    clearTimeout(this._announceTimer);
-    this._announceTimer = undefined;
-    if (this.entryId) announceReviewChange(this.entryId);
-  }
 
   // ---- Closing ------------------------------------------------------------------------------
 
   private _close = (): void => {
     if (!this._open) return;
     this._open = false;
-    this._follow = null;
-    this._clearGainTimers();
     clearTimeout(this._leaveTimer);
     this._leaving = null;
-    const queue = this._queue;
-    const answered = queue?.history.length ?? 0;
-    const counts = queue ? saveCounts(queue) : { pending: 0, failed: 0, gone: 0 };
-    if (answered > 0) this._announce();
-    if (counts.failed > 0) {
-      const message = counts.failed === 1 ? "1 answer is not saved yet. Open Check visits to try again." : `${counts.failed} answers are not saved yet. Open Check visits to try again.`;
+    this._first.dispose();
+    this._more.dispose();
+    const answered = this._queue?.history.length ?? 0;
+    const waiting = this._outbox?.size ?? 0;
+    if (waiting > 0) {
+      const message = `${describeWaiting(waiting)}. Kibble keeps trying.`;
       this.dispatchEvent(new CustomEvent("hass-notification", { detail: { message }, bubbles: true, composed: true }));
-    }
-    if (counts.pending + counts.failed === 0) {
-      this._queue = null;
-      this._generation++;
     }
     this.dispatchEvent(new CustomEvent("review-closed", { detail: { answered }, bubbles: true, composed: true }));
   };
 
   private _onCancel = (event: Event): void => {
-    event.preventDefault(); // Escape: step out of a follow-up first, then close through `_close`
-    if (this._follow) this._follow = null;
+    event.preventDefault(); // Escape: step back out of the whole picture or a question first, then close
+    if (this._ateQueue.length > 0) this._onAteSkipped();
+    else if (this._scene) this._scene = false;
     else this._close();
   };
 
@@ -559,19 +414,22 @@ export class KibbleReviewQueue extends LitElement {
 
   // ---- Keys ---------------------------------------------------------------------------------
 
-  private _keyOptions(): Pick<ReviewOption, "id" | "hotkey">[] {
-    const follow = this._follow;
-    if (!follow) return this._options();
-    if (follow.mode === "ate") return ateChoices(follow.cats).map((choice, index) => ({ id: "ate:" + choice.id, hotkey: String(index + 1) }));
-    return this._roster().map((cat, index) => ({ id: "pick:" + cat.name, hotkey: index < 9 ? String(index + 1) : null }));
-  }
-
   private _onKeydown = (event: KeyboardEvent): void => {
     // Nothing typed here should reach Home Assistant's own page shortcuts.
     event.stopPropagation();
     if (event.key === "Escape" || event.key === "Tab" || event.key === "Enter" || event.key === " ") return;
-    if (this._view() !== "review") return;
-    const command = keyCommand(event, this._keyOptions());
+    const view = this._view();
+    if (view === "ate") {
+      const question = this._ateQueue[0];
+      const options = question ? ateOptions(question.cats).map((option, index) => ({ id: option.id, hotkey: String(index + 1) })) : [];
+      const command = keyCommand(event, options);
+      if (command?.type !== "answer") return;
+      event.preventDefault();
+      this.renderRoot.querySelector<KibbleWhoAte>("kibble-who-ate")?.choose(options.findIndex((option) => option.id === command.optionId));
+      return;
+    }
+    if (view !== "photo") return;
+    const command = keyCommand(event, this._options());
     if (!command) return;
     event.preventDefault();
     this._run(command);
@@ -580,58 +438,40 @@ export class KibbleReviewQueue extends LitElement {
   private _run(command: ReviewCommand): void {
     if (command.type === "undo") this._undo();
     else if (command.type === "scene") this._toggleScene();
-    else if (command.type === "photo") this._stepPhoto(command.delta);
-    else if (command.optionId.startsWith("ate:")) {
-      const choice = ateChoices(this._follow?.cats ?? []).find((candidate) => "ate:" + candidate.id === command.optionId);
-      if (choice) this._chooseAte(choice.ate);
-    } else if (command.optionId.startsWith("pick:")) this._togglePicked(command.optionId.slice(5));
     else this._choose(command.optionId);
   }
 
-  /** Puts keyboard focus on Kibble's guess (or the earlier answer) when a new visit appears, so
-   * Enter agrees with it; with no guess, focus rests on the answer group and Enter does nothing.
-   * A guess read from the photos arrives a moment after the visit does: focus follows it only
-   * if it is still resting on the group. A just-created answer button has nothing to focus
-   * until its own first render, so that is waited for. */
+  /** Puts keyboard focus on Kibble's guess when a new photo appears, so Enter agrees with it; with
+   * no guess, focus rests on the answer group and Enter does nothing. A just-created answer button
+   * has nothing to focus until its own first render, so that is waited for. */
   private async _moveFocus(): Promise<void> {
-    const queue = this._queue;
-    const item = queue ? currentItem(queue) : null;
-    const key = this._view() + ":" + (item?.key ?? "") + ":" + (this._follow?.mode ?? "");
-    const marked = this.renderRoot.querySelector<HTMLElement>("[data-autofocus]");
-    const answers = this.renderRoot.querySelector<HTMLElement>(".answers");
-    const guessArrived = marked !== null && answers !== null && this.shadowRoot?.activeElement === answers;
-    if (key === this._focusedKey && !guessArrived) return;
+    const photo = this._queue ? currentPhoto(this._queue) : null;
+    const key = this._view() + ":" + (photo?.sample.uid ?? "") + ":" + (this._ateQueue[0]?.visitUid ?? "");
+    if (key === this._focusedKey) return;
     this._focusedKey = key;
-    const target = marked ?? answers;
+    const marked = this.renderRoot.querySelector<HTMLElement>("[data-autofocus]");
+    const target = marked ?? this.renderRoot.querySelector<HTMLElement>(".answers");
     if (target instanceof KibbleChoice) await target.updateComplete;
     if (key === this._focusedKey) target?.focus({ preventScroll: true });
   }
 
-  // ---- Photos -------------------------------------------------------------------------------
-
-  private _photosFor(item: ReviewItem): Asset[] {
-    return reviewPhotos(item.event, this._details.get(item.key)?.samples ?? null);
-  }
+  // ---- The whole picture --------------------------------------------------------------------
 
   private _toggleScene = (): void => {
-    const item = this._queue ? currentItem(this._queue) : null;
-    if (!item?.event.scene) return;
+    const photo = this._queue ? currentPhoto(this._queue) : null;
+    if (!photo?.visit.scene) return;
     this._scene = !this._scene;
     this._imageFailed = false;
   };
 
-  private _stepPhoto(delta: number): void {
-    const item = this._queue ? currentItem(this._queue) : null;
-    if (!item) return;
-    const count = this._photosFor(item).length;
-    if (count < 2) return;
-    this._showPhoto((this._photoIndex + delta + count) % count);
-  }
-
-  private _showPhoto(index: number): void {
-    this._photoIndex = index;
-    this._scene = false;
-    this._imageFailed = false;
+  /** This photo's animal marked in the whole picture, the others dimmed. Nothing is drawn when
+   * the photo's box does not point into this picture. */
+  private _sceneBoxes(photo: PhotoQueueItem): OverlayBox[] {
+    const { sample, visit } = photo;
+    if (!visit.in_scene || !sample.box) return [];
+    const boxes: OverlayBox[] = sample.peers.map((box, index) => ({ key: `peer-${index}`, box, tone: "peer", emphasis: "dim" }));
+    boxes.push({ key: "this", box: sample.box, tone: "cat", emphasis: "selected", color: "var(--primary-color, #03a9f4)" });
+    return boxes;
   }
 
   private _retryImage = (): void => {
@@ -641,12 +481,12 @@ export class KibbleReviewQueue extends LitElement {
 
   // ---- Swipe --------------------------------------------------------------------------------
 
+  /** Swiping left or right means the first or second cat: only meaningful with exactly two. */
   private _swipeEnabled(): boolean {
-    return this._view() === "review" && !this._follow && this._roster().length === 2;
+    return this._view() === "photo" && !this._scene && this._roster().length === 2;
   }
 
   private _onPointerDown = (event: PointerEvent): void => {
-    this._dragged = false;
     if (event.button !== 0 || !this._swipeEnabled()) return;
     if (event.composedPath().some((node) => node instanceof HTMLButtonElement)) return;
     const el = event.currentTarget as HTMLElement;
@@ -666,7 +506,6 @@ export class KibbleReviewQueue extends LitElement {
       if (swipe.sideways === null) return;
       swipe.el.setPointerCapture(swipe.id);
       swipe.el.classList.add("dragging");
-      this._dragged = true;
     }
     const elapsed = event.timeStamp - swipe.lastT;
     if (elapsed > 0) swipe.velocity = (event.clientX - swipe.lastX) / elapsed;
@@ -704,28 +543,22 @@ export class KibbleReviewQueue extends LitElement {
     delete swipe.el.dataset.side;
   };
 
-  private _onCardClick = (event: MouseEvent): void => {
-    if (this._dragged) {
-      this._dragged = false;
-      return;
-    }
-    if (event.composedPath().some((node) => node instanceof HTMLButtonElement)) return;
-    this._toggleScene();
-  };
-
   // ---- Render -------------------------------------------------------------------------------
 
   private _view(): View {
     const queue = this._queue;
-    if (this._phase !== "ready" || !queue) return this._phase === "ready" ? "loading" : this._phase;
-    if (this._stage !== "review") return this._stage;
-    if (currentItem(queue)) return "review";
-    return queue.history.length > 0 ? "summary" : "empty";
+    if (!queue || this._rosterPending()) {
+      const failed = (queue === null && this._first.state.error !== null) || (this._rosterPending() && this._rosterQuery.state.error !== null);
+      return failed ? "error" : "loading";
+    }
+    if (this._ateQueue.length > 0) return "ate";
+    if (currentPhoto(queue)) return "photo";
+    return isCaughtUp(queue) ? "caught-up" : "loading";
   }
 
   render() {
     return html`
-      <dialog aria-label="Check visits" @cancel=${this._onCancel} @keydown=${this._onKeydown}>
+      <dialog aria-label="Check photos" @cancel=${this._onCancel} @keydown=${this._onKeydown}>
         ${this._open ? this._renderFrame() : nothing}
       </dialog>
     `;
@@ -734,87 +567,105 @@ export class KibbleReviewQueue extends LitElement {
   private _renderFrame() {
     const view = this._view();
     const queue = this._queue;
-    const item = queue ? currentItem(queue) : null;
+    const photo = queue && view === "photo" ? currentPhoto(queue) : null;
     return html`
       <div class="frame" @click=${this._onFrameClick}>
         <div class="panel view-${view}">
           ${this._renderTop(view, queue)}
-          <div class="stage">${this._renderStage(view, queue, item)}</div>
-          <div class="answers" tabindex="-1" role="group" aria-label=${this._title(view, queue)}>${this._renderAnswers(view, queue, item)}</div>
+          <div class="stage">${this._renderStage(view, queue, photo)}</div>
+          <div class="answers" tabindex="-1" role="group" aria-label=${view === "ate" ? "Who ate?" : "Who is in this photo?"}>${this._renderAnswers(view, photo)}</div>
           ${this._renderFooter(view, queue)}
-          <p class="sr-only" aria-live="polite">${view === "review" && item ? this._spoken(item) : ""}</p>
+          <p class="sr-only" aria-live="polite">${photo ? this._spoken(photo) : ""}</p>
         </div>
       </div>
     `;
   }
 
-  private _title(view: View, queue: ReviewQueueState | null): string {
-    if (view === "review") return this._follow?.mode === "ate" ? "Who ate?" : "Who was here?";
-    if (view === "batch") return "Batch done";
-    if (view === "summary") return queue && queueProgress(queue).remaining > 0 ? "Done for now" : "All caught up";
-    if (view === "empty") return "Nothing to check";
-    return "Check visits";
+  private _locale(): string | undefined {
+    return this.hass?.locale?.language ?? this.hass?.language;
   }
 
-  private _renderTop(view: View, queue: ReviewQueueState | null) {
-    const progress = queue && (view === "review" || view === "batch") ? queueProgress(queue) : null;
-    const batchFull = view === "batch";
-    const shown = progress ? (batchFull ? progress.batchSize : Math.min(progress.batchDone + 1, progress.batchSize)) : 0;
-    const later = progress ? progress.remaining - (progress.batchSize - progress.batchDone) : 0;
-    const fraction = progress ? (batchFull ? 1 : progress.batchDone / Math.max(1, progress.batchSize)) : 0;
-    const streak = queue?.streak ?? 0;
+  private _spoken(photo: PhotoQueueItem): string {
+    const guess = guessCaption(photo.sample);
+    return `Photo, ${photoCaption(photo.visit, new Date(), this._locale())}.${guess ? " " + guess + "." : ""}`;
+  }
+
+  private _renderTop(view: View, queue: PhotoQueueState | null) {
+    const left = queue && view === "photo" ? photosLeftLabel(photosLeft(queue), this._locale()) : null;
     return html`
       <header class="top">
-        <div class="titles">
-          <h2 class="title">${this._title(view, queue)}</h2>
-          ${progress && view === "review"
-            ? html`<span class="count">${shown} of ${progress.batchSize}</span>${later > 0 ? html`<span class="later">${later} more after</span>` : nothing}`
-            : nothing}
+        <div class="head">
+          <div class="titles">
+            <h2 class="title">Check photos</h2>
+            ${left ? html`<span class="count">${left}</span>` : nothing}
+          </div>
+          <button type="button" class="icon-btn" aria-label="Close" @click=${this._close}>${mdiIcon("close")}</button>
         </div>
-        ${streak >= 3 && view === "review" ? keyed(streak, html`<span class="streak" aria-label=${`${streak} in a row`}>${mdiIcon("flash")}${streak}</span>`) : nothing}
-        <button type="button" class="icon-btn" aria-label="Close" @click=${this._close}>${mdiIcon("close")}</button>
-        ${progress
-          ? html`<div class="bar" role="progressbar" aria-label="This batch" aria-valuemin="0" aria-valuemax=${progress.batchSize} aria-valuenow=${batchFull ? progress.batchSize : progress.batchDone}>
-              <span style=${`transform:scaleX(${fraction})`}></span>
-            </div>`
-          : nothing}
+        ${this._renderNotices()}
       </header>
     `;
   }
 
-  private _renderStage(view: View, queue: ReviewQueueState | null, item: ReviewItem | null) {
-    if (view === "loading") return html`<div class="card placeholder" aria-label="Loading"></div>`;
-    if (view === "error") return html`<div class="result"><span class="result-glyph muted">${mdiIcon("cloudAlert")}</span><p class="result-line">${this._loadError ?? "Couldn\u2019t load visits."}</p></div>`;
-    if (view === "empty") return html`<div class="result"><span class="result-glyph muted cat">${catSilhouette()}</span><p class="result-line">Every visit has a name.</p></div>`;
-    if (!queue) return nothing;
-    if (view === "batch" || view === "summary") return this._renderResult(view, queue);
-    const deck: { item: ReviewItem; role: "leaving" | "current" | "next" }[] = [];
-    if (this._leaving && this._leaving.item.key !== item?.key) deck.push({ item: this._leaving.item, role: "leaving" });
-    if (item) deck.push({ item, role: "current" });
-    const next = upcomingItems(queue, 1)[0];
-    if (next && !deck.some((entry) => entry.item.key === next.key)) deck.push({ item: next, role: "next" });
+  /** Quiet lines about what is happening behind the screen. Each shows only when it applies. */
+  private _renderNotices() {
+    const outbox = this._outbox;
+    const waiting = outbox?.size ?? 0;
+    const drops = outbox?.drops ?? [];
     return html`
-      <div class="deck">${repeat(deck, (entry) => entry.item.key, (entry) => this._renderCard(entry.item, entry.role))}</div>
-      ${item ? this._renderStrip(item) : nothing}
+      <div class="notices">
+        ${drops.length > 0
+          ? html`<div class="notice" role="status"><span class="notice-text">${describeDrops(drops)}</span><button type="button" class="pill-btn" @click=${() => outbox?.clearDrops()}>OK</button></div>`
+          : nothing}
+        ${waiting > 0
+          ? html`<div class="notice" role="status"><span class="notice-text">${describeWaiting(waiting)}</span><button type="button" class="pill-btn" @click=${() => outbox?.sendNow()}>Send now</button></div>`
+          : nothing}
+        ${this._reconnecting() ? html`<div class="notice quiet" role="status"><span class="spin">${mdiIcon("refresh")}</span><span class="notice-text">Reconnecting\u2026</span></div>` : nothing}
+        <kibble-learning-line .hass=${this.hass} .entryId=${this.entryId}></kibble-learning-line>
+      </div>
     `;
   }
 
-  private _renderCard(item: ReviewItem, role: "leaving" | "current" | "next") {
-    const locale = this.hass?.locale?.language ?? this.hass?.language;
-    const when = visitWhenLabel(item.event.start, new Date(), locale);
+  private _renderStage(view: View, queue: PhotoQueueState | null, photo: PhotoQueueItem | null) {
+    if (view === "loading") {
+      return html`<div class="card placeholder" aria-label="Loading photos"></div><p class="when">Loading photos\u2026</p>`;
+    }
+    if (view === "error") {
+      return html`<div class="result"><span class="result-glyph muted">${mdiIcon("cloudAlert")}</span><p class="result-line">Couldn\u2019t load photos. Trying again\u2026</p></div>`;
+    }
+    if (view === "ate") return html`<div class="result ask">${this._renderAte()}</div>`;
+    if (view === "caught-up" && queue) return this._renderCaughtUp(queue);
+    if (!queue || !photo) return nothing;
+    const deck: { photo: PhotoQueueItem; role: "leaving" | "current" | "next" }[] = [];
+    if (this._leaving && this._leaving.photo.sample.uid !== photo.sample.uid) deck.push({ photo: this._leaving.photo, role: "leaving" });
+    deck.push({ photo, role: "current" });
+    const next = upcomingPhotos(queue, 1)[0];
+    if (next && !deck.some((entry) => entry.photo.sample.uid === next.sample.uid)) deck.push({ photo: next, role: "next" });
+    return html`
+      <div class="deck">${repeat(deck, (entry) => entry.photo.sample.uid, (entry) => this._renderCard(entry.photo, entry.role))}</div>
+      <div class="meta">
+        <p class="when">${photoCaption(photo.visit, new Date(), this._locale())}</p>
+        ${photo.visit.scene
+          ? html`<button type="button" class="scene-btn" aria-pressed=${this._scene} @click=${this._toggleScene}>${mdiIcon(this._scene ? "arrowCollapse" : "arrowExpand")}<span>${this._scene ? "Back to close-up" : "See whole picture"}</span></button>`
+          : nothing}
+      </div>
+    `;
+  }
+
+  private _renderCard(photo: PhotoQueueItem, role: "leaving" | "current" | "next") {
+    const crop = photoImage(photo.sample);
     if (role !== "current") {
       const leaving = role === "leaving" ? this._leaving : null;
       return html`
         <div class="card ${role} ${leaving ? "to-" + leaving.side : ""}" aria-hidden="true">
-          ${this._renderPhoto(item.event.thumb ?? item.event.scene, "")}
+          ${this._renderPhoto(crop, "")}
           ${leaving ? html`<span class="stamp shown">${this._renderStampBody(leaving.cats, leaving.label)}</span>` : nothing}
         </div>
       `;
     }
-    const photos = this._photosFor(item);
-    const asset = this._scene ? item.event.scene : (photos[this._photoIndex] ?? photos[0] ?? item.event.scene);
     const roster = this._roster();
     const swipe = this._swipeEnabled();
+    const first = roster[0];
+    const second = roster[1];
     return html`
       <div
         class="card current ${swipe ? "swipeable" : ""}"
@@ -822,26 +673,20 @@ export class KibbleReviewQueue extends LitElement {
         @pointermove=${this._onPointerMove}
         @pointerup=${this._onPointerUp}
         @pointercancel=${this._onPointerUp}
-        @click=${this._onCardClick}
-        @image-failed=${() => { this._imageFailed = true; }}
+        @image-failed=${() => {
+          this._imageFailed = true;
+        }}
       >
-        ${this._renderPhoto(asset, `${item.isMeal ? "Meal" : "Visit"}, ${when}`)}
+        ${this._scene ? this._renderScene(photo) : this._renderPhoto(crop, photoCaption(photo.visit, new Date(), this._locale()))}
         ${this._imageFailed
           ? html`<div class="photo-error">${mdiIcon("imageBroken")}<span>Photo didn\u2019t load</span><button type="button" class="pill-btn" @click=${this._retryImage}>Retry</button></div>`
           : nothing}
-        <div class="chips">
-          <span class="chip">${when}</span>
-          <span class="chip">${item.isMeal ? "Meal" : "Visit"}</span>
-        </div>
-        ${item.event.scene
-          ? html`<button type="button" class="icon-btn on-photo scene-btn" aria-pressed=${this._scene} aria-label=${this._scene ? "Show close-up" : "Show whole scene"} @click=${this._toggleScene}>${mdiIcon(this._scene ? "arrowCollapse" : "arrowExpand")}</button>`
-          : nothing}
-        ${swipe
+        ${swipe && first && second
           ? html`
-              <span class="stamp left">${this._renderStampBody([roster[0]!], roster[0]!.name)}</span>
-              <span class="stamp right">${this._renderStampBody([roster[1]!], roster[1]!.name)}</span>
-              <span class="swipe-hint left" aria-hidden="true">${mdiIcon("chevronLeft")}<kibble-avatar .hass=${this.hass} .name=${roster[0]!.name} .colorIndex=${roster[0]!.color} .asset=${roster[0]!.avatar} .cache=${this.cache}></kibble-avatar></span>
-              <span class="swipe-hint right" aria-hidden="true"><kibble-avatar .hass=${this.hass} .name=${roster[1]!.name} .colorIndex=${roster[1]!.color} .asset=${roster[1]!.avatar} .cache=${this.cache}></kibble-avatar>${mdiIcon("chevronRight")}</span>
+              <span class="stamp left">${this._renderStampBody([first], first.name)}</span>
+              <span class="stamp right">${this._renderStampBody([second], second.name)}</span>
+              <span class="swipe-hint left" aria-hidden="true">${mdiIcon("chevronLeft")}<kibble-avatar .hass=${this.hass} .name=${first.name} .colorIndex=${first.color} .asset=${first.avatar} .cache=${this.cache}></kibble-avatar></span>
+              <span class="swipe-hint right" aria-hidden="true"><kibble-avatar .hass=${this.hass} .name=${second.name} .colorIndex=${second.color} .asset=${second.avatar} .cache=${this.cache}></kibble-avatar>${mdiIcon("chevronRight")}</span>
             `
           : nothing}
       </div>
@@ -853,188 +698,105 @@ export class KibbleReviewQueue extends LitElement {
     return html`<kibble-image eager fit="contain" .hass=${this.hass} .cache=${this.cache} .asset=${asset} alt=${alt}></kibble-image>`;
   }
 
+  private _renderScene(photo: PhotoQueueItem) {
+    return html`
+      <div class="scene">
+        <div class="scene-frame">
+          ${this._renderPhoto(photo.visit.scene, "The whole picture")}
+          <kibble-box-overlay .boxes=${this._sceneBoxes(photo)} .hass=${this.hass} .cache=${this.cache}></kibble-box-overlay>
+        </div>
+      </div>
+    `;
+  }
+
   private _renderStampBody(cats: ChoiceCat[], label: string) {
     return html`
-      <span class="stamp-body" style=${cats.length === 1 ? `--stamp-color:${catColorAt(cats[0]!.color)}` : ""}>
+      <span class="stamp-body ${cats.length ? "" : "bare"}" style=${cats.length === 1 ? `--stamp-color:${catColorAt(cats[0]!.color)}` : ""}>
         ${cats.map((cat) => html`<kibble-avatar .hass=${this.hass} .name=${cat.name} .colorIndex=${cat.color} .asset=${cat.avatar} .cache=${this.cache}></kibble-avatar>`)}
         <span>${label}</span>
       </span>
     `;
   }
 
-  /** The visit's other photos, one tap each, without leaving the visit. */
-  private _renderStrip(item: ReviewItem) {
-    const photos = this._photosFor(item);
-    if (photos.length < 2) return nothing;
-    return html`
-      <div class="strip" role="group" aria-label="Photos of this visit">
-        ${photos.map(
-          (photo, index) => html`
-            <button type="button" class="strip-btn" aria-pressed=${!this._scene && index === this._photoIndex} aria-label=${`Photo ${index + 1} of ${photos.length}`} @click=${() => this._showPhoto(index)}>
-              <kibble-image .hass=${this.hass} .cache=${this.cache} .asset=${photo} alt=""></kibble-image>
-            </button>
-          `,
-        )}
-      </div>
-    `;
+  private _renderAte() {
+    return html`<kibble-who-ate
+      .hass=${this.hass}
+      .cache=${this.cache}
+      .question=${this._ateQueue[0] ?? null}
+      .roster=${this._roster()}
+      hotkeys
+      skippable
+      @ate-chosen=${this._onAteChosen}
+      @ate-skipped=${this._onAteSkipped}
+    ></kibble-who-ate>`;
   }
 
-  private _renderResult(view: "batch" | "summary", queue: ReviewQueueState) {
+  /** Everything is answered: say so calmly, and show what this sitting did. */
+  private _renderCaughtUp(queue: PhotoQueueState) {
     const roster = this._roster();
-    const summary = summarize(queue, roster.map((cat) => cat.name));
-    const progress = queueProgress(queue);
-    const named = summary.cats.filter((tally) => tally.visits > 0);
+    const tally = tallyAnswers(queue.answers.values(), roster.map((cat) => cat.name));
+    const rows = tallyRows(tally);
     return html`
       <div class="result">
         <span class="result-glyph done">${mdiIcon("check")}</span>
-        <p class="result-big">${summary.total} ${summary.total === 1 ? "visit" : "visits"} done</p>
-        ${view === "batch" ? html`<p class="result-line">${progress.remaining} to go</p>` : nothing}
-        ${named.length
+        <p class="result-big">All caught up</p>
+        <p class="result-line">${tally.total > 0 ? photosCheckedLabel(tally.total, this._locale()) : "Every photo has an answer."}</p>
+        ${rows.length
           ? html`<ul class="tallies">
-              ${named.map((tally) => {
-                const cat = roster.find((candidate) => candidate.name === tally.cat);
-                const gain = view === "summary" ? (this._gains?.[tally.cat] ?? 0) : 0;
+              ${rows.map((row) => {
+                const cat = row.kind === "cat" ? roster.find((candidate) => candidate.name === row.cat) : undefined;
                 return html`
-                  <li class="tally" style=${cat ? `--tally-color:${catColorAt(cat.color)}` : ""}>
-                    <kibble-avatar .hass=${this.hass} .name=${tally.cat} .colorIndex=${cat?.color ?? null} .asset=${cat?.avatar ?? null} .cache=${this.cache}></kibble-avatar>
-                    <span class="tally-text"><span class="tally-name">${tally.cat}</span><span class="tally-sub">${tally.visits} ${tally.visits === 1 ? "visit" : "visits"}</span></span>
-                    ${gain > 0 ? keyed(gain, html`<span class="tally-gain"><strong>+${gain}</strong><span>photos learned</span></span>`) : nothing}
+                  <li class="tally ${row.kind}" style=${cat ? `--tally-color:${catColorAt(cat.color)}` : ""}>
+                    ${row.kind === "cat"
+                      ? html`<kibble-avatar .hass=${this.hass} .name=${row.text} .colorIndex=${cat?.color ?? null} .asset=${cat?.avatar ?? null} .cache=${this.cache}></kibble-avatar>`
+                      : row.kind === "both"
+                        ? html`<span class="tally-glyph pair">${roster.slice(0, 2).map((pair) => html`<kibble-avatar .hass=${this.hass} .name=${pair.name} .colorIndex=${pair.color} .asset=${pair.avatar} .cache=${this.cache}></kibble-avatar>`)}</span>`
+                        : html`<span class="tally-glyph">${mdiIcon(row.kind === "not_a_cat" ? "cancel" : "eyeOff")}</span>`}
+                    <span class="tally-text"><span class="tally-name">${row.text}</span><span class="tally-sub">${countOf(row.count, "photo", "photos", this._locale())}</span></span>
                   </li>
                 `;
               })}
             </ul>`
           : nothing}
-        ${summary.notACat + summary.cantTell > 0
-          ? html`<p class="result-others">
-              ${summary.notACat > 0 ? html`<span class="chip">${mdiIcon("cancel")}${summary.notACat} not a cat</span>` : nothing}
-              ${summary.cantTell > 0 ? html`<span class="chip">${mdiIcon("helpCircle")}${summary.cantTell} can\u2019t tell</span>` : nothing}
-            </p>`
-          : nothing}
       </div>
     `;
   }
 
-  private _renderAnswers(view: View, queue: ReviewQueueState | null, item: ReviewItem | null): TemplateResult | typeof nothing {
-    if (view === "loading") return nothing;
-    if (view === "error") return html`<div class="actions"><button type="button" class="primary-btn" data-autofocus @click=${() => void this._load(null)}>Try again</button></div>`;
-    if (view === "empty") return html`<div class="actions"><button type="button" class="primary-btn" data-autofocus @click=${this._close}>Done</button></div>`;
-    if (view === "batch") {
-      return html`<div class="actions">
-        <button type="button" class="primary-btn" data-autofocus @click=${this._keepGoing}>Keep going</button>
-        <button type="button" class="plain-btn" @click=${this._enterSummary}>Stop here</button>
-      </div>`;
-    }
-    if (view === "summary") {
-      const more = queue ? queueProgress(queue).remaining > 0 : false;
-      return html`<div class="actions">
-        ${more ? html`<button type="button" class="plain-btn" @click=${this._keepGoing}>Keep going</button>` : nothing}
-        <button type="button" class="primary-btn" data-autofocus @click=${this._close}>Done</button>
-      </div>`;
-    }
-    if (!queue || !item) return nothing;
+  private _renderAnswers(view: View, photo: PhotoQueueItem | null): TemplateResult | typeof nothing {
+    if (view === "error") return html`<div class="actions"><button type="button" class="primary-btn" data-autofocus @click=${this._loadFirst}>Retry</button></div>`;
+    if (view === "caught-up") return html`<div class="actions"><button type="button" class="primary-btn" data-autofocus @click=${this._close}>Done</button></div>`;
+    if (view !== "photo" || !photo) return nothing;
     const roster = this._roster();
-    const follow = this._follow;
-    if (follow?.mode === "ate") {
-      const cats = roster.filter((cat) => follow.cats.includes(cat.name));
-      const saved = this._details.get(item.key)?.cats.filter((cat) => cat.ate).map((cat) => cat.cat) ?? [];
-      return html`<div class="answer-row">
-        ${ateChoices(follow.cats).map((choice, index) => {
-          const guessed = saved.length > 0 && saved.length === choice.ate.length && choice.ate.every((cat) => saved.includes(cat));
-          return html`<kibble-choice
-            .hass=${this.hass}
-            .cache=${this.cache}
-            .label=${choice.label}
-            .cats=${cats.filter((cat) => choice.ate.includes(cat.name))}
-            .state=${guessed ? "suggested" : "neutral"}
-            .hint=${String(index + 1)}
-            @click=${() => this._chooseAte(choice.ate)}
-          ></kibble-choice>`;
-        })}
-      </div>`;
-    }
-    if (follow?.mode === "pick") {
-      return html`
-        <div class="answer-row">
-          ${roster.map(
-            (cat, index) => html`<kibble-choice
-              .hass=${this.hass}
-              .cache=${this.cache}
-              .label=${cat.name}
-              .cats=${[cat]}
-              .state=${follow.cats.includes(cat.name) ? "selected" : "neutral"}
-              .hint=${index < 9 ? String(index + 1) : null}
-              @click=${() => this._togglePicked(cat.name)}
-            ></kibble-choice>`,
-          )}
-        </div>
-        <div class="actions"><button type="button" class="primary-btn" ?disabled=${follow.cats.length < 2} @click=${() => this._finishPick()}>Next</button></div>
-      `;
-    }
     const options = this._options();
-    const guess = this._guessFor(item, options);
-    const earlier = queue.records[item.key];
-    const earlierId = earlier ? answerOptionId(earlier.answer) : null;
-    const choice = (option: ReviewOption) => {
-      const state: ChoiceState = option.id === earlierId ? "selected" : !earlierId && option.id === guess.optionId ? "suggested" : "neutral";
-      const cats = option.kind === "cat" ? roster.filter((cat) => cat.name === option.cat) : option.kind === "several" ? roster : [];
+    const guessId = guessOptionId(photo.sample, options);
+    const choice = (option: AnswerOption) => {
+      const state: ChoiceState = option.id === guessId ? "suggested" : "neutral";
+      const cats = option.kind === "cat" ? roster.filter((cat) => cat.name === option.cat) : option.kind === "both" ? roster : [];
       return html`<kibble-choice
         .hass=${this.hass}
         .cache=${this.cache}
-        .label=${option.label}
+        .label=${option.text}
         .cats=${cats}
-        .icon=${option.kind === "not_a_cat" ? "cancel" : option.kind === "unknown" ? "helpCircle" : null}
+        .icon=${option.kind === "not_a_cat" ? "cancel" : option.kind === "skip" ? "eyeOff" : null}
         .state=${state}
         .hint=${option.hotkey}
-        .caption=${state === "suggested" ? guess.caption : state === "selected" ? "Your answer" : null}
-        ?data-autofocus=${state !== "neutral"}
+        .caption=${state === "suggested" ? guessCaption(photo.sample) : option.hint}
+        ?data-autofocus=${state === "suggested"}
         @click=${() => this._choose(option.id)}
       ></kibble-choice>`;
     };
     return html`
       <div class="answer-row cats">${options.filter((option) => option.kind === "cat").map(choice)}</div>
-      <div class="answer-row">${options.filter((option) => option.kind !== "cat").map(choice)}</div>
+      <div class="answer-row others">${options.filter((option) => option.kind !== "cat").map(choice)}</div>
     `;
   }
 
-  private _guessFor(item: ReviewItem, options: readonly ReviewOption[]): { optionId: string | null; caption: string | null } {
-    if (item.guesses.length > 0) {
-      const percent = item.confidence !== null ? ` ${Math.round(item.confidence * 100)}%` : "";
-      return { optionId: guessOptionId(item.guesses, options), caption: "Guess" + percent };
-    }
-    const samples = this._details.get(item.key)?.samples;
-    const majority = samples ? majorityGuess(samples, this._roster().map((cat) => cat.name)) : null;
-    return majority ? { optionId: "cat:" + majority.cat, caption: "Guess" } : { optionId: null, caption: null };
-  }
-
-  private _spoken(item: ReviewItem): string {
-    const locale = this.hass?.locale?.language ?? this.hass?.language;
-    const guess = item.guesses.length ? ` Kibble guesses ${item.guesses.join(" and ")}.` : "";
-    return `${item.isMeal ? "Meal" : "Visit"}, ${visitWhenLabel(item.event.start, new Date(), locale)}.${guess}`;
-  }
-
-  private _renderFooter(view: View, queue: ReviewQueueState | null) {
-    const counts = queue ? saveCounts(queue) : { pending: 0, failed: 0, gone: 0 };
-    const canUndo = Boolean(this._follow) || (queue !== null && queue.history.length > 0);
-    const showUndo = view === "review" || view === "batch" || view === "summary";
-    const offline = this.hass?.connected === false;
+  private _renderFooter(view: View, queue: PhotoQueueState | null) {
+    if (view !== "photo" && view !== "caught-up") return nothing;
+    const canUndo = queue !== null && lastAnswer(queue) !== null;
     return html`
       <footer class="footer">
-        ${showUndo
-          ? html`<button type="button" class="plain-btn undo" ?disabled=${!canUndo} @click=${this._undo}>${mdiIcon("undo")}<span>${this._follow ? "Back" : "Undo"}</span><kbd aria-hidden="true">Z</kbd></button>`
-          : html`<span></span>`}
-        <div class="status" role="status">
-          ${counts.failed > 0
-            ? html`<span class="status-text error">${mdiIcon("cloudAlert")}${counts.failed} not saved</span><button type="button" class="pill-btn" @click=${this._retryNow}>Retry</button>`
-            : counts.gone > 0
-              ? html`<span class="status-text">${counts.gone === 1 ? "1 visit no longer exists" : `${counts.gone} visits no longer exist`}</span><button type="button" class="pill-btn" @click=${this._dismissGone}>OK</button>`
-              : offline
-                ? html`<span class="status-text">${mdiIcon("cloudAlert")}Offline</span>`
-                : counts.pending > 0
-                  ? html`<span class="status-text saving" aria-label="Saving">${mdiIcon("refresh")}${counts.pending > 3 ? counts.pending : nothing}</span>`
-                  : queue && queue.history.length > 0
-                    ? html`<span class="status-text" aria-label="All saved">${mdiIcon("cloudCheck")}</span>`
-                    : nothing}
-        </div>
+        <button type="button" class="plain-btn undo" ?disabled=${!canUndo} @click=${this._undo}>${mdiIcon("undo")}<span>Undo</span><kbd aria-hidden="true">Z</kbd></button>
       </footer>
     `;
   }
@@ -1083,8 +845,11 @@ export class KibbleReviewQueue extends LitElement {
     }
     .top {
       grid-area: top;
+      min-width: 0;
+    }
+    .head {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) auto auto;
+      grid-template-columns: minmax(0, 1fr) auto;
       align-items: center;
       gap: 8px;
     }
@@ -1106,37 +871,32 @@ export class KibbleReviewQueue extends LitElement {
       font-variant-numeric: tabular-nums;
       color: var(--secondary-text-color);
     }
-    .later {
-      font-size: 12px;
-      font-variant-numeric: tabular-nums;
+    .notices {
+      display: flex;
+      flex-direction: column;
+    }
+    .notices > * {
+      margin-top: 6px;
+    }
+    .notice {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 36px;
+      font-size: 13px;
+      line-height: 1.3;
       color: var(--secondary-text-color);
     }
-    .streak {
+    .notice-text {
+      flex: 1;
+      min-width: 0;
+    }
+    .notice.quiet {
+      min-height: 0;
+    }
+    .notice .spin {
       display: inline-flex;
-      align-items: center;
-      gap: 2px;
-      padding: 4px 8px 4px 4px;
-      border-radius: 999px;
-      font-size: 14px;
-      font-weight: 500;
-      font-variant-numeric: tabular-nums;
-      color: var(--primary-color, #03a9f4);
-      background: color-mix(in srgb, var(--primary-color, #03a9f4) 14%, transparent);
-    }
-    .bar {
-      grid-column: 1 / -1;
-      height: 4px;
-      border-radius: 2px;
-      overflow: hidden;
-      background: color-mix(in srgb, var(--primary-text-color) 10%, transparent);
-    }
-    .bar span {
-      display: block;
-      height: 100%;
-      border-radius: 2px;
-      background: var(--primary-color, #03a9f4);
-      transform-origin: left center;
-      transition: transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+      font-size: 16px;
     }
     .icon-btn {
       width: 48px;
@@ -1157,14 +917,6 @@ export class KibbleReviewQueue extends LitElement {
     .icon-btn:active {
       transform: scale(0.92);
     }
-    .icon-btn.on-photo {
-      position: absolute;
-      background: color-mix(in srgb, var(--card-background-color, #fff) 86%, transparent);
-    }
-    .scene-btn {
-      top: 8px;
-      right: 8px;
-    }
 
     /* ---- Stage ---- */
     .stage {
@@ -1172,7 +924,7 @@ export class KibbleReviewQueue extends LitElement {
       min-height: 0;
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 4px;
     }
     .deck {
       position: relative;
@@ -1201,7 +953,6 @@ export class KibbleReviewQueue extends LitElement {
     .card.current {
       z-index: 2;
       transform: translate3d(var(--dx, 0px), 0, 0) rotate(var(--tilt, 0deg));
-      cursor: pointer;
     }
     .card.swipeable {
       touch-action: pan-y;
@@ -1278,6 +1029,7 @@ export class KibbleReviewQueue extends LitElement {
     .photo-error {
       position: absolute;
       inset: 0;
+      z-index: 3;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -1293,29 +1045,55 @@ export class KibbleReviewQueue extends LitElement {
       fill: currentColor;
       opacity: 0.6;
     }
-    .chips {
+    /* The whole camera picture, framed the way the event sheet frames it (16:10) so the boxes
+       it draws land on the right animals. */
+    .scene {
       position: absolute;
-      left: 8px;
-      bottom: 8px;
-      display: flex;
-      gap: 4px;
-      pointer-events: none;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      container-type: size;
+      background: #000;
     }
-    .chip {
+    .scene-frame {
+      position: relative;
+      width: min(100cqw, 160cqh);
+      aspect-ratio: 1.6;
+    }
+    .meta {
+      flex: none;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      min-height: 48px;
+    }
+    .when {
+      margin: 0;
+      min-width: 0;
+      font-size: 14px;
+      font-variant-numeric: tabular-nums;
+      color: var(--secondary-text-color);
+    }
+    .scene-btn {
+      flex: none;
+      min-height: 48px;
       display: inline-flex;
       align-items: center;
-      gap: 4px;
-      padding: 4px 8px;
-      border-radius: 999px;
-      font-size: 12px;
-      line-height: 16px;
-      font-variant-numeric: tabular-nums;
-      background: color-mix(in srgb, var(--card-background-color, #fff) 86%, transparent);
-      color: var(--primary-text-color);
-    }
-    .chip svg {
+      gap: 6px;
+      padding: 0 12px;
+      border: 0;
+      border-radius: 8px;
+      background: none;
+      color: var(--primary-color, #03a9f4);
+      font: inherit;
       font-size: 14px;
-      color: var(--secondary-text-color);
+      font-weight: 500;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .scene-btn svg {
+      font-size: 20px;
     }
     .stamp {
       position: absolute;
@@ -1346,6 +1124,9 @@ export class KibbleReviewQueue extends LitElement {
       font-size: 16px;
       font-weight: 500;
       --kibble-avatar-size: 36px;
+    }
+    .stamp-body.bare {
+      padding-left: 16px;
     }
     .stamp-body kibble-avatar + kibble-avatar {
       margin-left: -20px;
@@ -1382,39 +1163,8 @@ export class KibbleReviewQueue extends LitElement {
         opacity: 0;
       }
     }
-    .strip {
-      flex: none;
-      display: flex;
-      gap: 8px;
-      overflow-x: auto;
-      padding: 2px;
-      scrollbar-width: none;
-    }
-    .strip-btn {
-      flex: none;
-      width: 48px;
-      height: 48px;
-      padding: 0;
-      border: 0;
-      border-radius: 8px;
-      overflow: hidden;
-      background: none;
-      cursor: pointer;
-      opacity: 0.6;
-      transition:
-        opacity 150ms ease-out,
-        transform 90ms ease-out;
-    }
-    .strip-btn[aria-pressed="true"] {
-      opacity: 1;
-      outline: 2px solid var(--primary-color, #03a9f4);
-      outline-offset: 0;
-    }
-    .strip-btn:active {
-      transform: scale(0.94);
-    }
 
-    /* ---- Result cards (batch, summary, empty, error) ---- */
+    /* ---- Result cards (all caught up, a question, an error) ---- */
     .result {
       flex: 1;
       min-height: 0;
@@ -1425,6 +1175,11 @@ export class KibbleReviewQueue extends LitElement {
       justify-content: center;
       gap: 12px;
       text-align: center;
+    }
+    .result.ask {
+      align-items: stretch;
+      justify-content: flex-end;
+      text-align: left;
     }
     .result-glyph {
       width: 64px;
@@ -1442,16 +1197,11 @@ export class KibbleReviewQueue extends LitElement {
     .result-glyph.muted {
       color: color-mix(in srgb, var(--primary-text-color) 32%, transparent);
     }
-    .result-glyph.cat svg {
-      width: 56px;
-      height: 56px;
-    }
     .result-big {
       margin: 0;
       font-size: 34px;
       font-weight: 500;
       line-height: 1.1;
-      font-variant-numeric: tabular-nums;
     }
     .result-line {
       margin: 0;
@@ -1477,6 +1227,22 @@ export class KibbleReviewQueue extends LitElement {
       background: color-mix(in srgb, var(--tally-color, var(--primary-text-color)) 10%, transparent);
       --kibble-avatar-size: 48px;
     }
+    .tally-glyph {
+      width: 48px;
+      height: 48px;
+      flex: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 28px;
+      color: var(--secondary-text-color);
+    }
+    .tally-glyph.pair {
+      --kibble-avatar-size: 32px;
+    }
+    .tally-glyph.pair kibble-avatar + kibble-avatar {
+      margin-left: -12px;
+    }
     .tally-text {
       flex: 1;
       min-width: 0;
@@ -1493,30 +1259,6 @@ export class KibbleReviewQueue extends LitElement {
       color: var(--secondary-text-color);
       font-variant-numeric: tabular-nums;
     }
-    .tally-gain {
-      display: flex;
-      flex-direction: column;
-      align-items: flex-end;
-      font-size: 12px;
-      color: var(--secondary-text-color);
-    }
-    .tally-gain strong {
-      font-size: 22px;
-      font-weight: 500;
-      line-height: 1.1;
-      color: var(--primary-text-color);
-      font-variant-numeric: tabular-nums;
-    }
-    .result-others {
-      margin: 0;
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: center;
-      gap: 8px;
-    }
-    .result-others .chip {
-      background: color-mix(in srgb, var(--primary-text-color) 6%, transparent);
-    }
 
     /* ---- Answers ---- */
     .answers {
@@ -1528,8 +1270,15 @@ export class KibbleReviewQueue extends LitElement {
     }
     .answer-row {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(88px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
       gap: 8px;
+    }
+    .answer-row.others {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    /* "Don't use" sits alone on the last row when the answers before it are an odd number. */
+    .answer-row.others > :last-child:nth-child(odd) {
+      grid-column: 1 / -1;
     }
     .actions {
       display: flex;
@@ -1577,8 +1326,6 @@ export class KibbleReviewQueue extends LitElement {
       grid-area: footer;
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      gap: 12px;
       min-height: 48px;
     }
     .plain-btn.undo {
@@ -1608,35 +1355,16 @@ export class KibbleReviewQueue extends LitElement {
         display: inline-block;
       }
     }
-    .status {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      min-height: 48px;
-    }
-    .status-text {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      font-size: 14px;
-      color: var(--secondary-text-color);
-      font-variant-numeric: tabular-nums;
-    }
-    .status-text svg {
-      font-size: 20px;
-    }
-    .status-text.error {
-      color: var(--error-color, #db4437);
-    }
     .pill-btn {
-      min-height: 48px;
-      padding: 0 16px;
+      flex: none;
+      min-height: 36px;
+      padding: 0 12px;
       border: 0;
       border-radius: 8px;
       background: color-mix(in srgb, var(--primary-text-color) 8%, transparent);
       color: var(--primary-text-color);
       font: inherit;
-      font-size: 14px;
+      font-size: 13px;
       font-weight: 500;
       cursor: pointer;
     }
@@ -1652,6 +1380,16 @@ export class KibbleReviewQueue extends LitElement {
       overflow: hidden;
       clip-path: inset(50%);
       white-space: nowrap;
+    }
+
+    /* A screen with nothing in its footer gives the row back (the two-pane layout below keeps its own). */
+    @container review (max-width: 699px) {
+      .panel.view-loading,
+      .panel.view-error,
+      .panel.view-ate {
+        grid-template-rows: auto minmax(0, 1fr) auto;
+        grid-template-areas: "top" "stage" "answers";
+      }
     }
 
     /* ---- Two panes: tablet and desktop ---- */
@@ -1672,8 +1410,12 @@ export class KibbleReviewQueue extends LitElement {
         align-content: start;
         padding: 2px;
       }
-      .answer-row {
+      .answer-row,
+      .answer-row.others {
         grid-template-columns: minmax(0, 1fr);
+      }
+      .answer-row.others > :last-child:nth-child(odd) {
+        grid-column: auto;
       }
       .titles {
         flex-direction: column;
@@ -1690,9 +1432,15 @@ export class KibbleReviewQueue extends LitElement {
         gap: 8px;
         --kibble-choice-height: 60px;
       }
-      /* Too short for five stacked answers: back to the phone's two rows, so none scrolls away. */
+      /* Too short for five stacked answers: back to rows, so none scrolls away. */
       .answer-row {
         grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+      }
+      .answer-row.others {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .answer-row.others > :last-child:nth-child(odd) {
+        grid-column: 1 / -1;
       }
       .title {
         font-size: 16px;
@@ -1702,9 +1450,6 @@ export class KibbleReviewQueue extends LitElement {
     @media (prefers-reduced-motion: no-preference) {
       .card.placeholder {
         animation: kibble-review-pulse 1.2s ease-in-out infinite alternate;
-      }
-      .streak {
-        animation: kibble-review-bump 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
       }
       .result-glyph.done {
         animation: kibble-review-pop 400ms cubic-bezier(0.2, 0.8, 0.2, 1);
@@ -1718,20 +1463,15 @@ export class KibbleReviewQueue extends LitElement {
       .tally:nth-child(3) {
         animation-delay: 120ms;
       }
-      .tally-gain {
-        animation: kibble-review-bump 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
-      }
-      .status-text.saving svg {
+      .notice .spin svg {
         animation: kibble-review-spin 0.9s linear infinite;
       }
     }
     @media (prefers-reduced-motion: reduce) {
       .card,
-      .bar span,
       .icon-btn,
       .primary-btn,
-      .plain-btn,
-      .strip-btn {
+      .plain-btn {
         transition: opacity 120ms linear;
       }
       .card.current,
@@ -1749,8 +1489,7 @@ export class KibbleReviewQueue extends LitElement {
       }
       .icon-btn:active,
       .primary-btn:active:not(:disabled),
-      .plain-btn:active:not(:disabled),
-      .strip-btn:active {
+      .plain-btn:active:not(:disabled) {
         transform: none;
       }
     }
@@ -1764,16 +1503,6 @@ export class KibbleReviewQueue extends LitElement {
         opacity: 0.5;
       }
       to {
-        opacity: 1;
-      }
-    }
-    @keyframes kibble-review-bump {
-      from {
-        transform: scale(0.8);
-        opacity: 0.4;
-      }
-      to {
-        transform: scale(1);
         opacity: 1;
       }
     }

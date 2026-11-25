@@ -19,6 +19,7 @@ import type { HomeAssistant, KibbleCardConfig, KibbleCatsCardConfig, KibbleSched
 import { createMockHass, DEVICE_ID } from "./mock-hass";
 import { resolveKibbleEntities } from "../src/lib/resolve-entities";
 import { SCHEDULE_FIXTURES, scheduleState, type HarnessFixture, type ScenarioName, type ScheduleFixtureName } from "./fixtures";
+import type { HomeAssistantConnection, LearningPhase, LearningStatus } from "../src/types";
 
 declare global {
   interface Window {
@@ -136,13 +137,48 @@ function setupToastListener(): void {
   });
 }
 
+function learningStatus(phase: LearningPhase): LearningStatus {
+  const now = Math.floor(Date.now() / 1000);
+  const working = phase === "learning" || phase === "rechecking";
+  return {
+    state: phase,
+    pending: phase === "idle" ? 0 : 12,
+    done: phase === "rechecking" ? 340 : null,
+    total: phase === "rechecking" ? 1400 : null,
+    starts_at: phase === "waiting" ? now + 90 : null,
+    retry_at: phase === "retrying" ? now + 30 : null,
+    started: working ? now - 20 : null,
+    last: { finished: now - 600, duration: 95, answers: 14, learned: { Kitty: 6, Pancake: 5 }, renamed: 3, rechecked: 1400 },
+    error: phase === "retrying" ? "Training did not finish" : null,
+  };
+}
+
+/** `learning=<phase>` scripts what `kibble/learning/subscribe` tells the cards: one fixed phase
+ * (idle, waiting, rechecking, learning, retrying), or `walk` to step through them every 4 s. */
+function scriptedLearning(script: string): HomeAssistantConnection {
+  const walk: LearningPhase[] = ["waiting", "rechecking", "learning", "retrying", "idle"];
+  return {
+    subscribeMessage: async <T>(callback: (message: T) => void) => {
+      const send = (phase: LearningPhase): void => callback({ learning: learningStatus(phase) } as T);
+      if (script !== "walk") {
+        setTimeout(() => send(script as LearningPhase), 50);
+        return async () => {};
+      }
+      let step = 0;
+      setTimeout(() => send(walk[0]!), 50);
+      const timer = setInterval(() => send(walk[++step % walk.length]!), 4000);
+      return async () => clearInterval(timer);
+    },
+  };
+}
+
 async function main(): Promise<void> {
   const params = new URLSearchParams(location.search);
   const card = (params.get("card") ?? "hero") as CardName;
   const scenario = (params.get("scenario") ?? "idle") as ScenarioName;
   const fixtureParam = params.get("fixture");
   const harnessFixture: HarnessFixture =
-    fixtureParam === "multicat-a" || fixtureParam === "multicat-b" || fixtureParam === "multicat-c" || fixtureParam === "review" || fixtureParam === "review-empty" ? fixtureParam : "default";
+    fixtureParam === "multicat-a" || fixtureParam === "multicat-b" || fixtureParam === "multicat-c" || fixtureParam === "review" || fixtureParam === "review-empty" || fixtureParam === "mixed" ? fixtureParam : "default";
   const theme = params.get("theme") ?? "light";
   const width = Number(params.get("width") ?? "400");
   const heightParam = params.get("height");
@@ -166,19 +202,39 @@ async function main(): Promise<void> {
     element.hass = { ...hass };
   }, harnessFixture);
   applyHopperOverrides(hass, params);
-  // `save_fail=<n>`: the first n visit answers are refused, then saving works again, to see the
-  // review queue's "not saved" line and its retry.
+  // Switches for the review screens, to see each state without a real fault: `slow=<ms>` holds
+  // back every page of photos, `page_fail=<n>` refuses the first n pages, `save_fail=<n>` refuses
+  // the first n answers (they wait and retry on their own), `drop=1` refuses the next answer for
+  // good (its photo is gone), and `learning=<phase|walk>` scripts the learning line.
+  const slowMs = Number(params.get("slow") ?? "0");
+  let pageFailuresLeft = Number(params.get("page_fail") ?? "0");
   let saveFailuresLeft = Number(params.get("save_fail") ?? "0");
+  let dropNext = params.get("drop") === "1";
   const callWS = hass.callWS;
-  if (saveFailuresLeft > 0 && callWS) {
+  if (callWS) {
     hass.callWS = async (message) => {
-      if (message.type === "kibble/session/label" && saveFailuresLeft > 0) {
-        saveFailuresLeft--;
-        throw { code: "unknown_error", message: "The harness refused this save" };
+      if (message.type === "kibble/review/photos") {
+        if (slowMs > 0) await new Promise((resolve) => setTimeout(resolve, slowMs));
+        if (pageFailuresLeft > 0) {
+          pageFailuresLeft--;
+          throw { code: "unknown_error", message: "The harness refused this page" };
+        }
+      }
+      if (message.type === "kibble/sample/label" || message.type === "kibble/session/ate") {
+        if (dropNext) {
+          dropNext = false;
+          throw { code: "not_found", message: "The harness says this photo is gone" };
+        }
+        if (saveFailuresLeft > 0) {
+          saveFailuresLeft--;
+          throw { code: "unknown_error", message: "The harness refused this save" };
+        }
       }
       return callWS(message);
     };
   }
+  const learning = params.get("learning");
+  if (learning) hass.connection = scriptedLearning(learning);
   if (params.get("schedule_fail") === "1") {
     const callService = hass.callService;
     hass.callService = async (domain, service, data, target) => {

@@ -3,8 +3,8 @@
 Four Lovelace cards for the [Kibble](https://github.com/nphil/kibble) Petkit feeder integration:
 `kibble-card` (the daily hero — live camera with a "who's been by" overlay, bowl status, feed,
 schedule), `kibble-timeline-card` (every visit, meal and feed, newest first, with real photos and
-an inline "who was this?" picker for anything unidentified), and `kibble-cats-card` (enrolled
-cats, a paged review queue for the identity engine's leftovers, and per-cat training photos), and
+a sheet for saying who is in each photo), and `kibble-cats-card` (enrolled
+cats, a photo-by-photo review screen for what the identity engine couldn't name, and per-cat training photos), and
 `kibble-schedule-card` (the feeding schedule on its own, already open, for a dashboard pop-up).
 Full design rationale in [`DESIGN.md`](DESIGN.md).
 
@@ -147,35 +147,32 @@ buckets ("Today", "Yesterday", then a weekday and date) with older pages loading
 as you scroll near the bottom -- no "Show more" button. Every row shows a fixed-size photo and a
 short line: "Pancake ate", "Kitty came by", "Fed 3 portions from hopper 1" -- never a raw class
 string, a guessed name, or a confidence number. A meal or a feed with both a before and an after
-photo shows them as a compact pair right in the row (cat photo first for a meal). An event the
-identity engine couldn't name trades its title for an inline "Who was this?" picker -- one tap on
-a cat chip (or "Not a cat") labels it on the spot, optimistically, before the server confirms; a
-save that fails rolls the row back with a short inline note. Consecutive sightings of the same
-cat within five minutes collapse into one row with a count. Tapping any row's photo opens a
-fuller sheet: the scene photo, the individual photos captured for that visit -- each one
-captioned with what it currently teaches (a cat's own colour, "Not a cat", "Skip", or a muted
-guess before anyone has reviewed it) and correctable on its own with a tap, saved instantly --
-and the same cat buttons for the whole event; this is also how you correct an already-named row.
+photo shows them as a compact pair right in the row (cat photo first for a meal). Consecutive
+sightings of the same
+cat within five minutes collapse into one row with a count. Tapping any row opens a fuller
+sheet: the scene photo and the individual photos captured for that visit, each tagged with
+what it teaches ("Both cats", "Not a cat", or a dimmed "Not used"). Tapping a photo opens it
+with the same answers as the review screen (a cat's name, "Both in this photo", "Not a cat",
+"Don't use", and Undo), saved through the answer outbox described in `DESIGN.md`; a two-cat
+meal the server cannot settle asks "Who ate?" right in the sheet.
 Live subscription keeps the list current without polling.
 
 Two cats at the feeder together (the integration splits one feeder session into one row per
 cat, `docs/42-multi-cat.md` in the `kibble` repo) collapse back into one row: "Kitty and Pancake
 ate", each name in its own colour and a two-colour rail dot. The sheet always shows the whole
-session. "Who was here?" is a set of tick boxes: the identity engine's guess starts ticked, a tap
-only ever ticks or unticks that one cat, "Not a cat" is exclusive, and nothing is saved until the
-one button ("Confirm Kitty and Pancake", or "Done" when nothing changed). With two or more cats
-at a meal, each gets an Ate / Came by choice. Tapping a box on the photo names that one animal
-(and ticks its cat) in the same draft. When the vision judge saw more than one cat but fewer are
-ticked, the hint under the heading says so. Photos are grouped per cat once there are two.
+session. The sheet no longer names a visit as a whole: each photo is answered on its own, and
+"Who ate?" (one tap per cat, "Skip" allowed) appears only when the server says a two-cat meal
+needs it. Photos are grouped per cat once there are two.
 
 ### Cats
 
 Enrolled cats up top: avatar, when last seen, meals today, how many photos are trained, and
-leave-one-out accuracy once there are enough samples to measure it. Below that, a paged review
-queue (24 at a time, explicit Previous/Next) of whatever the identity engine couldn't name — one
-tile per event, not per crop. Tap a tile for the same labelling sheet the timeline uses; "Select"
-turns on multi-select with a bulk-assign bar so a batch goes to one cat (or "Not a cat") in a
-single request. "View training" under a cat's menu opens its own paged photo grid, each photo
+leave-one-out accuracy once there are enough samples to measure it. Below that, a "Check photos"
+button opens the review screen (`DESIGN.md`, "Checking photos"): one photo at a time, one tap to
+answer, answers kept safe and sent in order even if the connection drops, and a live line about
+what Kibble is learning from them ("12 answers saved, learning 340 of 1,400 visits"), with a
+short dismissible summary once a learning pass finishes. "View training" under a cat's menu
+opens its own paged photo grid, each photo
 removable — collapsed by default, which is what keeps the card from ever rendering hundreds of
 tiles at once. A storage line at the bottom reads the actual usage and retention window ("Using
 184 MB, keeping 14 days"), plus the feeder's own transient buffer when the daemon reports it. Add

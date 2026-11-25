@@ -124,16 +124,16 @@ var require_base64_arraybuffer = __commonJS({
     exports.decode = exports.encode = void 0;
     var chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     var lookup = typeof Uint8Array === "undefined" ? [] : new Uint8Array(256);
-    for (let i6 = 0; i6 < chars.length; i6++) {
-      lookup[chars.charCodeAt(i6)] = i6;
+    for (let i8 = 0; i8 < chars.length; i8++) {
+      lookup[chars.charCodeAt(i8)] = i8;
     }
     var encode = (arraybuffer) => {
-      let bytes = new Uint8Array(arraybuffer), i6, len = bytes.length, base64 = "";
-      for (i6 = 0; i6 < len; i6 += 3) {
-        base64 += chars[bytes[i6] >> 2];
-        base64 += chars[(bytes[i6] & 3) << 4 | bytes[i6 + 1] >> 4];
-        base64 += chars[(bytes[i6 + 1] & 15) << 2 | bytes[i6 + 2] >> 6];
-        base64 += chars[bytes[i6 + 2] & 63];
+      let bytes = new Uint8Array(arraybuffer), i8, len = bytes.length, base64 = "";
+      for (i8 = 0; i8 < len; i8 += 3) {
+        base64 += chars[bytes[i8] >> 2];
+        base64 += chars[(bytes[i8] & 3) << 4 | bytes[i8 + 1] >> 4];
+        base64 += chars[(bytes[i8 + 1] & 15) << 2 | bytes[i8 + 2] >> 6];
+        base64 += chars[bytes[i8 + 2] & 63];
       }
       if (len % 3 === 2) {
         base64 = base64.substring(0, base64.length - 1) + "=";
@@ -144,7 +144,7 @@ var require_base64_arraybuffer = __commonJS({
     };
     exports.encode = encode;
     var decode = (base64) => {
-      let bufferLength = base64.length * 0.75, len = base64.length, i6, p3 = 0, encoded1, encoded2, encoded3, encoded4;
+      let bufferLength = base64.length * 0.75, len = base64.length, i8, p4 = 0, encoded1, encoded2, encoded3, encoded4;
       if (base64[base64.length - 1] === "=") {
         bufferLength--;
         if (base64[base64.length - 2] === "=") {
@@ -152,14 +152,14 @@ var require_base64_arraybuffer = __commonJS({
         }
       }
       const arraybuffer = new ArrayBuffer(bufferLength), bytes = new Uint8Array(arraybuffer);
-      for (i6 = 0; i6 < len; i6 += 4) {
-        encoded1 = lookup[base64.charCodeAt(i6)];
-        encoded2 = lookup[base64.charCodeAt(i6 + 1)];
-        encoded3 = lookup[base64.charCodeAt(i6 + 2)];
-        encoded4 = lookup[base64.charCodeAt(i6 + 3)];
-        bytes[p3++] = encoded1 << 2 | encoded2 >> 4;
-        bytes[p3++] = (encoded2 & 15) << 4 | encoded3 >> 2;
-        bytes[p3++] = (encoded3 & 3) << 6 | encoded4 & 63;
+      for (i8 = 0; i8 < len; i8 += 4) {
+        encoded1 = lookup[base64.charCodeAt(i8)];
+        encoded2 = lookup[base64.charCodeAt(i8 + 1)];
+        encoded3 = lookup[base64.charCodeAt(i8 + 2)];
+        encoded4 = lookup[base64.charCodeAt(i8 + 3)];
+        bytes[p4++] = encoded1 << 2 | encoded2 >> 4;
+        bytes[p4++] = (encoded2 & 15) << 4 | encoded3 >> 2;
+        bytes[p4++] = (encoded3 & 3) << 6 | encoded4 & 63;
       }
       return arraybuffer;
     };
@@ -248,9 +248,9 @@ var require_cjs = __commonJS({
       const length = packets.length;
       const encodedPackets = new Array(length);
       let count = 0;
-      packets.forEach((packet, i6) => {
+      packets.forEach((packet, i8) => {
         (0, encodePacket_js_1.encodePacket)(packet, false, (encodedPacket) => {
-          encodedPackets[i6] = encodedPacket;
+          encodedPackets[i8] = encodedPacket;
           if (++count === length) {
             callback(encodedPackets.join(SEPARATOR));
           }
@@ -261,8 +261,8 @@ var require_cjs = __commonJS({
     var decodePayload = (encodedPayload, binaryType) => {
       const encodedPackets = encodedPayload.split(SEPARATOR);
       const packets = [];
-      for (let i6 = 0; i6 < encodedPackets.length; i6++) {
-        const decodedPacket = (0, decodePacket_js_1.decodePacket)(encodedPackets[i6], binaryType);
+      for (let i8 = 0; i8 < encodedPackets.length; i8++) {
+        const decodedPacket = (0, decodePacket_js_1.decodePacket)(encodedPackets[i8], binaryType);
         packets.push(decodedPacket);
         if (decodedPacket.type === "error") {
           break;
@@ -310,8 +310,8 @@ var require_cjs = __commonJS({
       }
       const buffer = new Uint8Array(size);
       let j2 = 0;
-      for (let i6 = 0; i6 < size; i6++) {
-        buffer[i6] = chunks[0][j2++];
+      for (let i8 = 0; i8 < size; i8++) {
+        buffer[i8] = chunks[0][j2++];
         if (j2 === chunks[0].length) {
           chunks.shift();
           j2 = 0;
@@ -426,10 +426,10 @@ var require_cjs2 = __commonJS({
         return this;
       }
       var cb;
-      for (var i6 = 0; i6 < callbacks.length; i6++) {
-        cb = callbacks[i6];
+      for (var i8 = 0; i8 < callbacks.length; i8++) {
+        cb = callbacks[i8];
         if (cb === fn || cb.fn === fn) {
-          callbacks.splice(i6, 1);
+          callbacks.splice(i8, 1);
           break;
         }
       }
@@ -441,13 +441,13 @@ var require_cjs2 = __commonJS({
     Emitter.prototype.emit = function(event) {
       this._callbacks = this._callbacks || {};
       var args = new Array(arguments.length - 1), callbacks = this._callbacks["$" + event];
-      for (var i6 = 1; i6 < arguments.length; i6++) {
-        args[i6 - 1] = arguments[i6];
+      for (var i8 = 1; i8 < arguments.length; i8++) {
+        args[i8 - 1] = arguments[i8];
       }
       if (callbacks) {
         callbacks = callbacks.slice(0);
-        for (var i6 = 0, len = callbacks.length; i6 < len; ++i6) {
-          callbacks[i6].apply(this, args);
+        for (var i8 = 0, len = callbacks.length; i8 < len; ++i8) {
+          callbacks[i8].apply(this, args);
         }
       }
       return this;
@@ -526,17 +526,17 @@ var require_util = __commonJS({
       return Math.ceil((obj.byteLength || obj.size) * BASE64_OVERHEAD);
     }
     function utf8Length(str) {
-      let c5 = 0, length = 0;
-      for (let i6 = 0, l3 = str.length; i6 < l3; i6++) {
-        c5 = str.charCodeAt(i6);
-        if (c5 < 128) {
+      let c6 = 0, length = 0;
+      for (let i8 = 0, l3 = str.length; i8 < l3; i8++) {
+        c6 = str.charCodeAt(i8);
+        if (c6 < 128) {
           length += 1;
-        } else if (c5 < 2048) {
+        } else if (c6 < 2048) {
           length += 2;
-        } else if (c5 < 55296 || c5 >= 57344) {
+        } else if (c6 < 55296 || c6 >= 57344) {
           length += 3;
         } else {
-          i6++;
+          i8++;
           length += 4;
         }
       }
@@ -555,11 +555,11 @@ var require_parseqs = __commonJS({
     exports.decode = decode;
     function encode(obj) {
       let str = "";
-      for (let i6 in obj) {
-        if (obj.hasOwnProperty(i6)) {
+      for (let i8 in obj) {
+        if (obj.hasOwnProperty(i8)) {
           if (str.length)
             str += "&";
-          str += encodeURIComponent(i6) + "=" + encodeURIComponent(obj[i6]);
+          str += encodeURIComponent(i8) + "=" + encodeURIComponent(obj[i8]);
         }
       }
       return str;
@@ -567,8 +567,8 @@ var require_parseqs = __commonJS({
     function decode(qs) {
       let qry = {};
       let pairs = qs.split("&");
-      for (let i6 = 0, l3 = pairs.length; i6 < l3; i6++) {
-        let pair = pairs[i6].split("=");
+      for (let i8 = 0, l3 = pairs.length; i8 < l3; i8++) {
+        let pair = pairs[i8].split("=");
         qry[decodeURIComponent(pair[0])] = decodeURIComponent(pair[1]);
       }
       return qry;
@@ -577,10 +577,10 @@ var require_parseqs = __commonJS({
 });
 var require_ms = __commonJS({
   "node_modules/ms/index.js"(exports, module) {
-    var s5 = 1e3;
-    var m2 = s5 * 60;
-    var h5 = m2 * 60;
-    var d3 = h5 * 24;
+    var s6 = 1e3;
+    var m3 = s6 * 60;
+    var h6 = m3 * 60;
+    var d3 = h6 * 24;
     var w2 = d3 * 7;
     var y3 = d3 * 365.25;
     module.exports = function(val, options) {
@@ -628,19 +628,19 @@ var require_ms = __commonJS({
         case "hrs":
         case "hr":
         case "h":
-          return n6 * h5;
+          return n6 * h6;
         case "minutes":
         case "minute":
         case "mins":
         case "min":
         case "m":
-          return n6 * m2;
+          return n6 * m3;
         case "seconds":
         case "second":
         case "secs":
         case "sec":
         case "s":
-          return n6 * s5;
+          return n6 * s6;
         case "milliseconds":
         case "millisecond":
         case "msecs":
@@ -656,14 +656,14 @@ var require_ms = __commonJS({
       if (msAbs >= d3) {
         return Math.round(ms / d3) + "d";
       }
-      if (msAbs >= h5) {
-        return Math.round(ms / h5) + "h";
+      if (msAbs >= h6) {
+        return Math.round(ms / h6) + "h";
       }
-      if (msAbs >= m2) {
-        return Math.round(ms / m2) + "m";
+      if (msAbs >= m3) {
+        return Math.round(ms / m3) + "m";
       }
-      if (msAbs >= s5) {
-        return Math.round(ms / s5) + "s";
+      if (msAbs >= s6) {
+        return Math.round(ms / s6) + "s";
       }
       return ms + "ms";
     }
@@ -672,14 +672,14 @@ var require_ms = __commonJS({
       if (msAbs >= d3) {
         return plural(ms, msAbs, d3, "day");
       }
-      if (msAbs >= h5) {
-        return plural(ms, msAbs, h5, "hour");
+      if (msAbs >= h6) {
+        return plural(ms, msAbs, h6, "hour");
       }
-      if (msAbs >= m2) {
-        return plural(ms, msAbs, m2, "minute");
+      if (msAbs >= m3) {
+        return plural(ms, msAbs, m3, "minute");
       }
-      if (msAbs >= s5) {
-        return plural(ms, msAbs, s5, "second");
+      if (msAbs >= s6) {
+        return plural(ms, msAbs, s6, "second");
       }
       return ms + " ms";
     }
@@ -708,8 +708,8 @@ var require_common = __commonJS({
       createDebug.formatters = {};
       function selectColor(namespace) {
         let hash = 0;
-        for (let i6 = 0; i6 < namespace.length; i6++) {
-          hash = (hash << 5) - hash + namespace.charCodeAt(i6);
+        for (let i8 = 0; i8 < namespace.length; i8++) {
+          hash = (hash << 5) - hash + namespace.charCodeAt(i8);
           hash |= 0;
         }
         return createDebug.colors[Math.abs(hash) % createDebug.colors.length];
@@ -772,8 +772,8 @@ var require_common = __commonJS({
             }
             return enabledCache;
           },
-          set: (v2) => {
-            enableOverride = v2;
+          set: (v3) => {
+            enableOverride = v3;
           }
         });
         if (typeof createDebug.init === "function") {
@@ -965,11 +965,11 @@ var require_browser = __commonJS({
       if (typeof navigator !== "undefined" && navigator.userAgent && navigator.userAgent.toLowerCase().match(/(edge|trident)\/(\d+)/)) {
         return false;
       }
-      let m2;
+      let m3;
       return typeof document !== "undefined" && document.documentElement && document.documentElement.style && document.documentElement.style.WebkitAppearance || // Is firebug? http://stackoverflow.com/a/398120/376773
       typeof window !== "undefined" && window.console && (window.console.firebug || window.console.exception && window.console.table) || // Is firefox >= v31?
       // https://developer.mozilla.org/en-US/docs/Tools/Web_Console#Styling_messages
-      typeof navigator !== "undefined" && navigator.userAgent && (m2 = navigator.userAgent.toLowerCase().match(/firefox\/(\d+)/)) && parseInt(m2[1], 10) >= 31 || // Double check webkit in userAgent just in case we are in a worker
+      typeof navigator !== "undefined" && navigator.userAgent && (m3 = navigator.userAgent.toLowerCase().match(/firefox\/(\d+)/)) && parseInt(m3[1], 10) >= 31 || // Double check webkit in userAgent just in case we are in a worker
       typeof navigator !== "undefined" && navigator.userAgent && navigator.userAgent.toLowerCase().match(/applewebkit\/(\d+)/);
     }
     function formatArgs(args) {
@@ -977,8 +977,8 @@ var require_browser = __commonJS({
       if (!this.useColors) {
         return;
       }
-      const c5 = "color: " + this.color;
-      args.splice(1, 0, c5, "color: inherit");
+      const c6 = "color: " + this.color;
+      args.splice(1, 0, c6, "color: inherit");
       let index = 0;
       let lastC = 0;
       args[0].replace(/%[a-zA-Z%]/g, (match) => {
@@ -990,7 +990,7 @@ var require_browser = __commonJS({
           lastC = index;
         }
       });
-      args.splice(lastC, 0, c5);
+      args.splice(lastC, 0, c6);
     }
     exports.log = console.debug || console.log || (() => {
     });
@@ -1023,9 +1023,9 @@ var require_browser = __commonJS({
     }
     module.exports = require_common()(exports);
     var { formatters } = module.exports;
-    formatters.j = function(v2) {
+    formatters.j = function(v3) {
       try {
-        return JSON.stringify(v2);
+        return JSON.stringify(v3);
       } catch (error) {
         return "[UnexpectedJSONParseError]: " + error.message;
       }
@@ -1451,9 +1451,9 @@ var require_polling_xhr = __commonJS({
           try {
             if (this._opts.extraHeaders) {
               xhr.setDisableHeaderCheck && xhr.setDisableHeaderCheck(true);
-              for (let i6 in this._opts.extraHeaders) {
-                if (this._opts.extraHeaders.hasOwnProperty(i6)) {
-                  xhr.setRequestHeader(i6, this._opts.extraHeaders[i6]);
+              for (let i8 in this._opts.extraHeaders) {
+                if (this._opts.extraHeaders.hasOwnProperty(i8)) {
+                  xhr.setRequestHeader(i8, this._opts.extraHeaders[i8]);
                 }
               }
             }
@@ -1571,9 +1571,9 @@ var require_polling_xhr = __commonJS({
       }
     }
     function unloadHandler() {
-      for (let i6 in Request.requests) {
-        if (Request.requests.hasOwnProperty(i6)) {
-          Request.requests[i6].abort();
+      for (let i8 in Request.requests) {
+        if (Request.requests.hasOwnProperty(i8)) {
+          Request.requests[i8].abort();
         }
       }
     }
@@ -1667,9 +1667,9 @@ var require_websocket = __commonJS({
       }
       write(packets) {
         this.writable = false;
-        for (let i6 = 0; i6 < packets.length; i6++) {
-          const packet = packets[i6];
-          const lastPacket = i6 === packets.length - 1;
+        for (let i8 = 0; i8 < packets.length; i8++) {
+          const packet = packets[i8];
+          const lastPacket = i8 === packets.length - 1;
           (0, engine_io_parser_1.encodePacket)(packet, this.supportsBinary, (data) => {
             try {
               this.doWrite(packet, data);
@@ -1784,9 +1784,9 @@ var require_webtransport = __commonJS({
       }
       write(packets) {
         this.writable = false;
-        for (let i6 = 0; i6 < packets.length; i6++) {
-          const packet = packets[i6];
-          const lastPacket = i6 === packets.length - 1;
+        for (let i8 = 0; i8 < packets.length; i8++) {
+          const packet = packets[i8];
+          const lastPacket = i8 === packets.length - 1;
           this._writer.write(packet).then(() => {
             if (lastPacket) {
               (0, globals_node_js_1.nextTick)(() => {
@@ -1850,9 +1850,9 @@ var require_parseuri = __commonJS({
       if (b3 != -1 && e6 != -1) {
         str = str.substring(0, b3) + str.substring(b3, e6).replace(/:/g, ";") + str.substring(e6, str.length);
       }
-      let m2 = re.exec(str || ""), uri = {}, i6 = 14;
-      while (i6--) {
-        uri[parts[i6]] = m2[i6] || "";
+      let m3 = re.exec(str || ""), uri = {}, i8 = 14;
+      while (i8--) {
+        uri[parts[i8]] = m3[i8] || "";
       }
       if (b3 != -1 && e6 != -1) {
         uri.source = src;
@@ -2174,14 +2174,14 @@ var require_socket = __commonJS({
           return this.writeBuffer;
         }
         let payloadSize = 1;
-        for (let i6 = 0; i6 < this.writeBuffer.length; i6++) {
-          const data = this.writeBuffer[i6].data;
+        for (let i8 = 0; i8 < this.writeBuffer.length; i8++) {
+          const data = this.writeBuffer[i8].data;
           if (data) {
             payloadSize += (0, util_js_1.byteLength)(data);
           }
-          if (i6 > 0 && payloadSize > this._maxPayload) {
-            debug("only send %d out of %d packets", i6, this.writeBuffer.length);
-            return this.writeBuffer.slice(0, i6);
+          if (i8 > 0 && payloadSize > this._maxPayload) {
+            debug("only send %d out of %d packets", i8, this.writeBuffer.length);
+            return this.writeBuffer.slice(0, i8);
           }
           payloadSize += 2;
         }
@@ -2338,10 +2338,10 @@ var require_socket = __commonJS({
               removeEventListener("beforeunload", this._beforeunloadEventListener, false);
             }
             if (this._offlineEventListener) {
-              const i6 = OFFLINE_EVENT_LISTENERS.indexOf(this._offlineEventListener);
-              if (i6 !== -1) {
+              const i8 = OFFLINE_EVENT_LISTENERS.indexOf(this._offlineEventListener);
+              if (i8 !== -1) {
                 debug("removing listener for the 'offline' event");
-                OFFLINE_EVENT_LISTENERS.splice(i6, 1);
+                OFFLINE_EVENT_LISTENERS.splice(i8, 1);
               }
             }
           }
@@ -2364,8 +2364,8 @@ var require_socket = __commonJS({
         super.onOpen();
         if ("open" === this.readyState && this.opts.upgrade) {
           debug("starting upgrade probes");
-          for (let i6 = 0; i6 < this._upgrades.length; i6++) {
-            this._probe(this._upgrades[i6]);
+          for (let i8 = 0; i8 < this._upgrades.length; i8++) {
+            this._probe(this._upgrades[i8]);
           }
         }
       }
@@ -2479,9 +2479,9 @@ var require_socket = __commonJS({
        */
       _filterUpgrades(upgrades) {
         const filteredUpgrades = [];
-        for (let i6 = 0; i6 < upgrades.length; i6++) {
-          if (~this.transports.indexOf(upgrades[i6]))
-            filteredUpgrades.push(upgrades[i6]);
+        for (let i8 = 0; i8 < upgrades.length; i8++) {
+          if (~this.transports.indexOf(upgrades[i8]))
+            filteredUpgrades.push(upgrades[i8]);
         }
         return filteredUpgrades;
       }
@@ -2652,9 +2652,9 @@ var require_promise_utils = __commonJS({
     function timeoutPromise(timeout, promise) {
       return new Promise((resolve, reject) => {
         const t5 = setTimeout(() => reject(new TimeoutError(promise)), timeout);
-        promise.then((v2) => {
+        promise.then((v3) => {
           clearTimeout(t5);
-          resolve(v2);
+          resolve(v3);
         }).catch((e6) => {
           clearTimeout(t5);
           reject(e6);
@@ -2669,9 +2669,9 @@ var require_promise_utils = __commonJS({
           isTimedOut = true;
           reject(new TimeoutError(promise));
         }, timeout);
-        promise.then((v2) => {
+        promise.then((v3) => {
           clearTimeout(t5);
-          resolve(v2);
+          resolve(v3);
         }).catch((e6) => {
           clearTimeout(t5);
           reject(e6);
@@ -2758,8 +2758,8 @@ var require_rpc = __commonJS({
         const peer = this.peer;
         return `RpcProxy-${peer.selfName}:${peer.peerName}: ${this.constructorName}`;
       }
-      get(target, p3, receiver) {
-        if (p3 === Symbol.asyncIterator) {
+      get(target, p4, receiver) {
+        if (p4 === Symbol.asyncIterator) {
           if (!this.proxyProps?.[Symbol.asyncIterator.toString()])
             return;
           return () => {
@@ -2767,40 +2767,40 @@ var require_rpc = __commonJS({
             }, this);
           };
         }
-        if (_RpcProxy.iteratorMethods.has(p3?.toString())) {
-          const asyncIteratorMethod = this.proxyProps?.[Symbol.asyncIterator.toString()]?.[p3];
+        if (_RpcProxy.iteratorMethods.has(p4?.toString())) {
+          const asyncIteratorMethod = this.proxyProps?.[Symbol.asyncIterator.toString()]?.[p4];
           if (asyncIteratorMethod)
             return new Proxy(() => asyncIteratorMethod, this);
         }
-        if (p3 === RpcPeer.PROPERTY_PROXY_ID)
+        if (p4 === RpcPeer.PROPERTY_PROXY_ID)
           return this.entry.id;
-        if (p3 === "__proxy_constructor")
+        if (p4 === "__proxy_constructor")
           return this.constructorName;
-        if (p3 === RpcPeer.PROPERTY_PROXY_PEER)
+        if (p4 === RpcPeer.PROPERTY_PROXY_PEER)
           return this.peer;
-        if (p3 === RpcPeer.PROPERTY_PROXY_PROPERTIES)
+        if (p4 === RpcPeer.PROPERTY_PROXY_PROPERTIES)
           return this.proxyProps;
-        if (p3 === RpcPeer.PROPERTY_PROXY_ONEWAY_METHODS)
+        if (p4 === RpcPeer.PROPERTY_PROXY_ONEWAY_METHODS)
           return this.proxyOneWayMethods;
-        if (p3 === RpcPeer.PROPERTY_JSON_DISABLE_SERIALIZATION || p3 === RpcPeer.PROPERTY_JSON_COPY_SERIALIZE_CHILDREN)
+        if (p4 === RpcPeer.PROPERTY_JSON_DISABLE_SERIALIZATION || p4 === RpcPeer.PROPERTY_JSON_COPY_SERIALIZE_CHILDREN)
           return;
-        if (p3 === "then")
+        if (p4 === "then")
           return;
-        if (p3 === "constructor")
+        if (p4 === "constructor")
           return;
-        if (this.proxyProps?.[p3] !== void 0)
-          return this.proxyProps?.[p3];
-        const handled = RpcPeer.handleFunctionInvocations(this, target, p3, receiver);
+        if (this.proxyProps?.[p4] !== void 0)
+          return this.proxyProps?.[p4];
+        const handled = RpcPeer.handleFunctionInvocations(this, target, p4, receiver);
         if (handled)
           return handled;
-        return new Proxy(() => p3, this);
+        return new Proxy(() => p4, this);
       }
-      set(target, p3, value, receiver) {
-        if (p3 === RpcPeer.finalizerIdSymbol) {
+      set(target, p4, value, receiver) {
+        if (p4 === RpcPeer.finalizerIdSymbol) {
           this.entry.finalizerId = value;
         } else {
           this.proxyProps ||= {};
-          this.proxyProps[p3] = value;
+          this.proxyProps[p4] = value;
         }
         return true;
       }
@@ -2931,16 +2931,16 @@ ${peer.peerName}:${peer.selfName}`;
         jsonSerializable.add(Array.name);
         return jsonSerializable;
       }
-      static handleFunctionInvocations(thiz, target, p3, receiver) {
-        if (p3 === "apply") {
+      static handleFunctionInvocations(thiz, target, p4, receiver) {
+        if (p4 === "apply") {
           return (thisArg, args) => {
             return thiz.apply(target, thiz, args);
           };
-        } else if (p3 === "call") {
+        } else if (p4 === "call") {
           return (thisArg, ...args) => {
             return thiz.apply(target, thiz, args);
           };
-        } else if (p3 === "toString" || p3 === Symbol.toPrimitive) {
+        } else if (p4 === "toString" || p4 === Symbol.toPrimitive) {
           return (thisArg, ...args) => {
             return thiz.toPrimitive();
           };
@@ -4843,21 +4843,21 @@ var require_device = __commonJS({
         this.id = id;
         this.setState = setState;
       }
-      get(target, p3, receiver) {
-        if (p3 === "id")
+      get(target, p4, receiver) {
+        if (p4 === "id")
           return this.id;
-        if (p3 === rpc_1.RpcPeer.PROPERTY_PROXY_PROPERTIES)
+        if (p4 === rpc_1.RpcPeer.PROPERTY_PROXY_PROPERTIES)
           return { id: this.id };
-        if (p3 === "setState")
+        if (p4 === "setState")
           return this.setState;
-        return this.deviceManager.systemManager.state[this.id][p3]?.value;
+        return this.deviceManager.systemManager.state[this.id][p4]?.value;
       }
-      set(target, p3, value, receiver) {
-        (0, plugin_state_check_1.checkProperty)(p3.toString(), value);
-        this.deviceManager.systemManager.state[this.id][p3] = {
+      set(target, p4, value, receiver) {
+        (0, plugin_state_check_1.checkProperty)(p4.toString(), value);
+        this.deviceManager.systemManager.state[this.id][p4] = {
           value
         };
-        this.setState(p3.toString(), value);
+        this.setState(p4.toString(), value);
         return true;
       }
     };
@@ -5164,8 +5164,8 @@ var require_plugin_remote_websocket = __commonJS({
         }
       }
     };
-    function defineEventAttribute(p3, type) {
-      Object.defineProperty(p3, "on" + type, {
+    function defineEventAttribute(p4, type) {
+      Object.defineProperty(p4, "on" + type, {
         get: function() {
           throw new Error(`${type} is write only`);
         },
@@ -5400,10 +5400,10 @@ var require_system = __commonJS({
         const properties = (0, descriptor_1.getInterfaceProperties)(this.systemManager.descriptors || types_1.ScryptedInterfaceDescriptors, interfaces);
         return [...methods, ...properties];
       }
-      getOwnPropertyDescriptor(target, p3) {
+      getOwnPropertyDescriptor(target, p4) {
         const interfaces = new Set(this.systemManager.state[this.id].interfaces.value);
         const methods = (0, descriptor_1.getInterfaceMethods)(this.systemManager.descriptors || types_1.ScryptedInterfaceDescriptors, interfaces);
-        const prop = p3.toString();
+        const prop = p4.toString();
         if (methods.includes(prop)) {
           return {
             configurable: true
@@ -5417,40 +5417,40 @@ var require_system = __commonJS({
           };
         }
       }
-      deleteProperty(target, p3) {
-        const prop = p3.toString();
+      deleteProperty(target, p4) {
+        const prop = p4.toString();
         if (Object.keys(types_1.ScryptedInterfaceProperty).includes(prop))
           return false;
         this.customProperties ||= /* @__PURE__ */ new Map();
-        this.customProperties.set(p3, void 0);
+        this.customProperties.set(p4, void 0);
         return true;
       }
-      set(target, p3, newValue, receiver) {
-        const prop = p3.toString();
+      set(target, p4, newValue, receiver) {
+        const prop = p4.toString();
         if (Object.keys(types_1.ScryptedInterfaceProperty).includes(prop))
           return false;
         this.customProperties ||= /* @__PURE__ */ new Map();
-        this.customProperties.set(p3, newValue);
+        this.customProperties.set(p4, newValue);
         return true;
       }
-      get(target, p3, receiver) {
-        if (p3 === "id")
+      get(target, p4, receiver) {
+        if (p4 === "id")
           return this.id;
-        if (this.customProperties?.has(p3))
-          return this.customProperties.get(p3);
-        const handled = rpc_1.RpcPeer.handleFunctionInvocations(this, target, p3, receiver);
+        if (this.customProperties?.has(p4))
+          return this.customProperties.get(p4);
+        const handled = rpc_1.RpcPeer.handleFunctionInvocations(this, target, p4, receiver);
         if (handled)
           return handled;
         const interfaces = new Set(this.systemManager.state[this.id].interfaces?.value || []);
-        const prop = p3.toString();
+        const prop = p4.toString();
         const isValidProperty = this.systemManager.propertyInterfaces?.[prop] || descriptor_1.propertyInterfaces[prop];
         if (isValidProperty)
-          return this.systemManager.state[this.id]?.[p3]?.value;
+          return this.systemManager.state[this.id]?.[p4]?.value;
         if (!(0, descriptor_1.isValidInterfaceMethod)(this.systemManager.descriptors || types_1.ScryptedInterfaceDescriptors, interfaces, prop))
           return;
         if (types_1.ScryptedInterfaceDescriptors[types_1.ScryptedInterface.ScryptedDevice].methods.includes(prop))
-          return this[p3].bind(this);
-        return new Proxy(() => p3, this);
+          return this[p4].bind(this);
+        return new Proxy(() => p4, this);
       }
       ensureDevice() {
         if (!this.device)
@@ -5548,10 +5548,10 @@ var require_system = __commonJS({
       }
       getDeviceByName(name) {
         for (const id of Object.keys(this.state)) {
-          const s5 = this.state[id];
-          if (s5.interfaces?.value?.includes(types_1.ScryptedInterface.ScryptedPlugin) && s5.pluginId?.value === name)
+          const s6 = this.state[id];
+          if (s6.interfaces?.value?.includes(types_1.ScryptedInterface.ScryptedPlugin) && s6.pluginId?.value === name)
             return this.getDeviceById(id);
-          if (s5.name.value === name)
+          if (s6.name.value === name)
             return this.getDeviceById(id);
         }
       }
@@ -6174,20 +6174,20 @@ var require_fetch = __commonJS({
       if (!headers)
         return headersArray;
       if (headers instanceof Headers) {
-        for (const [k2, v2] of headers.entries()) {
-          headersArray.push([k2, v2]);
+        for (const [k2, v3] of headers.entries()) {
+          headersArray.push([k2, v3]);
         }
         return headersArray;
       }
       if (headers instanceof Array) {
-        for (const [k2, v2] of headers) {
-          headersArray.push([k2, v2]);
+        for (const [k2, v3] of headers) {
+          headersArray.push([k2, v3]);
         }
         return headersArray;
       }
       for (const k2 of Object.keys(headers)) {
-        const v2 = headers[k2];
-        headersArray.push([k2, v2]);
+        const v3 = headers[k2];
+        headersArray.push([k2, v3]);
       }
       return headersArray;
     }
@@ -6349,11 +6349,11 @@ var require_http_fetch = __commonJS({
       const signal = controller?.signal || options.signal;
       signal?.addEventListener("abort", () => request.destroy(new Error(options.signal?.reason || "abort")));
       const nodeHeaders = {};
-      for (const [k2, v2] of headers) {
+      for (const [k2, v3] of headers) {
         if (nodeHeaders[k2]) {
-          nodeHeaders[k2].push(v2);
+          nodeHeaders[k2].push(v3);
         } else {
-          nodeHeaders[k2] = [v2];
+          nodeHeaders[k2] = [v3];
         }
       }
       const request = proto.request(url, {
@@ -6382,8 +6382,8 @@ var require_http_fetch = __commonJS({
           }
         }
         const incomingHeaders = new Headers();
-        for (const [k2, v2] of Object.entries(response.headers)) {
-          for (const vv of typeof v2 === "string" ? [v2] : v2) {
+        for (const [k2, v3] of Object.entries(response.headers)) {
+          for (const vv of typeof v3 === "string" ? [v3] : v3) {
             incomingHeaders.append(k2, vv);
           }
         }
@@ -6401,23 +6401,23 @@ var require_http_fetch = __commonJS({
 var require_src = __commonJS({
   "node_modules/@scrypted/client/dist/packages/client/src/index.js"(exports) {
     "use strict";
-    var __createBinding = exports && exports.__createBinding || (Object.create ? function(o7, m2, k2, k22) {
+    var __createBinding = exports && exports.__createBinding || (Object.create ? function(o7, m3, k2, k22) {
       if (k22 === void 0) k22 = k2;
-      var desc = Object.getOwnPropertyDescriptor(m2, k2);
-      if (!desc || ("get" in desc ? !m2.__esModule : desc.writable || desc.configurable)) {
+      var desc = Object.getOwnPropertyDescriptor(m3, k2);
+      if (!desc || ("get" in desc ? !m3.__esModule : desc.writable || desc.configurable)) {
         desc = { enumerable: true, get: function() {
-          return m2[k2];
+          return m3[k2];
         } };
       }
       Object.defineProperty(o7, k22, desc);
-    } : function(o7, m2, k2, k22) {
+    } : function(o7, m3, k2, k22) {
       if (k22 === void 0) k22 = k2;
-      o7[k22] = m2[k2];
+      o7[k22] = m3[k2];
     });
-    var __setModuleDefault = exports && exports.__setModuleDefault || (Object.create ? function(o7, v2) {
-      Object.defineProperty(o7, "default", { enumerable: true, value: v2 });
-    } : function(o7, v2) {
-      o7["default"] = v2;
+    var __setModuleDefault = exports && exports.__setModuleDefault || (Object.create ? function(o7, v3) {
+      Object.defineProperty(o7, "default", { enumerable: true, value: v3 });
+    } : function(o7, v3) {
+      o7["default"] = v3;
     });
     var __importStar = exports && exports.__importStar || /* @__PURE__ */ function() {
       var ownKeys = function(o7) {
@@ -6432,7 +6432,7 @@ var require_src = __commonJS({
         if (mod && mod.__esModule) return mod;
         var result = {};
         if (mod != null) {
-          for (var k2 = ownKeys(mod), i6 = 0; i6 < k2.length; i6++) if (k2[i6] !== "default") __createBinding(result, mod, k2[i6]);
+          for (var k2 = ownKeys(mod), i8 = 0; i8 < k2.length; i8++) if (k2[i8] !== "default") __createBinding(result, mod, k2[i8]);
         }
         __setModuleDefault(result, mod);
         return result;
@@ -6514,7 +6514,7 @@ var require_src = __commonJS({
       url.hash = "";
       let endpointPath = window.location.pathname;
       const parts = endpointPath.split("/");
-      const index = parts.findIndex((p3) => p3 === "endpoint");
+      const index = parts.findIndex((p4) => p4 === "endpoint");
       if (index === -1) {
         return void 0;
       }
@@ -6670,19 +6670,19 @@ var require_src = __commonJS({
         };
         const urlsToCheck = /* @__PURE__ */ new Set();
         if (options?.previousLoginResult?.token) {
-          for (const u3 of [
+          for (const u5 of [
             ...options?.previousLoginResult?.localAddresses || [],
             options?.previousLoginResult?.directAddress
           ]) {
-            if (u3 && (isNotChromeOrIsInstalledApp || options.direct))
-              urlsToCheck.add(u3);
+            if (u5 && (isNotChromeOrIsInstalledApp || options.direct))
+              urlsToCheck.add(u5);
           }
-          for (const u3 of [
+          for (const u5 of [
             ...options?.previousLoginResult?.externalAddresses || [],
             options?.previousLoginResult?.cloudAddress
           ]) {
-            if (u3)
-              urlsToCheck.add(u3);
+            if (u5)
+              urlsToCheck.add(u5);
           }
         }
         const loginCheckPromises = [...urlsToCheck].map((baseUrl2) => {
@@ -6806,10 +6806,10 @@ var require_src = __commonJS({
       let { ready, connectionType, address, rpcPeer } = await any;
       console.log("connected", connectionType, address);
       socket = ready;
-      sockets = sockets.filter((s5) => s5 !== ready);
-      sockets.forEach((s5) => {
+      sockets = sockets.filter((s6) => s6 !== ready);
+      sockets.forEach((s6) => {
         try {
-          s5.close();
+          s6.close();
         } catch (e6) {
         }
       });
@@ -6967,7 +6967,7 @@ var require_src = __commonJS({
         const resolveObject = async (proxyId, sourcePeerPort) => {
           const sourcePeer = await clusterPeers.get(sourcePeerPort);
           if (sourcePeer?.remoteWeakProxies) {
-            return Object.values(sourcePeer.remoteWeakProxies).find((v2) => v2.deref()?.__cluster?.proxyId == proxyId)?.deref();
+            return Object.values(sourcePeer.remoteWeakProxies).find((v3) => v3.deref()?.__cluster?.proxyId == proxyId)?.deref();
           }
           return null;
         };
@@ -7065,10 +7065,10 @@ var n = class {
   }
   get styleSheet() {
     let t5 = this.o;
-    const s5 = this.t;
+    const s6 = this.t;
     if (e && void 0 === t5) {
-      const e6 = void 0 !== s5 && 1 === s5.length;
-      e6 && (t5 = o.get(s5)), void 0 === t5 && ((this.o = t5 = new CSSStyleSheet()).replaceSync(this.cssText), e6 && o.set(s5, t5));
+      const e6 = void 0 !== s6 && 1 === s6.length;
+      e6 && (t5 = o.get(s6)), void 0 === t5 && ((this.o = t5 = new CSSStyleSheet()).replaceSync(this.cssText), e6 && o.set(s6, t5));
     }
     return t5;
   }
@@ -7078,23 +7078,23 @@ var n = class {
 };
 var r = (t5) => new n("string" == typeof t5 ? t5 : t5 + "", void 0, s);
 var i = (t5, ...e6) => {
-  const o7 = 1 === t5.length ? t5[0] : e6.reduce((e7, s5, o8) => e7 + ((t6) => {
+  const o7 = 1 === t5.length ? t5[0] : e6.reduce((e7, s6, o8) => e7 + ((t6) => {
     if (true === t6._$cssResult$) return t6.cssText;
     if ("number" == typeof t6) return t6;
     throw Error("Value passed to 'css' function must be a 'css' function result: " + t6 + ". Use 'unsafeCSS' to pass non-literal values, but take care to ensure page security.");
-  })(s5) + t5[o8 + 1], t5[0]);
+  })(s6) + t5[o8 + 1], t5[0]);
   return new n(o7, t5, s);
 };
-var S = (s5, o7) => {
-  if (e) s5.adoptedStyleSheets = o7.map((t5) => t5 instanceof CSSStyleSheet ? t5 : t5.styleSheet);
+var S = (s6, o7) => {
+  if (e) s6.adoptedStyleSheets = o7.map((t5) => t5 instanceof CSSStyleSheet ? t5 : t5.styleSheet);
   else for (const e6 of o7) {
     const o8 = document.createElement("style"), n6 = t.litNonce;
-    void 0 !== n6 && o8.setAttribute("nonce", n6), o8.textContent = e6.cssText, s5.appendChild(o8);
+    void 0 !== n6 && o8.setAttribute("nonce", n6), o8.textContent = e6.cssText, s6.appendChild(o8);
   }
 };
 var c = e ? (t5) => t5 : (t5) => t5 instanceof CSSStyleSheet ? ((t6) => {
   let e6 = "";
-  for (const s5 of t6.cssRules) e6 += s5.cssText;
+  for (const s6 of t6.cssRules) e6 += s6.cssText;
   return r(e6);
 })(t5) : t5;
 var { is: i2, defineProperty: e2, getOwnPropertyDescriptor: h, getOwnPropertyNames: r2, getOwnPropertySymbols: o2, getPrototypeOf: n2 } = Object;
@@ -7102,9 +7102,9 @@ var a = globalThis;
 var c2 = a.trustedTypes;
 var l = c2 ? c2.emptyScript : "";
 var p = a.reactiveElementPolyfillSupport;
-var d = (t5, s5) => t5;
-var u = { toAttribute(t5, s5) {
-  switch (s5) {
+var d = (t5, s6) => t5;
+var u = { toAttribute(t5, s6) {
+  switch (s6) {
     case Boolean:
       t5 = t5 ? l : null;
       break;
@@ -7113,26 +7113,26 @@ var u = { toAttribute(t5, s5) {
       t5 = null == t5 ? t5 : JSON.stringify(t5);
   }
   return t5;
-}, fromAttribute(t5, s5) {
-  let i6 = t5;
-  switch (s5) {
+}, fromAttribute(t5, s6) {
+  let i8 = t5;
+  switch (s6) {
     case Boolean:
-      i6 = null !== t5;
+      i8 = null !== t5;
       break;
     case Number:
-      i6 = null === t5 ? null : Number(t5);
+      i8 = null === t5 ? null : Number(t5);
       break;
     case Object:
     case Array:
       try {
-        i6 = JSON.parse(t5);
+        i8 = JSON.parse(t5);
       } catch (t6) {
-        i6 = null;
+        i8 = null;
       }
   }
-  return i6;
+  return i8;
 } };
-var f = (t5, s5) => !i2(t5, s5);
+var f = (t5, s6) => !i2(t5, s6);
 var b = { attribute: true, type: String, converter: u, reflect: false, useDefault: false, hasChanged: f };
 Symbol.metadata ??= Symbol("metadata"), a.litPropertyMetadata ??= /* @__PURE__ */ new WeakMap();
 var y = class extends HTMLElement {
@@ -7142,21 +7142,21 @@ var y = class extends HTMLElement {
   static get observedAttributes() {
     return this.finalize(), this._$Eh && [...this._$Eh.keys()];
   }
-  static createProperty(t5, s5 = b) {
-    if (s5.state && (s5.attribute = false), this._$Ei(), this.prototype.hasOwnProperty(t5) && ((s5 = Object.create(s5)).wrapped = true), this.elementProperties.set(t5, s5), !s5.noAccessor) {
-      const i6 = Symbol(), h5 = this.getPropertyDescriptor(t5, i6, s5);
-      void 0 !== h5 && e2(this.prototype, t5, h5);
+  static createProperty(t5, s6 = b) {
+    if (s6.state && (s6.attribute = false), this._$Ei(), this.prototype.hasOwnProperty(t5) && ((s6 = Object.create(s6)).wrapped = true), this.elementProperties.set(t5, s6), !s6.noAccessor) {
+      const i8 = Symbol(), h6 = this.getPropertyDescriptor(t5, i8, s6);
+      void 0 !== h6 && e2(this.prototype, t5, h6);
     }
   }
-  static getPropertyDescriptor(t5, s5, i6) {
+  static getPropertyDescriptor(t5, s6, i8) {
     const { get: e6, set: r6 } = h(this.prototype, t5) ?? { get() {
-      return this[s5];
+      return this[s6];
     }, set(t6) {
-      this[s5] = t6;
+      this[s6] = t6;
     } };
-    return { get: e6, set(s6) {
-      const h5 = e6?.call(this);
-      r6?.call(this, s6), this.requestUpdate(t5, h5, i6);
+    return { get: e6, set(s7) {
+      const h6 = e6?.call(this);
+      r6?.call(this, s7), this.requestUpdate(t5, h6, i8);
     }, configurable: true, enumerable: true };
   }
   static getPropertyOptions(t5) {
@@ -7170,32 +7170,32 @@ var y = class extends HTMLElement {
   static finalize() {
     if (this.hasOwnProperty(d("finalized"))) return;
     if (this.finalized = true, this._$Ei(), this.hasOwnProperty(d("properties"))) {
-      const t6 = this.properties, s5 = [...r2(t6), ...o2(t6)];
-      for (const i6 of s5) this.createProperty(i6, t6[i6]);
+      const t6 = this.properties, s6 = [...r2(t6), ...o2(t6)];
+      for (const i8 of s6) this.createProperty(i8, t6[i8]);
     }
     const t5 = this[Symbol.metadata];
     if (null !== t5) {
-      const s5 = litPropertyMetadata.get(t5);
-      if (void 0 !== s5) for (const [t6, i6] of s5) this.elementProperties.set(t6, i6);
+      const s6 = litPropertyMetadata.get(t5);
+      if (void 0 !== s6) for (const [t6, i8] of s6) this.elementProperties.set(t6, i8);
     }
     this._$Eh = /* @__PURE__ */ new Map();
-    for (const [t6, s5] of this.elementProperties) {
-      const i6 = this._$Eu(t6, s5);
-      void 0 !== i6 && this._$Eh.set(i6, t6);
+    for (const [t6, s6] of this.elementProperties) {
+      const i8 = this._$Eu(t6, s6);
+      void 0 !== i8 && this._$Eh.set(i8, t6);
     }
     this.elementStyles = this.finalizeStyles(this.styles);
   }
-  static finalizeStyles(s5) {
-    const i6 = [];
-    if (Array.isArray(s5)) {
-      const e6 = new Set(s5.flat(1 / 0).reverse());
-      for (const s6 of e6) i6.unshift(c(s6));
-    } else void 0 !== s5 && i6.push(c(s5));
-    return i6;
+  static finalizeStyles(s6) {
+    const i8 = [];
+    if (Array.isArray(s6)) {
+      const e6 = new Set(s6.flat(1 / 0).reverse());
+      for (const s7 of e6) i8.unshift(c(s7));
+    } else void 0 !== s6 && i8.push(c(s6));
+    return i8;
   }
-  static _$Eu(t5, s5) {
-    const i6 = s5.attribute;
-    return false === i6 ? void 0 : "string" == typeof i6 ? i6 : "string" == typeof t5 ? t5.toLowerCase() : void 0;
+  static _$Eu(t5, s6) {
+    const i8 = s6.attribute;
+    return false === i8 ? void 0 : "string" == typeof i8 ? i8 : "string" == typeof t5 ? t5.toLowerCase() : void 0;
   }
   constructor() {
     super(), this._$Ep = void 0, this.isUpdatePending = false, this.hasUpdated = false, this._$Em = null, this._$Ev();
@@ -7210,8 +7210,8 @@ var y = class extends HTMLElement {
     this._$EO?.delete(t5);
   }
   _$E_() {
-    const t5 = /* @__PURE__ */ new Map(), s5 = this.constructor.elementProperties;
-    for (const i6 of s5.keys()) this.hasOwnProperty(i6) && (t5.set(i6, this[i6]), delete this[i6]);
+    const t5 = /* @__PURE__ */ new Map(), s6 = this.constructor.elementProperties;
+    for (const i8 of s6.keys()) this.hasOwnProperty(i8) && (t5.set(i8, this[i8]), delete this[i8]);
     t5.size > 0 && (this._$Ep = t5);
   }
   createRenderRoot() {
@@ -7226,35 +7226,35 @@ var y = class extends HTMLElement {
   disconnectedCallback() {
     this._$EO?.forEach((t5) => t5.hostDisconnected?.());
   }
-  attributeChangedCallback(t5, s5, i6) {
-    this._$AK(t5, i6);
+  attributeChangedCallback(t5, s6, i8) {
+    this._$AK(t5, i8);
   }
-  _$ET(t5, s5) {
-    const i6 = this.constructor.elementProperties.get(t5), e6 = this.constructor._$Eu(t5, i6);
-    if (void 0 !== e6 && true === i6.reflect) {
-      const h5 = (void 0 !== i6.converter?.toAttribute ? i6.converter : u).toAttribute(s5, i6.type);
-      this._$Em = t5, null == h5 ? this.removeAttribute(e6) : this.setAttribute(e6, h5), this._$Em = null;
+  _$ET(t5, s6) {
+    const i8 = this.constructor.elementProperties.get(t5), e6 = this.constructor._$Eu(t5, i8);
+    if (void 0 !== e6 && true === i8.reflect) {
+      const h6 = (void 0 !== i8.converter?.toAttribute ? i8.converter : u).toAttribute(s6, i8.type);
+      this._$Em = t5, null == h6 ? this.removeAttribute(e6) : this.setAttribute(e6, h6), this._$Em = null;
     }
   }
-  _$AK(t5, s5) {
-    const i6 = this.constructor, e6 = i6._$Eh.get(t5);
+  _$AK(t5, s6) {
+    const i8 = this.constructor, e6 = i8._$Eh.get(t5);
     if (void 0 !== e6 && this._$Em !== e6) {
-      const t6 = i6.getPropertyOptions(e6), h5 = "function" == typeof t6.converter ? { fromAttribute: t6.converter } : void 0 !== t6.converter?.fromAttribute ? t6.converter : u;
+      const t6 = i8.getPropertyOptions(e6), h6 = "function" == typeof t6.converter ? { fromAttribute: t6.converter } : void 0 !== t6.converter?.fromAttribute ? t6.converter : u;
       this._$Em = e6;
-      const r6 = h5.fromAttribute(s5, t6.type);
+      const r6 = h6.fromAttribute(s6, t6.type);
       this[e6] = r6 ?? this._$Ej?.get(e6) ?? r6, this._$Em = null;
     }
   }
-  requestUpdate(t5, s5, i6, e6 = false, h5) {
+  requestUpdate(t5, s6, i8, e6 = false, h6) {
     if (void 0 !== t5) {
       const r6 = this.constructor;
-      if (false === e6 && (h5 = this[t5]), i6 ??= r6.getPropertyOptions(t5), !((i6.hasChanged ?? f)(h5, s5) || i6.useDefault && i6.reflect && h5 === this._$Ej?.get(t5) && !this.hasAttribute(r6._$Eu(t5, i6)))) return;
-      this.C(t5, s5, i6);
+      if (false === e6 && (h6 = this[t5]), i8 ??= r6.getPropertyOptions(t5), !((i8.hasChanged ?? f)(h6, s6) || i8.useDefault && i8.reflect && h6 === this._$Ej?.get(t5) && !this.hasAttribute(r6._$Eu(t5, i8)))) return;
+      this.C(t5, s6, i8);
     }
     false === this.isUpdatePending && (this._$ES = this._$EP());
   }
-  C(t5, s5, { useDefault: i6, reflect: e6, wrapped: h5 }, r6) {
-    i6 && !(this._$Ej ??= /* @__PURE__ */ new Map()).has(t5) && (this._$Ej.set(t5, r6 ?? s5 ?? this[t5]), true !== h5 || void 0 !== r6) || (this._$AL.has(t5) || (this.hasUpdated || i6 || (s5 = void 0), this._$AL.set(t5, s5)), true === e6 && this._$Em !== t5 && (this._$Eq ??= /* @__PURE__ */ new Set()).add(t5));
+  C(t5, s6, { useDefault: i8, reflect: e6, wrapped: h6 }, r6) {
+    i8 && !(this._$Ej ??= /* @__PURE__ */ new Map()).has(t5) && (this._$Ej.set(t5, r6 ?? s6 ?? this[t5]), true !== h6 || void 0 !== r6) || (this._$AL.has(t5) || (this.hasUpdated || i8 || (s6 = void 0), this._$AL.set(t5, s6)), true === e6 && this._$Em !== t5 && (this._$Eq ??= /* @__PURE__ */ new Set()).add(t5));
   }
   async _$EP() {
     this.isUpdatePending = true;
@@ -7273,23 +7273,23 @@ var y = class extends HTMLElement {
     if (!this.isUpdatePending) return;
     if (!this.hasUpdated) {
       if (this.renderRoot ??= this.createRenderRoot(), this._$Ep) {
-        for (const [t7, s6] of this._$Ep) this[t7] = s6;
+        for (const [t7, s7] of this._$Ep) this[t7] = s7;
         this._$Ep = void 0;
       }
       const t6 = this.constructor.elementProperties;
-      if (t6.size > 0) for (const [s6, i6] of t6) {
-        const { wrapped: t7 } = i6, e6 = this[s6];
-        true !== t7 || this._$AL.has(s6) || void 0 === e6 || this.C(s6, void 0, i6, e6);
+      if (t6.size > 0) for (const [s7, i8] of t6) {
+        const { wrapped: t7 } = i8, e6 = this[s7];
+        true !== t7 || this._$AL.has(s7) || void 0 === e6 || this.C(s7, void 0, i8, e6);
       }
     }
     let t5 = false;
-    const s5 = this._$AL;
+    const s6 = this._$AL;
     try {
-      t5 = this.shouldUpdate(s5), t5 ? (this.willUpdate(s5), this._$EO?.forEach((t6) => t6.hostUpdate?.()), this.update(s5)) : this._$EM();
-    } catch (s6) {
-      throw t5 = false, this._$EM(), s6;
+      t5 = this.shouldUpdate(s6), t5 ? (this.willUpdate(s6), this._$EO?.forEach((t6) => t6.hostUpdate?.()), this.update(s6)) : this._$EM();
+    } catch (s7) {
+      throw t5 = false, this._$EM(), s7;
     }
-    t5 && this._$AE(s5);
+    t5 && this._$AE(s6);
   }
   willUpdate(t5) {
   }
@@ -7339,7 +7339,7 @@ var p2 = RegExp(`>|${f2}(?:([^\\s"'>=/]+)(${f2}*=${f2}*(?:[^
 var g = /'/g;
 var $ = /"/g;
 var y2 = /^(?:script|style|textarea|title)$/i;
-var x = (t5) => (i6, ...s5) => ({ _$litType$: t5, strings: i6, values: s5 });
+var x = (t5) => (i8, ...s6) => ({ _$litType$: t5, strings: i8, values: s6 });
 var b2 = x(1);
 var w = x(2);
 var T = x(3);
@@ -7347,44 +7347,44 @@ var E = Symbol.for("lit-noChange");
 var A = Symbol.for("lit-nothing");
 var C = /* @__PURE__ */ new WeakMap();
 var P = l2.createTreeWalker(l2, 129);
-function V(t5, i6) {
+function V(t5, i8) {
   if (!u2(t5) || !t5.hasOwnProperty("raw")) throw Error("invalid template strings array");
-  return void 0 !== e3 ? e3.createHTML(i6) : i6;
+  return void 0 !== e3 ? e3.createHTML(i8) : i8;
 }
-var N = (t5, i6) => {
-  const s5 = t5.length - 1, e6 = [];
-  let n6, l3 = 2 === i6 ? "<svg>" : 3 === i6 ? "<math>" : "", c5 = v;
-  for (let i7 = 0; i7 < s5; i7++) {
-    const s6 = t5[i7];
-    let a3, u3, d3 = -1, f4 = 0;
-    for (; f4 < s6.length && (c5.lastIndex = f4, u3 = c5.exec(s6), null !== u3); ) f4 = c5.lastIndex, c5 === v ? "!--" === u3[1] ? c5 = _ : void 0 !== u3[1] ? c5 = m : void 0 !== u3[2] ? (y2.test(u3[2]) && (n6 = RegExp("</" + u3[2], "g")), c5 = p2) : void 0 !== u3[3] && (c5 = p2) : c5 === p2 ? ">" === u3[0] ? (c5 = n6 ?? v, d3 = -1) : void 0 === u3[1] ? d3 = -2 : (d3 = c5.lastIndex - u3[2].length, a3 = u3[1], c5 = void 0 === u3[3] ? p2 : '"' === u3[3] ? $ : g) : c5 === $ || c5 === g ? c5 = p2 : c5 === _ || c5 === m ? c5 = v : (c5 = p2, n6 = void 0);
-    const x2 = c5 === p2 && t5[i7 + 1].startsWith("/>") ? " " : "";
-    l3 += c5 === v ? s6 + r3 : d3 >= 0 ? (e6.push(a3), s6.slice(0, d3) + h2 + s6.slice(d3) + o3 + x2) : s6 + o3 + (-2 === d3 ? i7 : x2);
+var N = (t5, i8) => {
+  const s6 = t5.length - 1, e6 = [];
+  let n6, l3 = 2 === i8 ? "<svg>" : 3 === i8 ? "<math>" : "", c6 = v;
+  for (let i9 = 0; i9 < s6; i9++) {
+    const s7 = t5[i9];
+    let a3, u5, d3 = -1, f4 = 0;
+    for (; f4 < s7.length && (c6.lastIndex = f4, u5 = c6.exec(s7), null !== u5); ) f4 = c6.lastIndex, c6 === v ? "!--" === u5[1] ? c6 = _ : void 0 !== u5[1] ? c6 = m : void 0 !== u5[2] ? (y2.test(u5[2]) && (n6 = RegExp("</" + u5[2], "g")), c6 = p2) : void 0 !== u5[3] && (c6 = p2) : c6 === p2 ? ">" === u5[0] ? (c6 = n6 ?? v, d3 = -1) : void 0 === u5[1] ? d3 = -2 : (d3 = c6.lastIndex - u5[2].length, a3 = u5[1], c6 = void 0 === u5[3] ? p2 : '"' === u5[3] ? $ : g) : c6 === $ || c6 === g ? c6 = p2 : c6 === _ || c6 === m ? c6 = v : (c6 = p2, n6 = void 0);
+    const x2 = c6 === p2 && t5[i9 + 1].startsWith("/>") ? " " : "";
+    l3 += c6 === v ? s7 + r3 : d3 >= 0 ? (e6.push(a3), s7.slice(0, d3) + h2 + s7.slice(d3) + o3 + x2) : s7 + o3 + (-2 === d3 ? i9 : x2);
   }
-  return [V(t5, l3 + (t5[s5] || "<?>") + (2 === i6 ? "</svg>" : 3 === i6 ? "</math>" : "")), e6];
+  return [V(t5, l3 + (t5[s6] || "<?>") + (2 === i8 ? "</svg>" : 3 === i8 ? "</math>" : "")), e6];
 };
 var S2 = class _S {
-  constructor({ strings: t5, _$litType$: i6 }, e6) {
+  constructor({ strings: t5, _$litType$: i8 }, e6) {
     let r6;
     this.parts = [];
     let l3 = 0, a3 = 0;
-    const u3 = t5.length - 1, d3 = this.parts, [f4, v2] = N(t5, i6);
-    if (this.el = _S.createElement(f4, e6), P.currentNode = this.el.content, 2 === i6 || 3 === i6) {
+    const u5 = t5.length - 1, d3 = this.parts, [f4, v3] = N(t5, i8);
+    if (this.el = _S.createElement(f4, e6), P.currentNode = this.el.content, 2 === i8 || 3 === i8) {
       const t6 = this.el.content.firstChild;
       t6.replaceWith(...t6.childNodes);
     }
-    for (; null !== (r6 = P.nextNode()) && d3.length < u3; ) {
+    for (; null !== (r6 = P.nextNode()) && d3.length < u5; ) {
       if (1 === r6.nodeType) {
         if (r6.hasAttributes()) for (const t6 of r6.getAttributeNames()) if (t6.endsWith(h2)) {
-          const i7 = v2[a3++], s5 = r6.getAttribute(t6).split(o3), e7 = /([.?@])?(.*)/.exec(i7);
-          d3.push({ type: 1, index: l3, name: e7[2], strings: s5, ctor: "." === e7[1] ? I : "?" === e7[1] ? L : "@" === e7[1] ? z : H }), r6.removeAttribute(t6);
+          const i9 = v3[a3++], s6 = r6.getAttribute(t6).split(o3), e7 = /([.?@])?(.*)/.exec(i9);
+          d3.push({ type: 1, index: l3, name: e7[2], strings: s6, ctor: "." === e7[1] ? I : "?" === e7[1] ? L : "@" === e7[1] ? z : H }), r6.removeAttribute(t6);
         } else t6.startsWith(o3) && (d3.push({ type: 6, index: l3 }), r6.removeAttribute(t6));
         if (y2.test(r6.tagName)) {
-          const t6 = r6.textContent.split(o3), i7 = t6.length - 1;
-          if (i7 > 0) {
+          const t6 = r6.textContent.split(o3), i9 = t6.length - 1;
+          if (i9 > 0) {
             r6.textContent = s2 ? s2.emptyScript : "";
-            for (let s5 = 0; s5 < i7; s5++) r6.append(t6[s5], c3()), P.nextNode(), d3.push({ type: 2, index: ++l3 });
-            r6.append(t6[i7], c3());
+            for (let s6 = 0; s6 < i9; s6++) r6.append(t6[s6], c3()), P.nextNode(), d3.push({ type: 2, index: ++l3 });
+            r6.append(t6[i9], c3());
           }
         }
       } else if (8 === r6.nodeType) if (r6.data === n3) d3.push({ type: 2, index: l3 });
@@ -7395,20 +7395,20 @@ var S2 = class _S {
       l3++;
     }
   }
-  static createElement(t5, i6) {
-    const s5 = l2.createElement("template");
-    return s5.innerHTML = t5, s5;
+  static createElement(t5, i8) {
+    const s6 = l2.createElement("template");
+    return s6.innerHTML = t5, s6;
   }
 };
-function M(t5, i6, s5 = t5, e6) {
-  if (i6 === E) return i6;
-  let h5 = void 0 !== e6 ? s5._$Co?.[e6] : s5._$Cl;
-  const o7 = a2(i6) ? void 0 : i6._$litDirective$;
-  return h5?.constructor !== o7 && (h5?._$AO?.(false), void 0 === o7 ? h5 = void 0 : (h5 = new o7(t5), h5._$AT(t5, s5, e6)), void 0 !== e6 ? (s5._$Co ??= [])[e6] = h5 : s5._$Cl = h5), void 0 !== h5 && (i6 = M(t5, h5._$AS(t5, i6.values), h5, e6)), i6;
+function M(t5, i8, s6 = t5, e6) {
+  if (i8 === E) return i8;
+  let h6 = void 0 !== e6 ? s6._$Co?.[e6] : s6._$Cl;
+  const o7 = a2(i8) ? void 0 : i8._$litDirective$;
+  return h6?.constructor !== o7 && (h6?._$AO?.(false), void 0 === o7 ? h6 = void 0 : (h6 = new o7(t5), h6._$AT(t5, s6, e6)), void 0 !== e6 ? (s6._$Co ??= [])[e6] = h6 : s6._$Cl = h6), void 0 !== h6 && (i8 = M(t5, h6._$AS(t5, i8.values), h6, e6)), i8;
 }
 var R = class {
-  constructor(t5, i6) {
-    this._$AV = [], this._$AN = void 0, this._$AD = t5, this._$AM = i6;
+  constructor(t5, i8) {
+    this._$AV = [], this._$AN = void 0, this._$AD = t5, this._$AM = i8;
   }
   get parentNode() {
     return this._$AM.parentNode;
@@ -7417,34 +7417,34 @@ var R = class {
     return this._$AM._$AU;
   }
   u(t5) {
-    const { el: { content: i6 }, parts: s5 } = this._$AD, e6 = (t5?.creationScope ?? l2).importNode(i6, true);
+    const { el: { content: i8 }, parts: s6 } = this._$AD, e6 = (t5?.creationScope ?? l2).importNode(i8, true);
     P.currentNode = e6;
-    let h5 = P.nextNode(), o7 = 0, n6 = 0, r6 = s5[0];
+    let h6 = P.nextNode(), o7 = 0, n6 = 0, r6 = s6[0];
     for (; void 0 !== r6; ) {
       if (o7 === r6.index) {
-        let i7;
-        2 === r6.type ? i7 = new k(h5, h5.nextSibling, this, t5) : 1 === r6.type ? i7 = new r6.ctor(h5, r6.name, r6.strings, this, t5) : 6 === r6.type && (i7 = new Z(h5, this, t5)), this._$AV.push(i7), r6 = s5[++n6];
+        let i9;
+        2 === r6.type ? i9 = new k(h6, h6.nextSibling, this, t5) : 1 === r6.type ? i9 = new r6.ctor(h6, r6.name, r6.strings, this, t5) : 6 === r6.type && (i9 = new Z(h6, this, t5)), this._$AV.push(i9), r6 = s6[++n6];
       }
-      o7 !== r6?.index && (h5 = P.nextNode(), o7++);
+      o7 !== r6?.index && (h6 = P.nextNode(), o7++);
     }
     return P.currentNode = l2, e6;
   }
   p(t5) {
-    let i6 = 0;
-    for (const s5 of this._$AV) void 0 !== s5 && (void 0 !== s5.strings ? (s5._$AI(t5, s5, i6), i6 += s5.strings.length - 2) : s5._$AI(t5[i6])), i6++;
+    let i8 = 0;
+    for (const s6 of this._$AV) void 0 !== s6 && (void 0 !== s6.strings ? (s6._$AI(t5, s6, i8), i8 += s6.strings.length - 2) : s6._$AI(t5[i8])), i8++;
   }
 };
 var k = class _k {
   get _$AU() {
     return this._$AM?._$AU ?? this._$Cv;
   }
-  constructor(t5, i6, s5, e6) {
-    this.type = 2, this._$AH = A, this._$AN = void 0, this._$AA = t5, this._$AB = i6, this._$AM = s5, this.options = e6, this._$Cv = e6?.isConnected ?? true;
+  constructor(t5, i8, s6, e6) {
+    this.type = 2, this._$AH = A, this._$AN = void 0, this._$AA = t5, this._$AB = i8, this._$AM = s6, this.options = e6, this._$Cv = e6?.isConnected ?? true;
   }
   get parentNode() {
     let t5 = this._$AA.parentNode;
-    const i6 = this._$AM;
-    return void 0 !== i6 && 11 === t5?.nodeType && (t5 = i6.parentNode), t5;
+    const i8 = this._$AM;
+    return void 0 !== i8 && 11 === t5?.nodeType && (t5 = i8.parentNode), t5;
   }
   get startNode() {
     return this._$AA;
@@ -7452,8 +7452,8 @@ var k = class _k {
   get endNode() {
     return this._$AB;
   }
-  _$AI(t5, i6 = this) {
-    t5 = M(this, t5, i6), a2(t5) ? t5 === A || null == t5 || "" === t5 ? (this._$AH !== A && this._$AR(), this._$AH = A) : t5 !== this._$AH && t5 !== E && this._(t5) : void 0 !== t5._$litType$ ? this.$(t5) : void 0 !== t5.nodeType ? this.T(t5) : d2(t5) ? this.k(t5) : this._(t5);
+  _$AI(t5, i8 = this) {
+    t5 = M(this, t5, i8), a2(t5) ? t5 === A || null == t5 || "" === t5 ? (this._$AH !== A && this._$AR(), this._$AH = A) : t5 !== this._$AH && t5 !== E && this._(t5) : void 0 !== t5._$litType$ ? this.$(t5) : void 0 !== t5.nodeType ? this.T(t5) : d2(t5) ? this.k(t5) : this._(t5);
   }
   O(t5) {
     return this._$AA.parentNode.insertBefore(t5, this._$AB);
@@ -7465,28 +7465,28 @@ var k = class _k {
     this._$AH !== A && a2(this._$AH) ? this._$AA.nextSibling.data = t5 : this.T(l2.createTextNode(t5)), this._$AH = t5;
   }
   $(t5) {
-    const { values: i6, _$litType$: s5 } = t5, e6 = "number" == typeof s5 ? this._$AC(t5) : (void 0 === s5.el && (s5.el = S2.createElement(V(s5.h, s5.h[0]), this.options)), s5);
-    if (this._$AH?._$AD === e6) this._$AH.p(i6);
+    const { values: i8, _$litType$: s6 } = t5, e6 = "number" == typeof s6 ? this._$AC(t5) : (void 0 === s6.el && (s6.el = S2.createElement(V(s6.h, s6.h[0]), this.options)), s6);
+    if (this._$AH?._$AD === e6) this._$AH.p(i8);
     else {
-      const t6 = new R(e6, this), s6 = t6.u(this.options);
-      t6.p(i6), this.T(s6), this._$AH = t6;
+      const t6 = new R(e6, this), s7 = t6.u(this.options);
+      t6.p(i8), this.T(s7), this._$AH = t6;
     }
   }
   _$AC(t5) {
-    let i6 = C.get(t5.strings);
-    return void 0 === i6 && C.set(t5.strings, i6 = new S2(t5)), i6;
+    let i8 = C.get(t5.strings);
+    return void 0 === i8 && C.set(t5.strings, i8 = new S2(t5)), i8;
   }
   k(t5) {
     u2(this._$AH) || (this._$AH = [], this._$AR());
-    const i6 = this._$AH;
-    let s5, e6 = 0;
-    for (const h5 of t5) e6 === i6.length ? i6.push(s5 = new _k(this.O(c3()), this.O(c3()), this, this.options)) : s5 = i6[e6], s5._$AI(h5), e6++;
-    e6 < i6.length && (this._$AR(s5 && s5._$AB.nextSibling, e6), i6.length = e6);
+    const i8 = this._$AH;
+    let s6, e6 = 0;
+    for (const h6 of t5) e6 === i8.length ? i8.push(s6 = new _k(this.O(c3()), this.O(c3()), this, this.options)) : s6 = i8[e6], s6._$AI(h6), e6++;
+    e6 < i8.length && (this._$AR(s6 && s6._$AB.nextSibling, e6), i8.length = e6);
   }
-  _$AR(t5 = this._$AA.nextSibling, s5) {
-    for (this._$AP?.(false, true, s5); t5 !== this._$AB; ) {
-      const s6 = i3(t5).nextSibling;
-      i3(t5).remove(), t5 = s6;
+  _$AR(t5 = this._$AA.nextSibling, s6) {
+    for (this._$AP?.(false, true, s6); t5 !== this._$AB; ) {
+      const s7 = i3(t5).nextSibling;
+      i3(t5).remove(), t5 = s7;
     }
   }
   setConnected(t5) {
@@ -7500,17 +7500,17 @@ var H = class {
   get _$AU() {
     return this._$AM._$AU;
   }
-  constructor(t5, i6, s5, e6, h5) {
-    this.type = 1, this._$AH = A, this._$AN = void 0, this.element = t5, this.name = i6, this._$AM = e6, this.options = h5, s5.length > 2 || "" !== s5[0] || "" !== s5[1] ? (this._$AH = Array(s5.length - 1).fill(new String()), this.strings = s5) : this._$AH = A;
+  constructor(t5, i8, s6, e6, h6) {
+    this.type = 1, this._$AH = A, this._$AN = void 0, this.element = t5, this.name = i8, this._$AM = e6, this.options = h6, s6.length > 2 || "" !== s6[0] || "" !== s6[1] ? (this._$AH = Array(s6.length - 1).fill(new String()), this.strings = s6) : this._$AH = A;
   }
-  _$AI(t5, i6 = this, s5, e6) {
-    const h5 = this.strings;
+  _$AI(t5, i8 = this, s6, e6) {
+    const h6 = this.strings;
     let o7 = false;
-    if (void 0 === h5) t5 = M(this, t5, i6, 0), o7 = !a2(t5) || t5 !== this._$AH && t5 !== E, o7 && (this._$AH = t5);
+    if (void 0 === h6) t5 = M(this, t5, i8, 0), o7 = !a2(t5) || t5 !== this._$AH && t5 !== E, o7 && (this._$AH = t5);
     else {
       const e7 = t5;
       let n6, r6;
-      for (t5 = h5[0], n6 = 0; n6 < h5.length - 1; n6++) r6 = M(this, e7[s5 + n6], i6, n6), r6 === E && (r6 = this._$AH[n6]), o7 ||= !a2(r6) || r6 !== this._$AH[n6], r6 === A ? t5 = A : t5 !== A && (t5 += (r6 ?? "") + h5[n6 + 1]), this._$AH[n6] = r6;
+      for (t5 = h6[0], n6 = 0; n6 < h6.length - 1; n6++) r6 = M(this, e7[s6 + n6], i8, n6), r6 === E && (r6 = this._$AH[n6]), o7 ||= !a2(r6) || r6 !== this._$AH[n6], r6 === A ? t5 = A : t5 !== A && (t5 += (r6 ?? "") + h6[n6 + 1]), this._$AH[n6] = r6;
     }
     o7 && !e6 && this.j(t5);
   }
@@ -7535,21 +7535,21 @@ var L = class extends H {
   }
 };
 var z = class extends H {
-  constructor(t5, i6, s5, e6, h5) {
-    super(t5, i6, s5, e6, h5), this.type = 5;
+  constructor(t5, i8, s6, e6, h6) {
+    super(t5, i8, s6, e6, h6), this.type = 5;
   }
-  _$AI(t5, i6 = this) {
-    if ((t5 = M(this, t5, i6, 0) ?? A) === E) return;
-    const s5 = this._$AH, e6 = t5 === A && s5 !== A || t5.capture !== s5.capture || t5.once !== s5.once || t5.passive !== s5.passive, h5 = t5 !== A && (s5 === A || e6);
-    e6 && this.element.removeEventListener(this.name, this, s5), h5 && this.element.addEventListener(this.name, this, t5), this._$AH = t5;
+  _$AI(t5, i8 = this) {
+    if ((t5 = M(this, t5, i8, 0) ?? A) === E) return;
+    const s6 = this._$AH, e6 = t5 === A && s6 !== A || t5.capture !== s6.capture || t5.once !== s6.once || t5.passive !== s6.passive, h6 = t5 !== A && (s6 === A || e6);
+    e6 && this.element.removeEventListener(this.name, this, s6), h6 && this.element.addEventListener(this.name, this, t5), this._$AH = t5;
   }
   handleEvent(t5) {
     "function" == typeof this._$AH ? this._$AH.call(this.options?.host ?? this.element, t5) : this._$AH.handleEvent(t5);
   }
 };
 var Z = class {
-  constructor(t5, i6, s5) {
-    this.element = t5, this.type = 6, this._$AN = void 0, this._$AM = i6, this.options = s5;
+  constructor(t5, i8, s6) {
+    this.element = t5, this.type = 6, this._$AN = void 0, this._$AM = i8, this.options = s6;
   }
   get _$AU() {
     return this._$AM._$AU;
@@ -7561,14 +7561,14 @@ var Z = class {
 var j = { M: h2, P: o3, A: n3, C: 1, L: N, R, D: d2, V: M, I: k, H, N: L, U: z, B: I, F: Z };
 var B = t2.litHtmlPolyfillSupport;
 B?.(S2, k), (t2.litHtmlVersions ??= []).push("3.3.3");
-var D = (t5, i6, s5) => {
-  const e6 = s5?.renderBefore ?? i6;
-  let h5 = e6._$litPart$;
-  if (void 0 === h5) {
-    const t6 = s5?.renderBefore ?? null;
-    e6._$litPart$ = h5 = new k(i6.insertBefore(c3(), t6), t6, void 0, s5 ?? {});
+var D = (t5, i8, s6) => {
+  const e6 = s6?.renderBefore ?? i8;
+  let h6 = e6._$litPart$;
+  if (void 0 === h6) {
+    const t6 = s6?.renderBefore ?? null;
+    e6._$litPart$ = h6 = new k(i8.insertBefore(c3(), t6), t6, void 0, s6 ?? {});
   }
-  return h5._$AI(t5), h5;
+  return h6._$AI(t5), h6;
 };
 var s3 = globalThis;
 var i4 = class extends y {
@@ -7697,7 +7697,8 @@ function resolveKibbleEntities(entities, deviceId) {
 }
 function resolveEntryId(devices, deviceId) {
   if (!deviceId) return void 0;
-  return devices[deviceId]?.config_entries?.[0];
+  const device = devices[deviceId];
+  return device?.config_entry_id ?? device?.config_entries?.[0];
 }
 function deriveFeederStatus(coreStates, feedingState) {
   const isDown = (state2) => state2 === void 0 || state2 === "unavailable" || state2 === "unknown";
@@ -7788,6 +7789,117 @@ function describeWsError(err) {
     if (typeof message === "string" && message) return message;
   }
   return "Something went wrong.";
+}
+function scheduleEntriesFrom(state2) {
+  const entries = state2?.attributes?.entries;
+  return Array.isArray(entries) ? entries : [];
+}
+function parseTimeToMinutes(time) {
+  const match = /^(\d{1,2}):(\d{2})$/.exec(time.trim());
+  if (!match) {
+    throw new Error(`Invalid schedule time "${time}"`);
+  }
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (hours > 23 || minutes > 59) {
+    throw new Error(`Invalid schedule time "${time}"`);
+  }
+  return hours * 60 + minutes;
+}
+function nextScheduled(entries, now) {
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  let best = null;
+  for (const entry2 of entries) {
+    if (!entry2.enabled) continue;
+    const entryMinutes = parseTimeToMinutes(entry2.time);
+    const minutesUntil = ((entryMinutes - nowMinutes) % 1440 + 1440) % 1440;
+    if (best === null || minutesUntil < best.minutesUntil) {
+      best = { entry: entry2, minutesUntil };
+    }
+  }
+  return best;
+}
+function formatClock(time, locale) {
+  const minutes = parseTimeToMinutes(time);
+  const date = new Date(2e3, 0, 1, Math.floor(minutes / 60), minutes % 60);
+  return date.toLocaleTimeString(locale, { hour: "numeric", minute: "2-digit" });
+}
+var COUNT_WORDS = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"];
+function scheduleSummary(entries, now, locale) {
+  if (entries.length === 0) {
+    return "No schedule set";
+  }
+  const next = nextScheduled(entries, now);
+  if (!next) {
+    return "All feeds paused";
+  }
+  const enabledCount = entries.filter((entry2) => entry2.enabled).length;
+  const countWord = COUNT_WORDS[enabledCount] ?? String(enabledCount);
+  return `Next feed ${formatClock(next.entry.time, locale)}, ${countWord} a day`;
+}
+var MAX_SCHEDULE_PORTIONS = 20;
+function portionsWord(count) {
+  return count === 1 ? "1 portion" : `${count} portions`;
+}
+function hopperLabel(index, food) {
+  const name = food?.trim();
+  return name ? name : `Hopper ${index}`;
+}
+function entryAmountsLabel(entry2, single, food1, food2) {
+  if (single) return portionsWord(Math.max(entry2.amount_l, entry2.amount_r));
+  const parts = [];
+  if (entry2.amount_l > 0) parts.push(`${hopperLabel(1, food1)} ${entry2.amount_l}`);
+  if (entry2.amount_r > 0) parts.push(`${hopperLabel(2, food2)} ${entry2.amount_r}`);
+  return parts.length > 0 ? parts.join(" + ") : "No food";
+}
+function sortScheduleEntries(entries) {
+  return [...entries].sort((a3, b3) => parseTimeToMinutes(a3.time) - parseTimeToMinutes(b3.time));
+}
+function draftProblem(draft) {
+  if (!/^\d{1,2}:\d{2}$/.test(draft.time.trim())) return "Pick a time";
+  try {
+    parseTimeToMinutes(draft.time);
+  } catch {
+    return "Pick a time";
+  }
+  for (const amount of [draft.amount_l, draft.amount_r]) {
+    if (!Number.isInteger(amount) || amount < 0 || amount > MAX_SCHEDULE_PORTIONS) {
+      return `Portions go from 0 to ${MAX_SCHEDULE_PORTIONS}`;
+    }
+  }
+  if (draft.amount_l === 0 && draft.amount_r === 0) return "Pick at least one portion";
+  return null;
+}
+function toServiceTime(time) {
+  const minutes = parseTimeToMinutes(time);
+  const hh = String(Math.floor(minutes / 60)).padStart(2, "0");
+  const mm = String(minutes % 60).padStart(2, "0");
+  return `${hh}:${mm}:00`;
+}
+function scheduleAddData(deviceId, draft) {
+  return {
+    device_id: deviceId,
+    time: toServiceTime(draft.time),
+    hopper1_g: draft.amount_l,
+    hopper2_g: draft.amount_r,
+    enabled: true
+  };
+}
+function scheduleSetEntries(entries, entryId, draft) {
+  if (!entries.some((entry2) => entry2.id === entryId)) {
+    throw new Error("That feed was removed meanwhile. Reopen the schedule and try again.");
+  }
+  return entries.map(
+    (entry2) => entry2.id === entryId ? { entry_id: entry2.id, time: toServiceTime(draft.time), hopper1_g: draft.amount_l, hopper2_g: draft.amount_r, enabled: entry2.enabled } : { entry_id: entry2.id, time: toServiceTime(entry2.time), hopper1_g: entry2.amount_l, hopper2_g: entry2.amount_r, enabled: entry2.enabled }
+  );
+}
+function serviceErrorMessage(error) {
+  if (typeof error === "string" && error.trim()) return error.trim();
+  if (typeof error === "object" && error !== null) {
+    const message = error.message;
+    if (typeof message === "string" && message.trim()) return message.trim();
+  }
+  return "Home Assistant did not accept the change";
 }
 var MAX_CACHED_IMAGES = 200;
 var ImageUrlCache = class {
@@ -7889,15 +8001,29 @@ var AssetRef = class {
     this._acquiredId = null;
     this._cache = null;
     this._url = null;
+    this._failed = false;
   }
   get url() {
     return this._url;
+  }
+  /** The fetch for the current asset settled without an image (missing, expired, offline). */
+  get failed() {
+    return this._failed;
+  }
+  /** Drops the current reference and fetches the same asset again (a failed fetch is never
+   * cached, so this is a real second attempt). */
+  retry(hass, cache, asset, onChange) {
+    this._release();
+    this._url = null;
+    this._failed = false;
+    this.sync(hass, cache, asset, onChange);
   }
   sync(hass, cache, asset, onChange) {
     const nextId = asset?.id ?? null;
     if (nextId !== this._acquiredId) {
       this._release();
       this._url = null;
+      this._failed = false;
     }
     if (!asset || !hass || !cache || this._acquiredId === asset.id) return;
     this._acquiredId = asset.id;
@@ -7906,6 +8032,7 @@ var AssetRef = class {
     const url = cache.acquire(hass, asset, (result) => {
       if (this._acquiredId !== id) return;
       this._url = result;
+      this._failed = result === null;
       onChange();
     });
     if (url !== null) this._url = url;
@@ -7918,6 +8045,7 @@ var AssetRef = class {
   dispose() {
     this._release();
     this._url = null;
+    this._failed = false;
   }
 };
 var MDI = {
@@ -7950,12 +8078,20 @@ var MDI = {
   undo: "M12.5,8C9.85,8 7.45,9 5.6,10.6L2,7V16H11L7.38,12.38C8.77,11.22 10.54,10.5 12.5,10.5C16.04,10.5 19.05,12.81 20.1,16L22.47,15.22C21.08,11.03 17.15,8 12.5,8Z",
   plus: "M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z",
   cat: "M12,8L10.67,8.09C9.81,7.07 7.4,4.5 5,4.5C5,4.5 3.03,7.46 4.96,11.41C4.41,12.24 4.07,12.67 4,13.66L2.07,13.95L2.28,14.93L4.04,14.67L4.18,15.38L2.61,16.32L3.08,17.21L4.53,16.32C5.68,18.76 8.59,20 12,20C15.41,20 18.32,18.76 19.47,16.32L20.92,17.21L21.39,16.32L19.82,15.38L19.96,14.67L21.72,14.93L21.93,13.95L20,13.66C19.93,12.67 19.59,12.24 19.04,11.41C20.97,7.46 19,4.5 19,4.5C16.6,4.5 14.19,7.07 13.33,8.09L12,8M9,11A1,1 0 0,1 10,12A1,1 0 0,1 9,13A1,1 0 0,1 8,12A1,1 0 0,1 9,11M15,11A1,1 0 0,1 16,12A1,1 0 0,1 15,13A1,1 0 0,1 14,12A1,1 0 0,1 15,11M11,14H13L12.3,15.39C12.5,16.03 13.06,16.5 13.75,16.5A1.5,1.5 0 0,0 15.25,15H15.75A2,2 0 0,1 13.75,17C13,17 12.35,16.59 12,16V16H12C11.65,16.59 11,17 10.25,17A2,2 0 0,1 8.25,15H8.75A1.5,1.5 0 0,0 10.25,16.5C10.94,16.5 11.5,16.03 11.7,15.39L11,14Z",
-  play: "M8,5.14V19.14L19,12.14L8,5.14Z"
+  play: "M8,5.14V19.14L19,12.14L8,5.14Z",
+  flash: "M7,2V13H10V22L17,10H13L17,2H7Z",
+  cancel: "M12 2C17.5 2 22 6.5 22 12S17.5 22 12 22 2 17.5 2 12 6.5 2 12 2M12 4C10.1 4 8.4 4.6 7.1 5.7L18.3 16.9C19.3 15.5 20 13.8 20 12C20 7.6 16.4 4 12 4M16.9 18.3L5.7 7.1C4.6 8.4 4 10.1 4 12C4 16.4 7.6 20 12 20C13.9 20 15.6 19.4 16.9 18.3Z",
+  imageBroken: "M21,5V11.59L18,8.58L14,12.59L10,8.59L6,12.59L3,9.58V5A2,2 0 0,1 5,3H19A2,2 0 0,1 21,5M18,11.42L21,14.43V19A2,2 0 0,1 19,21H5A2,2 0 0,1 3,19V12.42L6,15.41L10,11.41L14,15.41",
+  chevronLeft: "M15.41,16.58L10.83,12L15.41,7.41L14,6L8,12L14,18L15.41,16.58Z",
+  chevronRight: "M8.59,16.58L13.17,12L8.59,7.41L10,6L16,12L10,18L8.59,16.58Z",
+  arrowExpand: "M10,21V19H6.41L10.91,14.5L9.5,13.09L5,17.59V14H3V21H10M14.5,10.91L19,6.41V10H21V3H14V5H17.59L13.09,9.5L14.5,10.91Z",
+  arrowCollapse: "M19.5,3.09L15,7.59V4H13V11H20V9H16.41L20.91,4.5L19.5,3.09M4,13V15H7.59L3.09,19.5L4.5,20.91L9,16.41V20H11V13H4Z",
+  imageMultiple: "M21,17H7V3H21M21,1H7A2,2 0 0,0 5,3V17A2,2 0 0,0 7,19H21A2,2 0 0,0 23,17V3A2,2 0 0,0 21,1M3,5H1V21A2,2 0 0,0 3,23H19V21H3M15.96,10.29L13.21,13.83L11.25,11.47L8.5,15H19.5L15.96,10.29Z"
 };
 function mdiIcon(name) {
   return w`<svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor" aria-hidden="true"><path d=${MDI[name]}></path></svg>`;
 }
-var version = "0.26.0";
+var version = "0.29.0";
 var KIOSK_MIN_HEIGHT_PX = 440;
 var HOLD_TO_FEED_MS = 1500;
 var KIBBLE_FALL_DURATION_MS = 900;
@@ -8085,8 +8221,8 @@ function combinedHopper(level1, level2, remaining1, remaining2) {
   const levels = [level1, level2].filter((l3) => l3 !== null);
   const level = levels.length === 0 ? null : levels.reduce((a3, b3) => SEVERITY[a3] <= SEVERITY[b3] ? a3 : b3);
   if (!remaining1 && !remaining2) return { level, remaining: null };
-  const fullAts = [remaining1?.fullAt, remaining2?.fullAt].filter((v2) => typeof v2 === "string");
-  const since = [remaining1?.portionsSinceFull, remaining2?.portionsSinceFull].filter((v2) => typeof v2 === "number");
+  const fullAts = [remaining1?.fullAt, remaining2?.fullAt].filter((v3) => typeof v3 === "string");
+  const since = [remaining1?.portionsSinceFull, remaining2?.portionsSinceFull].filter((v3) => typeof v3 === "number");
   return {
     level,
     remaining: {
@@ -8139,9 +8275,9 @@ function calibratedPercent(hopper, rawScore) {
   if (!first) return null;
   if (rawScore <= first.score) return 0;
   if (rawScore >= hopper.full_score) return 100;
-  for (let i6 = 1; i6 < points.length; i6 += 1) {
-    const prev = points[i6 - 1];
-    const curr = points[i6];
+  for (let i8 = 1; i8 < points.length; i8 += 1) {
+    const prev = points[i8 - 1];
+    const curr = points[i8];
     if (rawScore > curr.score) continue;
     const span = curr.score - prev.score;
     const fraction = span <= 0 ? 0 : (rawScore - prev.score) / span;
@@ -8233,17 +8369,17 @@ function foodGradient(id, food) {
   `;
 }
 function foodLevel(x2, top, w2, bottom, gradientId, textureId, hi) {
-  const h5 = bottom - top;
+  const h6 = bottom - top;
   return w`
-    <rect x=${x2} y=${top} width=${w2} height=${h5} fill="url(#${gradientId})" />
-    <rect x=${x2} y=${top} width=${w2} height=${h5} fill="url(#${textureId})" />
+    <rect x=${x2} y=${top} width=${w2} height=${h6} fill="url(#${gradientId})" />
+    <rect x=${x2} y=${top} width=${w2} height=${h6} fill="url(#${textureId})" />
     <rect x=${x2} y=${top} width=${w2} height="2" fill=${hi} opacity="0.85" />
   `;
 }
 function hopperArt(finish, compartments) {
   const single = compartments.length === 1;
   const foodLayer = compartments.map(
-    (c5) => c5.fraction > 0.01 ? foodLevel(c5.x, HOPPER_Y + 6 + (HOPPER_H - 12) * (1 - c5.fraction), c5.w, HOPPER_Y + HOPPER_H, c5.gradientId, c5.textureId, c5.food.hi) : A
+    (c6) => c6.fraction > 0.01 ? foodLevel(c6.x, HOPPER_Y + 6 + (HOPPER_H - 12) * (1 - c6.fraction), c6.w, HOPPER_Y + HOPPER_H, c6.gradientId, c6.textureId, c6.food.hi) : A
   );
   return w`
     <defs>
@@ -8395,10 +8531,10 @@ var POUR_LANES = [
 function pourPieces(colors, portions, outletX, outletY, targetY) {
   const lanes = portions >= 3 ? POUR_LANES : POUR_LANES.slice(0, 2);
   const distance = (targetY - outletY).toFixed(1);
-  const pieces = lanes.map((lane, i6) => {
+  const pieces = lanes.map((lane, i8) => {
     const delayMs = Math.round(lane.phase * POUR_CYCLE_MS);
     const style = `--fall-delay:${delayMs}ms;--fall-duration:${POUR_CYCLE_MS}ms;--fall-to:${distance}px;`;
-    return w`<g class="pour-piece" style=${style} fill=${colors[i6 % colors.length]}>${cloverPiece(outletX + lane.dx, outletY, 3.6, lane.rotationDeg)}</g>`;
+    return w`<g class="pour-piece" style=${style} fill=${colors[i8 % colors.length]}>${cloverPiece(outletX + lane.dx, outletY, 3.6, lane.rotationDeg)}</g>`;
   });
   return w`
     <defs>
@@ -8941,17 +9077,47 @@ var KibbleStepper = class extends i4 {
 };
 customElements.define("kibble-stepper", KibbleStepper);
 var { I: t3 } = j;
+var i5 = (o7) => o7;
 var r4 = (o7) => void 0 === o7.strings;
+var s4 = () => document.createComment("");
+var v2 = (o7, n6, e6) => {
+  const l3 = o7._$AA.parentNode, d3 = void 0 === n6 ? o7._$AB : n6._$AA;
+  if (void 0 === e6) {
+    const i8 = l3.insertBefore(s4(), d3), n7 = l3.insertBefore(s4(), d3);
+    e6 = new t3(i8, n7, o7, o7.options);
+  } else {
+    const t5 = e6._$AB.nextSibling, n7 = e6._$AM, c6 = n7 !== o7;
+    if (c6) {
+      let t6;
+      e6._$AQ?.(o7), e6._$AM = o7, void 0 !== e6._$AP && (t6 = o7._$AU) !== n7._$AU && e6._$AP(t6);
+    }
+    if (t5 !== d3 || c6) {
+      let o8 = e6._$AA;
+      for (; o8 !== t5; ) {
+        const t6 = i5(o8).nextSibling;
+        i5(l3).insertBefore(o8, d3), o8 = t6;
+      }
+    }
+  }
+  return e6;
+};
+var u3 = (o7, t5, i8 = o7) => (o7._$AI(t5, i8), o7);
+var m2 = {};
+var p3 = (o7, t5 = m2) => o7._$AH = t5;
+var M2 = (o7) => o7._$AH;
+var h3 = (o7) => {
+  o7._$AR(), o7._$AA.remove();
+};
 var t4 = { ATTRIBUTE: 1, CHILD: 2, PROPERTY: 3, BOOLEAN_ATTRIBUTE: 4, EVENT: 5, ELEMENT: 6 };
 var e4 = (t5) => (...e6) => ({ _$litDirective$: t5, values: e6 });
-var i5 = class {
+var i6 = class {
   constructor(t5) {
   }
   get _$AU() {
     return this._$AM._$AU;
   }
-  _$AT(t5, e6, i6) {
-    this._$Ct = t5, this._$AM = e6, this._$Ci = i6;
+  _$AT(t5, e6, i8) {
+    this._$Ct = t5, this._$AM = e6, this._$Ci = i8;
   }
   _$AS(t5, e6) {
     return this.update(t5, e6);
@@ -8960,54 +9126,54 @@ var i5 = class {
     return this.render(...e6);
   }
 };
-var s4 = (i6, t5) => {
-  const e6 = i6._$AN;
+var s5 = (i8, t5) => {
+  const e6 = i8._$AN;
   if (void 0 === e6) return false;
-  for (const i7 of e6) i7._$AO?.(t5, false), s4(i7, t5);
+  for (const i9 of e6) i9._$AO?.(t5, false), s5(i9, t5);
   return true;
 };
-var o5 = (i6) => {
+var o5 = (i8) => {
   let t5, e6;
   do {
-    if (void 0 === (t5 = i6._$AM)) break;
-    e6 = t5._$AN, e6.delete(i6), i6 = t5;
+    if (void 0 === (t5 = i8._$AM)) break;
+    e6 = t5._$AN, e6.delete(i8), i8 = t5;
   } while (0 === e6?.size);
 };
-var r5 = (i6) => {
-  for (let t5; t5 = i6._$AM; i6 = t5) {
+var r5 = (i8) => {
+  for (let t5; t5 = i8._$AM; i8 = t5) {
     let e6 = t5._$AN;
     if (void 0 === e6) t5._$AN = e6 = /* @__PURE__ */ new Set();
-    else if (e6.has(i6)) break;
-    e6.add(i6), c4(t5);
+    else if (e6.has(i8)) break;
+    e6.add(i8), c4(t5);
   }
 };
-function h3(i6) {
-  void 0 !== this._$AN ? (o5(this), this._$AM = i6, r5(this)) : this._$AM = i6;
+function h4(i8) {
+  void 0 !== this._$AN ? (o5(this), this._$AM = i8, r5(this)) : this._$AM = i8;
 }
-function n4(i6, t5 = false, e6 = 0) {
-  const r6 = this._$AH, h5 = this._$AN;
-  if (void 0 !== h5 && 0 !== h5.size) if (t5) if (Array.isArray(r6)) for (let i7 = e6; i7 < r6.length; i7++) s4(r6[i7], false), o5(r6[i7]);
-  else null != r6 && (s4(r6, false), o5(r6));
-  else s4(this, i6);
+function n4(i8, t5 = false, e6 = 0) {
+  const r6 = this._$AH, h6 = this._$AN;
+  if (void 0 !== h6 && 0 !== h6.size) if (t5) if (Array.isArray(r6)) for (let i9 = e6; i9 < r6.length; i9++) s5(r6[i9], false), o5(r6[i9]);
+  else null != r6 && (s5(r6, false), o5(r6));
+  else s5(this, i8);
 }
-var c4 = (i6) => {
-  i6.type == t4.CHILD && (i6._$AP ??= n4, i6._$AQ ??= h3);
+var c4 = (i8) => {
+  i8.type == t4.CHILD && (i8._$AP ??= n4, i8._$AQ ??= h4);
 };
-var f3 = class extends i5 {
+var f3 = class extends i6 {
   constructor() {
     super(...arguments), this._$AN = void 0;
   }
-  _$AT(i6, t5, e6) {
-    super._$AT(i6, t5, e6), r5(this), this.isConnected = i6._$AU;
+  _$AT(i8, t5, e6) {
+    super._$AT(i8, t5, e6), r5(this), this.isConnected = i8._$AU;
   }
-  _$AO(i6, t5 = true) {
-    i6 !== this.isConnected && (this.isConnected = i6, i6 ? this.reconnected?.() : this.disconnected?.()), t5 && (s4(this, i6), o5(this));
+  _$AO(i8, t5 = true) {
+    i8 !== this.isConnected && (this.isConnected = i8, i8 ? this.reconnected?.() : this.disconnected?.()), t5 && (s5(this, i8), o5(this));
   }
   setValue(t5) {
     if (r4(this._$Ct)) this._$Ct._$AI(t5, this);
     else {
-      const i6 = [...this._$Ct._$AH];
-      i6[this._$Ci] = t5, this._$Ct._$AI(i6, this, 0);
+      const i8 = [...this._$Ct._$AH];
+      i8[this._$Ci] = t5, this._$Ct._$AI(i8, this, 0);
     }
   }
   disconnected() {
@@ -9015,23 +9181,23 @@ var f3 = class extends i5 {
   reconnected() {
   }
 };
-var e5 = () => new h4();
-var h4 = class {
+var e5 = () => new h5();
+var h5 = class {
 };
 var o6 = /* @__PURE__ */ new WeakMap();
 var n5 = e4(class extends f3 {
-  render(i6) {
+  render(i8) {
     return A;
   }
-  update(i6, [s5]) {
-    const e6 = s5 !== this.G;
-    return e6 && this.rt(void 0), (e6 || this.lt !== this.ct) && (this.G = s5, this.ht = i6.options?.host, this.rt(this.ct = i6.element)), A;
+  update(i8, [s6]) {
+    const e6 = s6 !== this.G;
+    return e6 && this.rt(void 0), (e6 || this.lt !== this.ct) && (this.G = s6, this.ht = i8.options?.host, this.rt(this.ct = i8.element)), A;
   }
   rt(t5) {
     if (void 0 !== this.G) if (this.isConnected || (t5 = void 0), "function" == typeof this.G) {
-      const i6 = this.ht ?? globalThis;
-      let s5 = o6.get(i6);
-      void 0 === s5 && (s5 = /* @__PURE__ */ new WeakMap(), o6.set(i6, s5)), void 0 !== s5.get(this.G) && this.G.call(this.ht, void 0), s5.set(this.G, t5), void 0 !== t5 && this.G.call(this.ht, t5);
+      const i8 = this.ht ?? globalThis;
+      let s6 = o6.get(i8);
+      void 0 === s6 && (s6 = /* @__PURE__ */ new WeakMap(), o6.set(i8, s6)), void 0 !== s6.get(this.G) && this.G.call(this.ht, void 0), s6.set(this.G, t5), void 0 !== t5 && this.G.call(this.ht, t5);
     } else this.G.value = t5;
   }
   get lt() {
@@ -9823,113 +9989,6 @@ var KibbleHoldButton = class extends i4 {
   }
 };
 customElements.define("kibble-hold-button", KibbleHoldButton);
-function parseTimeToMinutes(time) {
-  const match = /^(\d{1,2}):(\d{2})$/.exec(time.trim());
-  if (!match) {
-    throw new Error(`Invalid schedule time "${time}"`);
-  }
-  const hours = Number(match[1]);
-  const minutes = Number(match[2]);
-  if (hours > 23 || minutes > 59) {
-    throw new Error(`Invalid schedule time "${time}"`);
-  }
-  return hours * 60 + minutes;
-}
-function nextScheduled(entries, now) {
-  const nowMinutes = now.getHours() * 60 + now.getMinutes();
-  let best = null;
-  for (const entry2 of entries) {
-    if (!entry2.enabled) continue;
-    const entryMinutes = parseTimeToMinutes(entry2.time);
-    const minutesUntil = ((entryMinutes - nowMinutes) % 1440 + 1440) % 1440;
-    if (best === null || minutesUntil < best.minutesUntil) {
-      best = { entry: entry2, minutesUntil };
-    }
-  }
-  return best;
-}
-function formatClock(time, locale) {
-  const minutes = parseTimeToMinutes(time);
-  const date = new Date(2e3, 0, 1, Math.floor(minutes / 60), minutes % 60);
-  return date.toLocaleTimeString(locale, { hour: "numeric", minute: "2-digit" });
-}
-var COUNT_WORDS = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"];
-function scheduleSummary(entries, now, locale) {
-  if (entries.length === 0) {
-    return "No schedule set";
-  }
-  const next = nextScheduled(entries, now);
-  if (!next) {
-    return "All feeds paused";
-  }
-  const enabledCount = entries.filter((entry2) => entry2.enabled).length;
-  const countWord = COUNT_WORDS[enabledCount] ?? String(enabledCount);
-  return `Next feed ${formatClock(next.entry.time, locale)}, ${countWord} a day`;
-}
-var MAX_SCHEDULE_PORTIONS = 20;
-function portionsWord(count) {
-  return count === 1 ? "1 portion" : `${count} portions`;
-}
-function hopperLabel(index, food) {
-  const name = food?.trim();
-  return name ? name : `Hopper ${index}`;
-}
-function entryAmountsLabel(entry2, single, food1, food2) {
-  if (single) return portionsWord(Math.max(entry2.amount_l, entry2.amount_r));
-  const parts = [];
-  if (entry2.amount_l > 0) parts.push(`${hopperLabel(1, food1)} ${entry2.amount_l}`);
-  if (entry2.amount_r > 0) parts.push(`${hopperLabel(2, food2)} ${entry2.amount_r}`);
-  return parts.length > 0 ? parts.join(" + ") : "No food";
-}
-function sortScheduleEntries(entries) {
-  return [...entries].sort((a3, b3) => parseTimeToMinutes(a3.time) - parseTimeToMinutes(b3.time));
-}
-function draftProblem(draft) {
-  if (!/^\d{1,2}:\d{2}$/.test(draft.time.trim())) return "Pick a time";
-  try {
-    parseTimeToMinutes(draft.time);
-  } catch {
-    return "Pick a time";
-  }
-  for (const amount of [draft.amount_l, draft.amount_r]) {
-    if (!Number.isInteger(amount) || amount < 0 || amount > MAX_SCHEDULE_PORTIONS) {
-      return `Portions go from 0 to ${MAX_SCHEDULE_PORTIONS}`;
-    }
-  }
-  if (draft.amount_l === 0 && draft.amount_r === 0) return "Pick at least one portion";
-  return null;
-}
-function toServiceTime(time) {
-  const minutes = parseTimeToMinutes(time);
-  const hh = String(Math.floor(minutes / 60)).padStart(2, "0");
-  const mm = String(minutes % 60).padStart(2, "0");
-  return `${hh}:${mm}:00`;
-}
-function scheduleAddData(deviceId, draft) {
-  return {
-    device_id: deviceId,
-    time: toServiceTime(draft.time),
-    hopper1_g: draft.amount_l,
-    hopper2_g: draft.amount_r,
-    enabled: true
-  };
-}
-function scheduleSetEntries(entries, entryId, draft) {
-  if (!entries.some((entry2) => entry2.id === entryId)) {
-    throw new Error("That feed was removed meanwhile. Reopen the schedule and try again.");
-  }
-  return entries.map(
-    (entry2) => entry2.id === entryId ? { entry_id: entry2.id, time: toServiceTime(draft.time), hopper1_g: draft.amount_l, hopper2_g: draft.amount_r, enabled: entry2.enabled } : { entry_id: entry2.id, time: toServiceTime(entry2.time), hopper1_g: entry2.amount_l, hopper2_g: entry2.amount_r, enabled: entry2.enabled }
-  );
-}
-function serviceErrorMessage(error) {
-  if (typeof error === "string" && error.trim()) return error.trim();
-  if (typeof error === "object" && error !== null) {
-    const message = error.message;
-    if (typeof message === "string" && message.trim()) return message.trim();
-  }
-  return "Home Assistant did not accept the change";
-}
 var NEW_DRAFT = { time: "12:00", amount_l: 1, amount_r: 0 };
 var KibbleScheduleEditor = class extends i4 {
   constructor() {
@@ -10422,10 +10481,9 @@ var KibbleScheduleEditor = class extends i4 {
 };
 customElements.define("kibble-schedule-editor", KibbleScheduleEditor);
 var DISPENSER_CARD_TAG = "dispenser-schedule-card";
-var KibbleScheduleSummary = class extends i4 {
+var KibbleScheduleBody = class extends i4 {
   constructor() {
     super();
-    this._expanded = false;
     this._embedRef = e5();
     this._configureEmbed = (el) => {
       if (!el || !this.scheduleCardStateEntity) return;
@@ -10459,7 +10517,6 @@ var KibbleScheduleSummary = class extends i4 {
       el.appendChild(created);
     };
     this.entries = [];
-    this.deviceName = "Kibble";
     this.singleHopper = false;
     this.food1 = null;
     this.food2 = null;
@@ -10469,9 +10526,12 @@ var KibbleScheduleSummary = class extends i4 {
       hass: { attribute: false },
       entries: { attribute: false },
       scheduleCardStateEntity: { type: String },
-      deviceName: { type: String },
+      /** The hopper divider is out: an entry's amount is the one bin's total, not a per-side
+       * pair -- see `lib/schedule.ts:entryAmountsLabel`. */
       singleHopper: { type: Boolean },
+      /** The feeder's device id, for the per-hopper editor's schedule service calls. */
       deviceId: { type: String },
+      /** Hopper food names for the editor's labels (`null` while unnamed). */
       food1: { type: String },
       food2: { type: String }
     };
@@ -10482,17 +10542,6 @@ var KibbleScheduleSummary = class extends i4 {
     }
   }
   render() {
-    const now = /* @__PURE__ */ new Date();
-    const summary = scheduleSummary(this.entries, now);
-    return b2`
-      <button type="button" class="row" @click=${this._toggle} aria-expanded=${this._expanded}>
-        <span>${summary}</span>
-        <span class="chevron ${this._expanded ? "open" : ""}">${mdiIcon("chevronDown")}</span>
-      </button>
-      ${this._expanded ? b2`<div class="expanded">${this._renderExpanded()}</div>` : A}
-    `;
-  }
-  _renderExpanded() {
     if (!this.singleHopper) {
       return b2`<kibble-schedule-editor
         .hass=${this.hass}
@@ -10529,39 +10578,10 @@ var KibbleScheduleSummary = class extends i4 {
     const state2 = this.hass?.states[this.scheduleCardStateEntity];
     return state2 !== void 0 && state2.state !== "unavailable";
   }
-  _toggle() {
-    this._expanded = !this._expanded;
-    this.requestUpdate();
-  }
   static {
     this.styles = i`
     :host {
       display: block;
-    }
-    .row {
-      width: 100%;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      background: none;
-      border: none;
-      padding: 10px 4px;
-      min-height: var(--kibble-touch-target, 48px);
-      font: inherit;
-      font-size: var(--kibble-schedule-size, 14px);
-      color: var(--primary-text-color);
-      cursor: pointer;
-    }
-    .chevron {
-      display: flex;
-      color: var(--secondary-text-color);
-      transition: transform 0.15s ease;
-    }
-    .chevron.open {
-      transform: rotate(180deg);
-    }
-    .expanded {
-      padding: 0 4px 8px;
     }
     .empty {
       color: var(--secondary-text-color);
@@ -10599,6 +10619,87 @@ var KibbleScheduleSummary = class extends i4 {
     .entries .state {
       color: var(--secondary-text-color);
       font-size: 0.9em;
+    }
+  `;
+  }
+};
+customElements.define("kibble-schedule-body", KibbleScheduleBody);
+var KibbleScheduleSummary = class extends i4 {
+  constructor() {
+    super();
+    this._expanded = false;
+    this.entries = [];
+    this.deviceName = "Kibble";
+    this.singleHopper = false;
+    this.food1 = null;
+    this.food2 = null;
+  }
+  static {
+    this.properties = {
+      hass: { attribute: false },
+      entries: { attribute: false },
+      scheduleCardStateEntity: { type: String },
+      deviceName: { type: String },
+      singleHopper: { type: Boolean },
+      deviceId: { type: String },
+      food1: { type: String },
+      food2: { type: String }
+    };
+  }
+  render() {
+    const now = /* @__PURE__ */ new Date();
+    const summary = scheduleSummary(this.entries, now);
+    return b2`
+      <button type="button" class="row" @click=${this._toggle} aria-expanded=${this._expanded}>
+        <span>${summary}</span>
+        <span class="chevron ${this._expanded ? "open" : ""}">${mdiIcon("chevronDown")}</span>
+      </button>
+      ${this._expanded ? b2`<div class="expanded">
+            <kibble-schedule-body
+              .hass=${this.hass}
+              .entries=${this.entries}
+              .scheduleCardStateEntity=${this.scheduleCardStateEntity}
+              .singleHopper=${this.singleHopper}
+              .deviceId=${this.deviceId}
+              .food1=${this.food1}
+              .food2=${this.food2}
+            ></kibble-schedule-body>
+          </div>` : A}
+    `;
+  }
+  _toggle() {
+    this._expanded = !this._expanded;
+    this.requestUpdate();
+  }
+  static {
+    this.styles = i`
+    :host {
+      display: block;
+    }
+    .row {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: none;
+      border: none;
+      padding: 10px 4px;
+      min-height: var(--kibble-touch-target, 48px);
+      font: inherit;
+      font-size: var(--kibble-schedule-size, 14px);
+      color: var(--primary-text-color);
+      cursor: pointer;
+    }
+    .chevron {
+      display: flex;
+      color: var(--secondary-text-color);
+      transition: transform 0.15s ease;
+    }
+    .chevron.open {
+      transform: rotate(180deg);
+    }
+    .expanded {
+      padding: 0 4px 8px;
     }
   `;
   }
@@ -10972,8 +11073,8 @@ var KibbleCalibrationDialog = class extends i4 {
     if (points.length === 0) return A;
     return b2`
       <ul class="curve">
-        ${points.map((point, i6) => {
-      const previous = i6 > 0 ? points[i6 - 1] : null;
+        ${points.map((point, i8) => {
+      const previous = i8 > 0 ? points[i8 - 1] : null;
       const dropped = previous !== null && point.score < previous.score;
       return b2`
             <li class="curve-row ${dropped ? "dropped" : ""}">
@@ -12930,7 +13031,7 @@ var KibbleSettingsDialog = class extends i4 {
     if (!state2 || state2.state === "unavailable") return A;
     const running = state2.state;
     const other = running === "librefeed" ? "vendor" : "librefeed";
-    const label = (v2) => v2 === "librefeed" ? "KibbleOS" : "Petkit stack";
+    const label = (v3) => v3 === "librefeed" ? "KibbleOS" : "Petkit stack";
     return b2`
       <section>
         <h3>Stack</h3>
@@ -13627,8 +13728,8 @@ function catSilhouette() {
 }
 function fallbackCatColor(name) {
   let hash = 0;
-  for (let i6 = 0; i6 < name.length; i6++) {
-    hash = hash * 31 + name.charCodeAt(i6) | 0;
+  for (let i8 = 0; i8 < name.length; i8++) {
+    hash = hash * 31 + name.charCodeAt(i8) | 0;
   }
   return catColorAt(hash);
 }
@@ -13638,9 +13739,11 @@ var KibbleImage = class extends i4 {
     this._ref = new AssetRef();
     this._visible = false;
     this._observer = null;
+    this._reportedFailure = null;
     this.alt = "";
     this.rounded = false;
     this.fit = "cover";
+    this.eager = false;
   }
   static {
     this.properties = {
@@ -13649,7 +13752,8 @@ var KibbleImage = class extends i4 {
       cache: { attribute: false },
       alt: { type: String },
       rounded: { type: Boolean },
-      fit: { type: String }
+      fit: { type: String },
+      eager: { type: Boolean }
     };
   }
   connectedCallback() {
@@ -13685,17 +13789,34 @@ var KibbleImage = class extends i4 {
     this._ref.dispose();
   }
   willUpdate(changed) {
+    if (this.eager && !this._visible) this._markVisible();
     if (changed.has("asset") || changed.has("cache") || changed.has("hass")) this._sync();
   }
   _sync() {
     if (!this._visible) return;
     this._ref.sync(this.hass, this.cache, this.asset, () => this.requestUpdate());
   }
+  updated() {
+    const failedId = this._ref.failed ? this.asset?.id ?? null : null;
+    if (failedId === this._reportedFailure) return;
+    this._reportedFailure = failedId;
+    if (failedId) this.dispatchEvent(new CustomEvent("image-failed", { bubbles: true, composed: true }));
+  }
+  /** True when the current photo could not be loaded. */
+  get failed() {
+    return this._ref.failed;
+  }
+  /** Fetches the current photo again after a failure. */
+  retry() {
+    this._reportedFailure = null;
+    this._ref.retry(this.hass, this.cache, this.asset, () => this.requestUpdate());
+    this.requestUpdate();
+  }
   render() {
     const url = this._ref.url;
     return b2`
       <div class="box ${this.rounded ? "rounded" : ""}">
-        ${url ? b2`<img src=${url} alt=${this.alt} loading="lazy" style="object-fit:${this.fit}" />` : b2`<div class="placeholder"></div>`}
+        ${url ? b2`<img src=${url} alt=${this.alt} style="object-fit:${this.fit}" />` : b2`<div class="placeholder">${this._ref.failed ? mdiIcon("imageBroken") : A}</div>`}
       </div>
     `;
   }
@@ -13737,6 +13858,15 @@ var KibbleImage = class extends i4 {
     .placeholder {
       width: 100%;
       height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      color: color-mix(in srgb, var(--primary-text-color) 32%, transparent);
+      container-type: size;
+    }
+    .placeholder svg {
+      font-size: min(32px, 40cqmin);
     }
   `;
   }
@@ -13815,6 +13945,2729 @@ var KibbleAvatar = class extends i4 {
   }
 };
 customElements.define("kibble-avatar", KibbleAvatar);
+var bus = new EventTarget();
+var EVENT = "kibble-review-changed";
+function announceReviewChange(entryId) {
+  bus.dispatchEvent(new CustomEvent(EVENT, { detail: { entryId } }));
+}
+function onReviewChange(entryId, listener) {
+  const handler = (event) => {
+    if (event.detail.entryId === entryId()) listener();
+  };
+  bus.addEventListener(EVENT, handler);
+  return () => bus.removeEventListener(EVENT, handler);
+}
+var REVIEW_PAGE_SIZE = 60;
+var TIMELINE_PAGE_SIZE = 100;
+var MAX_PAGES = 20;
+async function readAllPages(callWS, type, entryId, limit) {
+  const items = [];
+  let cursor = null;
+  let last = null;
+  for (let page = 0; page < MAX_PAGES; page++) {
+    last = await callWS({ type, entry_id: entryId, limit, ...cursor ? { cursor } : {} });
+    items.push(...last.items);
+    if (!last.has_more || !last.cursor) break;
+    cursor = last.cursor;
+  }
+  return { items, last };
+}
+async function loadUnknownVisits(callWS, entryId) {
+  const { items, last } = await readAllPages(callWS, "kibble/review", entryId, REVIEW_PAGE_SIZE);
+  return { items, total: last?.total ?? items.length };
+}
+async function loadTimelineVisits(callWS, entryId) {
+  const { items } = await readAllPages(callWS, "kibble/timeline", entryId, TIMELINE_PAGE_SIZE);
+  return items.filter((item) => item.kind === "eat" || item.kind === "visit");
+}
+async function loadUnknownCount(callWS, entryId) {
+  const page = await callWS({ type: "kibble/review", entry_id: entryId, limit: 1 });
+  return page.total;
+}
+var i7 = e4(class extends i6 {
+  constructor() {
+    super(...arguments), this.key = A;
+  }
+  render(r6, t5) {
+    return this.key = r6, t5;
+  }
+  update(r6, [t5, e6]) {
+    return t5 !== this.key && (p3(r6), this.key = t5), e6;
+  }
+});
+var u4 = (e6, s6, t5) => {
+  const r6 = /* @__PURE__ */ new Map();
+  for (let l3 = s6; l3 <= t5; l3++) r6.set(e6[l3], l3);
+  return r6;
+};
+var c5 = e4(class extends i6 {
+  constructor(e6) {
+    if (super(e6), e6.type !== t4.CHILD) throw Error("repeat() can only be used in text expressions");
+  }
+  dt(e6, s6, t5) {
+    let r6;
+    void 0 === t5 ? t5 = s6 : void 0 !== s6 && (r6 = s6);
+    const l3 = [], o7 = [];
+    let i8 = 0;
+    for (const s7 of e6) l3[i8] = r6 ? r6(s7, i8) : i8, o7[i8] = t5(s7, i8), i8++;
+    return { values: o7, keys: l3 };
+  }
+  render(e6, s6, t5) {
+    return this.dt(e6, s6, t5).values;
+  }
+  update(s6, [t5, r6, c6]) {
+    const d3 = M2(s6), { values: p4, keys: a3 } = this.dt(t5, r6, c6);
+    if (!Array.isArray(d3)) return this.ut = a3, p4;
+    const h6 = this.ut ??= [], v3 = [];
+    let m3, y3, x2 = 0, j2 = d3.length - 1, k2 = 0, w2 = p4.length - 1;
+    for (; x2 <= j2 && k2 <= w2; ) if (null === d3[x2]) x2++;
+    else if (null === d3[j2]) j2--;
+    else if (h6[x2] === a3[k2]) v3[k2] = u3(d3[x2], p4[k2]), x2++, k2++;
+    else if (h6[j2] === a3[w2]) v3[w2] = u3(d3[j2], p4[w2]), j2--, w2--;
+    else if (h6[x2] === a3[w2]) v3[w2] = u3(d3[x2], p4[w2]), v2(s6, v3[w2 + 1], d3[x2]), x2++, w2--;
+    else if (h6[j2] === a3[k2]) v3[k2] = u3(d3[j2], p4[k2]), v2(s6, d3[x2], d3[j2]), j2--, k2++;
+    else if (void 0 === m3 && (m3 = u4(a3, k2, w2), y3 = u4(h6, x2, j2)), m3.has(h6[x2])) if (m3.has(h6[j2])) {
+      const e6 = y3.get(a3[k2]), t6 = void 0 !== e6 ? d3[e6] : null;
+      if (null === t6) {
+        const e7 = v2(s6, d3[x2]);
+        u3(e7, p4[k2]), v3[k2] = e7;
+      } else v3[k2] = u3(t6, p4[k2]), v2(s6, d3[x2], t6), d3[e6] = null;
+      k2++;
+    } else h3(d3[j2]), j2--;
+    else h3(d3[x2]), x2++;
+    for (; k2 <= w2; ) {
+      const e6 = v2(s6, v3[w2 + 1]);
+      u3(e6, p4[k2]), v3[k2++] = e6;
+    }
+    for (; x2 <= j2; ) {
+      const e6 = d3[x2++];
+      null !== e6 && h3(e6);
+    }
+    return this.ut = a3, p3(s6, v3), E;
+  }
+});
+var ImagePreloader = class {
+  constructor() {
+    this._held = /* @__PURE__ */ new Map();
+  }
+  sync(hass, cache, assets) {
+    const wanted = /* @__PURE__ */ new Map();
+    if (hass && cache) {
+      for (const asset of assets) {
+        if (asset) wanted.set(asset.id, asset);
+      }
+    }
+    for (const [id, heldCache] of this._held) {
+      if (wanted.has(id) && heldCache === cache) continue;
+      heldCache.release(id);
+      this._held.delete(id);
+    }
+    for (const [id, asset] of wanted) {
+      if (this._held.has(id)) continue;
+      this._held.set(id, cache);
+      cache.acquire(hass, asset, () => {
+      });
+    }
+  }
+  dispose() {
+    for (const [id, cache] of this._held) cache.release(id);
+    this._held.clear();
+  }
+};
+function draftFrom(cats, identity) {
+  return { cats: cats.map(({ cat, ate }) => ({ cat, ate })), notACat: identity === "not_a_cat", subjects: {} };
+}
+function toggleDraftCat(draft, name, isMeal) {
+  const present = draft.cats.some((cat) => cat.cat === name);
+  return {
+    ...draft,
+    notACat: false,
+    cats: present ? draft.cats.filter((cat) => cat.cat !== name) : [...draft.cats, { cat: name, ate: isMeal }]
+  };
+}
+function toggleDraftNotACat(draft) {
+  return draft.notACat ? { ...draft, notACat: false } : { ...draft, notACat: true, cats: [] };
+}
+function setDraftAte(draft, name, ate) {
+  return { ...draft, cats: draft.cats.map((cat) => cat.cat === name ? { ...cat, ate } : cat) };
+}
+function nameDraftSubject(draft, sid, label, isMeal) {
+  const subjects = { ...draft.subjects, [sid]: label };
+  if (label === "not_a_cat" || draft.cats.some((cat) => cat.cat === label)) return { ...draft, subjects };
+  return { ...draft, subjects, notACat: false, cats: [...draft.cats, { cat: label, ate: isMeal }] };
+}
+function draftChipState(draft, saved, name) {
+  if (!draft.cats.some((cat) => cat.cat === name)) return "neutral";
+  const savedCat = saved.find((cat) => cat.cat === name);
+  return savedCat && !savedCat.confirmed ? "suggested" : "confirmed";
+}
+function confirmAction(draft, saved, identity) {
+  const subjects = Object.entries(draft.subjects).map(([sid, label]) => ({ sid: Number(sid), label }));
+  const extra = subjects.length ? { subjects } : {};
+  if (draft.notACat) {
+    if (identity === "not_a_cat" && !subjects.length) return { kind: "close", text: "Done" };
+    return { kind: "save", text: "Confirm not a cat", request: { verdict: "not_a_cat", ...extra } };
+  }
+  if (draft.cats.length === 0) return { kind: "blocked", text: "Pick who was here" };
+  const unchanged = identity !== "not_a_cat" && saved.length === draft.cats.length && saved.every((cat) => cat.confirmed && draft.cats.some((d3) => d3.cat === cat.cat && d3.ate === cat.ate)) && !subjects.length;
+  if (unchanged) return { kind: "close", text: "Done" };
+  return { kind: "save", text: "Confirm " + joinNames(draft.cats.map((cat) => cat.cat)), request: { cats: draft.cats.map((cat) => ({ ...cat })), ...extra } };
+}
+function joinNames(names) {
+  if (names.length <= 1) return names[0] ?? "";
+  if (names.length === 2) return names[0] + " and " + names[1];
+  return names.slice(0, -1).join(", ") + ", and " + names[names.length - 1];
+}
+function sessionTitle(cats, event) {
+  if (event.identity === "not_a_cat") return "Not a cat";
+  if (cats.length === 0) return "Who was here?";
+  const groups = /* @__PURE__ */ new Map();
+  for (const cat of cats) {
+    const verb = event.open ? cat.ate ? "is eating" : "is here" : cat.ate ? "ate" : "came by";
+    const names = groups.get(verb) ?? [];
+    names.push(cat.cat);
+    groups.set(verb, names);
+  }
+  return [...groups].map(([verb, names]) => joinNames(names) + " " + verb).join(", ");
+}
+function clamp2(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+function placeNamePicker(box, frameWidth, frameHeight, pickerWidth, pickerHeight, gap = 8, inset = 8) {
+  if (!(frameWidth > 0) || !(frameHeight > 0)) return { left: 0, top: 0, flipped: false };
+  const safeInset = Math.max(0, Math.min(inset, frameWidth / 2, frameHeight / 2));
+  const width = Math.min(Math.max(0, pickerWidth), Math.max(0, frameWidth - safeInset * 2));
+  const height = Math.min(Math.max(0, pickerHeight), Math.max(0, frameHeight - safeInset * 2));
+  const maxLeft = frameWidth - safeInset - width;
+  const maxTop = frameHeight - safeInset - height;
+  const anchorX = (box[0] + box[2]) / 2 * frameWidth;
+  const left = clamp2(anchorX - width / 2, safeInset, maxLeft);
+  const below = box[3] * frameHeight + gap;
+  const above = box[1] * frameHeight - gap - height;
+  const canFitBelow = below <= maxTop;
+  const canFitAbove = above >= safeInset;
+  const flipped = !canFitBelow && canFitAbove;
+  return { left, top: clamp2(flipped ? above : below, safeInset, maxTop), flipped };
+}
+function groupSessionPhotos(samples, cats) {
+  if (cats.length < 2) return [];
+  const sections = cats.map((cat) => ({ cat: cat.cat, samples: [] }));
+  const byName = new Map(sections.map((section) => [section.cat, section]));
+  const unassigned = [];
+  for (const sample of samples) {
+    const section = sample.cat ? byName.get(sample.cat) : void 0;
+    if (section) section.samples.push(sample);
+    else unassigned.push(sample);
+  }
+  if (unassigned.length > 0) {
+    const main2 = sections.reduce((best, section) => section.samples.length > best.samples.length ? section : best);
+    main2.samples.push(...unassigned);
+  }
+  return sections;
+}
+async function labelSession(hass, entryId, request) {
+  const callWS = hass.callWS;
+  if (!callWS) throw new Error("Not connected.");
+  let detail = await callWS({
+    type: "kibble/session/label",
+    entry_id: entryId,
+    uid: request.uid,
+    ...request.cats ? { cats: request.cats } : {},
+    ...request.verdict ? { verdict: request.verdict } : {}
+  });
+  for (const subject of request.subjects ?? []) {
+    detail = await callWS({ type: "kibble/session/subject", entry_id: entryId, uid: detail.event.uid, sid: subject.sid, label: subject.label });
+  }
+  return detail;
+}
+function rowThumbAsset(event) {
+  if (event.kind === "feed") return null;
+  return event.thumb ?? event.scene ?? null;
+}
+function needsIdentification(event) {
+  return event.kind !== "feed" && !event.open && event.cat === null;
+}
+function formatDuration(seconds) {
+  const minutes = Math.floor(seconds / 60);
+  const remainder = seconds % 60;
+  if (minutes === 0) return `${remainder} sec`;
+  return remainder === 0 ? `${minutes} min` : `${minutes} min ${remainder} sec`;
+}
+function eventDuration(event) {
+  if (event.kind !== "eat" || event.open || event.end == null || event.end <= event.start) return null;
+  return formatDuration(event.end - event.start);
+}
+function spanDuration(start, end) {
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return null;
+  return formatDuration(Math.floor(end - start));
+}
+function catVerb(event) {
+  if (event.open) return event.kind === "eat" ? "is eating" : "is here";
+  return event.kind === "eat" ? "ate" : "came by";
+}
+function eventTitle(event) {
+  if (event.kind === "feed") return feedTitle(event);
+  if (!event.cat) return event.kind === "eat" ? "Someone is eating" : "Someone is here";
+  return `${event.cat} ${catVerb(event)}`;
+}
+function portionWord2(n6) {
+  return `${n6} portion${n6 === 1 ? "" : "s"}`;
+}
+function feedTitle(event) {
+  const feed = event.feed;
+  if (!feed || feed.portions == null) return "Fed";
+  if (feed.single || feed.sides.length === 0) return `Fed ${portionWord2(feed.portions)}`;
+  if (feed.sides.length === 1) {
+    const [side] = feed.sides;
+    const clause = side.food ? `of ${side.food}` : `from hopper ${side.hopper}`;
+    return `Fed ${portionWord2(side.portions)} ${clause}`;
+  }
+  const [first, second] = feed.sides;
+  if (first.food && second.food) {
+    return `Fed ${first.portions} ${first.food} and ${second.portions} ${second.food}`;
+  }
+  if (first.portions === second.portions) {
+    return `Fed ${portionWord2(first.portions)} from each hopper`;
+  }
+  return `Fed ${first.portions} from hopper ${first.hopper} and ${second.portions} from hopper ${second.hopper}`;
+}
+function timeLabel(unixSeconds, locale) {
+  return new Date(unixSeconds * 1e3).toLocaleTimeString(locale, { hour: "numeric", minute: "2-digit" });
+}
+function visitWhenLabel(unixSeconds, now, locale) {
+  const date = new Date(unixSeconds * 1e3);
+  const time = timeLabel(unixSeconds, locale);
+  const midnight = (value) => new Date(value.getFullYear(), value.getMonth(), value.getDate()).getTime();
+  const daysAgo = Math.round((midnight(now) - midnight(date)) / 864e5);
+  if (daysAgo <= 0) return time;
+  if (daysAgo < 7) return `${date.toLocaleDateString(locale, { weekday: "short" })} ${time}`;
+  return `${date.toLocaleDateString(locale, { month: "short", day: "numeric" })} ${time}`;
+}
+function compareAssets(event) {
+  if (event.kind !== "eat" && event.kind !== "feed") return null;
+  if (!event.before || !event.after) return null;
+  return { before: event.before, after: event.after };
+}
+var COLLAPSE_WINDOW_SECONDS = 5 * 60;
+function joinedNames(names) {
+  if (names.length < 2) return names[0] ?? "";
+  if (names.length === 2) return names[0] + " and " + names[1];
+  return names.slice(0, -1).join(", ") + ", and " + names[names.length - 1];
+}
+function orderTogetherEvents(events) {
+  return [...events].sort(
+    (left, right) => Number(right.kind === "eat") - Number(left.kind === "eat") || Number(left.cat === null) - Number(right.cat === null)
+  );
+}
+function togetherTitle(events) {
+  const lanes = orderTogetherEvents(events);
+  const names = lanes.map((lane) => lane.cat ?? "Who?");
+  const sameKind = lanes.every((lane) => lane.kind === lanes[0]?.kind);
+  const sameState = lanes.every((lane) => lane.open === lanes[0]?.open);
+  if (sameKind && sameState && lanes[0]?.kind !== "feed") {
+    const kind = lanes[0]?.kind;
+    const verb = lanes[0]?.open ? kind === "eat" ? "are eating" : "are here" : kind === "eat" ? "ate" : "came by";
+    return joinedNames(names) + " " + verb;
+  }
+  return lanes.map((lane, index) => names[index] + " " + catVerb(lane)).join(", ");
+}
+function groupConsecutive(events, now = Date.now() / 1e3) {
+  const sessions = /* @__PURE__ */ new Map();
+  for (const event of events) {
+    if (event.session === null || event.session === void 0) continue;
+    const lanes = sessions.get(event.session) ?? [];
+    lanes.push(event);
+    sessions.set(event.session, lanes);
+  }
+  const togetherByUid = /* @__PURE__ */ new Map();
+  for (const lanes of sessions.values()) {
+    const ordered = [...lanes].sort((left, right) => left.start - right.start);
+    let cluster = [];
+    let clusterEnd = Number.NEGATIVE_INFINITY;
+    const saveCluster = () => {
+      if (cluster.length > 1) {
+        const members = new Set(cluster.map((event) => event.uid));
+        const rowEvents = events.filter((event) => members.has(event.uid));
+        const start = Math.min(...rowEvents.map((event) => event.start));
+        const end = Math.max(...rowEvents.map((event) => Math.max(event.start, event.end ?? now)));
+        const group = { event: rowEvents[0], events: rowEvents, together: true, start, end };
+        for (const event of rowEvents) togetherByUid.set(event.uid, group);
+      }
+      cluster = [];
+      clusterEnd = Number.NEGATIVE_INFINITY;
+    };
+    for (const event of ordered) {
+      const eventEnd = Math.max(event.start, event.end ?? now);
+      if (cluster.length > 0 && event.start > clusterEnd) saveCluster();
+      cluster.push(event);
+      clusterEnd = Math.max(clusterEnd, eventEnd);
+    }
+    saveCluster();
+  }
+  const groups = [];
+  const emitted = /* @__PURE__ */ new Set();
+  for (const event of events) {
+    const together = togetherByUid.get(event.uid);
+    if (together) {
+      if (!emitted.has(together)) {
+        emitted.add(together);
+        groups.push(together);
+      }
+      continue;
+    }
+    const last = groups[groups.length - 1];
+    if (last && !last.together && last.event.kind === event.kind && last.event.cat === event.cat && last.event.start - event.start <= COLLAPSE_WINDOW_SECONDS) {
+      last.events.push(event);
+      continue;
+    }
+    groups.push({ event, events: [event] });
+  }
+  return groups.sort((left, right) => (right.start ?? right.event.start) - (left.start ?? left.event.start));
+}
+function groupCountLabel(kind, count) {
+  const noun = kind === "eat" ? "meal" : kind === "feed" ? "feed" : "visit";
+  return `${count} ${noun}${count === 1 ? "" : "s"}`;
+}
+function dayKey(date) {
+  return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+}
+function dayLabel(date, now) {
+  if (dayKey(date) === dayKey(now)) return "Today";
+  const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+  if (dayKey(date) === dayKey(yesterday)) return "Yesterday";
+  return date.toLocaleDateString(void 0, { weekday: "long", month: "short", day: "numeric" });
+}
+function groupByDay(groups, now) {
+  const days = [];
+  let currentKey = null;
+  for (const group of groups) {
+    const date = new Date((group.start ?? group.event.start) * 1e3);
+    const key = dayKey(date);
+    if (key !== currentKey) {
+      currentKey = key;
+      days.push({ label: dayLabel(date, now), groups: [] });
+    }
+    days[days.length - 1].groups.push(group);
+  }
+  return days;
+}
+var DEFAULT_RAIL_MAX_HEIGHT = "clamp(360px, calc(100dvh - 200px), 900px)";
+function railStyle(maxHeight) {
+  const value = (maxHeight ?? "").trim();
+  if (value === "none") return "";
+  return `max-height:${value || DEFAULT_RAIL_MAX_HEIGHT}`;
+}
+var RECONNECT_BASE_MS = 1e3;
+var RECONNECT_MAX_MS = 3e4;
+function nextReconnectDelay(current) {
+  return Math.min(current * 2, RECONNECT_MAX_MS);
+}
+function keyCommand(press, options) {
+  if (press.altKey) return null;
+  const key = press.key.length === 1 ? press.key.toLowerCase() : press.key;
+  if (press.ctrlKey || press.metaKey) return key === "z" && !press.repeat ? { type: "undo" } : null;
+  if (key === "ArrowLeft") return { type: "photo", delta: -1 };
+  if (key === "ArrowRight") return { type: "photo", delta: 1 };
+  if (press.repeat) return null;
+  if (key === "z" || key === "u" || key === "Backspace") return { type: "undo" };
+  if (key === "s" || key === "ArrowUp" || key === "ArrowDown") return { type: "scene" };
+  const option = options.find((candidate) => candidate.hotkey === key);
+  return option ? { type: "answer", optionId: option.id } : null;
+}
+var SWIPE_LOCK_PX = 10;
+var SWIPE_FLICK_VELOCITY = 0.5;
+var SWIPE_FLICK_MIN_PX = 24;
+function isSidewaysDrag(dx, dy) {
+  if (Math.abs(dx) < SWIPE_LOCK_PX && Math.abs(dy) < SWIPE_LOCK_PX) return null;
+  return Math.abs(dx) > Math.abs(dy) * 1.2;
+}
+function swipeCommitDistance(width) {
+  return Math.min(140, Math.max(64, width * 0.25));
+}
+function swipeProgress(dx, width) {
+  if (dx === 0) return { side: null, progress: 0 };
+  return { side: dx < 0 ? "left" : "right", progress: Math.min(1, Math.abs(dx) / swipeCommitDistance(width)) };
+}
+function swipeCommit(dx, velocity, width) {
+  const side = dx < 0 ? "left" : "right";
+  if (Math.abs(dx) >= swipeCommitDistance(width)) return side;
+  const flicked = Math.abs(velocity) >= SWIPE_FLICK_VELOCITY && Math.abs(dx) >= SWIPE_FLICK_MIN_PX && Math.sign(velocity) === Math.sign(dx);
+  return flicked ? side : null;
+}
+function swipeOptionId(side, options) {
+  const cats = options.filter((option) => option.kind === "cat");
+  if (cats.length !== 2) return null;
+  return (side === "left" ? cats[0] : cats[1]).id;
+}
+var UNSURE_BELOW = 0.75;
+var BATCH_SIZE = 20;
+var TIER_RANK = { unknown: 0, unsure: 1, guess: 2 };
+function buildReviewItems(unknown, timeline) {
+  const groups = /* @__PURE__ */ new Map();
+  const touched = /* @__PURE__ */ new Set();
+  for (const row of [...unknown, ...timeline]) {
+    if (row.kind === "feed") continue;
+    const key = row.session ?? row.uid;
+    if (row.identity === "reviewed" || row.identity === "not_a_cat" || row.open) touched.add(key);
+    const rows = groups.get(key) ?? /* @__PURE__ */ new Map();
+    rows.set(row.uid, row);
+    groups.set(key, rows);
+  }
+  const items = [];
+  for (const [key, byUid] of groups) {
+    if (touched.has(key)) continue;
+    const rows = [...byUid.values()].sort((a3, b3) => a3.start - b3.start || a3.uid.localeCompare(b3.uid));
+    const guessed = rows.filter((row) => row.identity === "auto" && row.cat);
+    const hasUnknown = rows.some((row) => row.identity !== "auto" || !row.cat);
+    const confidences = guessed.map((row) => row.confidence).filter((value) => typeof value === "number");
+    const confidence = confidences.length ? Math.min(...confidences) : null;
+    const tier = hasUnknown ? "unknown" : confidence !== null && confidence < UNSURE_BELOW ? "unsure" : "guess";
+    const shown = rows.find((row) => row.thumb) ?? rows[0];
+    items.push({
+      key,
+      event: { ...shown, start: rows[0].start },
+      tier,
+      guesses: [...new Set(guessed.map((row) => row.cat))],
+      confidence,
+      isMeal: rows.some((row) => row.kind === "eat"),
+      photos: rows.reduce((sum, row) => sum + (row.sample_count ?? 0), 0)
+    });
+  }
+  return items.sort(
+    (a3, b3) => TIER_RANK[a3.tier] - TIER_RANK[b3.tier] || b3.event.start - a3.event.start || a3.key.localeCompare(b3.key)
+  );
+}
+function reviewOptions(cats) {
+  const options = cats.map((cat) => ({ id: "cat:" + cat.name, kind: "cat", cat: cat.name, label: cat.name }));
+  if (cats.length >= 2) options.push({ id: "several", kind: "several", cat: null, label: cats.length === 2 ? "Both" : "More than one" });
+  options.push({ id: "not_a_cat", kind: "not_a_cat", cat: null, label: "Not a cat" });
+  options.push({ id: "unknown", kind: "unknown", cat: null, label: "Can\u2019t tell" });
+  return options.map((option, index) => ({ ...option, hotkey: index < 9 ? String(index + 1) : null }));
+}
+function guessOptionId(guesses, options) {
+  if (guesses.length === 0) return null;
+  const id = guesses.length === 1 ? "cat:" + guesses[0] : "several";
+  return options.some((option) => option.id === id) ? id : null;
+}
+function catAnswer(cat, isMeal) {
+  return { kind: "cats", cats: [{ cat, ate: isMeal }] };
+}
+function severalAnswer(cats, ate, isMeal) {
+  return { kind: "cats", cats: cats.map((cat) => ({ cat, ate: isMeal && ate.includes(cat) })) };
+}
+function ateChoices(cats) {
+  return [
+    { id: "all", label: cats.length === 2 ? "Both" : "All", ate: [...cats] },
+    ...cats.map((cat) => ({ id: "cat:" + cat, label: cat, ate: [cat] }))
+  ];
+}
+function answerRequest(item, answer) {
+  if (answer.kind === "cats") return { uid: item.event.uid, cats: answer.cats.map((cat) => ({ ...cat })) };
+  return { uid: item.event.uid, verdict: answer.kind };
+}
+function sameAnswer(a3, b3) {
+  if (a3.kind !== "cats" || b3.kind !== "cats") return a3.kind === b3.kind;
+  if (a3.cats.length !== b3.cats.length) return false;
+  return a3.cats.every((cat) => b3.cats.some((other) => other.cat === cat.cat && other.ate === cat.ate));
+}
+function answerOptionId(answer) {
+  if (answer.kind !== "cats") return answer.kind;
+  return answer.cats.length === 1 ? "cat:" + answer.cats[0].cat : "several";
+}
+function reviewPhotos(event, samples) {
+  const photos = [];
+  const seen = /* @__PURE__ */ new Set();
+  const add = (asset) => {
+    if (!asset || seen.has(asset.id)) return;
+    seen.add(asset.id);
+    photos.push(asset);
+  };
+  add(event.thumb);
+  for (const sample of samples ?? []) add(sample.body ?? sample.face);
+  return photos;
+}
+function majorityGuess(samples, cats) {
+  const weight = /* @__PURE__ */ new Map();
+  let total = 0;
+  for (const sample of samples) {
+    if (!sample.guess || !cats.includes(sample.guess)) continue;
+    const value = sample.guess_confidence ?? 0.5;
+    weight.set(sample.guess, (weight.get(sample.guess) ?? 0) + value);
+    total += value;
+  }
+  let best = null;
+  for (const [cat, value] of weight) {
+    if (!best || value > best.confidence) best = { cat, confidence: value };
+  }
+  if (!best || total <= 0 || best.confidence / total < 0.6) return null;
+  return { cat: best.cat, confidence: best.confidence / total };
+}
+function createQueue(items, startKey) {
+  const ordered = [...items];
+  if (startKey) {
+    const index = ordered.findIndex((item) => item.key === startKey || item.event.uid === startKey);
+    if (index > 0) ordered.unshift(...ordered.splice(index, 1));
+  }
+  return { items: ordered, position: 0, records: {}, history: [], streak: 0, seq: 0 };
+}
+function currentItem(state2) {
+  return state2.items[state2.position] ?? null;
+}
+function upcomingItems(state2, count) {
+  const answered = new Set(state2.history);
+  const upcoming = [];
+  for (let index = state2.position + 1; index < state2.items.length && upcoming.length < count; index++) {
+    const item = state2.items[index];
+    if (!answered.has(item.key)) upcoming.push(item);
+  }
+  return upcoming;
+}
+function nextPosition(items, history2, from) {
+  const answered = new Set(history2);
+  for (let index = from; index < items.length; index++) {
+    if (!answered.has(items[index].key)) return index;
+  }
+  return items.length;
+}
+function answerCurrent(state2, answer) {
+  const item = currentItem(state2);
+  if (!item) return state2;
+  const existing = state2.records[item.key];
+  const history2 = [...state2.history.filter((key) => key !== item.key), item.key];
+  const unchanged = existing !== void 0 && existing.status !== "failed" && sameAnswer(existing.answer, answer);
+  const seq = unchanged ? state2.seq : state2.seq + 1;
+  const record = unchanged ? existing : { key: item.key, answer, status: "queued", seq, attempts: 0, error: null, gone: false };
+  return {
+    ...state2,
+    seq,
+    records: { ...state2.records, [item.key]: record },
+    history: history2,
+    streak: state2.streak + 1,
+    position: nextPosition(state2.items, history2, state2.position + 1)
+  };
+}
+function undoLast(state2) {
+  const key = state2.history[state2.history.length - 1];
+  if (key === void 0) return state2;
+  const index = state2.items.findIndex((item) => item.key === key);
+  const history2 = state2.history.slice(0, -1);
+  if (index === -1) return { ...state2, history: history2, streak: 0 };
+  const records = { ...state2.records };
+  if (records[key]?.status === "queued") delete records[key];
+  return { ...state2, history: history2, records, streak: 0, position: index };
+}
+function nextToSave(state2) {
+  let next = null;
+  for (const record of Object.values(state2.records)) {
+    if (record.status === "saving") return null;
+    if (record.status === "queued" && (!next || record.seq < next.seq)) next = record;
+  }
+  return next;
+}
+function withRecord(state2, key, seq, update) {
+  const record = state2.records[key];
+  if (!record || record.seq !== seq) return state2;
+  return { ...state2, records: { ...state2.records, [key]: update(record) } };
+}
+function markSaving(state2, key, seq) {
+  return withRecord(state2, key, seq, (record) => ({ ...record, status: "saving", attempts: record.attempts + 1, error: null }));
+}
+function markSaved(state2, key, seq) {
+  return withRecord(state2, key, seq, (record) => ({ ...record, status: "saved", error: null }));
+}
+function markFailed(state2, key, seq, error, gone = false) {
+  return withRecord(state2, key, seq, (record) => ({ ...record, status: "failed", error, gone }));
+}
+function retryFailed(state2) {
+  let changed = false;
+  const records = {};
+  for (const [key, record] of Object.entries(state2.records)) {
+    if (record.status === "failed" && !record.gone) {
+      records[key] = { ...record, status: "queued", error: null };
+      changed = true;
+    } else {
+      records[key] = record;
+    }
+  }
+  return changed ? { ...state2, records } : state2;
+}
+function dismissGone(state2) {
+  const gone = new Set(Object.values(state2.records).filter((record) => record.gone).map((record) => record.key));
+  if (gone.size === 0) return state2;
+  const records = Object.fromEntries(Object.entries(state2.records).filter(([key]) => !gone.has(key)));
+  return { ...state2, records, history: state2.history.filter((key) => !gone.has(key)) };
+}
+function saveCounts(state2) {
+  const counts = { pending: 0, failed: 0, gone: 0 };
+  for (const record of Object.values(state2.records)) {
+    if (record.status === "queued" || record.status === "saving") counts.pending++;
+    else if (record.status === "failed" && record.gone) counts.gone++;
+    else if (record.status === "failed") counts.failed++;
+  }
+  return counts;
+}
+function mergeItems(state2, fresh) {
+  const head = state2.items.slice(0, state2.position + 1);
+  const headKeys = new Set(head.map((item) => item.key));
+  const freshKeys = new Set(fresh.map((item) => item.key));
+  const keptTail = state2.items.slice(state2.position + 1).filter((item) => !freshKeys.has(item.key) && state2.records[item.key] !== void 0);
+  const tail = [...keptTail, ...fresh.filter((item) => !headKeys.has(item.key))];
+  const items = [...head, ...tail];
+  const position = state2.position >= state2.items.length ? nextPosition(items, state2.history, head.length) : state2.position;
+  return { ...state2, items, position };
+}
+function queueProgress(state2, batchSize = BATCH_SIZE) {
+  const done = state2.history.length;
+  const answered = new Set(state2.history);
+  const remaining = state2.items.reduce((count, item) => count + (answered.has(item.key) ? 0 : 1), 0);
+  const batchStart = Math.floor(done / batchSize) * batchSize;
+  return { done, remaining, batchDone: done - batchStart, batchSize: Math.min(batchSize, done - batchStart + remaining) };
+}
+function isBatchBoundary(state2, batchSize = BATCH_SIZE) {
+  const progress = queueProgress(state2, batchSize);
+  return progress.done > 0 && progress.done % batchSize === 0 && progress.remaining > 0;
+}
+function summarize(state2, cats) {
+  const tallies = new Map(cats.map((cat) => [cat, { cat, visits: 0, photos: 0 }]));
+  const summary = { total: 0, cats: [], notACat: 0, cantTell: 0 };
+  const itemsByKey = new Map(state2.items.map((item) => [item.key, item]));
+  for (const key of state2.history) {
+    const record = state2.records[key];
+    if (!record || record.gone) continue;
+    summary.total++;
+    if (record.answer.kind === "not_a_cat") summary.notACat++;
+    else if (record.answer.kind === "unknown") summary.cantTell++;
+    else {
+      for (const choice of record.answer.cats) {
+        const tally = tallies.get(choice.cat) ?? { cat: choice.cat, visits: 0, photos: 0 };
+        tally.visits++;
+        if (record.answer.cats.length === 1) tally.photos += itemsByKey.get(key)?.photos ?? 0;
+        tallies.set(choice.cat, tally);
+      }
+    }
+  }
+  summary.cats = [...tallies.values()];
+  return summary;
+}
+function trainingGains(before, after) {
+  const gains = {};
+  for (const cat of after) {
+    const start = before.find((other) => other.name === cat.name)?.training.total ?? 0;
+    gains[cat.name] = Math.max(0, cat.training.total - start);
+  }
+  return gains;
+}
+var KibbleChoice = class extends i4 {
+  static {
+    this.shadowRootOptions = { ...i4.shadowRootOptions, delegatesFocus: true };
+  }
+  static {
+    this.properties = {
+      hass: { attribute: false },
+      cache: { attribute: false },
+      label: { type: String },
+      cats: { attribute: false },
+      icon: { type: String },
+      state: { type: String, reflect: true },
+      hint: { type: String },
+      caption: { type: String },
+      disabled: { type: Boolean, reflect: true },
+      busy: { type: Boolean },
+      pop: { type: Boolean }
+    };
+  }
+  constructor() {
+    super();
+    this.label = "";
+    this.cats = [];
+    this.icon = null;
+    this.state = "neutral";
+    this.hint = null;
+    this.caption = null;
+    this.disabled = false;
+    this.busy = false;
+    this.pop = false;
+  }
+  render() {
+    const color = this.cats.length === 1 ? catColorAt(this.cats[0].color) : null;
+    return b2`
+      <button type="button" class=${this.state} aria-pressed=${this.state === "selected"} ?disabled=${this.disabled} style=${color ? `--choice-color:${color}` : ""}>
+        <span class="picture ${this.cats.length > 1 ? "several" : ""}">
+          ${this.cats.length ? this.cats.slice(0, 3).map((cat) => b2`<kibble-avatar .hass=${this.hass} .name=${cat.name} .colorIndex=${cat.color} .asset=${cat.avatar} .cache=${this.cache}></kibble-avatar>`) : b2`<span class="glyph">${this.icon ? mdiIcon(this.icon) : A}</span>`}
+          ${this.busy ? b2`<span class="badge spinner">${mdiIcon("refresh")}</span>` : this.state === "selected" ? b2`<span class="badge check ${this.pop ? "pop" : ""}">${mdiIcon("check")}</span>` : A}
+        </span>
+        <span class="text">
+          <span class="label">${this.label}</span>
+          ${this.caption ? b2`<span class="caption">${this.caption}</span>` : A}
+        </span>
+        ${this.hint ? b2`<kbd aria-hidden="true">${this.hint}</kbd>` : A}
+      </button>
+    `;
+  }
+  static {
+    this.styles = i`
+    :host {
+      display: block;
+      min-width: 0;
+      /* The button lays itself out from the width its parent gives it (so the parent must give
+         one: a grid or flex track): narrow shows the picture above the name, wide beside it. */
+      container-type: inline-size;
+    }
+    button {
+      position: relative;
+      box-sizing: border-box;
+      width: 100%;
+      height: 100%;
+      min-height: var(--kibble-choice-height, 64px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      padding: 8px;
+      border: 2px solid transparent;
+      border-radius: 8px;
+      background: color-mix(in srgb, var(--primary-text-color) 6%, transparent);
+      color: var(--primary-text-color);
+      font: inherit;
+      font-size: 14px;
+      line-height: 1.2;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+      transition:
+        transform 90ms ease-out,
+        background-color 150ms ease-out,
+        border-color 150ms ease-out;
+    }
+    button:active:not(:disabled) {
+      transform: scale(0.96);
+    }
+    button:disabled {
+      opacity: 0.5;
+      cursor: default;
+    }
+    button:focus-visible {
+      outline: 2px solid var(--primary-color, #03a9f4);
+      outline-offset: 2px;
+    }
+    @media (hover: hover) {
+      button:hover:not(:disabled) {
+        background: color-mix(in srgb, var(--choice-color, var(--primary-text-color)) 12%, transparent);
+      }
+    }
+    button.suggested {
+      border-style: dashed;
+      border-color: var(--choice-color, var(--secondary-text-color));
+      background: color-mix(in srgb, var(--choice-color, var(--secondary-text-color)) 10%, transparent);
+    }
+    button.selected {
+      border-color: var(--choice-color, var(--secondary-text-color));
+      background: color-mix(in srgb, var(--choice-color, var(--secondary-text-color)) 20%, transparent);
+    }
+    .picture {
+      position: relative;
+      display: flex;
+      flex: none;
+      --kibble-avatar-size: var(--kibble-choice-picture, 36px);
+    }
+    .picture.several kibble-avatar + kibble-avatar {
+      margin-left: calc(var(--kibble-choice-picture, 36px) * -0.4);
+      border-radius: 50%;
+      box-shadow: 0 0 0 2px var(--ha-dialog-surface-background, var(--ha-card-background, var(--card-background-color, #fff)));
+    }
+    .glyph {
+      width: var(--kibble-choice-picture, 36px);
+      height: var(--kibble-choice-picture, 36px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: calc(var(--kibble-choice-picture, 36px) * 0.72);
+      color: var(--secondary-text-color);
+    }
+    .badge {
+      position: absolute;
+      right: -3px;
+      bottom: -3px;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      background: var(--kibble-feed, #43a96a);
+      color: var(--kibble-ink-on-feed, #10301d);
+      box-shadow: 0 0 0 2px var(--ha-dialog-surface-background, var(--ha-card-background, var(--card-background-color, #fff)));
+    }
+    .badge.spinner {
+      background: var(--secondary-text-color);
+      color: var(--card-background-color, #fff);
+    }
+    .text {
+      min-width: 0;
+      max-width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+    }
+    .label {
+      max-width: 100%;
+      font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .caption {
+      font-size: 12px;
+      color: var(--secondary-text-color);
+      font-variant-numeric: tabular-nums;
+    }
+    kbd {
+      display: none;
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      min-width: 18px;
+      box-sizing: border-box;
+      padding: 1px 4px;
+      border-radius: 4px;
+      border: 1px solid color-mix(in srgb, var(--primary-text-color) 24%, transparent);
+      font: inherit;
+      font-size: 12px;
+      line-height: 14px;
+      text-align: center;
+      color: var(--secondary-text-color);
+    }
+    @container (min-width: 220px) {
+      button {
+        flex-direction: row;
+        justify-content: flex-start;
+        gap: 12px;
+        padding: 8px 12px;
+      }
+      .text {
+        align-items: flex-start;
+        flex: 1;
+      }
+      kbd {
+        position: static;
+        flex: none;
+      }
+    }
+    /* A key hint only helps where there is a keyboard: a fine pointer that can hover. */
+    @media (hover: hover) and (pointer: fine) {
+      kbd {
+        display: block;
+      }
+    }
+    @media (prefers-reduced-motion: no-preference) {
+      .spinner svg {
+        animation: kibble-choice-spin 0.9s linear infinite;
+      }
+      .check.pop {
+        animation: kibble-choice-pop 400ms ease;
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      button {
+        transition: none;
+      }
+      button:active:not(:disabled) {
+        transform: none;
+      }
+    }
+    @keyframes kibble-choice-spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+    @keyframes kibble-choice-pop {
+      0% {
+        transform: scale(0.4);
+      }
+      60% {
+        transform: scale(1.25);
+      }
+      100% {
+        transform: scale(1);
+      }
+    }
+  `;
+  }
+};
+customElements.define("kibble-choice", KibbleChoice);
+var LEAVE_MS = 260;
+var ANNOUNCE_DELAY_MS = 600;
+var SAVE_TIMEOUT_MS = 2e4;
+var FIRST_RETRY_MS = 2e3;
+var PRELOAD_AHEAD = 3;
+var DETAIL_AHEAD = 2;
+var GAIN_READ_DELAYS_MS = [0, 3e3, 9e3];
+var KibbleReviewQueue = class extends i4 {
+  constructor() {
+    super();
+    this._open = false;
+    this._phase = "loading";
+    this._loadError = null;
+    this._queue = null;
+    this._stage = "review";
+    this._follow = null;
+    this._photoIndex = 0;
+    this._scene = false;
+    this._leaving = null;
+    this._gains = null;
+    this._imageFailed = false;
+    this._ownCats = [];
+    this._catsBefore = null;
+    this._details = /* @__PURE__ */ new Map();
+    this._detailsAsked = /* @__PURE__ */ new Set();
+    this._preloader = new ImagePreloader();
+    this._generation = 0;
+    this._gainTimers = [];
+    this._retryDelay = FIRST_RETRY_MS;
+    this._connected = true;
+    this._swipe = null;
+    this._dragged = false;
+    this._focusedKey = null;
+    this._undo = () => {
+      if (this._follow) {
+        this._follow = null;
+        return;
+      }
+      const queue = this._queue;
+      if (!queue || queue.history.length === 0) return;
+      clearTimeout(this._leaveTimer);
+      this._leaving = null;
+      this._queue = undoLast(queue);
+      this._stage = "review";
+      this._clearGainTimers();
+      this._resetPhoto();
+      fireHaptic("light");
+    };
+    this._keepGoing = () => {
+      this._stage = "review";
+      this._clearGainTimers();
+    };
+    this._enterSummary = () => {
+      this._stage = "summary";
+      this._follow = null;
+      fireHaptic("success");
+      this._clearGainTimers();
+      this._gainTimers = GAIN_READ_DELAYS_MS.map((delay) => setTimeout(() => void this._readCats(false), delay));
+    };
+    this._retryNow = () => {
+      if (!this._queue) return;
+      this._queue = retryFailed(this._queue);
+      this._pump();
+    };
+    this._dismissGone = () => {
+      if (this._queue) this._queue = dismissGone(this._queue);
+    };
+    this._close = () => {
+      if (!this._open) return;
+      this._open = false;
+      this._follow = null;
+      this._clearGainTimers();
+      clearTimeout(this._leaveTimer);
+      this._leaving = null;
+      const queue = this._queue;
+      const answered = queue?.history.length ?? 0;
+      const counts = queue ? saveCounts(queue) : { pending: 0, failed: 0, gone: 0 };
+      if (answered > 0) this._announce();
+      if (counts.failed > 0) {
+        const message = counts.failed === 1 ? "1 answer is not saved yet. Open Check visits to try again." : `${counts.failed} answers are not saved yet. Open Check visits to try again.`;
+        this.dispatchEvent(new CustomEvent("hass-notification", { detail: { message }, bubbles: true, composed: true }));
+      }
+      if (counts.pending + counts.failed === 0) {
+        this._queue = null;
+        this._generation++;
+      }
+      this.dispatchEvent(new CustomEvent("review-closed", { detail: { answered }, bubbles: true, composed: true }));
+    };
+    this._onCancel = (event) => {
+      event.preventDefault();
+      if (this._follow) this._follow = null;
+      else this._close();
+    };
+    this._onFrameClick = (event) => {
+      if (event.target === event.currentTarget) this._close();
+    };
+    this._onKeydown = (event) => {
+      event.stopPropagation();
+      if (event.key === "Escape" || event.key === "Tab" || event.key === "Enter" || event.key === " ") return;
+      if (this._view() !== "review") return;
+      const command = keyCommand(event, this._keyOptions());
+      if (!command) return;
+      event.preventDefault();
+      this._run(command);
+    };
+    this._toggleScene = () => {
+      const item = this._queue ? currentItem(this._queue) : null;
+      if (!item?.event.scene) return;
+      this._scene = !this._scene;
+      this._imageFailed = false;
+    };
+    this._retryImage = () => {
+      this._imageFailed = false;
+      this.renderRoot.querySelector(".card.current kibble-image")?.retry();
+    };
+    this._onPointerDown = (event) => {
+      this._dragged = false;
+      if (event.button !== 0 || !this._swipeEnabled()) return;
+      if (event.composedPath().some((node) => node instanceof HTMLButtonElement)) return;
+      const el = event.currentTarget;
+      this._swipe = { id: event.pointerId, x: event.clientX, y: event.clientY, lastX: event.clientX, lastT: event.timeStamp, velocity: 0, sideways: null, armed: null, el, width: el.offsetWidth };
+    };
+    this._onPointerMove = (event) => {
+      const swipe = this._swipe;
+      if (!swipe || event.pointerId !== swipe.id) return;
+      const dx = event.clientX - swipe.x;
+      if (swipe.sideways === null) {
+        swipe.sideways = isSidewaysDrag(dx, event.clientY - swipe.y);
+        if (swipe.sideways === false) {
+          this._swipe = null;
+          return;
+        }
+        if (swipe.sideways === null) return;
+        swipe.el.setPointerCapture(swipe.id);
+        swipe.el.classList.add("dragging");
+        this._dragged = true;
+      }
+      const elapsed = event.timeStamp - swipe.lastT;
+      if (elapsed > 0) swipe.velocity = (event.clientX - swipe.lastX) / elapsed;
+      swipe.lastX = event.clientX;
+      swipe.lastT = event.timeStamp;
+      const progress = swipeProgress(dx, swipe.width);
+      swipe.el.style.setProperty("--dx", `${dx}px`);
+      swipe.el.style.setProperty("--tilt", `${dx / swipe.width * 10}deg`);
+      swipe.el.style.setProperty("--swipe", String(progress.progress));
+      swipe.el.dataset.side = progress.side ?? "";
+      const armed = progress.progress >= 1 ? progress.side : null;
+      if (armed !== swipe.armed) {
+        swipe.armed = armed;
+        swipe.el.toggleAttribute("data-armed", armed !== null);
+        if (armed) fireHaptic("light");
+      }
+    };
+    this._onPointerUp = (event) => {
+      const swipe = this._swipe;
+      this._swipe = null;
+      if (!swipe || event.pointerId !== swipe.id || !swipe.sideways) return;
+      swipe.el.classList.remove("dragging");
+      const cancelled = event.type === "pointercancel";
+      const side = cancelled ? null : swipeCommit(event.clientX - swipe.x, swipe.velocity, swipe.width);
+      const optionId = side ? swipeOptionId(side, this._options()) : null;
+      if (side && optionId) {
+        this._choose(optionId, side);
+        return;
+      }
+      swipe.el.style.removeProperty("--dx");
+      swipe.el.style.removeProperty("--tilt");
+      swipe.el.style.removeProperty("--swipe");
+      swipe.el.removeAttribute("data-armed");
+      delete swipe.el.dataset.side;
+    };
+    this._onCardClick = (event) => {
+      if (this._dragged) {
+        this._dragged = false;
+        return;
+      }
+      if (event.composedPath().some((node) => node instanceof HTMLButtonElement)) return;
+      this._toggleScene();
+    };
+    this.cats = [];
+  }
+  static {
+    this.properties = {
+      hass: { attribute: false },
+      entryId: { type: String },
+      cats: { attribute: false },
+      cache: { attribute: false },
+      _open: { state: true },
+      _phase: { state: true },
+      _loadError: { state: true },
+      _queue: { state: true },
+      _stage: { state: true },
+      _follow: { state: true },
+      _photoIndex: { state: true },
+      _scene: { state: true },
+      _leaving: { state: true },
+      _gains: { state: true },
+      _imageFailed: { state: true },
+      _ownCats: { state: true }
+    };
+  }
+  // ---- Public API ---------------------------------------------------------------------------
+  /** Opens the queue. `startUid` is the visit to show first (a row the person tapped). */
+  show(startUid) {
+    if (this._open) return;
+    this._open = true;
+    this._stage = "review";
+    this._follow = null;
+    this._resetPhoto();
+    this._gains = null;
+    if (this._queue && this._unsaved() > 0) {
+      this._queue = retryFailed(this._queue);
+      this._phase = "ready";
+      this._pump();
+      void this._reload();
+      return;
+    }
+    this._queue = null;
+    this._details.clear();
+    this._detailsAsked.clear();
+    void this._load(startUid ?? null);
+  }
+  // ---- Lifecycle ----------------------------------------------------------------------------
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    clearTimeout(this._leaveTimer);
+    clearTimeout(this._announceTimer);
+    clearTimeout(this._retryTimer);
+    this._clearGainTimers();
+    this._preloader.dispose();
+  }
+  willUpdate(changed) {
+    if (!changed.has("hass")) return;
+    const connected = this.hass?.connected !== false;
+    if (connected && !this._connected && this._queue) {
+      this._queue = retryFailed(this._queue);
+      queueMicrotask(() => this._pump());
+    }
+    this._connected = connected;
+  }
+  updated() {
+    const dialog = this.renderRoot.querySelector("dialog");
+    if (dialog && this._open && !dialog.open) dialog.showModal();
+    if (dialog && !this._open && dialog.open) dialog.close();
+    if (!this._open) {
+      this._preloader.sync(void 0, void 0, []);
+      return;
+    }
+    this._warmUp();
+    void this._moveFocus();
+  }
+  // ---- Loading ------------------------------------------------------------------------------
+  async _load(startUid) {
+    const callWS = this.hass?.callWS;
+    const entryId = this.entryId;
+    const generation = ++this._generation;
+    this._loadError = null;
+    if (!callWS || !entryId) {
+      this._phase = "error";
+      this._loadError = "Not connected.";
+      return;
+    }
+    this._phase = "loading";
+    void this._readCats(true);
+    try {
+      const unknown = await loadUnknownVisits(callWS, entryId);
+      if (generation !== this._generation) return;
+      const first = buildReviewItems(unknown.items, []);
+      const startIsHere = !startUid || first.some((item) => item.key === startUid || item.event.uid === startUid);
+      if (first.length > 0 && startIsHere) {
+        this._queue = createQueue(first, startUid);
+        this._phase = "ready";
+      }
+      const timeline = await loadTimelineVisits(callWS, entryId);
+      if (generation !== this._generation) return;
+      const all = buildReviewItems(unknown.items, timeline);
+      this._queue = this._queue ? mergeItems(this._queue, all) : createQueue(all, startUid);
+      this._phase = "ready";
+    } catch (err) {
+      if (generation !== this._generation) return;
+      if (this._queue) {
+        this._phase = "ready";
+      } else {
+        this._phase = "error";
+        this._loadError = describeWsError(err);
+      }
+    }
+  }
+  /** Re-reads the work list and folds it into the sitting in progress. */
+  async _reload() {
+    const callWS = this.hass?.callWS;
+    const entryId = this.entryId;
+    if (!callWS || !entryId) return;
+    const generation = this._generation;
+    try {
+      const [unknown, timeline] = await Promise.all([loadUnknownVisits(callWS, entryId), loadTimelineVisits(callWS, entryId)]);
+      if (generation !== this._generation || !this._queue) return;
+      this._queue = mergeItems(this._queue, buildReviewItems(unknown.items, timeline));
+    } catch {
+    }
+  }
+  async _readCats(first) {
+    const callWS = this.hass?.callWS;
+    const entryId = this.entryId;
+    if (!callWS || !entryId) return;
+    const generation = this._generation;
+    try {
+      const response = await callWS({ type: "kibble/cats", entry_id: entryId });
+      if (generation !== this._generation) return;
+      this._ownCats = response.cats;
+      if (first) this._catsBefore = response.cats;
+      else if (this._catsBefore) this._gains = trainingGains(this._catsBefore, response.cats);
+    } catch {
+    }
+  }
+  _roster() {
+    return this.cats.length ? this.cats : this._ownCats;
+  }
+  _options() {
+    return reviewOptions(this._roster());
+  }
+  /** Fetches the photo lists of the visit on screen and the next few, and keeps their pictures
+   * warm so stepping forward never waits. */
+  _warmUp() {
+    const queue = this._queue;
+    const hass = this.hass;
+    const entryId = this.entryId;
+    const item = queue ? currentItem(queue) : null;
+    if (!queue || !item || !hass?.callWS || !entryId) {
+      this._preloader.sync(void 0, void 0, []);
+      return;
+    }
+    const upcoming = upcomingItems(queue, PRELOAD_AHEAD);
+    for (const wanted of [item, ...upcoming.slice(0, DETAIL_AHEAD)]) {
+      if (this._detailsAsked.has(wanted.key)) continue;
+      this._detailsAsked.add(wanted.key);
+      const generation = this._generation;
+      hass.callWS({ type: "kibble/event", entry_id: entryId, uid: wanted.event.uid }).then(
+        (detail) => {
+          if (generation !== this._generation) return;
+          this._details.set(wanted.key, detail);
+          this.requestUpdate();
+        },
+        () => {
+        }
+        // browsing falls back to the one best photo
+      );
+    }
+    const photos = reviewPhotos(item.event, this._details.get(item.key)?.samples ?? null);
+    this._preloader.sync(hass, this.cache, [
+      item.event.scene,
+      ...photos.slice(0, 6),
+      ...upcoming.map((next) => next.event.thumb ?? next.event.scene)
+    ]);
+  }
+  // ---- Answers ------------------------------------------------------------------------------
+  _resetPhoto() {
+    this._photoIndex = 0;
+    this._scene = false;
+    this._imageFailed = false;
+  }
+  _choose(optionId, swipeSide) {
+    const queue = this._queue;
+    const item = queue ? currentItem(queue) : null;
+    if (!queue || !item || this._view() !== "review") return;
+    const options = this._options();
+    const option = options.find((candidate) => candidate.id === optionId);
+    if (!option) return;
+    const roster = this._roster();
+    if (option.kind === "cat") {
+      const index = roster.findIndex((cat) => cat.name === option.cat);
+      const side = swipeSide ?? (roster.length === 2 ? index === 0 ? "left" : "right" : "up");
+      this._commit(item, catAnswer(option.cat, item.isMeal), side, option.label, roster.filter((cat) => cat.name === option.cat));
+      return;
+    }
+    if (option.kind === "several") {
+      const names = roster.map((cat) => cat.name);
+      if (names.length > 2) this._follow = { mode: "pick", cats: [] };
+      else if (item.isMeal) this._follow = { mode: "ate", cats: names };
+      else this._commit(item, severalAnswer(names, [], false), "up", option.label, roster);
+      return;
+    }
+    this._commit(item, { kind: option.kind }, "down", option.label, []);
+  }
+  _togglePicked(name) {
+    const follow = this._follow;
+    if (!follow || follow.mode !== "pick") return;
+    const cats = follow.cats.includes(name) ? follow.cats.filter((cat) => cat !== name) : [...follow.cats, name];
+    this._follow = { mode: "pick", cats };
+  }
+  _finishPick() {
+    const follow = this._follow;
+    const item = this._queue ? currentItem(this._queue) : null;
+    if (!follow || !item || follow.cats.length < 2) return;
+    const roster = this._roster();
+    const cats = roster.filter((cat) => follow.cats.includes(cat.name));
+    if (item.isMeal) this._follow = { mode: "ate", cats: cats.map((cat) => cat.name) };
+    else this._commit(item, severalAnswer(cats.map((cat) => cat.name), [], false), "up", "More than one", cats);
+  }
+  _chooseAte(ate) {
+    const follow = this._follow;
+    const item = this._queue ? currentItem(this._queue) : null;
+    if (!follow || follow.mode !== "ate" || !item) return;
+    const cats = this._roster().filter((cat) => follow.cats.includes(cat.name));
+    this._commit(item, severalAnswer(follow.cats, ate, true), "up", follow.cats.length === 2 ? "Both" : "More than one", cats);
+  }
+  _commit(item, answer, side, label, cats) {
+    const queue = this._queue;
+    if (!queue) return;
+    this._leaving = { item, side, label, cats };
+    clearTimeout(this._leaveTimer);
+    this._leaveTimer = setTimeout(() => {
+      this._leaving = null;
+    }, LEAVE_MS);
+    this._queue = answerCurrent(queue, answer);
+    this._follow = null;
+    this._resetPhoto();
+    if (isBatchBoundary(this._queue)) {
+      this._stage = "batch";
+      fireHaptic("success");
+      void this._reload();
+    } else if (!currentItem(this._queue)) {
+      this._enterSummary();
+    } else {
+      fireHaptic("light");
+    }
+    this._pump();
+  }
+  _clearGainTimers() {
+    for (const timer of this._gainTimers) clearTimeout(timer);
+    this._gainTimers = [];
+  }
+  // ---- Saving -------------------------------------------------------------------------------
+  _unsaved() {
+    if (!this._queue) return 0;
+    const counts = saveCounts(this._queue);
+    return counts.pending + counts.failed;
+  }
+  /** Sends the next waiting answer, if nothing is in flight. Called after every change. */
+  _pump() {
+    const queue = this._queue;
+    const hass = this.hass;
+    const entryId = this.entryId;
+    if (!queue || !hass?.callWS || !entryId) return;
+    const record = nextToSave(queue);
+    const item = record ? queue.items.find((candidate) => candidate.key === record.key) : void 0;
+    if (!record || !item) return;
+    const { key, seq } = record;
+    this._queue = markSaving(queue, key, seq);
+    let settled = false;
+    const settle = (err, saved) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      if (saved) {
+        if (this._queue) this._queue = markSaved(this._queue, key, seq);
+        this._retryDelay = FIRST_RETRY_MS;
+        this._scheduleAnnounce();
+      } else {
+        const gone = typeof err === "object" && err !== null && "code" in err && err.code === "not_found";
+        if (this._queue) this._queue = markFailed(this._queue, key, seq, describeWsError(err), gone);
+        if (!gone) this._scheduleRetry();
+      }
+      this._pump();
+    };
+    const timeout = setTimeout(() => settle(new Error("Timed out."), false), SAVE_TIMEOUT_MS);
+    labelSession(hass, entryId, answerRequest(item, record.answer)).then(
+      () => settle(null, true),
+      (err) => settle(err, false)
+    );
+  }
+  _scheduleRetry() {
+    if (this._retryTimer !== void 0) return;
+    this._retryTimer = setTimeout(() => {
+      this._retryTimer = void 0;
+      this._retryDelay = nextReconnectDelay(this._retryDelay);
+      this._retryNow();
+    }, this._retryDelay);
+  }
+  /** Tells the other cards something was named, shortly after the last save of a burst. */
+  _scheduleAnnounce() {
+    clearTimeout(this._announceTimer);
+    this._announceTimer = setTimeout(() => this._announce(), ANNOUNCE_DELAY_MS);
+  }
+  _announce() {
+    clearTimeout(this._announceTimer);
+    this._announceTimer = void 0;
+    if (this.entryId) announceReviewChange(this.entryId);
+  }
+  // ---- Keys ---------------------------------------------------------------------------------
+  _keyOptions() {
+    const follow = this._follow;
+    if (!follow) return this._options();
+    if (follow.mode === "ate") return ateChoices(follow.cats).map((choice, index) => ({ id: "ate:" + choice.id, hotkey: String(index + 1) }));
+    return this._roster().map((cat, index) => ({ id: "pick:" + cat.name, hotkey: index < 9 ? String(index + 1) : null }));
+  }
+  _run(command) {
+    if (command.type === "undo") this._undo();
+    else if (command.type === "scene") this._toggleScene();
+    else if (command.type === "photo") this._stepPhoto(command.delta);
+    else if (command.optionId.startsWith("ate:")) {
+      const choice = ateChoices(this._follow?.cats ?? []).find((candidate) => "ate:" + candidate.id === command.optionId);
+      if (choice) this._chooseAte(choice.ate);
+    } else if (command.optionId.startsWith("pick:")) this._togglePicked(command.optionId.slice(5));
+    else this._choose(command.optionId);
+  }
+  /** Puts keyboard focus on Kibble's guess (or the earlier answer) when a new visit appears, so
+   * Enter agrees with it; with no guess, focus rests on the answer group and Enter does nothing.
+   * A guess read from the photos arrives a moment after the visit does: focus follows it only
+   * if it is still resting on the group. A just-created answer button has nothing to focus
+   * until its own first render, so that is waited for. */
+  async _moveFocus() {
+    const queue = this._queue;
+    const item = queue ? currentItem(queue) : null;
+    const key = this._view() + ":" + (item?.key ?? "") + ":" + (this._follow?.mode ?? "");
+    const marked = this.renderRoot.querySelector("[data-autofocus]");
+    const answers = this.renderRoot.querySelector(".answers");
+    const guessArrived = marked !== null && answers !== null && this.shadowRoot?.activeElement === answers;
+    if (key === this._focusedKey && !guessArrived) return;
+    this._focusedKey = key;
+    const target = marked ?? answers;
+    if (target instanceof KibbleChoice) await target.updateComplete;
+    if (key === this._focusedKey) target?.focus({ preventScroll: true });
+  }
+  // ---- Photos -------------------------------------------------------------------------------
+  _photosFor(item) {
+    return reviewPhotos(item.event, this._details.get(item.key)?.samples ?? null);
+  }
+  _stepPhoto(delta) {
+    const item = this._queue ? currentItem(this._queue) : null;
+    if (!item) return;
+    const count = this._photosFor(item).length;
+    if (count < 2) return;
+    this._showPhoto((this._photoIndex + delta + count) % count);
+  }
+  _showPhoto(index) {
+    this._photoIndex = index;
+    this._scene = false;
+    this._imageFailed = false;
+  }
+  // ---- Swipe --------------------------------------------------------------------------------
+  _swipeEnabled() {
+    return this._view() === "review" && !this._follow && this._roster().length === 2;
+  }
+  // ---- Render -------------------------------------------------------------------------------
+  _view() {
+    const queue = this._queue;
+    if (this._phase !== "ready" || !queue) return this._phase === "ready" ? "loading" : this._phase;
+    if (this._stage !== "review") return this._stage;
+    if (currentItem(queue)) return "review";
+    return queue.history.length > 0 ? "summary" : "empty";
+  }
+  render() {
+    return b2`
+      <dialog aria-label="Check visits" @cancel=${this._onCancel} @keydown=${this._onKeydown}>
+        ${this._open ? this._renderFrame() : A}
+      </dialog>
+    `;
+  }
+  _renderFrame() {
+    const view = this._view();
+    const queue = this._queue;
+    const item = queue ? currentItem(queue) : null;
+    return b2`
+      <div class="frame" @click=${this._onFrameClick}>
+        <div class="panel view-${view}">
+          ${this._renderTop(view, queue)}
+          <div class="stage">${this._renderStage(view, queue, item)}</div>
+          <div class="answers" tabindex="-1" role="group" aria-label=${this._title(view, queue)}>${this._renderAnswers(view, queue, item)}</div>
+          ${this._renderFooter(view, queue)}
+          <p class="sr-only" aria-live="polite">${view === "review" && item ? this._spoken(item) : ""}</p>
+        </div>
+      </div>
+    `;
+  }
+  _title(view, queue) {
+    if (view === "review") return this._follow?.mode === "ate" ? "Who ate?" : "Who was here?";
+    if (view === "batch") return "Batch done";
+    if (view === "summary") return queue && queueProgress(queue).remaining > 0 ? "Done for now" : "All caught up";
+    if (view === "empty") return "Nothing to check";
+    return "Check visits";
+  }
+  _renderTop(view, queue) {
+    const progress = queue && (view === "review" || view === "batch") ? queueProgress(queue) : null;
+    const batchFull = view === "batch";
+    const shown = progress ? batchFull ? progress.batchSize : Math.min(progress.batchDone + 1, progress.batchSize) : 0;
+    const later = progress ? progress.remaining - (progress.batchSize - progress.batchDone) : 0;
+    const fraction = progress ? batchFull ? 1 : progress.batchDone / Math.max(1, progress.batchSize) : 0;
+    const streak = queue?.streak ?? 0;
+    return b2`
+      <header class="top">
+        <div class="titles">
+          <h2 class="title">${this._title(view, queue)}</h2>
+          ${progress && view === "review" ? b2`<span class="count">${shown} of ${progress.batchSize}</span>${later > 0 ? b2`<span class="later">${later} more after</span>` : A}` : A}
+        </div>
+        ${streak >= 3 && view === "review" ? i7(streak, b2`<span class="streak" aria-label=${`${streak} in a row`}>${mdiIcon("flash")}${streak}</span>`) : A}
+        <button type="button" class="icon-btn" aria-label="Close" @click=${this._close}>${mdiIcon("close")}</button>
+        ${progress ? b2`<div class="bar" role="progressbar" aria-label="This batch" aria-valuemin="0" aria-valuemax=${progress.batchSize} aria-valuenow=${batchFull ? progress.batchSize : progress.batchDone}>
+              <span style=${`transform:scaleX(${fraction})`}></span>
+            </div>` : A}
+      </header>
+    `;
+  }
+  _renderStage(view, queue, item) {
+    if (view === "loading") return b2`<div class="card placeholder" aria-label="Loading"></div>`;
+    if (view === "error") return b2`<div class="result"><span class="result-glyph muted">${mdiIcon("cloudAlert")}</span><p class="result-line">${this._loadError ?? "Couldn\u2019t load visits."}</p></div>`;
+    if (view === "empty") return b2`<div class="result"><span class="result-glyph muted cat">${catSilhouette()}</span><p class="result-line">Every visit has a name.</p></div>`;
+    if (!queue) return A;
+    if (view === "batch" || view === "summary") return this._renderResult(view, queue);
+    const deck = [];
+    if (this._leaving && this._leaving.item.key !== item?.key) deck.push({ item: this._leaving.item, role: "leaving" });
+    if (item) deck.push({ item, role: "current" });
+    const next = upcomingItems(queue, 1)[0];
+    if (next && !deck.some((entry2) => entry2.item.key === next.key)) deck.push({ item: next, role: "next" });
+    return b2`
+      <div class="deck">${c5(deck, (entry2) => entry2.item.key, (entry2) => this._renderCard(entry2.item, entry2.role))}</div>
+      ${item ? this._renderStrip(item) : A}
+    `;
+  }
+  _renderCard(item, role) {
+    const locale = this.hass?.locale?.language ?? this.hass?.language;
+    const when = visitWhenLabel(item.event.start, /* @__PURE__ */ new Date(), locale);
+    if (role !== "current") {
+      const leaving = role === "leaving" ? this._leaving : null;
+      return b2`
+        <div class="card ${role} ${leaving ? "to-" + leaving.side : ""}" aria-hidden="true">
+          ${this._renderPhoto(item.event.thumb ?? item.event.scene, "")}
+          ${leaving ? b2`<span class="stamp shown">${this._renderStampBody(leaving.cats, leaving.label)}</span>` : A}
+        </div>
+      `;
+    }
+    const photos = this._photosFor(item);
+    const asset = this._scene ? item.event.scene : photos[this._photoIndex] ?? photos[0] ?? item.event.scene;
+    const roster = this._roster();
+    const swipe = this._swipeEnabled();
+    return b2`
+      <div
+        class="card current ${swipe ? "swipeable" : ""}"
+        @pointerdown=${this._onPointerDown}
+        @pointermove=${this._onPointerMove}
+        @pointerup=${this._onPointerUp}
+        @pointercancel=${this._onPointerUp}
+        @click=${this._onCardClick}
+        @image-failed=${() => {
+      this._imageFailed = true;
+    }}
+      >
+        ${this._renderPhoto(asset, `${item.isMeal ? "Meal" : "Visit"}, ${when}`)}
+        ${this._imageFailed ? b2`<div class="photo-error">${mdiIcon("imageBroken")}<span>Photo didn\u2019t load</span><button type="button" class="pill-btn" @click=${this._retryImage}>Retry</button></div>` : A}
+        <div class="chips">
+          <span class="chip">${when}</span>
+          <span class="chip">${item.isMeal ? "Meal" : "Visit"}</span>
+        </div>
+        ${item.event.scene ? b2`<button type="button" class="icon-btn on-photo scene-btn" aria-pressed=${this._scene} aria-label=${this._scene ? "Show close-up" : "Show whole scene"} @click=${this._toggleScene}>${mdiIcon(this._scene ? "arrowCollapse" : "arrowExpand")}</button>` : A}
+        ${swipe ? b2`
+              <span class="stamp left">${this._renderStampBody([roster[0]], roster[0].name)}</span>
+              <span class="stamp right">${this._renderStampBody([roster[1]], roster[1].name)}</span>
+              <span class="swipe-hint left" aria-hidden="true">${mdiIcon("chevronLeft")}<kibble-avatar .hass=${this.hass} .name=${roster[0].name} .colorIndex=${roster[0].color} .asset=${roster[0].avatar} .cache=${this.cache}></kibble-avatar></span>
+              <span class="swipe-hint right" aria-hidden="true"><kibble-avatar .hass=${this.hass} .name=${roster[1].name} .colorIndex=${roster[1].color} .asset=${roster[1].avatar} .cache=${this.cache}></kibble-avatar>${mdiIcon("chevronRight")}</span>
+            ` : A}
+      </div>
+    `;
+  }
+  _renderPhoto(asset, alt) {
+    if (!asset) return b2`<span class="no-photo">${catSilhouette()}</span>`;
+    return b2`<kibble-image eager fit="contain" .hass=${this.hass} .cache=${this.cache} .asset=${asset} alt=${alt}></kibble-image>`;
+  }
+  _renderStampBody(cats, label) {
+    return b2`
+      <span class="stamp-body" style=${cats.length === 1 ? `--stamp-color:${catColorAt(cats[0].color)}` : ""}>
+        ${cats.map((cat) => b2`<kibble-avatar .hass=${this.hass} .name=${cat.name} .colorIndex=${cat.color} .asset=${cat.avatar} .cache=${this.cache}></kibble-avatar>`)}
+        <span>${label}</span>
+      </span>
+    `;
+  }
+  /** The visit's other photos, one tap each, without leaving the visit. */
+  _renderStrip(item) {
+    const photos = this._photosFor(item);
+    if (photos.length < 2) return A;
+    return b2`
+      <div class="strip" role="group" aria-label="Photos of this visit">
+        ${photos.map(
+      (photo, index) => b2`
+            <button type="button" class="strip-btn" aria-pressed=${!this._scene && index === this._photoIndex} aria-label=${`Photo ${index + 1} of ${photos.length}`} @click=${() => this._showPhoto(index)}>
+              <kibble-image .hass=${this.hass} .cache=${this.cache} .asset=${photo} alt=""></kibble-image>
+            </button>
+          `
+    )}
+      </div>
+    `;
+  }
+  _renderResult(view, queue) {
+    const roster = this._roster();
+    const summary = summarize(queue, roster.map((cat) => cat.name));
+    const progress = queueProgress(queue);
+    const named = summary.cats.filter((tally) => tally.visits > 0);
+    return b2`
+      <div class="result">
+        <span class="result-glyph done">${mdiIcon("check")}</span>
+        <p class="result-big">${summary.total} ${summary.total === 1 ? "visit" : "visits"} done</p>
+        ${view === "batch" ? b2`<p class="result-line">${progress.remaining} to go</p>` : A}
+        ${named.length ? b2`<ul class="tallies">
+              ${named.map((tally) => {
+      const cat = roster.find((candidate) => candidate.name === tally.cat);
+      const gain = view === "summary" ? this._gains?.[tally.cat] ?? 0 : 0;
+      return b2`
+                  <li class="tally" style=${cat ? `--tally-color:${catColorAt(cat.color)}` : ""}>
+                    <kibble-avatar .hass=${this.hass} .name=${tally.cat} .colorIndex=${cat?.color ?? null} .asset=${cat?.avatar ?? null} .cache=${this.cache}></kibble-avatar>
+                    <span class="tally-text"><span class="tally-name">${tally.cat}</span><span class="tally-sub">${tally.visits} ${tally.visits === 1 ? "visit" : "visits"}</span></span>
+                    ${gain > 0 ? i7(gain, b2`<span class="tally-gain"><strong>+${gain}</strong><span>photos learned</span></span>`) : A}
+                  </li>
+                `;
+    })}
+            </ul>` : A}
+        ${summary.notACat + summary.cantTell > 0 ? b2`<p class="result-others">
+              ${summary.notACat > 0 ? b2`<span class="chip">${mdiIcon("cancel")}${summary.notACat} not a cat</span>` : A}
+              ${summary.cantTell > 0 ? b2`<span class="chip">${mdiIcon("helpCircle")}${summary.cantTell} can\u2019t tell</span>` : A}
+            </p>` : A}
+      </div>
+    `;
+  }
+  _renderAnswers(view, queue, item) {
+    if (view === "loading") return A;
+    if (view === "error") return b2`<div class="actions"><button type="button" class="primary-btn" data-autofocus @click=${() => void this._load(null)}>Try again</button></div>`;
+    if (view === "empty") return b2`<div class="actions"><button type="button" class="primary-btn" data-autofocus @click=${this._close}>Done</button></div>`;
+    if (view === "batch") {
+      return b2`<div class="actions">
+        <button type="button" class="primary-btn" data-autofocus @click=${this._keepGoing}>Keep going</button>
+        <button type="button" class="plain-btn" @click=${this._enterSummary}>Stop here</button>
+      </div>`;
+    }
+    if (view === "summary") {
+      const more = queue ? queueProgress(queue).remaining > 0 : false;
+      return b2`<div class="actions">
+        ${more ? b2`<button type="button" class="plain-btn" @click=${this._keepGoing}>Keep going</button>` : A}
+        <button type="button" class="primary-btn" data-autofocus @click=${this._close}>Done</button>
+      </div>`;
+    }
+    if (!queue || !item) return A;
+    const roster = this._roster();
+    const follow = this._follow;
+    if (follow?.mode === "ate") {
+      const cats = roster.filter((cat) => follow.cats.includes(cat.name));
+      const saved = this._details.get(item.key)?.cats.filter((cat) => cat.ate).map((cat) => cat.cat) ?? [];
+      return b2`<div class="answer-row">
+        ${ateChoices(follow.cats).map((choice2, index) => {
+        const guessed = saved.length > 0 && saved.length === choice2.ate.length && choice2.ate.every((cat) => saved.includes(cat));
+        return b2`<kibble-choice
+            .hass=${this.hass}
+            .cache=${this.cache}
+            .label=${choice2.label}
+            .cats=${cats.filter((cat) => choice2.ate.includes(cat.name))}
+            .state=${guessed ? "suggested" : "neutral"}
+            .hint=${String(index + 1)}
+            @click=${() => this._chooseAte(choice2.ate)}
+          ></kibble-choice>`;
+      })}
+      </div>`;
+    }
+    if (follow?.mode === "pick") {
+      return b2`
+        <div class="answer-row">
+          ${roster.map(
+        (cat, index) => b2`<kibble-choice
+              .hass=${this.hass}
+              .cache=${this.cache}
+              .label=${cat.name}
+              .cats=${[cat]}
+              .state=${follow.cats.includes(cat.name) ? "selected" : "neutral"}
+              .hint=${index < 9 ? String(index + 1) : null}
+              @click=${() => this._togglePicked(cat.name)}
+            ></kibble-choice>`
+      )}
+        </div>
+        <div class="actions"><button type="button" class="primary-btn" ?disabled=${follow.cats.length < 2} @click=${() => this._finishPick()}>Next</button></div>
+      `;
+    }
+    const options = this._options();
+    const guess = this._guessFor(item, options);
+    const earlier = queue.records[item.key];
+    const earlierId = earlier ? answerOptionId(earlier.answer) : null;
+    const choice = (option) => {
+      const state2 = option.id === earlierId ? "selected" : !earlierId && option.id === guess.optionId ? "suggested" : "neutral";
+      const cats = option.kind === "cat" ? roster.filter((cat) => cat.name === option.cat) : option.kind === "several" ? roster : [];
+      return b2`<kibble-choice
+        .hass=${this.hass}
+        .cache=${this.cache}
+        .label=${option.label}
+        .cats=${cats}
+        .icon=${option.kind === "not_a_cat" ? "cancel" : option.kind === "unknown" ? "helpCircle" : null}
+        .state=${state2}
+        .hint=${option.hotkey}
+        .caption=${state2 === "suggested" ? guess.caption : state2 === "selected" ? "Your answer" : null}
+        ?data-autofocus=${state2 !== "neutral"}
+        @click=${() => this._choose(option.id)}
+      ></kibble-choice>`;
+    };
+    return b2`
+      <div class="answer-row cats">${options.filter((option) => option.kind === "cat").map(choice)}</div>
+      <div class="answer-row">${options.filter((option) => option.kind !== "cat").map(choice)}</div>
+    `;
+  }
+  _guessFor(item, options) {
+    if (item.guesses.length > 0) {
+      const percent2 = item.confidence !== null ? ` ${Math.round(item.confidence * 100)}%` : "";
+      return { optionId: guessOptionId(item.guesses, options), caption: "Guess" + percent2 };
+    }
+    const samples = this._details.get(item.key)?.samples;
+    const majority = samples ? majorityGuess(samples, this._roster().map((cat) => cat.name)) : null;
+    return majority ? { optionId: "cat:" + majority.cat, caption: "Guess" } : { optionId: null, caption: null };
+  }
+  _spoken(item) {
+    const locale = this.hass?.locale?.language ?? this.hass?.language;
+    const guess = item.guesses.length ? ` Kibble guesses ${item.guesses.join(" and ")}.` : "";
+    return `${item.isMeal ? "Meal" : "Visit"}, ${visitWhenLabel(item.event.start, /* @__PURE__ */ new Date(), locale)}.${guess}`;
+  }
+  _renderFooter(view, queue) {
+    const counts = queue ? saveCounts(queue) : { pending: 0, failed: 0, gone: 0 };
+    const canUndo = Boolean(this._follow) || queue !== null && queue.history.length > 0;
+    const showUndo = view === "review" || view === "batch" || view === "summary";
+    const offline = this.hass?.connected === false;
+    return b2`
+      <footer class="footer">
+        ${showUndo ? b2`<button type="button" class="plain-btn undo" ?disabled=${!canUndo} @click=${this._undo}>${mdiIcon("undo")}<span>${this._follow ? "Back" : "Undo"}</span><kbd aria-hidden="true">Z</kbd></button>` : b2`<span></span>`}
+        <div class="status" role="status">
+          ${counts.failed > 0 ? b2`<span class="status-text error">${mdiIcon("cloudAlert")}${counts.failed} not saved</span><button type="button" class="pill-btn" @click=${this._retryNow}>Retry</button>` : counts.gone > 0 ? b2`<span class="status-text">${counts.gone === 1 ? "1 visit no longer exists" : `${counts.gone} visits no longer exist`}</span><button type="button" class="pill-btn" @click=${this._dismissGone}>OK</button>` : offline ? b2`<span class="status-text">${mdiIcon("cloudAlert")}Offline</span>` : counts.pending > 0 ? b2`<span class="status-text saving" aria-label="Saving">${mdiIcon("refresh")}${counts.pending > 3 ? counts.pending : A}</span>` : queue && queue.history.length > 0 ? b2`<span class="status-text" aria-label="All saved">${mdiIcon("cloudCheck")}</span>` : A}
+        </div>
+      </footer>
+    `;
+  }
+  static {
+    this.styles = i`
+    :host {
+      display: contents;
+    }
+    dialog {
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      max-width: none;
+      max-height: none;
+      margin: 0;
+      padding: 0;
+      border: 0;
+      background: none;
+      color: var(--primary-text-color);
+      font: inherit;
+      overflow: hidden;
+    }
+    dialog::backdrop {
+      background: rgba(0, 0, 0, 0.6);
+    }
+    .frame {
+      container: review / size;
+      width: 100%;
+      height: 100%;
+      display: grid;
+      place-items: center;
+    }
+    .panel {
+      box-sizing: border-box;
+      width: 100%;
+      height: 100%;
+      min-height: 0;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: auto minmax(0, 1fr) auto auto;
+      grid-template-areas: "top" "stage" "answers" "footer";
+      gap: 12px;
+      padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+      background: var(--ha-dialog-surface-background, var(--ha-card-background, var(--card-background-color, #fff)));
+      --kibble-choice-height: 64px;
+    }
+    .top {
+      grid-area: top;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto auto;
+      align-items: center;
+      gap: 8px;
+    }
+    .titles {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      column-gap: 12px;
+      min-width: 0;
+    }
+    .title {
+      margin: 0;
+      font-size: 22px;
+      font-weight: 500;
+      line-height: 1.2;
+    }
+    .count {
+      font-size: 14px;
+      font-variant-numeric: tabular-nums;
+      color: var(--secondary-text-color);
+    }
+    .later {
+      font-size: 12px;
+      font-variant-numeric: tabular-nums;
+      color: var(--secondary-text-color);
+    }
+    .streak {
+      display: inline-flex;
+      align-items: center;
+      gap: 2px;
+      padding: 4px 8px 4px 4px;
+      border-radius: 999px;
+      font-size: 14px;
+      font-weight: 500;
+      font-variant-numeric: tabular-nums;
+      color: var(--primary-color, #03a9f4);
+      background: color-mix(in srgb, var(--primary-color, #03a9f4) 14%, transparent);
+    }
+    .bar {
+      grid-column: 1 / -1;
+      height: 4px;
+      border-radius: 2px;
+      overflow: hidden;
+      background: color-mix(in srgb, var(--primary-text-color) 10%, transparent);
+    }
+    .bar span {
+      display: block;
+      height: 100%;
+      border-radius: 2px;
+      background: var(--primary-color, #03a9f4);
+      transform-origin: left center;
+      transition: transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+    .icon-btn {
+      width: 48px;
+      height: 48px;
+      flex: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 0;
+      border-radius: 50%;
+      background: none;
+      color: var(--primary-text-color);
+      font-size: 24px;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+      transition: transform 90ms ease-out;
+    }
+    .icon-btn:active {
+      transform: scale(0.92);
+    }
+    .icon-btn.on-photo {
+      position: absolute;
+      background: color-mix(in srgb, var(--card-background-color, #fff) 86%, transparent);
+    }
+    .scene-btn {
+      top: 8px;
+      right: 8px;
+    }
+
+    /* ---- Stage ---- */
+    .stage {
+      grid-area: stage;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .deck {
+      position: relative;
+      flex: 1;
+      min-height: 0;
+    }
+    .card {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      border-radius: var(--ha-card-border-radius, 12px);
+      background: color-mix(in srgb, var(--primary-text-color) 6%, var(--card-background-color, #fff));
+      transition:
+        transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1),
+        opacity 220ms ease-out;
+    }
+    .card.placeholder {
+      position: relative;
+      flex: 1;
+    }
+    .card.next {
+      z-index: 1;
+      transform: translateY(8px) scale(0.95);
+      opacity: 0.5;
+    }
+    .card.current {
+      z-index: 2;
+      transform: translate3d(var(--dx, 0px), 0, 0) rotate(var(--tilt, 0deg));
+      cursor: pointer;
+    }
+    .card.swipeable {
+      touch-action: pan-y;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    /* The photo never takes the pointer itself: a mouse drag on an <img> would start the
+       browser's own image drag and cancel the swipe. */
+    .card kibble-image {
+      pointer-events: none;
+    }
+    .card.dragging {
+      transition: none;
+      cursor: grabbing;
+    }
+    .card.leaving {
+      z-index: 3;
+      pointer-events: none;
+      animation: kibble-review-leave-up ${LEAVE_MS}ms ease-in forwards;
+    }
+    .card.leaving.to-left {
+      animation-name: kibble-review-leave-left;
+    }
+    .card.leaving.to-right {
+      animation-name: kibble-review-leave-right;
+    }
+    .card.leaving.to-down {
+      animation-name: kibble-review-leave-down;
+    }
+    @keyframes kibble-review-leave-left {
+      from {
+        transform: translate3d(var(--dx, 0px), 0, 0) rotate(var(--tilt, 0deg));
+        opacity: 1;
+      }
+      to {
+        transform: translate3d(-110%, 0, 0) rotate(-12deg);
+        opacity: 0;
+      }
+    }
+    @keyframes kibble-review-leave-right {
+      from {
+        transform: translate3d(var(--dx, 0px), 0, 0) rotate(var(--tilt, 0deg));
+        opacity: 1;
+      }
+      to {
+        transform: translate3d(110%, 0, 0) rotate(12deg);
+        opacity: 0;
+      }
+    }
+    @keyframes kibble-review-leave-up {
+      to {
+        transform: translate3d(0, -24%, 0) scale(0.92);
+        opacity: 0;
+      }
+    }
+    @keyframes kibble-review-leave-down {
+      to {
+        transform: translate3d(0, 16%, 0) scale(0.92);
+        opacity: 0;
+      }
+    }
+    .no-photo {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: color-mix(in srgb, var(--primary-text-color) 24%, transparent);
+    }
+    .no-photo svg {
+      width: 96px;
+      height: 96px;
+    }
+    .photo-error {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      font-size: 14px;
+      color: var(--secondary-text-color);
+      background: color-mix(in srgb, var(--primary-text-color) 6%, var(--card-background-color, #fff));
+    }
+    .photo-error svg {
+      width: 32px;
+      height: 32px;
+      fill: currentColor;
+      opacity: 0.6;
+    }
+    .chips {
+      position: absolute;
+      left: 8px;
+      bottom: 8px;
+      display: flex;
+      gap: 4px;
+      pointer-events: none;
+    }
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      font-size: 12px;
+      line-height: 16px;
+      font-variant-numeric: tabular-nums;
+      background: color-mix(in srgb, var(--card-background-color, #fff) 86%, transparent);
+      color: var(--primary-text-color);
+    }
+    .chip svg {
+      font-size: 14px;
+      color: var(--secondary-text-color);
+    }
+    .stamp {
+      position: absolute;
+      top: 16px;
+      left: 0;
+      right: 0;
+      display: flex;
+      justify-content: center;
+      opacity: 0;
+      pointer-events: none;
+    }
+    .stamp.shown {
+      opacity: 1;
+    }
+    .card[data-side="left"] .stamp.left,
+    .card[data-side="right"] .stamp.right {
+      opacity: var(--swipe, 0);
+    }
+    .stamp-body {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 16px 6px 6px;
+      border-radius: 999px;
+      border: 2px solid var(--stamp-color, var(--secondary-text-color));
+      background: var(--card-background-color, #fff);
+      color: var(--primary-text-color);
+      font-size: 16px;
+      font-weight: 500;
+      --kibble-avatar-size: 36px;
+    }
+    .stamp-body kibble-avatar + kibble-avatar {
+      margin-left: -20px;
+    }
+    .card[data-armed] .stamp-body {
+      background: color-mix(in srgb, var(--stamp-color, var(--secondary-text-color)) 24%, var(--card-background-color, #fff));
+    }
+    .swipe-hint {
+      display: none;
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      align-items: center;
+      padding: 4px;
+      border-radius: 999px;
+      font-size: 20px;
+      color: var(--secondary-text-color);
+      background: color-mix(in srgb, var(--card-background-color, #fff) 86%, transparent);
+      pointer-events: none;
+      --kibble-avatar-size: 28px;
+    }
+    .swipe-hint.left {
+      left: 8px;
+    }
+    .swipe-hint.right {
+      right: 8px;
+    }
+    /* The swipe hint is for fingers; with a mouse the buttons and keys are the way in. */
+    @media (pointer: coarse) {
+      .swipe-hint {
+        display: inline-flex;
+      }
+      .card.dragging .swipe-hint {
+        opacity: 0;
+      }
+    }
+    .strip {
+      flex: none;
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding: 2px;
+      scrollbar-width: none;
+    }
+    .strip-btn {
+      flex: none;
+      width: 48px;
+      height: 48px;
+      padding: 0;
+      border: 0;
+      border-radius: 8px;
+      overflow: hidden;
+      background: none;
+      cursor: pointer;
+      opacity: 0.6;
+      transition:
+        opacity 150ms ease-out,
+        transform 90ms ease-out;
+    }
+    .strip-btn[aria-pressed="true"] {
+      opacity: 1;
+      outline: 2px solid var(--primary-color, #03a9f4);
+      outline-offset: 0;
+    }
+    .strip-btn:active {
+      transform: scale(0.94);
+    }
+
+    /* ---- Result cards (batch, summary, empty, error) ---- */
+    .result {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      text-align: center;
+    }
+    .result-glyph {
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 36px;
+    }
+    .result-glyph.done {
+      background: var(--kibble-feed, #43a96a);
+      color: var(--kibble-ink-on-feed, #10301d);
+    }
+    .result-glyph.muted {
+      color: color-mix(in srgb, var(--primary-text-color) 32%, transparent);
+    }
+    .result-glyph.cat svg {
+      width: 56px;
+      height: 56px;
+    }
+    .result-big {
+      margin: 0;
+      font-size: 34px;
+      font-weight: 500;
+      line-height: 1.1;
+      font-variant-numeric: tabular-nums;
+    }
+    .result-line {
+      margin: 0;
+      font-size: 16px;
+      color: var(--secondary-text-color);
+    }
+    .tallies {
+      list-style: none;
+      margin: 12px 0 0;
+      padding: 0;
+      width: min(100%, 420px);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .tally {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px;
+      border-radius: 8px;
+      text-align: left;
+      background: color-mix(in srgb, var(--tally-color, var(--primary-text-color)) 10%, transparent);
+      --kibble-avatar-size: 48px;
+    }
+    .tally-text {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .tally-name {
+      font-size: 16px;
+      font-weight: 500;
+    }
+    .tally-sub {
+      font-size: 14px;
+      color: var(--secondary-text-color);
+      font-variant-numeric: tabular-nums;
+    }
+    .tally-gain {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      font-size: 12px;
+      color: var(--secondary-text-color);
+    }
+    .tally-gain strong {
+      font-size: 22px;
+      font-weight: 500;
+      line-height: 1.1;
+      color: var(--primary-text-color);
+      font-variant-numeric: tabular-nums;
+    }
+    .result-others {
+      margin: 0;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 8px;
+    }
+    .result-others .chip {
+      background: color-mix(in srgb, var(--primary-text-color) 6%, transparent);
+    }
+
+    /* ---- Answers ---- */
+    .answers {
+      grid-area: answers;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      outline: none;
+    }
+    .answer-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(88px, 1fr));
+      gap: 8px;
+    }
+    .actions {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .primary-btn,
+    .plain-btn {
+      min-height: 56px;
+      box-sizing: border-box;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 0 24px;
+      border: 0;
+      border-radius: 8px;
+      font: inherit;
+      font-size: 16px;
+      font-weight: 500;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+      transition: transform 90ms ease-out;
+    }
+    .primary-btn {
+      background: var(--primary-color, #03a9f4);
+      color: var(--text-primary-color, #fff);
+    }
+    .plain-btn {
+      background: color-mix(in srgb, var(--primary-text-color) 6%, transparent);
+      color: var(--primary-text-color);
+    }
+    .primary-btn:active:not(:disabled),
+    .plain-btn:active:not(:disabled) {
+      transform: scale(0.97);
+    }
+    .primary-btn:disabled,
+    .plain-btn:disabled {
+      opacity: 0.4;
+      cursor: default;
+    }
+
+    /* ---- Footer ---- */
+    .footer {
+      grid-area: footer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      min-height: 48px;
+    }
+    .plain-btn.undo {
+      min-height: 48px;
+      padding: 0 16px 0 12px;
+      font-size: 14px;
+      background: none;
+    }
+    .plain-btn.undo svg {
+      font-size: 20px;
+    }
+    kbd {
+      display: none;
+      min-width: 18px;
+      box-sizing: border-box;
+      padding: 1px 4px;
+      border-radius: 4px;
+      border: 1px solid color-mix(in srgb, var(--primary-text-color) 24%, transparent);
+      font: inherit;
+      font-size: 12px;
+      line-height: 14px;
+      text-align: center;
+      color: var(--secondary-text-color);
+    }
+    @media (hover: hover) and (pointer: fine) {
+      kbd {
+        display: inline-block;
+      }
+    }
+    .status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 48px;
+    }
+    .status-text {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 14px;
+      color: var(--secondary-text-color);
+      font-variant-numeric: tabular-nums;
+    }
+    .status-text svg {
+      font-size: 20px;
+    }
+    .status-text.error {
+      color: var(--error-color, #db4437);
+    }
+    .pill-btn {
+      min-height: 48px;
+      padding: 0 16px;
+      border: 0;
+      border-radius: 8px;
+      background: color-mix(in srgb, var(--primary-text-color) 8%, transparent);
+      color: var(--primary-text-color);
+      font: inherit;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+    }
+    button:focus-visible {
+      outline: 2px solid var(--primary-color, #03a9f4);
+      outline-offset: 2px;
+    }
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      margin: -1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
+
+    /* ---- Two panes: tablet and desktop ---- */
+    @container review (min-width: 700px) {
+      .panel {
+        width: min(1200px, 100cqw - 48px);
+        height: min(840px, 100cqh - 48px);
+        border-radius: var(--ha-dialog-border-radius, var(--ha-card-border-radius, 12px));
+        grid-template-columns: minmax(0, 1fr) clamp(280px, 32cqw, 380px);
+        grid-template-rows: auto minmax(0, 1fr) auto;
+        grid-template-areas: "stage top" "stage answers" "stage footer";
+        column-gap: 16px;
+        padding: 16px;
+        --kibble-choice-height: 56px;
+      }
+      .answers {
+        overflow-y: auto;
+        align-content: start;
+        padding: 2px;
+      }
+      .answer-row {
+        grid-template-columns: minmax(0, 1fr);
+      }
+      .titles {
+        flex-direction: column;
+        align-items: flex-start;
+        row-gap: 2px;
+      }
+    }
+    @container review (min-width: 700px) and (max-height: 520px) {
+      .panel {
+        width: 100%;
+        height: 100%;
+        border-radius: 0;
+        padding: max(8px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+        gap: 8px;
+        --kibble-choice-height: 60px;
+      }
+      /* Too short for five stacked answers: back to the phone's two rows, so none scrolls away. */
+      .answer-row {
+        grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+      }
+      .title {
+        font-size: 16px;
+      }
+    }
+
+    @media (prefers-reduced-motion: no-preference) {
+      .card.placeholder {
+        animation: kibble-review-pulse 1.2s ease-in-out infinite alternate;
+      }
+      .streak {
+        animation: kibble-review-bump 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+      }
+      .result-glyph.done {
+        animation: kibble-review-pop 400ms cubic-bezier(0.2, 0.8, 0.2, 1);
+      }
+      .tally {
+        animation: kibble-review-rise 220ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+      }
+      .tally:nth-child(2) {
+        animation-delay: 60ms;
+      }
+      .tally:nth-child(3) {
+        animation-delay: 120ms;
+      }
+      .tally-gain {
+        animation: kibble-review-bump 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+      }
+      .status-text.saving svg {
+        animation: kibble-review-spin 0.9s linear infinite;
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .card,
+      .bar span,
+      .icon-btn,
+      .primary-btn,
+      .plain-btn,
+      .strip-btn {
+        transition: opacity 120ms linear;
+      }
+      .card.current,
+      .card.next {
+        transform: none;
+      }
+      .card.next {
+        opacity: 0;
+      }
+      .card.leaving,
+      .card.leaving.to-left,
+      .card.leaving.to-right,
+      .card.leaving.to-down {
+        animation: kibble-review-fade 120ms linear forwards;
+      }
+      .icon-btn:active,
+      .primary-btn:active:not(:disabled),
+      .plain-btn:active:not(:disabled),
+      .strip-btn:active {
+        transform: none;
+      }
+    }
+    @keyframes kibble-review-fade {
+      to {
+        opacity: 0;
+      }
+    }
+    @keyframes kibble-review-pulse {
+      from {
+        opacity: 0.5;
+      }
+      to {
+        opacity: 1;
+      }
+    }
+    @keyframes kibble-review-bump {
+      from {
+        transform: scale(0.8);
+        opacity: 0.4;
+      }
+      to {
+        transform: scale(1);
+        opacity: 1;
+      }
+    }
+    @keyframes kibble-review-pop {
+      0% {
+        transform: scale(0.4);
+        opacity: 0;
+      }
+      60% {
+        transform: scale(1.12);
+        opacity: 1;
+      }
+      100% {
+        transform: scale(1);
+      }
+    }
+    @keyframes kibble-review-rise {
+      from {
+        transform: translateY(8px);
+        opacity: 0;
+      }
+      to {
+        transform: none;
+        opacity: 1;
+      }
+    }
+    @keyframes kibble-review-spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+  `;
+  }
+};
+customElements.define("kibble-review-queue", KibbleReviewQueue);
+var KibbleReviewEntry = class extends i4 {
+  constructor() {
+    super();
+    this._count = null;
+    this._generation = 0;
+    this._stopListening = null;
+    this._loadCount = () => {
+      const callWS = this.hass?.callWS;
+      const entryId = this.entryId;
+      if (!callWS || !entryId) return;
+      this._countedEntry = entryId;
+      const generation = ++this._generation;
+      loadUnknownCount(callWS, entryId).then(
+        (count) => {
+          if (generation === this._generation) this._count = count;
+        },
+        () => {
+        }
+        // the button still opens the queue; only the number is missing
+      );
+    };
+    this.cats = [];
+    this.variant = "bar";
+  }
+  static {
+    this.properties = {
+      hass: { attribute: false },
+      entryId: { type: String },
+      cats: { attribute: false },
+      cache: { attribute: false },
+      variant: { type: String, reflect: true },
+      revision: { attribute: false },
+      _count: { state: true }
+    };
+  }
+  /** Opens the queue; `startUid` is the visit to show first. */
+  open(startUid) {
+    this.renderRoot.querySelector("kibble-review-queue")?.show(startUid);
+  }
+  connectedCallback() {
+    super.connectedCallback();
+    this._stopListening = onReviewChange(
+      () => this.entryId,
+      () => this._loadCount()
+    );
+  }
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    this._stopListening?.();
+    this._stopListening = null;
+    this._generation++;
+  }
+  willUpdate(changed) {
+    const ready = Boolean(this.hass?.callWS && this.entryId);
+    if (ready && (this.entryId !== this._countedEntry || changed.has("revision"))) this._loadCount();
+  }
+  render() {
+    const count = this._count ?? 0;
+    const label = count > 0 ? `Check visits, ${count} ${count === 1 ? "needs" : "need"} a name` : "Check visits";
+    return b2`
+      ${this.variant === "chip" ? count > 0 ? b2`<button type="button" class="chip" aria-label=${label} @click=${() => this.open()}>${mdiIcon("helpCircle")}<span>${count} to check</span></button>` : A : b2`<button type="button" class="bar" aria-label=${label} @click=${() => this.open()}>
+            <span class="bar-glyph">${mdiIcon("helpCircle")}</span>
+            <span class="bar-label">Check visits</span>
+            ${count > 0 ? b2`<span class="badge">${count}</span>` : A}
+            <span class="bar-chevron">${mdiIcon("chevronRight")}</span>
+          </button>`}
+      <kibble-review-queue .hass=${this.hass} .entryId=${this.entryId} .cats=${this.cats} .cache=${this.cache} @review-closed=${this._loadCount}></kibble-review-queue>
+    `;
+  }
+  static {
+    this.styles = i`
+    :host {
+      display: block;
+    }
+    :host([variant="chip"]) {
+      display: contents;
+    }
+    button {
+      font: inherit;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+      transition: transform 90ms ease-out;
+    }
+    button:active {
+      transform: scale(0.97);
+    }
+    button:focus-visible {
+      outline: 2px solid var(--primary-color, #03a9f4);
+      outline-offset: 2px;
+    }
+    .bar {
+      width: 100%;
+      min-height: 48px;
+      box-sizing: border-box;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 8px 8px 8px 12px;
+      border: 0;
+      border-radius: 8px;
+      background: color-mix(in srgb, var(--primary-text-color) 6%, transparent);
+      color: var(--primary-text-color);
+      font-size: 14px;
+      text-align: left;
+    }
+    .bar-glyph {
+      display: flex;
+      font-size: 24px;
+      color: var(--secondary-text-color);
+    }
+    .bar-label {
+      flex: 1;
+      min-width: 0;
+      font-weight: 500;
+    }
+    .badge {
+      min-width: 24px;
+      box-sizing: border-box;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: var(--primary-color, #03a9f4);
+      color: var(--text-primary-color, #fff);
+      font-size: 12px;
+      font-weight: 500;
+      line-height: 20px;
+      text-align: center;
+      font-variant-numeric: tabular-nums;
+    }
+    .bar-chevron {
+      display: flex;
+      font-size: 24px;
+      color: var(--secondary-text-color);
+    }
+    .chip {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 6px 12px 6px 8px;
+      border: 0;
+      border-radius: 999px;
+      background: rgba(0, 0, 0, 0.45);
+      color: #fff;
+      font-size: inherit;
+      font-weight: 500;
+      white-space: nowrap;
+      font-variant-numeric: tabular-nums;
+    }
+    .chip svg {
+      font-size: 18px;
+    }
+    /* The pill is small on the video; this keeps its tap target at 44px. */
+    .chip::after {
+      content: "";
+      position: absolute;
+      inset: -8px -4px;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      button {
+        transition: none;
+      }
+      button:active {
+        transform: none;
+      }
+    }
+  `;
+  }
+};
+customElements.define("kibble-review-entry", KibbleReviewEntry);
 var import_client = __toESM(require_src(), 1);
 function findScryptedToken(hass) {
   for (const entry2 of Object.values(hass.entities ?? {})) {
@@ -13901,7 +16754,7 @@ var BrowserSignalingSession = class {
   }
   close() {
     this.micTrack?.stop();
-    this.pc?.getSenders().forEach((s5) => s5.track?.stop());
+    this.pc?.getSenders().forEach((s6) => s6.track?.stop());
     this.pc?.close();
     this.pc = void 0;
   }
@@ -13976,11 +16829,6 @@ function pickVideoSource(scryptedId, scryptedToken, cameraEntity) {
   if (scryptedId && scryptedToken) return { kind: "scrypted", deviceId: scryptedId, token: scryptedToken };
   if (cameraEntity) return { kind: "ha-camera", entityId: cameraEntity };
   return { kind: "none" };
-}
-var RECONNECT_BASE_MS = 1e3;
-var RECONNECT_MAX_MS = 3e4;
-function nextReconnectDelay(current) {
-  return Math.min(current * 2, RECONNECT_MAX_MS);
 }
 var IDLE_MS = 5e3;
 var VISIBLE = { visible: true };
@@ -15154,171 +18002,6 @@ async function labelSample(hass, entryId, request) {
   });
   return result.sample;
 }
-function rowThumbAsset(event) {
-  if (event.kind === "feed") return null;
-  return event.thumb ?? event.scene ?? null;
-}
-function formatDuration(seconds) {
-  const minutes = Math.floor(seconds / 60);
-  const remainder = seconds % 60;
-  if (minutes === 0) return `${remainder} sec`;
-  return remainder === 0 ? `${minutes} min` : `${minutes} min ${remainder} sec`;
-}
-function eventDuration(event) {
-  if (event.kind !== "eat" || event.open || event.end == null || event.end <= event.start) return null;
-  return formatDuration(event.end - event.start);
-}
-function spanDuration(start, end) {
-  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return null;
-  return formatDuration(Math.floor(end - start));
-}
-function catVerb(event) {
-  if (event.open) return event.kind === "eat" ? "is eating" : "is here";
-  return event.kind === "eat" ? "ate" : "came by";
-}
-function eventTitle(event) {
-  if (event.kind === "feed") return feedTitle(event);
-  if (!event.cat) return event.kind === "eat" ? "Someone is eating" : "Someone is here";
-  return `${event.cat} ${catVerb(event)}`;
-}
-function portionWord2(n6) {
-  return `${n6} portion${n6 === 1 ? "" : "s"}`;
-}
-function feedTitle(event) {
-  const feed = event.feed;
-  if (!feed || feed.portions == null) return "Fed";
-  if (feed.single || feed.sides.length === 0) return `Fed ${portionWord2(feed.portions)}`;
-  if (feed.sides.length === 1) {
-    const [side] = feed.sides;
-    const clause = side.food ? `of ${side.food}` : `from hopper ${side.hopper}`;
-    return `Fed ${portionWord2(side.portions)} ${clause}`;
-  }
-  const [first, second] = feed.sides;
-  if (first.food && second.food) {
-    return `Fed ${first.portions} ${first.food} and ${second.portions} ${second.food}`;
-  }
-  if (first.portions === second.portions) {
-    return `Fed ${portionWord2(first.portions)} from each hopper`;
-  }
-  return `Fed ${first.portions} from hopper ${first.hopper} and ${second.portions} from hopper ${second.hopper}`;
-}
-function timeLabel(unixSeconds, locale) {
-  return new Date(unixSeconds * 1e3).toLocaleTimeString(locale, { hour: "numeric", minute: "2-digit" });
-}
-function compareAssets(event) {
-  if (event.kind !== "eat" && event.kind !== "feed") return null;
-  if (!event.before || !event.after) return null;
-  return { before: event.before, after: event.after };
-}
-var COLLAPSE_WINDOW_SECONDS = 5 * 60;
-function joinedNames(names) {
-  if (names.length < 2) return names[0] ?? "";
-  if (names.length === 2) return names[0] + " and " + names[1];
-  return names.slice(0, -1).join(", ") + ", and " + names[names.length - 1];
-}
-function orderTogetherEvents(events) {
-  return [...events].sort(
-    (left, right) => Number(right.kind === "eat") - Number(left.kind === "eat") || Number(left.cat === null) - Number(right.cat === null)
-  );
-}
-function togetherTitle(events) {
-  const lanes = orderTogetherEvents(events);
-  const names = lanes.map((lane) => lane.cat ?? "Who?");
-  const sameKind = lanes.every((lane) => lane.kind === lanes[0]?.kind);
-  const sameState = lanes.every((lane) => lane.open === lanes[0]?.open);
-  if (sameKind && sameState && lanes[0]?.kind !== "feed") {
-    const kind = lanes[0]?.kind;
-    const verb = lanes[0]?.open ? kind === "eat" ? "are eating" : "are here" : kind === "eat" ? "ate" : "came by";
-    return joinedNames(names) + " " + verb;
-  }
-  return lanes.map((lane, index) => names[index] + " " + catVerb(lane)).join(", ");
-}
-function groupConsecutive(events, now = Date.now() / 1e3) {
-  const sessions = /* @__PURE__ */ new Map();
-  for (const event of events) {
-    if (event.session === null || event.session === void 0) continue;
-    const lanes = sessions.get(event.session) ?? [];
-    lanes.push(event);
-    sessions.set(event.session, lanes);
-  }
-  const togetherByUid = /* @__PURE__ */ new Map();
-  for (const lanes of sessions.values()) {
-    const ordered = [...lanes].sort((left, right) => left.start - right.start);
-    let cluster = [];
-    let clusterEnd = Number.NEGATIVE_INFINITY;
-    const saveCluster = () => {
-      if (cluster.length > 1) {
-        const members = new Set(cluster.map((event) => event.uid));
-        const rowEvents = events.filter((event) => members.has(event.uid));
-        const start = Math.min(...rowEvents.map((event) => event.start));
-        const end = Math.max(...rowEvents.map((event) => Math.max(event.start, event.end ?? now)));
-        const group = { event: rowEvents[0], events: rowEvents, together: true, start, end };
-        for (const event of rowEvents) togetherByUid.set(event.uid, group);
-      }
-      cluster = [];
-      clusterEnd = Number.NEGATIVE_INFINITY;
-    };
-    for (const event of ordered) {
-      const eventEnd = Math.max(event.start, event.end ?? now);
-      if (cluster.length > 0 && event.start > clusterEnd) saveCluster();
-      cluster.push(event);
-      clusterEnd = Math.max(clusterEnd, eventEnd);
-    }
-    saveCluster();
-  }
-  const groups = [];
-  const emitted = /* @__PURE__ */ new Set();
-  for (const event of events) {
-    const together = togetherByUid.get(event.uid);
-    if (together) {
-      if (!emitted.has(together)) {
-        emitted.add(together);
-        groups.push(together);
-      }
-      continue;
-    }
-    const last = groups[groups.length - 1];
-    if (last && !last.together && last.event.kind === event.kind && last.event.cat === event.cat && last.event.start - event.start <= COLLAPSE_WINDOW_SECONDS) {
-      last.events.push(event);
-      continue;
-    }
-    groups.push({ event, events: [event] });
-  }
-  return groups.sort((left, right) => (right.start ?? right.event.start) - (left.start ?? left.event.start));
-}
-function groupCountLabel(kind, count) {
-  const noun = kind === "eat" ? "meal" : kind === "feed" ? "feed" : "visit";
-  return `${count} ${noun}${count === 1 ? "" : "s"}`;
-}
-function dayKey(date) {
-  return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
-}
-function dayLabel(date, now) {
-  if (dayKey(date) === dayKey(now)) return "Today";
-  const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
-  if (dayKey(date) === dayKey(yesterday)) return "Yesterday";
-  return date.toLocaleDateString(void 0, { weekday: "long", month: "short", day: "numeric" });
-}
-function groupByDay(groups, now) {
-  const days = [];
-  let currentKey = null;
-  for (const group of groups) {
-    const date = new Date((group.start ?? group.event.start) * 1e3);
-    const key = dayKey(date);
-    if (key !== currentKey) {
-      currentKey = key;
-      days.push({ label: dayLabel(date, now), groups: [] });
-    }
-    days[days.length - 1].groups.push(group);
-  }
-  return days;
-}
-var DEFAULT_RAIL_MAX_HEIGHT = "clamp(360px, calc(100dvh - 200px), 900px)";
-function railStyle(maxHeight) {
-  const value = (maxHeight ?? "").trim();
-  if (value === "none") return "";
-  return `max-height:${value || DEFAULT_RAIL_MAX_HEIGHT}`;
-}
 function eventFragment(entry2, locale) {
   if (entry2.label === "unknown") return null;
   if (entry2.label === "not_a_cat") return "Not a cat";
@@ -15340,112 +18023,6 @@ function reviewSummaryMessage(input, locale) {
   if (photos) fragments.push(photos);
   if (fragments.length === 0) return null;
   return `Saved: ${fragments.join(", ")}`;
-}
-function draftFrom(cats, identity) {
-  return { cats: cats.map(({ cat, ate }) => ({ cat, ate })), notACat: identity === "not_a_cat", subjects: {} };
-}
-function toggleDraftCat(draft, name, isMeal) {
-  const present = draft.cats.some((cat) => cat.cat === name);
-  return {
-    ...draft,
-    notACat: false,
-    cats: present ? draft.cats.filter((cat) => cat.cat !== name) : [...draft.cats, { cat: name, ate: isMeal }]
-  };
-}
-function toggleDraftNotACat(draft) {
-  return draft.notACat ? { ...draft, notACat: false } : { ...draft, notACat: true, cats: [] };
-}
-function setDraftAte(draft, name, ate) {
-  return { ...draft, cats: draft.cats.map((cat) => cat.cat === name ? { ...cat, ate } : cat) };
-}
-function nameDraftSubject(draft, sid, label, isMeal) {
-  const subjects = { ...draft.subjects, [sid]: label };
-  if (label === "not_a_cat" || draft.cats.some((cat) => cat.cat === label)) return { ...draft, subjects };
-  return { ...draft, subjects, notACat: false, cats: [...draft.cats, { cat: label, ate: isMeal }] };
-}
-function draftChipState(draft, saved, name) {
-  if (!draft.cats.some((cat) => cat.cat === name)) return "neutral";
-  const savedCat = saved.find((cat) => cat.cat === name);
-  return savedCat && !savedCat.confirmed ? "suggested" : "confirmed";
-}
-function confirmAction(draft, saved, identity) {
-  const subjects = Object.entries(draft.subjects).map(([sid, label]) => ({ sid: Number(sid), label }));
-  const extra = subjects.length ? { subjects } : {};
-  if (draft.notACat) {
-    if (identity === "not_a_cat" && !subjects.length) return { kind: "close", text: "Done" };
-    return { kind: "save", text: "Confirm not a cat", request: { verdict: "not_a_cat", ...extra } };
-  }
-  if (draft.cats.length === 0) return { kind: "blocked", text: "Pick who was here" };
-  const unchanged = identity !== "not_a_cat" && saved.length === draft.cats.length && saved.every((cat) => cat.confirmed && draft.cats.some((d3) => d3.cat === cat.cat && d3.ate === cat.ate)) && !subjects.length;
-  if (unchanged) return { kind: "close", text: "Done" };
-  return { kind: "save", text: "Confirm " + joinNames(draft.cats.map((cat) => cat.cat)), request: { cats: draft.cats.map((cat) => ({ ...cat })), ...extra } };
-}
-function joinNames(names) {
-  if (names.length <= 1) return names[0] ?? "";
-  if (names.length === 2) return names[0] + " and " + names[1];
-  return names.slice(0, -1).join(", ") + ", and " + names[names.length - 1];
-}
-function sessionTitle(cats, event) {
-  if (event.identity === "not_a_cat") return "Not a cat";
-  if (cats.length === 0) return "Who was this?";
-  const groups = /* @__PURE__ */ new Map();
-  for (const cat of cats) {
-    const verb = event.open ? cat.ate ? "is eating" : "is here" : cat.ate ? "ate" : "came by";
-    const names = groups.get(verb) ?? [];
-    names.push(cat.cat);
-    groups.set(verb, names);
-  }
-  return [...groups].map(([verb, names]) => joinNames(names) + " " + verb).join(", ");
-}
-function clamp2(value, min, max) {
-  return Math.min(max, Math.max(min, value));
-}
-function placeNamePicker(box, frameWidth, frameHeight, pickerWidth, pickerHeight, gap = 8, inset = 8) {
-  if (!(frameWidth > 0) || !(frameHeight > 0)) return { left: 0, top: 0, flipped: false };
-  const safeInset = Math.max(0, Math.min(inset, frameWidth / 2, frameHeight / 2));
-  const width = Math.min(Math.max(0, pickerWidth), Math.max(0, frameWidth - safeInset * 2));
-  const height = Math.min(Math.max(0, pickerHeight), Math.max(0, frameHeight - safeInset * 2));
-  const maxLeft = frameWidth - safeInset - width;
-  const maxTop = frameHeight - safeInset - height;
-  const anchorX = (box[0] + box[2]) / 2 * frameWidth;
-  const left = clamp2(anchorX - width / 2, safeInset, maxLeft);
-  const below = box[3] * frameHeight + gap;
-  const above = box[1] * frameHeight - gap - height;
-  const canFitBelow = below <= maxTop;
-  const canFitAbove = above >= safeInset;
-  const flipped = !canFitBelow && canFitAbove;
-  return { left, top: clamp2(flipped ? above : below, safeInset, maxTop), flipped };
-}
-function groupSessionPhotos(samples, cats) {
-  if (cats.length < 2) return [];
-  const sections = cats.map((cat) => ({ cat: cat.cat, samples: [] }));
-  const byName = new Map(sections.map((section) => [section.cat, section]));
-  const unassigned = [];
-  for (const sample of samples) {
-    const section = sample.cat ? byName.get(sample.cat) : void 0;
-    if (section) section.samples.push(sample);
-    else unassigned.push(sample);
-  }
-  if (unassigned.length > 0) {
-    const main2 = sections.reduce((best, section) => section.samples.length > best.samples.length ? section : best);
-    main2.samples.push(...unassigned);
-  }
-  return sections;
-}
-async function labelSession(hass, entryId, request) {
-  const callWS = hass.callWS;
-  if (!callWS) throw new Error("Not connected.");
-  let detail = await callWS({
-    type: "kibble/session/label",
-    entry_id: entryId,
-    uid: request.uid,
-    ...request.cats ? { cats: request.cats } : {},
-    ...request.verdict ? { verdict: request.verdict } : {}
-  });
-  for (const subject of request.subjects ?? []) {
-    detail = await callWS({ type: "kibble/session/subject", entry_id: entryId, uid: detail.event.uid, sid: subject.sid, label: subject.label });
-  }
-  return detail;
 }
 var CLIP_SEEK_LEAD_MS = 3e3;
 function clipSeekOffsetSeconds(eventStartSeconds, clipStartMs) {
@@ -15974,7 +18551,7 @@ var KibblePhotoViewer = class extends i4 {
     this._justSavedUid = null;
   }
   _catColor(name) {
-    const cat = this.cats.find((c5) => c5.name === name);
+    const cat = this.cats.find((c6) => c6.name === name);
     return cat ? catColorAt(cat.color) : fallbackCatColor(name);
   }
   _photoOverlayBoxes(sample) {
@@ -16036,25 +18613,18 @@ var KibblePhotoViewer = class extends i4 {
   }
   _renderChoice(option, cat, sample, rowBusy) {
     const state2 = this._choiceState(option, sample);
-    const pending = rowBusy && this.busyUid === sample.uid && this._pendingOption === option;
-    const justSaved = this._justSavedUid === sample.uid && state2 === "confirmed";
-    const label = cat ? cat.name : option === "skip" ? "Don\u2019t use" : "Not a cat";
-    return b2`
-      <button
-        type="button"
-        class="choice choice-${state2}"
-        aria-pressed=${state2 === "confirmed"}
-        style=${cat ? `--chip-color:${this._catColor(cat.name)}` : ""}
-        ?disabled=${rowBusy}
-        @click=${() => this._choose(option, sample)}
-      >
-        <span class="choice-glyph">
-          ${option === "skip" ? mdiIcon("eyeOff") : cat ? b2`<kibble-avatar .hass=${this.hass} .name=${cat.name} .colorIndex=${cat.color} .asset=${cat.avatar} .cache=${this.cache}></kibble-avatar>` : b2`<kibble-avatar .name=${null}></kibble-avatar>`}
-          ${pending ? b2`<span class="choice-spinner">${mdiIcon("refresh")}</span>` : state2 === "confirmed" ? b2`<span class="choice-check ${justSaved ? "just-saved" : ""}">${mdiIcon("check")}</span>` : A}
-        </span>
-        <span class="choice-label">${label}</span>
-      </button>
-    `;
+    return b2`<kibble-choice
+      .hass=${this.hass}
+      .cache=${this.cache}
+      .label=${cat ? cat.name : option === "skip" ? "Don\u2019t use" : "Not a cat"}
+      .cats=${cat ? [cat] : []}
+      .icon=${cat ? null : option === "skip" ? "eyeOff" : "cancel"}
+      .state=${state2 === "confirmed" ? "selected" : state2}
+      .busy=${rowBusy && this.busyUid === sample.uid && this._pendingOption === option}
+      .pop=${this._justSavedUid === sample.uid && state2 === "confirmed"}
+      ?disabled=${rowBusy}
+      @click=${() => this._choose(option, sample)}
+    ></kibble-choice>`;
   }
   _choose(option, sample) {
     const follows = this.event?.identity === "reviewed" && this.event.cat === option;
@@ -16108,7 +18678,7 @@ var KibblePhotoViewer = class extends i4 {
       padding: max(12px, env(safe-area-inset-top)) 12px 8px;
     }
     .counter {
-      font-size: 13px;
+      font-size: 14px;
       font-variant-numeric: tabular-nums;
       color: rgba(255, 255, 255, 0.75);
     }
@@ -16224,115 +18794,20 @@ var KibblePhotoViewer = class extends i4 {
       display: inline-flex;
       transform: rotate(-90deg);
     }
-    /* The chip row is its own solid HA-theme surface, deliberately distinct from the black
-     * photo-viewing chrome above it (image on top, flexing; chips beneath, never overlapping)
-     * -- the theme tokens are what keep the labels legible in both light and dark, exactly like
-     * every other chip in this card set, rather than a fixed light-on-dark scheme that only
-     * worked against a black backdrop. */
+    /* The answers sit on their own solid HA-theme surface, distinct from the black photo
+     * chrome above (image on top, flexing; answers beneath, never overlapping), so the shared
+     * answer buttons read the same here as everywhere else in light and dark. */
     .chip-row {
       flex-shrink: 0;
       display: flex;
-      gap: 6px;
+      gap: 8px;
       overflow-x: auto;
-      padding: 10px 12px max(10px, env(safe-area-inset-bottom));
+      padding: 12px 12px max(12px, env(safe-area-inset-bottom));
       background: var(--ha-card-background, var(--card-background-color, #fff));
     }
-    .choice {
+    .chip-row kibble-choice {
       flex: 1 1 0;
-      min-width: 60px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 4px;
-      padding: 6px 2px;
-      border: 2px solid transparent;
-      border-radius: 12px;
-      background: color-mix(in srgb, var(--primary-text-color) 5%, transparent);
-      color: var(--primary-text-color);
-      font: inherit;
-      font-size: 11px;
-      cursor: pointer;
-      min-height: 44px;
-    }
-    .choice:disabled {
-      cursor: default;
-      opacity: 0.6;
-    }
-    .choice-suggested {
-      border-style: dashed;
-      border-color: var(--chip-color, var(--secondary-text-color));
-      background: none;
-    }
-    .choice-confirmed {
-      border-color: var(--chip-color, var(--secondary-text-color));
-      background: color-mix(in srgb, var(--chip-color, var(--secondary-text-color)) 18%, transparent);
-    }
-    .choice-glyph {
-      position: relative;
-      width: 30px;
-      height: 30px;
-    }
-    .choice-glyph kibble-avatar {
-      --kibble-avatar-size: 30px;
-    }
-    .choice-glyph > svg {
-      width: 30px;
-      height: 30px;
-      border-radius: 50%;
-      background: color-mix(in srgb, var(--primary-text-color) 10%, transparent);
-      color: var(--secondary-text-color);
-      padding: 6px;
-      box-sizing: border-box;
-    }
-    .choice-check,
-    .choice-spinner {
-      position: absolute;
-      right: -2px;
-      bottom: -2px;
-      width: 15px;
-      height: 15px;
-      border-radius: 50%;
-      background: var(--kibble-feed, #43a96a);
-      color: var(--kibble-ink-on-feed, #10301d);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 11px;
-      box-shadow: 0 0 0 2px var(--ha-card-background, var(--card-background-color, #fff));
-    }
-    .choice-spinner {
-      background: color-mix(in srgb, var(--primary-text-color) 60%, transparent);
-      color: #fff;
-    }
-    @media (prefers-reduced-motion: no-preference) {
-      .choice-spinner svg {
-        animation: kibble-viewer-spin 0.9s linear infinite;
-      }
-      .choice-check.just-saved {
-        animation: kibble-viewer-pop 400ms ease;
-      }
-    }
-    @keyframes kibble-viewer-spin {
-      to {
-        transform: rotate(360deg);
-      }
-    }
-    @keyframes kibble-viewer-pop {
-      0% {
-        transform: scale(0.4);
-      }
-      60% {
-        transform: scale(1.25);
-      }
-      100% {
-        transform: scale(1);
-      }
-    }
-    .choice-label {
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      max-width: 100%;
+      min-width: 76px;
     }
     .viewer-error {
       flex-shrink: 0;
@@ -16341,16 +18816,12 @@ var KibblePhotoViewer = class extends i4 {
       border-radius: 8px;
       background: rgba(219, 68, 55, 0.25);
       color: #ffb4ac;
-      font-size: 13px;
+      font-size: 14px;
     }
     .box-toggle:focus-visible,
     .close:focus-visible,
     .nav:focus-visible {
       outline: 2px solid #fff;
-      outline-offset: 2px;
-    }
-    .choice:focus-visible {
-      outline: 2px solid var(--primary-color, #03a9f4);
       outline-offset: 2px;
     }
   `;
@@ -16369,7 +18840,6 @@ var CLIP_SIGN_EXPIRES_S = 3600;
 var MEDIA_ASPECT = 1.6;
 var PHOTOS_VISIBLE_CAP = 12;
 var PHOTO_SKELETON_COUNT = 6;
-var LABEL_SAVED_PULSE_MS = 700;
 var BOXES_STORAGE_KEY = "kibble:show-boxes";
 var BOXES_CHANGE_EVENT = "kibble-boxes-visibility-changed";
 function readBoxesVisible() {
@@ -16382,8 +18852,6 @@ function readBoxesVisible() {
 var KibbleLabelSheet = class extends i4 {
   constructor() {
     super();
-    this._pendingLabel = null;
-    this._justSavedLabel = null;
     this._draft = null;
     this._photosExpanded = false;
     this._viewerIndex = null;
@@ -16482,8 +18950,6 @@ var KibbleLabelSheet = class extends i4 {
       busy: { type: Boolean },
       error: { type: String },
       sampleBusyUid: { attribute: false },
-      _pendingLabel: { state: true },
-      _justSavedLabel: { state: true },
       _photosExpanded: { state: true },
       _viewerIndex: { state: true },
       _zoom: { state: true },
@@ -16508,7 +18974,6 @@ var KibbleLabelSheet = class extends i4 {
     this._afterRef.dispose();
     this._sceneRef.dispose();
     this._stopClipPlayback();
-    clearTimeout(this._justSavedLabelTimer);
   }
   _setBoxesVisible(visible) {
     this._showBoxes = visible;
@@ -16530,7 +18995,6 @@ var KibbleLabelSheet = class extends i4 {
       this._photosExpanded = false;
       this._viewerIndex = null;
       this._zoom = null;
-      this._pendingLabel = null;
       this._draft = null;
     }
     if (changed.has("sessionCats")) {
@@ -16540,20 +19004,6 @@ var KibbleLabelSheet = class extends i4 {
       this._clipEventUid = eventUid;
       this._releaseClip();
     }
-    if (changed.has("busy")) {
-      const wasBusy = changed.get("busy");
-      if (wasBusy && !this.busy) {
-        if (!this.error && this._pendingLabel) this._flashSavedLabel(this._pendingLabel);
-        this._pendingLabel = null;
-      }
-    }
-  }
-  _flashSavedLabel(label) {
-    clearTimeout(this._justSavedLabelTimer);
-    this._justSavedLabel = label;
-    this._justSavedLabelTimer = setTimeout(() => {
-      this._justSavedLabel = null;
-    }, LABEL_SAVED_PULSE_MS);
   }
   render() {
     const event = this.summary;
@@ -16600,7 +19050,7 @@ var KibbleLabelSheet = class extends i4 {
     `;
   }
   _catColor(name) {
-    const cat = this.cats.find((c5) => c5.name === name);
+    const cat = this.cats.find((c6) => c6.name === name);
     return cat ? catColorAt(cat.color) : fallbackCatColor(name);
   }
   _sceneOverlayBoxes() {
@@ -16660,7 +19110,7 @@ var KibbleLabelSheet = class extends i4 {
         <div class="heading">
           <span class="title">${title}</span>
           <span class="meta">
-            ${timeLabel(event.start, locale)}${duration ? b2` \u00b7 ${duration}` : A}
+            ${timeLabel(event.start, locale)}${duration ? b2`, ${duration}` : A}
             ${event.open ? this._renderLiveBadge(color) : A}
           </span>
         </div>
@@ -16834,10 +19284,9 @@ var KibbleLabelSheet = class extends i4 {
     if (!event.cat) return [];
     return [{ cat: event.cat, ate: event.kind === "eat", confirmed: event.identity === "reviewed", confidence: event.confidence ?? null, photos: event.sample_count ?? 0 }];
   }
-  _requestSessionLabel(request, pendingLabel, closeOnSuccess = false) {
-    this._pendingLabel = pendingLabel;
+  _requestSessionLabel(request, closeOnSuccess = false) {
     this.dispatchEvent(new CustomEvent("session-label-requested", {
-      detail: { ...request, pendingLabel, closeOnSuccess },
+      detail: { ...request, closeOnSuccess },
       bubbles: true,
       composed: true
     }));
@@ -16857,39 +19306,43 @@ var KibbleLabelSheet = class extends i4 {
         <div class="chip-grid" role="group" aria-label="Who was here?">
           ${this.cats.map((cat) => this._renderIdentityChip(cat, event, saved, draft))}
           ${this._renderNotACatChip(event, draft)}
+          <kibble-choice
+            label="Can\u2019t tell"
+            .icon=${"helpCircle"}
+            .state=${event.identity === "unknown" ? "selected" : "neutral"}
+            ?disabled=${this.busy || event.identity === "unknown"}
+            @click=${() => this._requestSessionLabel({ uid: event.uid, verdict: "unknown" }, true)}
+          ></kibble-choice>
         </div>
         ${isMeal && draft.cats.length >= 2 ? b2`<div class="meal-roles" role="group" aria-label="Who ate?">${draft.cats.map((cat) => b2`
           <div class="meal-role"><span class="meal-cat">${cat.cat}</span><div class="meal-role-options" role="group" aria-label=${cat.cat}>
             <button type="button" aria-pressed=${cat.ate} ?disabled=${this.busy} @click=${() => this._setDraft(event, (d3) => setDraftAte(d3, cat.cat, true))}>Ate</button>
             <button type="button" aria-pressed=${!cat.ate} ?disabled=${this.busy} @click=${() => this._setDraft(event, (d3) => setDraftAte(d3, cat.cat, false))}>Came by</button>
           </div></div>`)}</div>` : A}
-        <button type="button" class="not-sure" aria-pressed=${event.identity === "unknown"} ?disabled=${this.busy || event.identity === "unknown"} @click=${() => this._requestSessionLabel({ uid: event.uid, verdict: "unknown" }, "unknown", true)}>Not sure</button>
         ${this.error ? b2`<p class="identity-error">${this.error}</p>` : A}
       </div>
     `;
   }
   _renderIdentityChip(cat, event, saved, draft) {
     const state2 = draftChipState(draft, saved, cat.name);
-    const ticked = state2 !== "neutral";
-    return b2`
-      <button type="button" class="chip chip-${state2}" aria-pressed=${ticked} style=${`--chip-color:${this._catColor(cat.name)}`} ?disabled=${this.busy} @click=${() => this._setDraft(event, (d3) => toggleDraftCat(d3, cat.name, event.kind === "eat"))}>
-        <span class="chip-avatar">
-          <kibble-avatar .hass=${this.hass} .name=${cat.name} .colorIndex=${cat.color} .asset=${cat.avatar} .cache=${this.cache}></kibble-avatar>
-          ${ticked ? b2`<span class="chip-check">${mdiIcon("check")}</span>` : A}
-        </span>
-        <span class="chip-label">${cat.name}</span>
-      </button>`;
+    return b2`<kibble-choice
+      .hass=${this.hass}
+      .cache=${this.cache}
+      .label=${cat.name}
+      .cats=${[cat]}
+      .state=${state2 === "confirmed" ? "selected" : state2}
+      ?disabled=${this.busy}
+      @click=${() => this._setDraft(event, (d3) => toggleDraftCat(d3, cat.name, event.kind === "eat"))}
+    ></kibble-choice>`;
   }
   _renderNotACatChip(event, draft) {
-    const state2 = draft.notACat ? "confirmed" : "neutral";
-    return b2`
-      <button type="button" class="chip chip-${state2}" aria-pressed=${draft.notACat} ?disabled=${this.busy} @click=${() => this._setDraft(event, toggleDraftNotACat)}>
-        <span class="chip-avatar">
-          <kibble-avatar .name=${null}></kibble-avatar>
-          ${draft.notACat ? b2`<span class="chip-check">${mdiIcon("check")}</span>` : A}
-        </span>
-        <span class="chip-label">Not a cat</span>
-      </button>`;
+    return b2`<kibble-choice
+      label="Not a cat"
+      .icon=${"cancel"}
+      .state=${draft.notACat ? "selected" : "neutral"}
+      ?disabled=${this.busy}
+      @click=${() => this._setDraft(event, toggleDraftNotACat)}
+    ></kibble-choice>`;
   }
   // ---- Photos ----
   _renderPhotos(_event, cats) {
@@ -16942,7 +19395,7 @@ var KibbleLabelSheet = class extends i4 {
   // ---- Footer ----
   _renderFooter(event, saved, draft) {
     const action = confirmAction(draft, saved, event.identity);
-    const onClick = action.kind === "save" ? () => this._requestSessionLabel({ uid: event.uid, ...action.request }, "confirm", true) : this._close;
+    const onClick = action.kind === "save" ? () => this._requestSessionLabel({ uid: event.uid, ...action.request }, true) : this._close;
     return b2`<footer><button type="button" class="primary-btn" ?disabled=${this.busy || action.kind === "blocked"} @click=${onClick}>${this.busy && action.kind === "save" ? "Saving" : action.text}</button></footer>`;
   }
   static {
@@ -17021,7 +19474,7 @@ var KibbleLabelSheet = class extends i4 {
       display: flex;
       align-items: center;
       gap: 8px;
-      font-size: 13px;
+      font-size: 14px;
       color: var(--secondary-text-color);
       font-variant-numeric: tabular-nums;
     }
@@ -17106,15 +19559,13 @@ var KibbleLabelSheet = class extends i4 {
       transform: rotate(-90deg);
     }
     .pager-count {
-      font-size: 13px;
+      font-size: 14px;
       font-weight: 600;
       color: var(--secondary-text-color);
       font-variant-numeric: tabular-nums;
     }
     .close:focus-visible,
     .pager-btn:focus-visible,
-    .chip:focus-visible,
-    .not-sure:focus-visible,
     .photo-tile:focus-visible,
     .primary-btn:focus-visible,
     .stage-zoom:focus-visible,
@@ -17190,11 +19641,11 @@ var KibbleLabelSheet = class extends i4 {
       width: 100%;
       min-height: 48px;
       border: none;
-      border-radius: 12px;
+      border-radius: 8px;
       background: var(--kibble-feed, #43a96a);
       color: var(--kibble-ink-on-feed, #10301d);
       font: inherit;
-      font-size: 15px;
+      font-size: 16px;
       font-weight: 700;
       cursor: pointer;
     }
@@ -17206,7 +19657,7 @@ var KibbleLabelSheet = class extends i4 {
       position: relative;
       width: 100%;
       aspect-ratio: 1.6;
-      border-radius: 12px;
+      border-radius: 8px;
       overflow: hidden;
       background: #000;
       display: flex;
@@ -17353,111 +19804,9 @@ var KibbleLabelSheet = class extends i4 {
       font-weight: 500;
     }
     .chip-grid {
-      display: flex;
-      flex-wrap: wrap;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
       gap: 8px;
-    }
-    .chip {
-      flex: 1 1 72px;
-      min-width: 72px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 4px;
-      padding: 8px 4px;
-      border: 2px solid transparent;
-      border-radius: 12px;
-      background: color-mix(in srgb, var(--primary-text-color) 5%, transparent);
-      color: var(--primary-text-color);
-      font: inherit;
-      font-size: 12px;
-      cursor: pointer;
-      min-height: 48px;
-    }
-    .chip:disabled {
-      opacity: 0.6;
-      cursor: default;
-    }
-    .chip-suggested {
-      border-style: dashed;
-      border-color: var(--chip-color, var(--secondary-text-color));
-      background: none;
-    }
-    .chip-confirmed {
-      border-color: var(--chip-color, var(--secondary-text-color));
-      background: color-mix(in srgb, var(--chip-color, var(--secondary-text-color)) 18%, transparent);
-    }
-    .chip-avatar {
-      position: relative;
-    }
-    .chip-avatar kibble-avatar {
-      --kibble-avatar-size: 34px;
-    }
-    .chip-check,
-    .chip-spinner {
-      position: absolute;
-      right: -2px;
-      bottom: -2px;
-      width: 16px;
-      height: 16px;
-      border-radius: 50%;
-      background: var(--kibble-feed, #43a96a);
-      color: var(--kibble-ink-on-feed, #10301d);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 11px;
-      box-shadow: 0 0 0 2px var(--ha-card-background, var(--card-background-color, #fff));
-    }
-    .chip-spinner {
-      background: color-mix(in srgb, var(--primary-text-color) 60%, transparent);
-      color: #fff;
-    }
-    @media (prefers-reduced-motion: no-preference) {
-      .chip-spinner svg {
-        animation: kibble-sheet-spin 0.9s linear infinite;
-      }
-      .chip-check.just-saved {
-        animation: kibble-sheet-check-pop 400ms ease;
-      }
-    }
-    @keyframes kibble-sheet-spin {
-      to {
-        transform: rotate(360deg);
-      }
-    }
-    @keyframes kibble-sheet-check-pop {
-      0% {
-        transform: scale(0.4);
-      }
-      60% {
-        transform: scale(1.25);
-      }
-      100% {
-        transform: scale(1);
-      }
-    }
-    .chip-label {
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      max-width: 100%;
-    }
-    .not-sure {
-      align-self: center;
-      border: none;
-      background: none;
-      color: var(--secondary-text-color);
-      font: inherit;
-      font-size: 13px;
-      text-decoration: underline;
-      cursor: pointer;
-      min-height: 48px;
-      padding: 0 8px;
-    }
-    .not-sure:disabled {
-      opacity: 0.5;
-      cursor: default;
     }
     .meal-roles {
       display: grid;
@@ -17474,7 +19823,7 @@ var KibbleLabelSheet = class extends i4 {
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
-      font-size: 13px;
+      font-size: 14px;
       font-weight: 600;
     }
     .meal-role-options {
@@ -17486,7 +19835,7 @@ var KibbleLabelSheet = class extends i4 {
       min-height: 48px;
       padding: 0 8px;
       border: 1px solid var(--divider-color);
-      border-radius: 10px;
+      border-radius: 8px;
       background: transparent;
       color: var(--primary-text-color);
       font: inherit;
@@ -17506,7 +19855,7 @@ var KibbleLabelSheet = class extends i4 {
       border-radius: 8px;
       background: color-mix(in srgb, var(--error-color, #db4437) 10%, transparent);
       color: var(--error-color, #db4437);
-      font-size: 13px;
+      font-size: 14px;
     }
     .photos {
       display: flex;
@@ -17535,7 +19884,7 @@ var KibbleLabelSheet = class extends i4 {
       display: flex;
       align-items: baseline;
       gap: 6px;
-      font-size: 13px;
+      font-size: 14px;
       font-weight: 600;
       color: var(--primary-text-color);
     }
@@ -17553,7 +19902,7 @@ var KibbleLabelSheet = class extends i4 {
       aspect-ratio: 1;
       padding: 0;
       border: none;
-      border-radius: 10px;
+      border-radius: 8px;
       overflow: hidden;
       background: color-mix(in srgb, var(--primary-text-color) 8%, transparent);
       cursor: pointer;
@@ -17578,7 +19927,7 @@ var KibbleLabelSheet = class extends i4 {
       align-items: center;
       justify-content: center;
       font: inherit;
-      font-size: 15px;
+      font-size: 16px;
       font-weight: 700;
       color: var(--primary-text-color);
       background: color-mix(in srgb, var(--primary-text-color) 10%, transparent);
@@ -17610,7 +19959,7 @@ var KibbleLabelSheet = class extends i4 {
     }
     .photo-skeleton {
       aspect-ratio: 1;
-      border-radius: 10px;
+      border-radius: 8px;
       background: color-mix(in srgb, var(--primary-text-color) 8%, transparent);
     }
     @media (prefers-reduced-motion: no-preference) {
@@ -17632,7 +19981,7 @@ var KibbleLabelSheet = class extends i4 {
       align-items: center;
       gap: 8px;
       margin: 0;
-      font-size: 13px;
+      font-size: 14px;
       color: var(--secondary-text-color);
     }
     .photos-error button {
@@ -17798,6 +20147,7 @@ var KibbleTimelineCard = class extends i4 {
     this._animateUids = /* @__PURE__ */ new Set();
     this._sheetReviewedEvents = /* @__PURE__ */ new Map();
     this._sheetPhotoUids = /* @__PURE__ */ new Set();
+    this._stopReviewListening = null;
     this._onRailScroll = () => {
       this._updateEdges();
     };
@@ -17837,8 +20187,7 @@ var KibbleTimelineCard = class extends i4 {
       labelSession(hass, entryId, request).then((detail) => {
         this._sheetBusy = false;
         this._applySheetDetail(detail);
-        this._timelineFeed.refresh(hass, entryId, this._config?.limit ?? DEFAULT_LIMIT);
-        this._refreshCats();
+        announceReviewChange(entryId);
         for (const key of this._sheetReviewedEvents.keys()) {
           if (key === detail.event.uid || key.startsWith(detail.event.uid + ":")) this._sheetReviewedEvents.delete(key);
         }
@@ -17871,6 +20220,7 @@ var KibbleTimelineCard = class extends i4 {
         this._sheetPhotoUids.add(sampleUid);
         const uid = this._sheetSummary?.uid;
         if (uid) this._loadEventDetail(uid, true);
+        announceReviewChange(entryId);
         this.requestUpdate();
       }).catch((err) => {
         this._sheetSampleBusyUid = null;
@@ -17933,8 +20283,20 @@ var KibbleTimelineCard = class extends i4 {
   static getConfigElement() {
     return document.createElement("kibble-timeline-card-editor");
   }
+  connectedCallback() {
+    super.connectedCallback();
+    this._stopReviewListening = onReviewChange(
+      () => this._entryId,
+      () => {
+        this._timelineFeed.refresh(this.hass, this._entryId, this._config?.limit ?? DEFAULT_LIMIT);
+        this._refreshCats();
+      }
+    );
+  }
   disconnectedCallback() {
     super.disconnectedCallback();
+    this._stopReviewListening?.();
+    this._stopReviewListening = null;
     this._imageCache.dispose();
     this._timelineFeed.dispose();
     this._sentinelObserver?.disconnect();
@@ -18029,7 +20391,7 @@ var KibbleTimelineCard = class extends i4 {
   }
   _catColor(name) {
     if (!name) return null;
-    const cat = this._catsQuery.state.data?.cats.find((c5) => c5.name === name);
+    const cat = this._catsQuery.state.data?.cats.find((c6) => c6.name === name);
     return cat ? catColorAt(cat.color) : fallbackCatColor(name);
   }
   render() {
@@ -18043,6 +20405,14 @@ var KibbleTimelineCard = class extends i4 {
       <ha-card>
         <div class="container">
           ${this._config.name ? b2`<div class="label">${this._config.name}</div>` : A}
+          <kibble-review-entry
+            class="review-entry"
+            .hass=${this.hass}
+            .entryId=${this._entryId}
+            .cats=${this._catsQuery.state.data?.cats ?? []}
+            .cache=${this._imageCache}
+            .revision=${timelineState.items}
+          ></kibble-review-entry>
           <div class="rail-wrap">
             <div class="rail" style=${railStyle(this._config.max_height)} @scroll=${this._onRailScroll} ${n5(this._railRef)}>
               ${timelineState.error ? this._renderError(timelineState.error) : A}
@@ -18177,13 +20547,25 @@ var KibbleTimelineCard = class extends i4 {
   _renderTitle(group, color) {
     const event = group.event;
     const titleBody = event.kind === "feed" ? b2`${feedTitle(event)}` : event.cat ? b2`<span class="cat-name" style="color:${color}">${event.cat}</span> ${catVerb(event)}` : b2`${event.open ? event.kind === "eat" ? "Someone is eating" : "Someone is here" : "Who was here?"}`;
-    const label = `Review ${eventTitle(event)}, ${timeLabel(event.start, this._locale())}`;
-    return b2`<button type="button" class="title-open" aria-label=${label} @click=${(click) => this._openSheet(group, click.currentTarget)}>
+    const asks = needsIdentification(event);
+    const label = asks ? `Who was here? ${timeLabel(event.start, this._locale())}` : `Review ${eventTitle(event)}, ${timeLabel(event.start, this._locale())}`;
+    return b2`<button type="button" class="title-open ${asks ? "asks" : ""}" aria-label=${label} @click=${(click) => this._openRow(group, click.currentTarget)}>
       <span class="title-line">
         <span class="title">${titleBody}</span>
+        ${asks ? b2`<span class="ask-chevron">${mdiIcon("chevronRight")}</span>` : A}
         ${event.open ? this._renderLiveRing(color) : A}
         ${group.events.length > 1 ? b2`<span class="count-badge">${groupCountLabel(event.kind, group.events.length)}</span>` : A}
       </span></button>`;
+  }
+  /** A row's tap: a visit nobody has named goes straight to the review queue at that visit;
+   * everything else opens the event sheet. */
+  _openRow(group, trigger) {
+    const event = group.event;
+    if (group.together !== true && needsIdentification(event)) {
+      this.renderRoot.querySelector("kibble-review-entry")?.open(event.session ?? event.uid);
+    } else {
+      this._openSheet(group, trigger);
+    }
   }
   _renderLiveRing(color) {
     return b2`
@@ -18222,7 +20604,7 @@ var KibbleTimelineCard = class extends i4 {
     const hasClip = event.kind === "eat" && Boolean(event.clip);
     const label = `View and correct: ${eventTitle(event)}, ${timeLabel(event.start, this._locale())}${hasClip ? ". Has video." : ""}`;
     return b2`
-      <button type="button" class="${extraClass}" aria-label=${label} @click=${(e6) => this._openSheet(group, e6.currentTarget)}>
+      <button type="button" class="${extraClass}" aria-label=${label} @click=${(e6) => this._openRow(group, e6.currentTarget)}>
         ${asset ? b2`<kibble-image .hass=${this.hass} .asset=${asset} .cache=${this._imageCache} alt=""></kibble-image>` : b2`<span class="neutral-icon">${catSilhouette()}</span>`}
         ${hasClip ? b2`<span class="clip-badge">${mdiIcon("play")}</span>` : A}
       </button>
@@ -18232,11 +20614,11 @@ var KibbleTimelineCard = class extends i4 {
     const label = `View and correct: ${eventTitle(group.event)}, ${timeLabel(group.event.start, this._locale())}`;
     return b2`
       <div class="compare-pair ${size === "full" ? "compare-full" : "compare-third"}">
-        <button type="button" class="compare-tile" aria-label=${`${label}. Before.`} @click=${(e6) => this._openSheet(group, e6.currentTarget)}>
+        <button type="button" class="compare-tile" aria-label=${`${label}. Before.`} @click=${(e6) => this._openRow(group, e6.currentTarget)}>
           ${compare.before ? b2`<kibble-image .hass=${this.hass} .asset=${compare.before} .cache=${this._imageCache} alt=""></kibble-image>` : A}
           <span class="compare-label">Before</span>
         </button>
-        <button type="button" class="compare-tile" aria-label=${`${label}. After.`} @click=${(e6) => this._openSheet(group, e6.currentTarget)}>
+        <button type="button" class="compare-tile" aria-label=${`${label}. After.`} @click=${(e6) => this._openRow(group, e6.currentTarget)}>
           ${compare.after ? b2`<kibble-image .hass=${this.hass} .asset=${compare.after} .cache=${this._imageCache} alt=""></kibble-image>` : A}
           <span class="compare-label">After</span>
         </button>
@@ -18320,6 +20702,9 @@ var KibbleTimelineCard = class extends i4 {
       font-size: var(--kibble-text-body);
       font-weight: 600;
       color: var(--primary-text-color);
+    }
+    .review-entry {
+      margin: 12px 16px 4px;
     }
     .empty {
       margin: 0;
@@ -18505,6 +20890,20 @@ var KibbleTimelineCard = class extends i4 {
       outline: 2px solid var(--primary-color);
       outline-offset: 2px;
     }
+    /* A visit nobody has named: the question is the row's action, so it looks like one. */
+    .title-open.asks .title-line {
+      display: inline-flex;
+      flex-wrap: nowrap;
+      gap: 4px;
+      padding: 8px 4px 8px 12px;
+      border-radius: 8px;
+      background: color-mix(in srgb, var(--primary-text-color) 6%, transparent);
+    }
+    .ask-chevron {
+      display: flex;
+      font-size: 20px;
+      color: var(--secondary-text-color);
+    }
     .title-line {
       display: flex;
       align-items: center;
@@ -18581,7 +20980,7 @@ var KibbleTimelineCard = class extends i4 {
       flex: none;
       padding: 0;
       border: none;
-      border-radius: 16px;
+      border-radius: 8px;
       overflow: hidden;
       background: color-mix(in srgb, var(--primary-text-color) 8%, transparent);
       cursor: pointer;
@@ -18615,10 +21014,6 @@ var KibbleTimelineCard = class extends i4 {
       max-width: 120px;
       aspect-ratio: 1;
     }
-    .photo-unknown {
-      width: 100px;
-      height: 100px;
-    }
     .neutral-icon {
       width: 60%;
       height: 60%;
@@ -18642,7 +21037,7 @@ var KibbleTimelineCard = class extends i4 {
       height: 130px;
       padding: 0;
       border: none;
-      border-radius: 16px;
+      border-radius: 8px;
       overflow: hidden;
       background: color-mix(in srgb, var(--primary-text-color) 8%, transparent);
       cursor: pointer;
@@ -18666,55 +21061,9 @@ var KibbleTimelineCard = class extends i4 {
       font-weight: 600;
     }
     .photo-tile:focus-visible,
-    .compare-tile:focus-visible,
-    .chip:focus-visible {
+    .compare-tile:focus-visible {
       outline: 2px solid var(--primary-color, #03a9f4);
       outline-offset: 2px;
-    }
-    .chip-row {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin-top: 6px;
-      padding-bottom: 14px;
-    }
-    .chip {
-      display: inline-flex;
-      align-items: center;
-      gap: 7px;
-      border: none;
-      border-radius: 999px;
-      background: color-mix(in srgb, var(--dot-color, var(--primary-color)) 16%, transparent);
-      color: var(--dot-color, var(--primary-color, #03a9f4));
-      font: inherit;
-      font-size: 14px;
-      font-weight: 600;
-      padding: 7px 16px 7px 10px;
-      min-height: 38px;
-      cursor: pointer;
-    }
-    .chip-dot {
-      width: 11px;
-      height: 11px;
-      border-radius: 50%;
-      background: var(--dot-color);
-      flex: none;
-    }
-    .chip.chip-muted {
-      background: color-mix(in srgb, var(--primary-text-color) 7%, transparent);
-      color: var(--secondary-text-color);
-      font-weight: 500;
-      padding: 7px 16px;
-    }
-    .chip:disabled {
-      opacity: 0.5;
-      cursor: default;
-    }
-    .row-error {
-      display: block;
-      padding-bottom: 12px;
-      font-size: var(--kibble-text-caption);
-      color: var(--error-color, #db4437);
     }
     .sentinel {
       height: 1px;
@@ -18802,17 +21151,6 @@ var PagedFeed = class {
     if (!hass?.callWS || this.state.loading || this.state.pageIndex === 0) return;
     void this._load(hass, params, limit, this.state.pageIndex - 1, this._generation);
   }
-  /** Drops every item matching `predicate` from the current page, decrementing `total` to
-   * match -- used after a review-queue item is labelled and so stops belonging to the queue,
-   * without waiting on a full page refetch. */
-  removeItem(predicate) {
-    const items = this.state.items;
-    if (!items) return;
-    const kept = items.filter((item) => !predicate(item));
-    if (kept.length === items.length) return;
-    this.state = { ...this.state, items: kept, total: Math.max(0, this.state.total - (items.length - kept.length)) };
-    this._onChange();
-  }
   async _load(hass, params, limit, pageIndex, generation) {
     this.state = { ...this.state, loading: true, error: null };
     this._onChange();
@@ -18841,16 +21179,6 @@ var PagedFeed = class {
     this._generation += 1;
   }
 };
-async function labelEvents(hass, entryId, request) {
-  if (!hass.callWS) throw new Error("Not connected.");
-  const result = await hass.callWS({
-    type: "kibble/label",
-    entry_id: entryId,
-    uids: request.uids,
-    label: request.label
-  });
-  return result.events;
-}
 function formatBytes(bytes) {
   const mb = bytes / (1024 * 1024);
   if (mb < 1e3) return `${mb < 10 ? mb.toFixed(1) : Math.round(mb)} MB`;
@@ -19599,7 +21927,7 @@ var KibbleAddPhotosSheet = class extends i4 {
     if (tally.no_cat) parts.push(`${tally.no_cat} not a cat`);
     if (tally.error) parts.push(`${tally.error} failed`);
     if (tally.canceled) parts.push(`${tally.canceled} canceled`);
-    return parts.length > 0 ? parts.join(" \xB7 ") : "Nothing added.";
+    return parts.length > 0 ? parts.join(", ") : "Nothing added.";
   }
   _renderAdjust(tile) {
     return b2`
@@ -19694,7 +22022,7 @@ var KibbleAddPhotosSheet = class extends i4 {
       padding: 0;
       border: none;
       background: none;
-      border-radius: 10px;
+      border-radius: 8px;
       overflow: hidden;
       cursor: pointer;
     }
@@ -19711,7 +22039,7 @@ var KibbleAddPhotosSheet = class extends i4 {
       border: none;
       background: #222;
       color: #fff;
-      font-size: 13px;
+      font-size: 14px;
       line-height: 1;
       cursor: pointer;
     }
@@ -19724,7 +22052,7 @@ var KibbleAddPhotosSheet = class extends i4 {
       gap: 4px;
       padding: 3px 8px;
       border-radius: 999px;
-      font-size: 11px;
+      font-size: 12px;
       font-weight: 600;
       background: rgba(0, 0, 0, 0.6);
       color: #fff;
@@ -19766,7 +22094,7 @@ var KibbleAddPhotosSheet = class extends i4 {
     }
     .primary {
       min-height: 44px;
-      border-radius: 10px;
+      border-radius: 8px;
       border: none;
       background: var(--kibble-feed, #43a96a);
       color: var(--kibble-ink-on-feed, #10301d);
@@ -20134,7 +22462,7 @@ var KibbleAvatarPicker = class extends i4 {
       aspect-ratio: 1;
       padding: 0;
       border: none;
-      border-radius: 10px;
+      border-radius: 8px;
       overflow: hidden;
       cursor: pointer;
     }
@@ -20235,7 +22563,7 @@ var KibbleAvatarPicker = class extends i4 {
     .secondary {
       min-height: 44px;
       padding: 0 22px;
-      border-radius: 10px;
+      border-radius: 8px;
       border: none;
       font: inherit;
       font-weight: 700;
@@ -20379,22 +22707,17 @@ var KibbleCatsCardEditor = class extends i4 {
 };
 customElements.define("kibble-cats-card-editor", KibbleCatsCardEditor);
 var EMPTY_ENTITIES2 = { deviceId: "", catPresence: [] };
-var REVIEW_LIMIT = 24;
 var TRAINING_LIMIT2 = 24;
 var DELETE_CONFIRM_WINDOW_MS = 3e3;
-var LEARNING_LABEL = { learning: "Learning", paused: "Paused", learned: "Learned" };
+var LEARNING_LABEL = { learning: "still learning", paused: "learning paused", learned: "learned" };
 var KibbleCatsCard = class extends i4 {
   constructor() {
     super();
     this._entities = EMPTY_ENTITIES2;
     this._catsQuery = new WsQuery(() => this.requestUpdate());
-    this._reviewFeed = new PagedFeed("kibble/review", () => this.requestUpdate());
     this._trainingFeeds = /* @__PURE__ */ new Map();
     this._imageCache = new ImageUrlCache();
-    this._detailGeneration = 0;
-    this._sheetTrigger = null;
-    this._sheetReviewedEvents = /* @__PURE__ */ new Map();
-    this._sheetPhotoUids = /* @__PURE__ */ new Set();
+    this._stopReviewListening = null;
     this._onCatMenuFocusOut = (event) => {
       const container = event.currentTarget;
       const next = event.relatedTarget;
@@ -20408,93 +22731,7 @@ var KibbleCatsCard = class extends i4 {
     };
     this._onAvatarChanged = (event) => {
       const { cat, avatar, avatarCustom } = event.detail;
-      this._catsQuery.patch((data) => ({ ...data, cats: data.cats.map((c5) => c5.name === cat ? { ...c5, avatar, avatar_custom: avatarCustom } : c5) }));
-    };
-    this._toggleSelectMode = () => {
-      this._reviewSelectMode = !this._reviewSelectMode;
-      this._reviewSelected = /* @__PURE__ */ new Set();
-    };
-    this._onEventRequested = (event) => {
-      this._loadEventDetail(event.detail.uid);
-    };
-    this._onSamplesRetryRequested = () => {
-      const uid = this._sheetSummary?.uid;
-      if (uid) this._loadEventDetail(uid);
-    };
-    this._closeSheet = () => {
-      const locale = this.hass?.locale?.language ?? this.hass?.language;
-      const message = reviewSummaryMessage({ events: [...this._sheetReviewedEvents.values()], photosUpdated: this._sheetPhotoUids.size }, locale);
-      this._sheetSummary = null;
-      this._sheetGroup = [];
-      this._sheetSamples = null;
-      this._sheetSceneSubjects = [];
-      this._sheetSessionCats = null;
-      this._sheetMultipleCats = false;
-      this._sheetSamplesFailed = false;
-      this._sheetSampleBusyUid = null;
-      this._sheetError = null;
-      this._sheetReviewedEvents = /* @__PURE__ */ new Map();
-      this._sheetPhotoUids = /* @__PURE__ */ new Set();
-      this._sheetTrigger?.focus();
-      this._sheetTrigger = null;
-      if (message) this.dispatchEvent(new CustomEvent("hass-notification", { detail: { message }, bubbles: true, composed: true }));
-    };
-    this._onSessionLabelRequested = (event) => {
-      const entryId = this._entryId;
-      const hass = this.hass;
-      if (!entryId || !hass?.callWS) return;
-      const { uid, cats, verdict, subjects, closeOnSuccess } = event.detail;
-      const request = { uid, ...cats ? { cats } : {}, ...verdict ? { verdict } : {}, ...subjects?.length ? { subjects } : {} };
-      this._sheetBusy = true;
-      this._sheetError = null;
-      labelSession(hass, entryId, request).then((detail) => {
-        this._sheetBusy = false;
-        this._sheetSummary = detail.event;
-        this._sheetSamples = detail.samples;
-        this._sheetSceneSubjects = detail.scene_subjects;
-        this._sheetSessionCats = detail.cats;
-        this._sheetMultipleCats = detail.multiple_cats;
-        this._sheetSamplesFailed = false;
-        this._reviewFeed.removeItem((item) => item.uid === request.uid || item.uid === detail.event.uid);
-        for (const key of this._sheetReviewedEvents.keys()) {
-          if (key === detail.event.uid || key.startsWith(detail.event.uid + ":")) this._sheetReviewedEvents.delete(key);
-        }
-        if (request.verdict) {
-          this._sheetReviewedEvents.set(detail.event.uid, { uid: detail.event.uid, event: detail.event, label: request.verdict });
-        } else {
-          for (const cat of request.cats ?? []) {
-            const uid2 = detail.event.uid + ":" + cat.cat;
-            this._sheetReviewedEvents.set(uid2, { uid: uid2, event: { kind: cat.ate ? "eat" : "visit", open: detail.event.open, start: detail.event.start }, label: cat.cat });
-          }
-        }
-        this._refreshCats();
-        if (closeOnSuccess) this._closeSheet();
-        else this.requestUpdate();
-      }).catch((err) => {
-        this._sheetBusy = false;
-        this._sheetError = err instanceof Error ? err.message : "Couldn't save this label.";
-        this.requestUpdate();
-      });
-    };
-    this._onSampleLabelRequested = (event) => {
-      const entryId = this._entryId;
-      const hass = this.hass;
-      if (!entryId || !hass?.callWS) return;
-      const { sampleUid, label } = event.detail;
-      this._sheetSampleBusyUid = sampleUid;
-      this._sheetError = null;
-      labelSample(hass, entryId, { sampleUid, label }).then((sample) => {
-        this._sheetSampleBusyUid = null;
-        if (this._sheetSamples) this._sheetSamples = this._sheetSamples.map((item) => item.uid === sample.uid ? sample : item);
-        this._sheetPhotoUids.add(sampleUid);
-        const uid = this._sheetSummary?.uid;
-        if (uid) this._loadEventDetail(uid, true);
-        this.requestUpdate();
-      }).catch((err) => {
-        this._sheetSampleBusyUid = null;
-        this._sheetError = err instanceof Error ? err.message : "Couldn't save this label.";
-        this.requestUpdate();
-      });
+      this._catsQuery.patch((data) => ({ ...data, cats: data.cats.map((c6) => c6.name === cat ? { ...c6, avatar, avatar_custom: avatarCustom } : c6) }));
     };
     this._addName = "";
     this._addBusy = false;
@@ -20503,19 +22740,6 @@ var KibbleCatsCard = class extends i4 {
     this._openMenuFor = null;
     this._deleteConfirmFor = null;
     this._expandedTraining = null;
-    this._reviewSelectMode = false;
-    this._reviewSelected = /* @__PURE__ */ new Set();
-    this._bulkBusy = false;
-    this._sheetSummary = null;
-    this._sheetGroup = [];
-    this._sheetSamples = null;
-    this._sheetSamplesFailed = false;
-    this._sheetSampleBusyUid = null;
-    this._sheetSceneSubjects = [];
-    this._sheetSessionCats = null;
-    this._sheetMultipleCats = false;
-    this._sheetBusy = false;
-    this._sheetError = null;
     this._addPhotosOpen = false;
     this._addPhotosCat = null;
     this._addPhotosFiles = [];
@@ -20532,19 +22756,6 @@ var KibbleCatsCard = class extends i4 {
       _openMenuFor: { state: true },
       _deleteConfirmFor: { state: true },
       _expandedTraining: { state: true },
-      _reviewSelectMode: { state: true },
-      _reviewSelected: { state: true },
-      _bulkBusy: { state: true },
-      _sheetSummary: { state: true },
-      _sheetGroup: { state: true },
-      _sheetSamples: { state: true },
-      _sheetSamplesFailed: { state: true },
-      _sheetSampleBusyUid: { state: true },
-      _sheetBusy: { state: true },
-      _sheetError: { state: true },
-      _sheetSceneSubjects: { state: true },
-      _sheetSessionCats: { state: true },
-      _sheetMultipleCats: { state: true },
       _addPhotosOpen: { state: true },
       _addPhotosCat: { state: true },
       _addPhotosFiles: { state: true },
@@ -20567,10 +22778,22 @@ var KibbleCatsCard = class extends i4 {
   static getConfigElement() {
     return document.createElement("kibble-cats-card-editor");
   }
+  connectedCallback() {
+    super.connectedCallback();
+    this._stopReviewListening = onReviewChange(
+      () => this._entryId,
+      () => {
+        this._refreshCats();
+        const cat = this._expandedTraining;
+        if (cat) this._trainingFeed(cat).refresh(this.hass, { entry_id: this._entryId, cat }, TRAINING_LIMIT2);
+      }
+    );
+  }
   disconnectedCallback() {
     super.disconnectedCallback();
+    this._stopReviewListening?.();
+    this._stopReviewListening = null;
     this._imageCache.dispose();
-    this._reviewFeed.dispose();
     for (const feed of this._trainingFeeds.values()) feed.dispose();
     clearTimeout(this._deleteConfirmTimer);
   }
@@ -20587,7 +22810,6 @@ var KibbleCatsCard = class extends i4 {
     const entryId = this._entryId;
     if (this.hass && entryId && callWS) {
       this._catsQuery.sync(entryId, () => callWS({ type: "kibble/cats", entry_id: entryId }).then((r6) => r6));
-      this._reviewFeed.sync(this.hass, entryId, { entry_id: entryId }, REVIEW_LIMIT);
       if (this._expandedTraining) {
         const cat = this._expandedTraining;
         this._trainingFeed(cat).sync(this.hass, `${entryId}:${cat}`, { entry_id: entryId, cat }, TRAINING_LIMIT2);
@@ -20617,7 +22839,7 @@ var KibbleCatsCard = class extends i4 {
             ${this._renderAddCat()}
           </section>
           ${this._expandedTraining ? this._renderTrainingPanel(this._expandedTraining) : A}
-          ${this._renderReview()}
+          ${cats.length > 0 ? b2`<kibble-review-entry .hass=${this.hass} .entryId=${this._entryId} .cats=${cats} .cache=${this._imageCache} .revision=${this._catsQuery.state.data}></kibble-review-entry>` : A}
           ${storage ? b2`
                 <p class="storage-line">
                   <span>${storageSummary(storage)}</span>
@@ -20626,28 +22848,6 @@ var KibbleCatsCard = class extends i4 {
               ` : A}
         </div>
       </ha-card>
-      <kibble-label-sheet
-        ?open=${this._sheetSummary !== null}
-        .hass=${this.hass}
-        .entryId=${this._entryId}
-        .cache=${this._imageCache}
-        .cats=${cats}
-        .summary=${this._sheetSummary}
-        .samples=${this._sheetSamples}
-        .sceneSubjects=${this._sheetSceneSubjects}
-        .sessionCats=${this._sheetSessionCats}
-        .multipleCats=${this._sheetMultipleCats}
-        .samplesFailed=${this._sheetSamplesFailed}
-        .group=${this._sheetGroup}
-        .busy=${this._sheetBusy}
-        .error=${this._sheetError}
-        .sampleBusyUid=${this._sheetSampleBusyUid}
-        @close-requested=${this._closeSheet}
-        @session-label-requested=${this._onSessionLabelRequested}
-        @sample-label-requested=${this._onSampleLabelRequested}
-        @event-requested=${this._onEventRequested}
-        @samples-retry-requested=${this._onSamplesRetryRequested}
-      ></kibble-label-sheet>
       <input type="file" class="add-photos-file-input" multiple accept="image/*" hidden @change=${(e6) => this._onAddPhotosChosen(e6)} />
       <kibble-add-photos-sheet
         ?open=${this._addPhotosOpen}
@@ -20662,7 +22862,7 @@ var KibbleCatsCard = class extends i4 {
         .hass=${this.hass}
         .entryId=${this._entryId}
         .cache=${this._imageCache}
-        .cat=${cats.find((c5) => c5.name === this._avatarPickerCat) ?? null}
+        .cat=${cats.find((c6) => c6.name === this._avatarPickerCat) ?? null}
         @close-requested=${() => this._closeAvatarPicker()}
         @avatar-changed=${this._onAvatarChanged}
       ></kibble-avatar-picker>
@@ -20702,11 +22902,10 @@ var KibbleCatsCard = class extends i4 {
           <span class="cat-meta">${seen}, ${meals}</span>
           <span class="cat-meta quiet">${trained}</span>
           ${recognition ? b2`
-                <div class="learning-row" aria-label=${`${recognition.percent}% recognized, ${LEARNING_LABEL[recognition.state]}`}>
-                  <span class="learning-track"><span class="learning-fill" style="width:${recognition.percent}%"></span></span>
-                  <span class="learning-percent">${recognition.percent}%</span>
+                <div class="learning-row">
+                  <span class="learning-track" aria-hidden="true"><span class="learning-fill" style="width:${recognition.percent}%"></span></span>
                 </div>
-                <span class="learning-state">${LEARNING_LABEL[recognition.state]}</span>
+                <span class="learning-state">${recognition.percent}% recognized, ${LEARNING_LABEL[recognition.state]}</span>
               ` : A}
         </div>
         <div class="cat-menu" @focusout=${this._onCatMenuFocusOut} @keydown=${this._onCatMenuKeydown}>
@@ -20848,7 +23047,7 @@ var KibbleCatsCard = class extends i4 {
           ${sample.face ? b2`<kibble-image .hass=${this.hass} .asset=${sample.face} .cache=${this._imageCache} alt=""></kibble-image>` : A}
         </span>
         <button type="button" class="remove" aria-label=${`Remove this training photo of ${catName}, added ${captured}`} @click=${() => this._removeTraining(catName, sample.uid)}>
-          ${"\xD7"}
+          ${mdiIcon("close")}
         </button>
       </div>
     `;
@@ -20883,89 +23082,6 @@ var KibbleCatsCard = class extends i4 {
       this._trainingFeed(catName).refresh(this.hass, { entry_id: this._entryId, cat: catName }, TRAINING_LIMIT2);
     }
   }
-  _renderReview() {
-    const state2 = this._reviewFeed.state;
-    const cats = this._catsQuery.state.data?.cats ?? [];
-    const count = state2.items !== null ? state2.total : null;
-    return b2`
-      <section class="review">
-        <div class="review-heading">
-          <span>${count === null ? "To review" : count === 0 ? "Nothing to review" : count === 1 ? "1 to review" : `${count} to review`}</span>
-          ${state2.items && state2.items.length > 0 ? b2`<button type="button" class="select-toggle" @click=${this._toggleSelectMode}>${this._reviewSelectMode ? "Cancel" : "Select"}</button>` : A}
-        </div>
-        ${this._reviewSelectMode && this._reviewSelected.size > 0 ? this._renderBulkBar(cats) : A}
-        ${state2.error ? this._renderPagedError(state2.error, () => this._reviewFeed.refresh(this.hass, { entry_id: this._entryId }, REVIEW_LIMIT)) : A}
-        ${state2.items && state2.items.length === 0 && !state2.error ? b2`<p class="empty">Nothing to review. New crops arrive when the feeder sees a cat it can't yet name.</p>` : b2`<div class="review-grid" @keydown=${this._onReviewGridKeydown}>${(state2.items ?? []).map((event) => this._renderReviewTile(event))}</div>`}
-        ${this._renderPager(state2, REVIEW_LIMIT, () => this._reviewFeed.previous(this.hass, { entry_id: this._entryId }, REVIEW_LIMIT), () => this._reviewFeed.next(this.hass, { entry_id: this._entryId }, REVIEW_LIMIT))}
-      </section>
-    `;
-  }
-  _renderReviewTile(event) {
-    const thumbAsset = rowThumbAsset(event);
-    const selected = this._reviewSelected.has(event.uid);
-    const when = timeLabel(event.start);
-    const label = this._reviewSelectMode ? `${selected ? "Deselect" : "Select"}, captured ${when}` : `Review this one, captured ${when}`;
-    return b2`
-      <div class="review-tile">
-        <button type="button" class="review-thumb" aria-pressed=${this._reviewSelectMode ? selected : A} aria-label=${label} @click=${(e6) => this._onReviewTileClick(event, e6.currentTarget)}>
-          ${thumbAsset ? b2`<kibble-image .hass=${this.hass} .asset=${thumbAsset} .cache=${this._imageCache} alt=""></kibble-image>` : b2`<span class="neutral-icon">${catSilhouette()}</span>`}
-          ${this._reviewSelectMode && selected ? b2`<span class="review-check">${mdiIcon("check")}</span>` : A}
-        </button>
-        <span class="review-caption">${when}</span>
-      </div>
-    `;
-  }
-  _onReviewGridKeydown(event) {
-    if (!["ArrowRight", "ArrowLeft", "ArrowDown", "ArrowUp"].includes(event.key)) return;
-    const grid = event.currentTarget;
-    const buttons = [...grid.querySelectorAll(".review-thumb")];
-    const focused = this.renderRoot.querySelector(":focus");
-    const currentIndex = focused ? buttons.indexOf(focused) : -1;
-    if (currentIndex === -1) return;
-    event.preventDefault();
-    const delta = event.key === "ArrowRight" || event.key === "ArrowDown" ? 1 : -1;
-    buttons[(currentIndex + delta + buttons.length) % buttons.length]?.focus();
-  }
-  _onReviewTileClick(event, trigger) {
-    if (this._reviewSelectMode) {
-      const next = new Set(this._reviewSelected);
-      if (next.has(event.uid)) next.delete(event.uid);
-      else next.add(event.uid);
-      this._reviewSelected = next;
-      return;
-    }
-    this._openSheet(event, trigger);
-  }
-  _renderBulkBar(cats) {
-    return b2`
-      <div class="bulk-bar">
-        <span>${this._reviewSelected.size} selected</span>
-        <div class="bulk-actions">
-          ${cats.map((cat) => b2`<button type="button" class="chip" ?disabled=${this._bulkBusy} @click=${() => this._bulkLabel(cat.name)}>${cat.name}</button>`)}
-          <button type="button" class="chip chip-muted" ?disabled=${this._bulkBusy} @click=${() => this._bulkLabel("not_a_cat")}>Not a cat</button>
-        </div>
-      </div>
-    `;
-  }
-  _bulkLabel(label) {
-    const hass = this.hass;
-    const entryId = this._entryId;
-    if (!hass?.callWS || !entryId || this._reviewSelected.size === 0) return;
-    const uids = [...this._reviewSelected];
-    this._bulkBusy = true;
-    labelEvents(hass, entryId, { uids, label }).then(() => {
-      this._bulkBusy = false;
-      const uidSet = new Set(uids);
-      this._reviewFeed.removeItem((item) => uidSet.has(item.uid));
-      this._reviewSelected = /* @__PURE__ */ new Set();
-      this._reviewSelectMode = false;
-      this._refreshCats();
-    }).catch((err) => {
-      this._bulkBusy = false;
-      this._actionError = { message: `Couldn't label those. ${describeWsError(err)}`, retry: () => this._bulkLabel(label) };
-      this.requestUpdate();
-    });
-  }
   _renderPager(state2, limit, onPrevious, onNext) {
     if (state2.items === null || !state2.hasNext && !state2.hasPrevious) return A;
     const start = state2.pageIndex * limit + 1;
@@ -20985,50 +23101,6 @@ var KibbleCatsCard = class extends i4 {
         <button type="button" @click=${retry}>Try again</button>
       </div>
     `;
-  }
-  /** Resolves any event row uid to its complete feeder session for the shared sheet. */
-  _loadEventDetail(uid, keepData = false) {
-    const member = this._sheetGroup.find((candidate) => candidate.uid === uid);
-    if (member) this._sheetSummary = member;
-    if (!keepData) {
-      this._sheetSamples = null;
-      this._sheetSceneSubjects = [];
-      this._sheetSessionCats = null;
-      this._sheetMultipleCats = false;
-      this._sheetSamplesFailed = false;
-    }
-    this._sheetError = null;
-    const generation = ++this._detailGeneration;
-    const callWS = this.hass?.callWS;
-    const entryId = this._entryId;
-    if (!callWS || !entryId) {
-      this._sheetSamplesFailed = !keepData;
-      return;
-    }
-    callWS({ type: "kibble/event", entry_id: entryId, uid }).then((result) => {
-      if (generation !== this._detailGeneration) return;
-      const detail = result;
-      this._sheetSummary = detail.event;
-      this._sheetSamples = detail.samples;
-      this._sheetSceneSubjects = detail.scene_subjects;
-      this._sheetSessionCats = detail.cats;
-      this._sheetMultipleCats = detail.multiple_cats;
-      this._sheetSamplesFailed = false;
-      this.requestUpdate();
-    }).catch(() => {
-      if (generation !== this._detailGeneration) return;
-      if (!keepData) this._sheetSamplesFailed = true;
-      this.requestUpdate();
-    });
-  }
-  _openSheet(event, trigger) {
-    this._sheetTrigger = trigger;
-    this._sheetGroup = [event];
-    this._sheetReviewedEvents = /* @__PURE__ */ new Map();
-    this._sheetPhotoUids = /* @__PURE__ */ new Set();
-    this._sheetSessionCats = null;
-    this._sheetMultipleCats = false;
-    this._loadEventDetail(event.uid);
   }
   _refreshCats() {
     const callWS = this.hass?.callWS;
@@ -21160,16 +23232,10 @@ var KibbleCatsCard = class extends i4 {
       border-radius: inherit;
       background: var(--kibble-feed, #43a96a);
     }
-    .learning-percent {
-      font-size: 11px;
-      font-weight: 600;
-      color: var(--secondary-text-color);
-      white-space: nowrap;
-    }
     .learning-state {
-      font-size: 11px;
-      font-weight: 600;
+      font-size: var(--kibble-text-caption);
       color: var(--secondary-text-color);
+      font-variant-numeric: tabular-nums;
     }
     .cat-menu {
       position: relative;
@@ -21279,8 +23345,7 @@ var KibbleCatsCard = class extends i4 {
       padding-top: 4px;
       border-top: 1px solid var(--divider-color);
     }
-    .training-heading,
-    .review-heading {
+    .training-heading {
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -21292,7 +23357,7 @@ var KibbleCatsCard = class extends i4 {
       display: flex;
     }
     .add-photos-button {
-      min-height: 40px;
+      min-height: 48px;
       padding: 0 16px;
       border-radius: 8px;
       border: none;
@@ -21304,8 +23369,9 @@ var KibbleCatsCard = class extends i4 {
       cursor: pointer;
     }
     .icon-button {
-      width: 32px;
-      height: 32px;
+      width: 48px;
+      height: 48px;
+      font-size: 20px;
       border-radius: 50%;
       border: none;
       background: color-mix(in srgb, var(--primary-text-color) 8%, transparent);
@@ -21315,8 +23381,7 @@ var KibbleCatsCard = class extends i4 {
       justify-content: center;
       cursor: pointer;
     }
-    .training-grid,
-    .review-grid {
+    .training-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
       gap: 10px;
@@ -21334,113 +23399,25 @@ var KibbleCatsCard = class extends i4 {
     }
     .remove {
       position: absolute;
-      top: -6px;
-      right: -6px;
-      width: 20px;
-      height: 20px;
-      border-radius: 50%;
-      border: none;
-      background: #222;
-      color: #fff;
-      font-size: 12px;
-      line-height: 1;
-      cursor: pointer;
-    }
-    .review {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-    .select-toggle {
-      border: none;
-      background: color-mix(in srgb, var(--primary-text-color) 8%, transparent);
-      color: var(--primary-text-color);
-      border-radius: 999px;
-      padding: 0 14px;
-      min-height: 32px;
-      font: inherit;
-      font-size: var(--kibble-text-caption);
-      font-weight: 600;
-      cursor: pointer;
-    }
-    .bulk-bar {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      flex-wrap: wrap;
-      padding: 8px 10px;
-      border-radius: 10px;
-      background: color-mix(in srgb, var(--primary-color, #03a9f4) 10%, transparent);
-      font-size: var(--kibble-text-caption);
-      color: var(--primary-text-color);
-    }
-    .bulk-actions {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-    }
-    .chip {
-      border: none;
-      border-radius: 999px;
-      background: color-mix(in srgb, var(--primary-color, #03a9f4) 14%, transparent);
-      color: var(--primary-color, #03a9f4);
-      font: inherit;
-      font-size: 13px;
-      font-weight: 600;
-      padding: 0 14px;
-      min-height: 32px;
-      cursor: pointer;
-    }
-    .chip.chip-muted {
-      background: color-mix(in srgb, var(--primary-text-color) 8%, transparent);
-      color: var(--secondary-text-color);
-      font-weight: 500;
-    }
-    .chip:disabled {
-      opacity: 0.5;
-      cursor: default;
-    }
-    .review-tile {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
-    .review-thumb {
-      position: relative;
-      width: 100%;
-      aspect-ratio: 1;
-      border: none;
-      border-radius: 10px;
-      background: color-mix(in srgb, var(--primary-text-color) 8%, transparent);
-      padding: 0;
-      cursor: pointer;
-      overflow: hidden;
-    }
-    .neutral-icon {
-      display: block;
-      width: 62%;
-      height: 62%;
-      margin: 19% auto;
-      color: color-mix(in srgb, var(--primary-text-color) 40%, transparent);
-    }
-    .review-check {
-      position: absolute;
       top: 4px;
       right: 4px;
-      width: 20px;
-      height: 20px;
+      width: 28px;
+      height: 28px;
       border-radius: 50%;
-      background: var(--kibble-feed, #43a96a);
+      border: none;
+      background: rgba(0, 0, 0, 0.55);
       color: #fff;
+      font-size: 16px;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 13px;
+      cursor: pointer;
     }
-    .review-caption {
-      font-size: 11px;
-      color: var(--secondary-text-color);
-      text-align: center;
+    /* The round button is small on the photo; this keeps its tap target at 44px. */
+    .remove::after {
+      content: "";
+      position: absolute;
+      inset: -8px;
     }
     .pager {
       display: flex;
@@ -21497,6 +23474,93 @@ window.customCards.push({
   preview: true
 });
 var EMPTY_ENTITIES3 = { deviceId: "", catPresence: [] };
+var KibbleScheduleCard = class extends i4 {
+  constructor() {
+    super(...arguments);
+    this._entities = EMPTY_ENTITIES3;
+  }
+  static {
+    this.properties = {
+      hass: { attribute: false },
+      _config: { state: true }
+    };
+  }
+  setConfig(config) {
+    if (!config.device_id) {
+      throw new Error("Kibble schedule card: `device_id` is required.");
+    }
+    this._config = config;
+  }
+  getCardSize() {
+    return 4;
+  }
+  static getStubConfig(hass) {
+    const kibbleEntity = Object.values(hass.entities ?? {}).find((entry2) => entry2.platform === "kibble");
+    return { type: "custom:kibble-schedule-card", device_id: kibbleEntity?.device_id ?? "" };
+  }
+  willUpdate() {
+    const deviceId = this._config?.device_id;
+    if (this.hass && deviceId && (this.hass.entities !== this._resolvedEntities || deviceId !== this._resolvedDeviceId)) {
+      this._resolvedEntities = this.hass.entities;
+      this._resolvedDeviceId = deviceId;
+      this._entities = resolveKibbleEntities(this.hass.entities ?? {}, deviceId);
+    }
+  }
+  render() {
+    if (!this._config || !this.hass) return A;
+    const e6 = this._entities;
+    const states = this.hass.states;
+    const scheduleState2 = e6.schedule ? states[e6.schedule] : void 0;
+    const singleHopper = e6.hopperDivider != null && states[e6.hopperDivider]?.state === "off";
+    return b2`
+      <ha-card>
+        ${!scheduleState2 || scheduleState2.state === "unavailable" ? b2`<p class="unavailable">The schedule is unavailable right now</p>` : b2`<kibble-schedule-body
+              .hass=${this.hass}
+              .entries=${scheduleEntriesFrom(scheduleState2)}
+              .scheduleCardStateEntity=${e6.scheduleCardState}
+              .singleHopper=${singleHopper}
+              .deviceId=${e6.deviceId}
+              .food1=${e6.hopperFood1 ? hopperFoodName(states[e6.hopperFood1]) : null}
+              .food2=${e6.hopperFood2 ? hopperFoodName(states[e6.hopperFood2]) : null}
+            ></kibble-schedule-body>`}
+      </ha-card>
+    `;
+  }
+  static {
+    this.styles = i`
+    :host {
+      display: block;
+      /* The tokens the schedule editor draws with; the hero sets the same ones on its own host. */
+      --kibble-feed: ${r(KIBBLE_FEED)};
+      --kibble-ink-on-feed: ${r(KIBBLE_INK_ON_FEED)};
+      --kibble-amber-dark: ${r(KIBBLE_AMBER_DARK)};
+      --kibble-touch-target: 48px;
+      --kibble-schedule-size: 14px;
+    }
+    ha-card {
+      display: block;
+      padding: 8px 16px;
+      background: var(--ha-card-background, var(--card-background-color, #fff));
+      border-radius: var(--ha-card-border-radius, 12px);
+      box-shadow: var(--ha-card-box-shadow, none);
+    }
+    .unavailable {
+      margin: 8px 0;
+      color: var(--secondary-text-color);
+      font-size: var(--kibble-schedule-size, 14px);
+    }
+  `;
+  }
+};
+customElements.define("kibble-schedule-card", KibbleScheduleCard);
+window.customCards = window.customCards || [];
+window.customCards.push({
+  type: "kibble-schedule-card",
+  name: "Kibble Schedule",
+  description: "The feeding schedule, already open: per-hopper amounts with the divider fitted. For a dashboard pop-up.",
+  preview: true
+});
+var EMPTY_ENTITIES4 = { deviceId: "", catPresence: [] };
 var PORTION_OPTIONS = [1, 2, 3, 4, 5];
 var PORTION_SEGMENT_OPTIONS = PORTION_OPTIONS.map((n6) => ({ value: String(n6), label: String(n6) }));
 var FEED_ROW_STYLES = `
@@ -21521,7 +23585,7 @@ var FEEDING_ROW_STYLES = `
 var KibbleCard = class extends i4 {
   constructor() {
     super();
-    this._entities = EMPTY_ENTITIES3;
+    this._entities = EMPTY_ENTITIES4;
     this._wasFeedingForRequest = false;
     this._timelineGeneration = 0;
     this._timelineQuery = new WsQuery(() => this.requestUpdate());
@@ -21806,6 +23870,16 @@ var KibbleCard = class extends i4 {
                     ></kibble-avatar>` : A}
                 <span class="hero-status-text" data-tone=${overlay.tone}>${overlay.text}</span>
               </div>
+              <div class="hero-review">
+                <kibble-review-entry
+                  variant="chip"
+                  .hass=${this.hass}
+                  .entryId=${this._entryId}
+                  .cats=${this._catsQuery.state.data?.cats ?? []}
+                  .cache=${this._imageCache}
+                  .revision=${this._timelineQuery.state.data}
+                ></kibble-review-entry>
+              </div>
               <button
                 class="gear-button ${this._heroControlsVisible ? "" : "idle-hidden"}"
                 aria-label="Settings"
@@ -22005,10 +24079,7 @@ var KibbleCard = class extends i4 {
   }
   _scheduleEntries() {
     const id = this._entities.schedule;
-    if (!id) return [];
-    const attrs = this.hass.states[id]?.attributes;
-    const entries = attrs?.entries;
-    return Array.isArray(entries) ? entries : [];
+    return scheduleEntriesFrom(id ? this.hass.states[id] : void 0);
   }
   // The two Bubble rows. Bubble handles the gestures (tap / hold) and reports them as HA's
   // standard `hass-action` event carrying the action config, so each action here is a
@@ -22241,6 +24312,16 @@ var KibbleCard = class extends i4 {
     }
     .hero-status kibble-avatar {
       --kibble-avatar-size: 20px;
+    }
+    /* Visits waiting for a name, right under "who was seen": one tap opens the review queue. */
+    .hero-review {
+      position: absolute;
+      top: 44px;
+      left: 8px;
+      font-size: 13px;
+    }
+    :host(.compact) .hero-review {
+      display: none;
     }
     .hero-status-text {
       font-size: 13px;
@@ -22925,15 +25006,15 @@ function assetFor(id) {
 }
 function makeSamples(uidPrefix, start, count, opts = {}) {
   const faceEvery = opts.faceEvery ?? 1;
-  return Array.from({ length: count }, (_2, i6) => {
-    const sUid = `${uidPrefix}-s${i6 + 1}`;
+  return Array.from({ length: count }, (_2, i8) => {
+    const sUid = `${uidPrefix}-s${i8 + 1}`;
     return {
       uid: sUid,
-      t: start + i6 * 20,
+      t: start + i8 * 20,
       body: assetFor(`${sUid}-body`),
-      face: (i6 + 1) % faceEvery === 0 ? assetFor(`${sUid}-face`) : null,
+      face: (i8 + 1) % faceEvery === 0 ? assetFor(`${sUid}-face`) : null,
       guess: opts.guess ?? null,
-      guess_confidence: opts.guess ? 0.55 + i6 % 4 * 0.08 : null,
+      guess_confidence: opts.guess ? 0.55 + i8 % 4 * 0.08 : null,
       review: null,
       cat: null,
       sid: null,
@@ -23082,7 +25163,7 @@ function importEvent(index) {
   };
   return { event, samples: [sample] };
 }
-var IMPORT_FIXTURES = Array.from({ length: 26 }, (_2, i6) => importEvent(i6));
+var IMPORT_FIXTURES = Array.from({ length: 26 }, (_2, i8) => importEvent(i8));
 var REVIEW_EVENTS = [
   ...FIXTURES.filter((f4) => f4.event.kind !== "feed" && f4.event.cat === null).map((f4) => f4.event),
   ...IMPORT_FIXTURES.map((f4) => f4.event)
@@ -23169,6 +25250,59 @@ var MULTICAT_FIXTURES = {
   "multicat-b": { events: [kitty.event, pancake.event], samples: { [kitty.event.uid]: kitty.samples, [pancake.event.uid]: pancake.samples }, details: { [kitty.event.uid]: { scene_subjects: knownSubjects, cats: knownCats }, [pancake.event.uid]: { scene_subjects: knownSubjects, cats: knownCats } }, sceneId: "multicat-scene" },
   "multicat-c": { events: [singleEvent], samples: { [singleUid]: singleSamples }, details: { [singleUid]: { scene_subjects: [{ box: KITTY_BOX, sid: 1, label: "Kitty", reviewed: false }], cats: [{ cat: "Kitty", ate: true, confirmed: false, confidence: 0.7, photos: 3 }] } }, sceneId: "multicat-scene" }
 };
+var REVIEW_SPECS = [
+  // Visits Kibble could not name: some with photo guesses, one with no photo, one that fails.
+  { who: "kitty", kind: "visit", guess: "Kitty", photos: 4 },
+  { who: "pancake", kind: "eat", guess: "Pancake", photos: 5 },
+  { who: "broken", kind: "visit", photos: 2 },
+  { who: "kitty", kind: "visit", photos: 3 },
+  { who: "pancake", kind: "visit", noEvidence: true },
+  { who: "pancake", kind: "eat", guess: "Pancake", photos: 6 },
+  { who: "kitty", kind: "visit", photos: 1 },
+  { who: "kitty", kind: "eat", guess: "Kitty", photos: 3 },
+  // Guesses Kibble was unsure of.
+  ...Array.from({ length: 6 }, (_2, index) => {
+    const kitty2 = index % 3 !== 0;
+    return { who: kitty2 ? "kitty" : "pancake", kind: index % 2 ? "eat" : "visit", cat: index === 4 ? "Pancake" : kitty2 ? "Kitty" : "Pancake", confidence: 0.52 + index * 0.04, photos: 2 + index };
+  }),
+  // Confident guesses nobody has confirmed yet.
+  ...Array.from({ length: 11 }, (_2, index) => {
+    const kitty2 = index % 2 === 0;
+    return { who: kitty2 ? "kitty" : "pancake", kind: index % 3 ? "visit" : "eat", cat: kitty2 ? "Kitty" : "Pancake", confidence: 0.8 + index * 0.015, photos: 3 };
+  })
+];
+function buildReviewFixture(specs) {
+  const fixtures = specs.map((spec, index) => {
+    const start = secondsAgo(25 + index * 95);
+    return visitOrEat(spec.kind, `rq-${spec.who}-${String(index + 1).padStart(2, "0")}`, start, {
+      end: start + 40 + index * 7,
+      cat: spec.cat ?? null,
+      confidence: spec.confidence,
+      sampleCount: spec.photos ?? 3,
+      faceEvery: 3,
+      guess: spec.guess ?? spec.cat ?? null,
+      noEvidence: spec.noEvidence
+    });
+  });
+  const together = secondsAgo(70);
+  const session = `${ENTRY_ID}-rq-session-together`;
+  const kittyAte = visitOrEat("eat", "rq-kitty-together", together, { end: together + 180, cat: "Kitty", confidence: 0.71, sampleCount: 4, guess: "Kitty" });
+  const pancakeCame = visitOrEat("visit", "rq-pancake-together", together + 20, { end: together + 150, cat: "Pancake", confidence: 0.9, sampleCount: 3, guess: "Pancake" });
+  kittyAte.event.session = session;
+  pancakeCame.event.session = session;
+  return [...REVIEWED_FIXTURES, kittyAte, pancakeCame, ...fixtures];
+}
+var REVIEWED_FIXTURES = [
+  visitOrEat("eat", "rq-kitty-done", secondsAgo(12), { end: secondsAgo(8), cat: "Kitty", identity: "reviewed", confidence: null, sampleCount: 3, compare: true }),
+  visitOrEat("visit", "rq-pancake-done", secondsAgo(18), { end: secondsAgo(17), cat: "Pancake", identity: "reviewed", confidence: null, sampleCount: 2 })
+];
+function reviewFixture(fixtures) {
+  return { events: fixtures.map((f4) => f4.event), samples: Object.fromEntries(fixtures.map((f4) => [f4.event.uid, f4.samples])), cats: ["Kitty", "Pancake"] };
+}
+var REVIEW_FIXTURES = {
+  review: reviewFixture(buildReviewFixture(REVIEW_SPECS)),
+  "review-empty": reviewFixture(REVIEWED_FIXTURES)
+};
 var MULTICAT_LIVE_DETECTIONS = [
   { x1: 0.24, y1: 0.09, x2: 0.36, y2: 0.5, score: 0.96, admitted: true, sid: 1, cat: "Kitty" },
   { x1: 0.36, y1: 0.12, x2: 0.48, y2: 0.5, score: 0.94, admitted: true, sid: 2, cat: "Pancake" },
@@ -23222,10 +25356,10 @@ function trainingSample(cat, index, faceEvery) {
   };
 }
 var TRAINING_BY_CAT = {
-  Kitty: Array.from({ length: 152 }, (_2, i6) => trainingSample("Kitty", i6, 1)),
+  Kitty: Array.from({ length: 152 }, (_2, i8) => trainingSample("Kitty", i8, 1)),
   // Pancake is black -- her face rarely detects, so most of her training photos are body-only.
-  Pancake: Array.from({ length: 24 }, (_2, i6) => trainingSample("Pancake", i6, 5)),
-  Whiskers: Array.from({ length: 3 }, (_2, i6) => trainingSample("Whiskers", i6, 1))
+  Pancake: Array.from({ length: 24 }, (_2, i8) => trainingSample("Pancake", i8, 5)),
+  Whiskers: Array.from({ length: 3 }, (_2, i8) => trainingSample("Whiskers", i8, 1))
 };
 var STORAGE_FIXTURE = {
   used_bytes: Math.round(184.3 * 1024 * 1024),
@@ -23267,17 +25401,19 @@ function jsonResponse(data, status = 200) {
 }
 function createMockHass(scenario, onChange, harnessFixture = "default") {
   const fixture = buildFixture(scenario);
-  const activeMultiFixture = harnessFixture === "default" ? null : MULTICAT_FIXTURES[harnessFixture];
+  const activeMultiFixture = harnessFixture === "multicat-a" || harnessFixture === "multicat-b" || harnessFixture === "multicat-c" ? MULTICAT_FIXTURES[harnessFixture] : null;
+  const reviewFixture2 = harnessFixture === "review" || harnessFixture === "review-empty" ? REVIEW_FIXTURES[harnessFixture] : null;
   const states = { ...fixture.states };
   if (activeMultiFixture) {
     const camera = states[CAMERA_ENTITY_ID];
     states[CAMERA_ENTITY_ID] = { ...camera, attributes: { ...camera.attributes, entity_picture: `./${activeMultiFixture.sceneId}.jpg` } };
   }
   const resolved = resolveKibbleEntities2(fixture.entities, fixture.device.id);
-  const cats = CATS.map((cat) => ({ ...cat }));
-  const timelineEvents = activeMultiFixture?.events ?? TIMELINE_EVENTS;
-  const events = [...timelineEvents, ...REVIEW_EVENTS.filter((event) => event.kind === "import")].map((event) => ({ ...event }));
-  const sampleFixtures = { ...EVENT_SAMPLES, ...activeMultiFixture?.samples ?? {} };
+  const cats = CATS.filter((cat) => !reviewFixture2 || reviewFixture2.cats.includes(cat.name)).map((cat) => ({ ...cat }));
+  const timelineEvents = reviewFixture2?.events ?? activeMultiFixture?.events ?? TIMELINE_EVENTS;
+  const importEvents = reviewFixture2 ? [] : REVIEW_EVENTS.filter((event) => event.kind === "import");
+  const events = [...timelineEvents, ...importEvents].map((event) => ({ ...event }));
+  const sampleFixtures = { ...EVENT_SAMPLES, ...activeMultiFixture?.samples ?? {}, ...reviewFixture2?.samples ?? {} };
   const eventSamples = Object.fromEntries(Object.entries(sampleFixtures).map(([uid, samples]) => [uid, samples.map((sample) => ({ ...sample }))]));
   const trainingByCat = Object.fromEntries(Object.entries(TRAINING_BY_CAT).map(([cat, samples]) => [cat, [...samples]]));
   const sampleReview = {
@@ -23310,7 +25446,7 @@ function createMockHass(scenario, onChange, harnessFixture = "default") {
     return { ...sample, review: sampleReview[sample.uid] ?? null, label: sampleLabelOf(sample.uid) };
   }
   function bumpTrainingCount(cat, sample, delta) {
-    const rosterEntry = cats.find((c5) => c5.name === cat);
+    const rosterEntry = cats.find((c6) => c6.name === cat);
     if (!rosterEntry) return;
     rosterEntry.training = {
       total: Math.max(0, rosterEntry.training.total + delta),
@@ -23536,8 +25672,10 @@ function createMockHass(scenario, onChange, harnessFixture = "default") {
           }
           for (const sample of sessionSamples) {
             if (sampleReview[sample.uid] != null) continue;
-            if (requestedCats.length === 1) sample.cat = requestedCats[0].cat;
-            else if (sample.cat && !requestedCats.some((cat) => cat.cat === sample.cat)) sample.cat = null;
+            if (requestedCats.length === 1) {
+              sample.cat = requestedCats[0].cat;
+              setTrained(sample, sample.cat);
+            } else if (sample.cat && !requestedCats.some((cat) => cat.cat === sample.cat)) sample.cat = null;
           }
           if (details) details.cats.splice(0, details.cats.length, ...requestedCats.map((cat) => ({ ...cat, confirmed: true, confidence: null, photos: sessionSamples.filter((sample) => sample.cat === cat.cat).length })));
         } else {
@@ -23728,7 +25866,7 @@ function createMockHass(scenario, onChange, harnessFixture = "default") {
           if (delta === 0) continue;
           trainingByCat[cat] = kept;
           removed += delta;
-          const rosterEntry = cats.find((c5) => c5.name === cat);
+          const rosterEntry = cats.find((c6) => c6.name === cat);
           if (rosterEntry) rosterEntry.training = { ...rosterEntry.training, total: Math.max(0, rosterEntry.training.total - delta) };
         }
         notify();
@@ -23766,7 +25904,7 @@ function createMockHass(scenario, onChange, harnessFixture = "default") {
         if (action === "full") {
           if (!existing) throw { code: "agent_rejected", message: "Calibration not started" };
           const portions = msg.portions;
-          const point = existing.points.find((p3) => p3.portions === portions);
+          const point = existing.points.find((p4) => p4.portions === portions);
           if (!point) throw { code: "agent_rejected", message: `No point recorded at ${portions} portions` };
           existing.full_portions = portions;
           existing.full_score = point.score;
@@ -23797,7 +25935,7 @@ function createMockHass(scenario, onChange, harnessFixture = "default") {
       const trainingMatch = method === "POST" ? /\/upload\/training\/([^/?]+)$/.exec(path) : null;
       if (trainingMatch) {
         const cat = decodeURIComponent(trainingMatch[1]);
-        if (!cats.some((c5) => c5.name === cat)) {
+        if (!cats.some((c6) => c6.name === cat)) {
           return jsonResponse({ status: "error", reason: "not_found", message: "Unknown cat." }, 404);
         }
         const callIndex = trainingUploadCalls++;
@@ -23812,7 +25950,7 @@ function createMockHass(scenario, onChange, harnessFixture = "default") {
       const avatarMatch = method === "POST" ? /\/upload\/avatar\/([^/?]+)$/.exec(path) : null;
       if (avatarMatch) {
         const cat = decodeURIComponent(avatarMatch[1]);
-        const rosterEntry = cats.find((c5) => c5.name === cat);
+        const rosterEntry = cats.find((c6) => c6.name === cat);
         if (!rosterEntry) return jsonResponse({ error: "Unknown cat." }, 404);
         const assetId = `${ENTRY_ID}-avatar-upload-${avatarUploadCalls++}-avatar`;
         rosterEntry.avatar = { id: assetId, url: `/api/kibble/${ENTRY_ID}/media/${assetId}` };
@@ -23822,6 +25960,10 @@ function createMockHass(scenario, onChange, harnessFixture = "default") {
       }
       if (path.startsWith("/api/kibble/")) {
         const id = path.slice(path.lastIndexOf("/") + 1);
+        if (id.includes("-rq-") && id.endsWith("-scene")) return fetch("./multicat-scene.jpg");
+        if (id.includes("-rq-broken-")) return new Response(null, { status: 404 });
+        if (id.includes("-rq-kitty-")) return fetch("./multicat-kitty-body.jpg");
+        if (id.includes("-rq-pancake-")) return fetch("./multicat-pancake-body.jpg");
         if (id === "e2060-scene-1") return fetch("./e2060-scene-1.jpg");
         if (id === "e1713-scene-1") return fetch("./multicat-scene.jpg");
         if (id.includes("-e2060-")) return fetch("./multicat-kitty-body.jpg");
@@ -23843,9 +25985,11 @@ function createMockHass(scenario, onChange, harnessFixture = "default") {
 var TAG_FOR_CARD = {
   hero: "kibble-card",
   timeline: "kibble-timeline-card",
-  cats: "kibble-cats-card"
+  cats: "kibble-cats-card",
+  schedule: "kibble-schedule-card"
 };
 function configFor(card, params, name) {
+  if (card === "schedule") return { type: "custom:kibble-schedule-card", device_id: DEVICE_ID };
   if (card === "timeline") {
     const config2 = { type: "custom:kibble-timeline-card", device_id: DEVICE_ID };
     if (name) config2.name = name;
@@ -23928,7 +26072,7 @@ async function main() {
   const card = params.get("card") ?? "hero";
   const scenario = params.get("scenario") ?? "idle";
   const fixtureParam = params.get("fixture");
-  const harnessFixture = fixtureParam === "multicat-a" || fixtureParam === "multicat-b" || fixtureParam === "multicat-c" ? fixtureParam : "default";
+  const harnessFixture = fixtureParam === "multicat-a" || fixtureParam === "multicat-b" || fixtureParam === "multicat-c" || fixtureParam === "review" || fixtureParam === "review-empty" ? fixtureParam : "default";
   const theme = params.get("theme") ?? "light";
   const width = Number(params.get("width") ?? "400");
   const heightParam = params.get("height");
@@ -23949,6 +26093,17 @@ async function main() {
     element.hass = { ...hass };
   }, harnessFixture);
   applyHopperOverrides(hass, params);
+  let saveFailuresLeft = Number(params.get("save_fail") ?? "0");
+  const callWS = hass.callWS;
+  if (saveFailuresLeft > 0 && callWS) {
+    hass.callWS = async (message) => {
+      if (message.type === "kibble/session/label" && saveFailuresLeft > 0) {
+        saveFailuresLeft--;
+        throw { code: "unknown_error", message: "The harness refused this save" };
+      }
+      return callWS(message);
+    };
+  }
   if (params.get("schedule_fail") === "1") {
     const callService = hass.callService;
     hass.callService = async (domain, service, data, target) => {
@@ -24032,6 +26187,20 @@ lit-html/directives/ref.js:
   (**
    * @license
    * Copyright 2020 Google LLC
+   * SPDX-License-Identifier: BSD-3-Clause
+   *)
+
+lit-html/directives/keyed.js:
+  (**
+   * @license
+   * Copyright 2021 Google LLC
+   * SPDX-License-Identifier: BSD-3-Clause
+   *)
+
+lit-html/directives/repeat.js:
+  (**
+   * @license
+   * Copyright 2017 Google LLC
    * SPDX-License-Identifier: BSD-3-Clause
    *)
 */

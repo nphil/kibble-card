@@ -23,7 +23,9 @@ import type {
 } from "../src/types";
 
 export type ScenarioName = "idle" | "dispensing" | "unreachable";
-export type HarnessFixture = "default" | "multicat-a" | "multicat-b" | "multicat-c";
+export type MultiCatFixtureName = "multicat-a" | "multicat-b" | "multicat-c";
+export type ReviewFixtureName = "review" | "review-empty";
+export type HarnessFixture = "default" | MultiCatFixtureName | ReviewFixtureName;
 
 export const DEVICE_ID = "kibble-device-1";
 export const ENTRY_ID = "kibble-entry-1";
@@ -395,9 +397,9 @@ interface EventFixture {
 }
 
 /** A visit or an eat -- `cat: null` (the default) makes it an unidentified row so the timeline's
- * inline "Who was this?" picker and the cats card's review queue both have something real to
- * work through; `noEvidence: true` drops thumb/scene/samples entirely (spool pressure dropped
- * every asset for this one), exercising the neutral-icon fallback. */
+ * "Who was here?" rows and the review queue both have something real to work through;
+ * `noEvidence: true` drops thumb/scene/samples entirely (spool pressure dropped every asset
+ * for this one), exercising the neutral-icon fallback. */
 function visitOrEat(
   kind: "visit" | "eat",
   uidSuffix: string,
@@ -675,10 +677,84 @@ const singleEvent: TimelineEvent = { ...unknownKitty.event, uid: singleUid, star
 const singleSamples: Sample[] = [0, 1, 2].map((index) => ({ ...unknownKitty.samples[index % 2]!, uid: singleUid + "-s" + (index + 1), t: secondsAgo(80) + index * 8, cat: null }));
 const knownCats = [{ cat: "Kitty", ate: true, confirmed: true, confidence: null, photos: 2 }, { cat: "Pancake", ate: false, confirmed: true, confidence: null, photos: 2 }];
 pancake.event.kind = "visit";
-export const MULTICAT_FIXTURES: Record<Exclude<HarnessFixture, "default">, { events: TimelineEvent[]; samples: Record<string, Sample[]>; details: Record<string, Pick<EventDetail, "scene_subjects" | "cats">>; sceneId: string }> = {
+export const MULTICAT_FIXTURES: Record<MultiCatFixtureName, { events: TimelineEvent[]; samples: Record<string, Sample[]>; details: Record<string, Pick<EventDetail, "scene_subjects" | "cats">>; sceneId: string }> = {
   "multicat-a": { events: [e2060Event], samples: { [e2060Uid]: e2060Samples }, details: { [e2060Uid]: { scene_subjects: e2060Subjects, cats: [{ cat: "Kitty", ate: true, confirmed: false, confidence: 0.7, photos: 42 }] } }, sceneId: "e2060-scene-1" },
   "multicat-b": { events: [kitty.event, pancake.event], samples: { [kitty.event.uid]: kitty.samples, [pancake.event.uid]: pancake.samples }, details: { [kitty.event.uid]: { scene_subjects: knownSubjects, cats: knownCats }, [pancake.event.uid]: { scene_subjects: knownSubjects, cats: knownCats } }, sceneId: "multicat-scene" },
   "multicat-c": { events: [singleEvent], samples: { [singleUid]: singleSamples }, details: { [singleUid]: { scene_subjects: [{ box: KITTY_BOX, sid: 1, label: "Kitty", reviewed: false }], cats: [{ cat: "Kitty", ate: true, confirmed: false, confidence: 0.7, photos: 3 }] } }, sceneId: "multicat-scene" },
+};
+
+// ---- Review-queue fixtures (`?fixture=review|review-empty`): the two-cat household the queue
+// was designed for, with a backlog long enough to cross a batch of twenty. `who` picks which
+// real fixture photo a visit shows (`mock-hass.ts` maps the uid to it); `broken` is a visit
+// whose photos fail to load. ----
+interface ReviewSpec {
+  who: "kitty" | "pancake" | "broken";
+  kind: "visit" | "eat";
+  cat?: string;
+  confidence?: number;
+  guess?: string;
+  photos?: number;
+  noEvidence?: boolean;
+}
+
+const REVIEW_SPECS: ReviewSpec[] = [
+  // Visits Kibble could not name: some with photo guesses, one with no photo, one that fails.
+  { who: "kitty", kind: "visit", guess: "Kitty", photos: 4 },
+  { who: "pancake", kind: "eat", guess: "Pancake", photos: 5 },
+  { who: "broken", kind: "visit", photos: 2 },
+  { who: "kitty", kind: "visit", photos: 3 },
+  { who: "pancake", kind: "visit", noEvidence: true },
+  { who: "pancake", kind: "eat", guess: "Pancake", photos: 6 },
+  { who: "kitty", kind: "visit", photos: 1 },
+  { who: "kitty", kind: "eat", guess: "Kitty", photos: 3 },
+  // Guesses Kibble was unsure of.
+  ...Array.from({ length: 6 }, (_, index): ReviewSpec => {
+    const kitty = index % 3 !== 0;
+    return { who: kitty ? "kitty" : "pancake", kind: index % 2 ? "eat" : "visit", cat: index === 4 ? "Pancake" : kitty ? "Kitty" : "Pancake", confidence: 0.52 + index * 0.04, photos: 2 + index };
+  }),
+  // Confident guesses nobody has confirmed yet.
+  ...Array.from({ length: 11 }, (_, index): ReviewSpec => {
+    const kitty = index % 2 === 0;
+    return { who: kitty ? "kitty" : "pancake", kind: index % 3 ? "visit" : "eat", cat: kitty ? "Kitty" : "Pancake", confidence: 0.8 + index * 0.015, photos: 3 };
+  }),
+];
+
+function buildReviewFixture(specs: readonly ReviewSpec[]): EventFixture[] {
+  const fixtures = specs.map((spec, index) => {
+    const start = secondsAgo(25 + index * 95);
+    return visitOrEat(spec.kind, `rq-${spec.who}-${String(index + 1).padStart(2, "0")}`, start, {
+      end: start + 40 + index * 7,
+      cat: spec.cat ?? null,
+      confidence: spec.confidence,
+      sampleCount: spec.photos ?? 3,
+      faceEvery: 3,
+      guess: spec.guess ?? spec.cat ?? null,
+      noEvidence: spec.noEvidence,
+    });
+  });
+  // One meal where both cats were at the bowl: two rows that share a session.
+  const together = secondsAgo(70);
+  const session = `${ENTRY_ID}-rq-session-together`;
+  const kittyAte = visitOrEat("eat", "rq-kitty-together", together, { end: together + 180, cat: "Kitty", confidence: 0.71, sampleCount: 4, guess: "Kitty" });
+  const pancakeCame = visitOrEat("visit", "rq-pancake-together", together + 20, { end: together + 150, cat: "Pancake", confidence: 0.9, sampleCount: 3, guess: "Pancake" });
+  kittyAte.event.session = session;
+  pancakeCame.event.session = session;
+  return [...REVIEWED_FIXTURES, kittyAte, pancakeCame, ...fixtures];
+}
+
+/** Already named by a person: never in the queue, so the timeline also shows settled rows. */
+const REVIEWED_FIXTURES: EventFixture[] = [
+  visitOrEat("eat", "rq-kitty-done", secondsAgo(12), { end: secondsAgo(8), cat: "Kitty", identity: "reviewed", confidence: null, sampleCount: 3, compare: true }),
+  visitOrEat("visit", "rq-pancake-done", secondsAgo(18), { end: secondsAgo(17), cat: "Pancake", identity: "reviewed", confidence: null, sampleCount: 2 }),
+];
+
+function reviewFixture(fixtures: EventFixture[]): { events: TimelineEvent[]; samples: Record<string, Sample[]>; cats: string[] } {
+  return { events: fixtures.map((f) => f.event), samples: Object.fromEntries(fixtures.map((f) => [f.event.uid, f.samples])), cats: ["Kitty", "Pancake"] };
+}
+
+export const REVIEW_FIXTURES: Record<ReviewFixtureName, { events: TimelineEvent[]; samples: Record<string, Sample[]>; cats: string[] }> = {
+  review: reviewFixture(buildReviewFixture(REVIEW_SPECS)),
+  "review-empty": reviewFixture(REVIEWED_FIXTURES),
 };
 
 export const MULTICAT_LIVE_DETECTIONS: VisionDetection[] = [

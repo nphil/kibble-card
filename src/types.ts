@@ -65,6 +65,8 @@ export interface HomeAssistant {
   /** Present on every real `hass`; optional for the same reason as `fetchWithAuth` above. Only
    * `connection.subscribeMessage` is modelled -- the one method a live-push subscription needs. */
   connection?: HomeAssistantConnection;
+  /** False while the socket to Home Assistant is down. Present on every real `hass`. */
+  connected?: boolean;
   /** Present on every real `hass`, for the same reason as `fetchWithAuth` above -- the bearer-
    * token fallback `lib/upload-client.ts` uses when `fetchWithAuth` itself is unavailable.
    * Everything else keeps using `fetchWithAuth` exclusively, per `lib/image-cache.ts`'s

@@ -52,9 +52,9 @@ export function catVerb(event: Pick<TimelineEvent, "kind" | "open">): string {
 }
 
 /** The short row title: names the cat once one is known -- "Pancake ate", "Kitty came by". A row
- * with no cat yet never reaches this function while closed: the card renders its own inline
- * "Who was this?" picker instead (see `needsIdentification`), so "Unknown cat"/"A cat ate"/"A
- * cat came by" are never rendered anywhere. An *open* unidentified event is still gathering
+ * with no cat yet never reaches this function while closed: the card renders a "Who was here?"
+ * row that opens the review queue instead (see `needsIdentification`), so "Unknown cat"/"A cat
+ * ate"/"A cat came by" are never rendered anywhere. An *open* unidentified event is still gathering
  * evidence -- premature to ask who it is -- so it reads as a live, honest "Someone ..." state
  * instead; this is the only case where `eventTitle` is called with `cat === null`. */
 export function eventTitle(event: Pick<TimelineEvent, "kind" | "cat" | "open" | "feed">): string {
@@ -105,6 +105,18 @@ export function feedTitle(event: Pick<TimelineEvent, "feed">): string {
  * viewer's own `hass.locale`/`hass.language`; `undefined` falls back to the browser default. */
 export function timeLabel(unixSeconds: number, locale?: string): string {
   return new Date(unixSeconds * 1000).toLocaleTimeString(locale, { hour: "numeric", minute: "2-digit" });
+}
+
+/** When a visit happened, for a screen that shows visits from several days at once: just the
+ * time today, the weekday and time within the last week, the date and time before that. */
+export function visitWhenLabel(unixSeconds: number, now: Date, locale?: string): string {
+  const date = new Date(unixSeconds * 1000);
+  const time = timeLabel(unixSeconds, locale);
+  const midnight = (value: Date): number => new Date(value.getFullYear(), value.getMonth(), value.getDate()).getTime();
+  const daysAgo = Math.round((midnight(now) - midnight(date)) / 86_400_000);
+  if (daysAgo <= 0) return time;
+  if (daysAgo < 7) return `${date.toLocaleDateString(locale, { weekday: "short" })} ${time}`;
+  return `${date.toLocaleDateString(locale, { month: "short", day: "numeric" })} ${time}`;
 }
 
 /** The evidence photos for a meal or feed's compact inline compare pair -- `null` unless both

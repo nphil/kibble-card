@@ -1,4 +1,4 @@
-/** Dev harness bootstrap. Reads `?card=hero|timeline|cats|schedule&scenario=idle|dispensing|unreachable&fixture=default|multicat-a|multicat-b|multicat-c`
+/** Dev harness bootstrap. Reads `?card=hero|timeline|cats|schedule&scenario=idle|dispensing|unreachable&fixture=default|multicat-a|multicat-b|multicat-c|review|review-empty`
  * &theme=light|dark&width=<px>&height=<px>&name=<text>&limit=<n>&hopper1=<level>&hopper2=
  * <level>&single=<0|1>&food1=<text>&food2=<text>` from the URL, mounts one real card against
  * the mock hass, and sets `window.__kibbleReady` once it has actually finished rendering so
@@ -141,7 +141,8 @@ async function main(): Promise<void> {
   const card = (params.get("card") ?? "hero") as CardName;
   const scenario = (params.get("scenario") ?? "idle") as ScenarioName;
   const fixtureParam = params.get("fixture");
-  const harnessFixture: HarnessFixture = fixtureParam === "multicat-a" || fixtureParam === "multicat-b" || fixtureParam === "multicat-c" ? fixtureParam : "default";
+  const harnessFixture: HarnessFixture =
+    fixtureParam === "multicat-a" || fixtureParam === "multicat-b" || fixtureParam === "multicat-c" || fixtureParam === "review" || fixtureParam === "review-empty" ? fixtureParam : "default";
   const theme = params.get("theme") ?? "light";
   const width = Number(params.get("width") ?? "400");
   const heightParam = params.get("height");
@@ -165,6 +166,19 @@ async function main(): Promise<void> {
     element.hass = { ...hass };
   }, harnessFixture);
   applyHopperOverrides(hass, params);
+  // `save_fail=<n>`: the first n visit answers are refused, then saving works again, to see the
+  // review queue's "not saved" line and its retry.
+  let saveFailuresLeft = Number(params.get("save_fail") ?? "0");
+  const callWS = hass.callWS;
+  if (saveFailuresLeft > 0 && callWS) {
+    hass.callWS = async (message) => {
+      if (message.type === "kibble/session/label" && saveFailuresLeft > 0) {
+        saveFailuresLeft--;
+        throw { code: "unknown_error", message: "The harness refused this save" };
+      }
+      return callWS(message);
+    };
+  }
   if (params.get("schedule_fail") === "1") {
     const callService = hass.callService;
     hass.callService = async (domain, service, data, target) => {

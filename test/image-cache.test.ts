@@ -286,4 +286,28 @@ describe("AssetRef", () => {
     expect(revoked).toEqual([]); // never evicted out from under the replacement
     expect(notified).toBe(0); // resolved synchronously from cache, no async notification needed
   });
+
+  test("reports a photo that did not load, and retry fetches it again", async () => {
+    const ref = new AssetRef();
+    const cache = new ImageUrlCache();
+    let online = false;
+    const hass: HomeAssistant = { ...fakeHass(), fetchWithAuth: async () => new Response("bytes", { status: online ? 200 : 500 }) };
+    let notified = 0;
+    const onChange = (): void => {
+      notified += 1;
+    };
+    ref.sync(hass, cache, asset("a"), onChange);
+    expect(ref.failed).toBe(false);
+    await settle();
+    expect(ref.failed).toBe(true);
+    expect(ref.url).toBeNull();
+
+    online = true;
+    ref.retry(hass, cache, asset("a"), onChange);
+    expect(ref.failed).toBe(false);
+    await settle();
+    expect(ref.failed).toBe(false);
+    expect(ref.url).toBe(created[0]);
+    expect(notified).toBe(2);
+  });
 });

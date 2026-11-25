@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { compareAssets, DEFAULT_RAIL_MAX_HEIGHT, eventDuration, eventTitle, feedTitle, groupByDay, groupConsecutive, needsIdentification, railStyle, rowThumbAsset, spanDuration, togetherTitle } from "../src/lib/timeline";
+import { compareAssets, DEFAULT_RAIL_MAX_HEIGHT, eventDuration, eventTitle, feedTitle, groupByDay, groupConsecutive, needsIdentification, railStyle, rowThumbAsset, spanDuration, timeLabel, togetherTitle, visitWhenLabel } from "../src/lib/timeline";
 import type { Asset, TimelineEvent } from "../src/types";
 
 const BODY: Asset = { id: "body", url: "/body" };
@@ -357,5 +357,23 @@ describe("railStyle", () => {
 
   test("passes through an explicit setting", () => {
     expect(railStyle("400px")).toBe("max-height:400px");
+  });
+});
+
+describe("visitWhenLabel", () => {
+  const now = new Date(2026, 10, 24, 15, 0);
+  const at = (day: number, hour: number): number => new Date(2026, 10, day, hour, 30).getTime() / 1000;
+
+  test("today is just the time", () => {
+    expect(visitWhenLabel(at(24, 9), now, "en-US")).toBe(timeLabel(at(24, 9), "en-US"));
+  });
+
+  test("within the last week adds the weekday, even late the evening before", () => {
+    expect(visitWhenLabel(at(23, 23), now, "en-US")).toBe("Mon " + timeLabel(at(23, 23), "en-US"));
+    expect(visitWhenLabel(at(18, 9), now, "en-US")).toBe("Wed " + timeLabel(at(18, 9), "en-US"));
+  });
+
+  test("older than a week shows the date", () => {
+    expect(visitWhenLabel(at(17, 9), now, "en-US")).toBe("Nov 17 " + timeLabel(at(17, 9), "en-US"));
   });
 });

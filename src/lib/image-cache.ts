@@ -134,9 +134,24 @@ export class AssetRef {
   private _acquiredId: string | null = null;
   private _cache: ImageUrlCache | null = null;
   private _url: string | null = null;
+  private _failed = false;
 
   get url(): string | null {
     return this._url;
+  }
+
+  /** The fetch for the current asset settled without an image (missing, expired, offline). */
+  get failed(): boolean {
+    return this._failed;
+  }
+
+  /** Drops the current reference and fetches the same asset again (a failed fetch is never
+   * cached, so this is a real second attempt). */
+  retry(hass: HomeAssistant | undefined, cache: ImageUrlCache | undefined, asset: Asset | null | undefined, onChange: () => void): void {
+    this._release();
+    this._url = null;
+    this._failed = false;
+    this.sync(hass, cache, asset, onChange);
   }
 
   sync(hass: HomeAssistant | undefined, cache: ImageUrlCache | undefined, asset: Asset | null | undefined, onChange: () => void): void {
@@ -144,6 +159,7 @@ export class AssetRef {
     if (nextId !== this._acquiredId) {
       this._release();
       this._url = null;
+      this._failed = false;
     }
     if (!asset || !hass || !cache || this._acquiredId === asset.id) return;
     this._acquiredId = asset.id;
@@ -152,6 +168,7 @@ export class AssetRef {
     const url = cache.acquire(hass, asset, (result) => {
       if (this._acquiredId !== id) return; // superseded by a newer asset before the fetch settled
       this._url = result;
+      this._failed = result === null;
       onChange();
     });
     if (url !== null) this._url = url;
@@ -166,5 +183,6 @@ export class AssetRef {
   dispose(): void {
     this._release();
     this._url = null;
+    this._failed = false;
   }
 }

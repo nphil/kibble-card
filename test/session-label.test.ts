@@ -62,7 +62,7 @@ describe("session title", () => {
   });
 
   test("shows an honest empty or not-a-cat answer and a live title", () => {
-    expect(sessionTitle([], { identity: "unknown", open: false })).toBe("Who was this?");
+    expect(sessionTitle([], { identity: "unknown", open: false })).toBe("Who was here?");
     expect(sessionTitle([], { identity: "not_a_cat", open: false })).toBe("Not a cat");
     expect(sessionTitle([{ cat: "Kitty", ate: true }], { identity: "auto", open: true })).toBe("Kitty is eating");
   });

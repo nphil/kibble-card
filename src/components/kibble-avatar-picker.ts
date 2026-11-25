@@ -353,7 +353,7 @@ export class KibbleAvatarPicker extends LitElement {
       aspect-ratio: 1;
       padding: 0;
       border: none;
-      border-radius: 10px;
+      border-radius: 8px;
       overflow: hidden;
       cursor: pointer;
     }
@@ -454,7 +454,7 @@ export class KibbleAvatarPicker extends LitElement {
     .secondary {
       min-height: 44px;
       padding: 0 22px;
-      border-radius: 10px;
+      border-radius: 8px;
       border: none;
       font: inherit;
       font-weight: 700;

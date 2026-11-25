@@ -73,18 +73,6 @@ export class PagedFeed<T> {
     void this._load(hass, params, limit, this.state.pageIndex - 1, this._generation);
   }
 
-  /** Drops every item matching `predicate` from the current page, decrementing `total` to
-   * match -- used after a review-queue item is labelled and so stops belonging to the queue,
-   * without waiting on a full page refetch. */
-  removeItem(predicate: (item: T) => boolean): void {
-    const items = this.state.items;
-    if (!items) return;
-    const kept = items.filter((item) => !predicate(item));
-    if (kept.length === items.length) return;
-    this.state = { ...this.state, items: kept, total: Math.max(0, this.state.total - (items.length - kept.length)) };
-    this._onChange();
-  }
-
   private async _load(hass: PagedHass, params: Record<string, unknown>, limit: number, pageIndex: number, generation: number): Promise<void> {
     this.state = { ...this.state, loading: true, error: null };
     this._onChange();

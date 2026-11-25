@@ -5,11 +5,11 @@
  * rail is earned here rather than decorative. Exactly three titles exist for a named/finished
  * event -- "<Cat> came by", "<Cat> ate", "Fed N portion(s)" -- the cat's own name tinted in its
  * colour, never a raw class string. A meal or feed with both a before and after photo shows them
- * as a real, readable pair right in the row; a visit shows a large round photo. An unidentified
- * row trades its title for an inline "Who was this?" picker: cat-coloured pill chips, one tap
- * labels it (and every event the row collapsed) optimistically, with a quiet rollback and inline
- * error if the save fails. Tapping any photo opens the shared labelling sheet for a fuller
- * correction. The whole list sits on one card surface with the page's own scroll carrying it by
+ * as a real, readable pair right in the row; a visit shows a large round photo. A visit nobody
+ * has named asks "Who was here?" instead of a title, and tapping it (or its photo) opens the
+ * review queue at that visit; the "Check visits" bar at the top opens the same queue from its
+ * start. Tapping a named row opens the event sheet for detail and correction. The whole list
+ * sits on one card surface with the page's own scroll carrying it by
  * default (an optional `max_height` opts back into a bounded, internally-scrolling rail); older
  * pages load automatically as an intersection sentinel comes into view. A freshly pushed event
  * slides and fades in once; nothing else animates on its own. See
@@ -37,6 +37,7 @@ import {
   groupByDay,
   groupConsecutive,
   groupCountLabel,
+  needsIdentification,
   orderTogetherEvents,
   railStyle,
   rowThumbAsset,
@@ -48,11 +49,13 @@ import {
 } from "./lib/timeline";
 import { catSilhouette } from "./lib/brand-shapes";
 import { mdiIcon } from "./lib/mdi-icons";
+import { announceReviewChange, onReviewChange } from "./lib/review-bus";
 import { catColorAt } from "./styles/tokens";
 import { fallbackCatColor } from "./lib/cat-colors";
 import "./components/kibble-image";
 import "./components/kibble-avatar";
 import "./components/kibble-label-sheet";
+import "./components/kibble-review-entry";
 import "./timeline-editor";
 
 const EMPTY_ENTITIES: KibbleEntities = { deviceId: "", catPresence: [] };
@@ -115,6 +118,7 @@ export class KibbleTimelineCard extends LitElement {
   /** Session answers saved while the sheet is open, reduced to one toast on close. */
   private _sheetReviewedEvents = new Map<string, ReviewedEventLabel>();
   private _sheetPhotoUids = new Set<string>();
+  private _stopReviewListening: (() => void) | null = null;
 
   constructor() {
     super();
@@ -153,8 +157,22 @@ export class KibbleTimelineCard extends LitElement {
     return document.createElement("kibble-timeline-card-editor");
   }
 
+  connectedCallback(): void {
+    super.connectedCallback();
+    // A visit named anywhere on the page (the queue, another card's sheet) refreshes this list.
+    this._stopReviewListening = onReviewChange(
+      () => this._entryId,
+      () => {
+        this._timelineFeed.refresh(this.hass, this._entryId, this._config?.limit ?? DEFAULT_LIMIT);
+        this._refreshCats();
+      },
+    );
+  }
+
   disconnectedCallback(): void {
     super.disconnectedCallback();
+    this._stopReviewListening?.();
+    this._stopReviewListening = null;
     this._imageCache.dispose();
     this._timelineFeed.dispose();
     this._sentinelObserver?.disconnect();
@@ -280,6 +298,14 @@ export class KibbleTimelineCard extends LitElement {
       <ha-card>
         <div class="container">
           ${this._config.name ? html`<div class="label">${this._config.name}</div>` : nothing}
+          <kibble-review-entry
+            class="review-entry"
+            .hass=${this.hass}
+            .entryId=${this._entryId}
+            .cats=${this._catsQuery.state.data?.cats ?? []}
+            .cache=${this._imageCache}
+            .revision=${timelineState.items}
+          ></kibble-review-entry>
           <div class="rail-wrap">
             <div class="rail" style=${railStyle(this._config.max_height)} @scroll=${this._onRailScroll} ${ref(this._railRef)}>
               ${timelineState.error ? this._renderError(timelineState.error) : nothing}
@@ -435,13 +461,26 @@ export class KibbleTimelineCard extends LitElement {
       : event.cat
         ? html`<span class="cat-name" style="color:${color}">${event.cat}</span> ${catVerb(event)}`
         : html`${event.open ? (event.kind === "eat" ? "Someone is eating" : "Someone is here") : "Who was here?"}`;
-    const label = `Review ${eventTitle(event)}, ${timeLabel(event.start, this._locale())}`;
-    return html`<button type="button" class="title-open" aria-label=${label} @click=${(click: Event) => this._openSheet(group, click.currentTarget as HTMLElement)}>
+    const asks = needsIdentification(event);
+    const label = asks ? `Who was here? ${timeLabel(event.start, this._locale())}` : `Review ${eventTitle(event)}, ${timeLabel(event.start, this._locale())}`;
+    return html`<button type="button" class="title-open ${asks ? "asks" : ""}" aria-label=${label} @click=${(click: Event) => this._openRow(group, click.currentTarget as HTMLElement)}>
       <span class="title-line">
         <span class="title">${titleBody}</span>
+        ${asks ? html`<span class="ask-chevron">${mdiIcon("chevronRight")}</span>` : nothing}
         ${event.open ? this._renderLiveRing(color) : nothing}
         ${group.events.length > 1 ? html`<span class="count-badge">${groupCountLabel(event.kind, group.events.length)}</span>` : nothing}
       </span></button>`;
+  }
+
+  /** A row's tap: a visit nobody has named goes straight to the review queue at that visit;
+   * everything else opens the event sheet. */
+  private _openRow(group: EventGroup, trigger: HTMLElement): void {
+    const event = group.event;
+    if (group.together !== true && needsIdentification(event)) {
+      this.renderRoot.querySelector("kibble-review-entry")?.open(event.session ?? event.uid);
+    } else {
+      this._openSheet(group, trigger);
+    }
   }
 
   private _renderLiveRing(color: string) {
@@ -489,7 +528,7 @@ export class KibbleTimelineCard extends LitElement {
     const hasClip = event.kind === "eat" && Boolean(event.clip);
     const label = `View and correct: ${eventTitle(event)}, ${timeLabel(event.start, this._locale())}${hasClip ? ". Has video." : ""}`;
     return html`
-      <button type="button" class="${extraClass}" aria-label=${label} @click=${(e: Event) => this._openSheet(group, e.currentTarget as HTMLElement)}>
+      <button type="button" class="${extraClass}" aria-label=${label} @click=${(e: Event) => this._openRow(group, e.currentTarget as HTMLElement)}>
         ${asset
           ? html`<kibble-image .hass=${this.hass} .asset=${asset} .cache=${this._imageCache} alt=""></kibble-image>`
           : html`<span class="neutral-icon">${catSilhouette()}</span>`}
@@ -502,11 +541,11 @@ export class KibbleTimelineCard extends LitElement {
     const label = `View and correct: ${eventTitle(group.event)}, ${timeLabel(group.event.start, this._locale())}`;
     return html`
       <div class="compare-pair ${size === "full" ? "compare-full" : "compare-third"}">
-        <button type="button" class="compare-tile" aria-label=${`${label}. Before.`} @click=${(e: Event) => this._openSheet(group, e.currentTarget as HTMLElement)}>
+        <button type="button" class="compare-tile" aria-label=${`${label}. Before.`} @click=${(e: Event) => this._openRow(group, e.currentTarget as HTMLElement)}>
           ${compare.before ? html`<kibble-image .hass=${this.hass} .asset=${compare.before} .cache=${this._imageCache} alt=""></kibble-image>` : nothing}
           <span class="compare-label">Before</span>
         </button>
-        <button type="button" class="compare-tile" aria-label=${`${label}. After.`} @click=${(e: Event) => this._openSheet(group, e.currentTarget as HTMLElement)}>
+        <button type="button" class="compare-tile" aria-label=${`${label}. After.`} @click=${(e: Event) => this._openRow(group, e.currentTarget as HTMLElement)}>
           ${compare.after ? html`<kibble-image .hass=${this.hass} .asset=${compare.after} .cache=${this._imageCache} alt=""></kibble-image>` : nothing}
           <span class="compare-label">After</span>
         </button>
@@ -603,7 +642,7 @@ export class KibbleTimelineCard extends LitElement {
   };
 
   /** Saves a whole-session answer and refreshes the row, cats, and sheet from the returned detail. */
-  private _onSessionLabelRequested = (event: CustomEvent<SessionLabelRequest & { closeOnSuccess?: boolean; pendingLabel?: string }>): void => {
+  private _onSessionLabelRequested = (event: CustomEvent<SessionLabelRequest & { closeOnSuccess?: boolean }>): void => {
     const entryId = this._entryId;
     const hass = this.hass;
     if (!entryId || !hass?.callWS) return;
@@ -615,8 +654,7 @@ export class KibbleTimelineCard extends LitElement {
       .then((detail) => {
         this._sheetBusy = false;
         this._applySheetDetail(detail);
-        this._timelineFeed.refresh(hass, entryId, this._config?.limit ?? DEFAULT_LIMIT);
-        this._refreshCats();
+        announceReviewChange(entryId);
         for (const key of this._sheetReviewedEvents.keys()) {
           if (key === detail.event.uid || key.startsWith(detail.event.uid + ":")) this._sheetReviewedEvents.delete(key);
         }
@@ -652,6 +690,7 @@ export class KibbleTimelineCard extends LitElement {
         this._sheetPhotoUids.add(sampleUid);
         const uid = this._sheetSummary?.uid;
         if (uid) this._loadEventDetail(uid, true);
+        announceReviewChange(entryId);
         this.requestUpdate();
       })
       .catch((err: unknown) => {
@@ -691,6 +730,9 @@ export class KibbleTimelineCard extends LitElement {
       font-size: var(--kibble-text-body);
       font-weight: 600;
       color: var(--primary-text-color);
+    }
+    .review-entry {
+      margin: 12px 16px 4px;
     }
     .empty {
       margin: 0;
@@ -876,6 +918,20 @@ export class KibbleTimelineCard extends LitElement {
       outline: 2px solid var(--primary-color);
       outline-offset: 2px;
     }
+    /* A visit nobody has named: the question is the row's action, so it looks like one. */
+    .title-open.asks .title-line {
+      display: inline-flex;
+      flex-wrap: nowrap;
+      gap: 4px;
+      padding: 8px 4px 8px 12px;
+      border-radius: 8px;
+      background: color-mix(in srgb, var(--primary-text-color) 6%, transparent);
+    }
+    .ask-chevron {
+      display: flex;
+      font-size: 20px;
+      color: var(--secondary-text-color);
+    }
     .title-line {
       display: flex;
       align-items: center;
@@ -952,7 +1008,7 @@ export class KibbleTimelineCard extends LitElement {
       flex: none;
       padding: 0;
       border: none;
-      border-radius: 16px;
+      border-radius: 8px;
       overflow: hidden;
       background: color-mix(in srgb, var(--primary-text-color) 8%, transparent);
       cursor: pointer;
@@ -986,10 +1042,6 @@ export class KibbleTimelineCard extends LitElement {
       max-width: 120px;
       aspect-ratio: 1;
     }
-    .photo-unknown {
-      width: 100px;
-      height: 100px;
-    }
     .neutral-icon {
       width: 60%;
       height: 60%;
@@ -1013,7 +1065,7 @@ export class KibbleTimelineCard extends LitElement {
       height: 130px;
       padding: 0;
       border: none;
-      border-radius: 16px;
+      border-radius: 8px;
       overflow: hidden;
       background: color-mix(in srgb, var(--primary-text-color) 8%, transparent);
       cursor: pointer;
@@ -1037,55 +1089,9 @@ export class KibbleTimelineCard extends LitElement {
       font-weight: 600;
     }
     .photo-tile:focus-visible,
-    .compare-tile:focus-visible,
-    .chip:focus-visible {
+    .compare-tile:focus-visible {
       outline: 2px solid var(--primary-color, #03a9f4);
       outline-offset: 2px;
-    }
-    .chip-row {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin-top: 6px;
-      padding-bottom: 14px;
-    }
-    .chip {
-      display: inline-flex;
-      align-items: center;
-      gap: 7px;
-      border: none;
-      border-radius: 999px;
-      background: color-mix(in srgb, var(--dot-color, var(--primary-color)) 16%, transparent);
-      color: var(--dot-color, var(--primary-color, #03a9f4));
-      font: inherit;
-      font-size: 14px;
-      font-weight: 600;
-      padding: 7px 16px 7px 10px;
-      min-height: 38px;
-      cursor: pointer;
-    }
-    .chip-dot {
-      width: 11px;
-      height: 11px;
-      border-radius: 50%;
-      background: var(--dot-color);
-      flex: none;
-    }
-    .chip.chip-muted {
-      background: color-mix(in srgb, var(--primary-text-color) 7%, transparent);
-      color: var(--secondary-text-color);
-      font-weight: 500;
-      padding: 7px 16px;
-    }
-    .chip:disabled {
-      opacity: 0.5;
-      cursor: default;
-    }
-    .row-error {
-      display: block;
-      padding-bottom: 12px;
-      font-size: var(--kibble-text-caption);
-      color: var(--error-color, #db4437);
     }
     .sentinel {
       height: 1px;

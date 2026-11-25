@@ -41,6 +41,7 @@ import "./components/kibble-detection-areas-dialog";
 import "./components/kibble-settings-dialog";
 import "./components/kibble-hopper-sheet";
 import "./components/kibble-avatar";
+import "./components/kibble-review-entry";
 import "./components/kibble-live-hero";
 import type { KibbleLiveHero } from "./components/kibble-live-hero";
 import "./components/kibble-bubble-row";
@@ -355,6 +356,16 @@ export class KibbleCard extends LitElement {
                     ></kibble-avatar>`
                   : nothing}
                 <span class="hero-status-text" data-tone=${overlay.tone}>${overlay.text}</span>
+              </div>
+              <div class="hero-review">
+                <kibble-review-entry
+                  variant="chip"
+                  .hass=${this.hass}
+                  .entryId=${this._entryId}
+                  .cats=${this._catsQuery.state.data?.cats ?? []}
+                  .cache=${this._imageCache}
+                  .revision=${this._timelineQuery.state.data}
+                ></kibble-review-entry>
               </div>
               <button
                 class="gear-button ${this._heroControlsVisible ? "" : "idle-hidden"}"
@@ -982,6 +993,16 @@ export class KibbleCard extends LitElement {
     }
     .hero-status kibble-avatar {
       --kibble-avatar-size: 20px;
+    }
+    /* Visits waiting for a name, right under "who was seen": one tap opens the review queue. */
+    .hero-review {
+      position: absolute;
+      top: 44px;
+      left: 8px;
+      font-size: 13px;
+    }
+    :host(.compact) .hero-review {
+      display: none;
     }
     .hero-status-text {
       font-size: 13px;

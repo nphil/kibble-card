@@ -24,6 +24,7 @@ import "./kibble-avatar";
 import "./kibble-before-after";
 import "./kibble-box-overlay";
 import "./kibble-photo-viewer";
+import "./kibble-choice";
 
 const FOCUSABLE_SELECTOR = [
   "button:not([disabled])",
@@ -45,7 +46,6 @@ const MEDIA_ASPECT = 1.6;
 
 const PHOTOS_VISIBLE_CAP = 12;
 const PHOTO_SKELETON_COUNT = 6;
-const LABEL_SAVED_PULSE_MS = 700;
 const BOXES_STORAGE_KEY = "kibble:show-boxes";
 const BOXES_CHANGE_EVENT = "kibble-boxes-visibility-changed";
 
@@ -78,8 +78,6 @@ export class KibbleLabelSheet extends LitElement {
     busy: { type: Boolean },
     error: { type: String },
     sampleBusyUid: { attribute: false },
-    _pendingLabel: { state: true },
-    _justSavedLabel: { state: true },
     _photosExpanded: { state: true },
     _viewerIndex: { state: true },
     _zoom: { state: true },
@@ -116,14 +114,9 @@ export class KibbleLabelSheet extends LitElement {
   declare multipleCats: boolean;
   declare _showBoxes: boolean;
 
-  /** Which chip was tapped, mid-save -- cleared once `busy` resolves either way. */
-  private _pendingLabel: string | null = null;
-  /** Briefly set to a label right after its save lands, so that chip's check badge pops in. */
-  private _justSavedLabel: string | null = null;
   /** The unsaved answer being built in this sheet; `null` = untouched (derived from the saved
    * session each render). Reset whenever the session detail changes underneath it. */
   private _draft: SessionDraft | null = null;
-  private _justSavedLabelTimer: ReturnType<typeof setTimeout> | undefined;
   /** Whether the photo grid shows every sample or just the first dozen behind a "+N" tile. */
   private _photosExpanded = false;
   /** Which sample index the photo viewer is open on, or `null`. */
@@ -210,7 +203,6 @@ export class KibbleLabelSheet extends LitElement {
     this._afterRef.dispose();
     this._sceneRef.dispose();
     this._stopClipPlayback();
-    clearTimeout(this._justSavedLabelTimer);
   }
   private _onSharedBoxesChange = (event: Event): void => {
     const visible = (event as CustomEvent<{ visible?: unknown }>).detail?.visible;
@@ -245,7 +237,6 @@ export class KibbleLabelSheet extends LitElement {
       this._photosExpanded = false;
       this._viewerIndex = null;
       this._zoom = null;
-      this._pendingLabel = null;
       this._draft = null;
     }
     if (changed.has("sessionCats")) {
@@ -258,21 +249,6 @@ export class KibbleLabelSheet extends LitElement {
       this._clipEventUid = eventUid;
       this._releaseClip();
     }
-    if (changed.has("busy")) {
-      const wasBusy = changed.get("busy") as boolean | undefined;
-      if (wasBusy && !this.busy) {
-        if (!this.error && this._pendingLabel) this._flashSavedLabel(this._pendingLabel);
-        this._pendingLabel = null;
-      }
-    }
-  }
-
-  private _flashSavedLabel(label: string): void {
-    clearTimeout(this._justSavedLabelTimer);
-    this._justSavedLabel = label;
-    this._justSavedLabelTimer = setTimeout(() => {
-      this._justSavedLabel = null;
-    }, LABEL_SAVED_PULSE_MS);
   }
 
   render() {
@@ -398,7 +374,7 @@ export class KibbleLabelSheet extends LitElement {
         <div class="heading">
           <span class="title">${title}</span>
           <span class="meta">
-            ${timeLabel(event.start, locale)}${duration ? html` \u00b7 ${duration}` : nothing}
+            ${timeLabel(event.start, locale)}${duration ? html`, ${duration}` : nothing}
             ${event.open ? this._renderLiveBadge(color) : nothing}
           </span>
         </div>
@@ -582,10 +558,9 @@ export class KibbleLabelSheet extends LitElement {
     return [{ cat: event.cat, ate: event.kind === "eat", confirmed: event.identity === "reviewed", confidence: event.confidence ?? null, photos: event.sample_count ?? 0 }];
   }
 
-  private _requestSessionLabel(request: SessionLabelRequest, pendingLabel: string, closeOnSuccess = false): void {
-    this._pendingLabel = pendingLabel;
+  private _requestSessionLabel(request: SessionLabelRequest, closeOnSuccess = false): void {
     this.dispatchEvent(new CustomEvent("session-label-requested", {
-      detail: { ...request, pendingLabel, closeOnSuccess },
+      detail: { ...request, closeOnSuccess },
       bubbles: true,
       composed: true,
     }));
@@ -607,13 +582,19 @@ export class KibbleLabelSheet extends LitElement {
         <div class="chip-grid" role="group" aria-label="Who was here?">
           ${this.cats.map((cat) => this._renderIdentityChip(cat, event, saved, draft))}
           ${this._renderNotACatChip(event, draft)}
+          <kibble-choice
+            label="Can\u2019t tell"
+            .icon=${"helpCircle"}
+            .state=${event.identity === "unknown" ? "selected" : "neutral"}
+            ?disabled=${this.busy || event.identity === "unknown"}
+            @click=${() => this._requestSessionLabel({ uid: event.uid, verdict: "unknown" }, true)}
+          ></kibble-choice>
         </div>
         ${isMeal && draft.cats.length >= 2 ? html`<div class="meal-roles" role="group" aria-label="Who ate?">${draft.cats.map((cat) => html`
           <div class="meal-role"><span class="meal-cat">${cat.cat}</span><div class="meal-role-options" role="group" aria-label=${cat.cat}>
             <button type="button" aria-pressed=${cat.ate} ?disabled=${this.busy} @click=${() => this._setDraft(event, (d) => setDraftAte(d, cat.cat, true))}>Ate</button>
             <button type="button" aria-pressed=${!cat.ate} ?disabled=${this.busy} @click=${() => this._setDraft(event, (d) => setDraftAte(d, cat.cat, false))}>Came by</button>
           </div></div>`)}</div>` : nothing}
-        <button type="button" class="not-sure" aria-pressed=${event.identity === "unknown"} ?disabled=${this.busy || event.identity === "unknown"} @click=${() => this._requestSessionLabel({ uid: event.uid, verdict: "unknown" }, "unknown", true)}>Not sure</button>
         ${this.error ? html`<p class="identity-error">${this.error}</p>` : nothing}
       </div>
     `;
@@ -621,27 +602,25 @@ export class KibbleLabelSheet extends LitElement {
 
   private _renderIdentityChip(cat: CatSummary, event: TimelineEvent, saved: readonly SessionCat[], draft: SessionDraft) {
     const state = draftChipState(draft, saved, cat.name);
-    const ticked = state !== "neutral";
-    return html`
-      <button type="button" class="chip chip-${state}" aria-pressed=${ticked} style=${`--chip-color:${this._catColor(cat.name)}`} ?disabled=${this.busy} @click=${() => this._setDraft(event, (d) => toggleDraftCat(d, cat.name, event.kind === "eat"))}>
-        <span class="chip-avatar">
-          <kibble-avatar .hass=${this.hass} .name=${cat.name} .colorIndex=${cat.color} .asset=${cat.avatar} .cache=${this.cache}></kibble-avatar>
-          ${ticked ? html`<span class="chip-check">${mdiIcon("check")}</span>` : nothing}
-        </span>
-        <span class="chip-label">${cat.name}</span>
-      </button>`;
+    return html`<kibble-choice
+      .hass=${this.hass}
+      .cache=${this.cache}
+      .label=${cat.name}
+      .cats=${[cat]}
+      .state=${state === "confirmed" ? "selected" : state}
+      ?disabled=${this.busy}
+      @click=${() => this._setDraft(event, (d) => toggleDraftCat(d, cat.name, event.kind === "eat"))}
+    ></kibble-choice>`;
   }
 
   private _renderNotACatChip(event: TimelineEvent, draft: SessionDraft) {
-    const state = draft.notACat ? "confirmed" : "neutral";
-    return html`
-      <button type="button" class="chip chip-${state}" aria-pressed=${draft.notACat} ?disabled=${this.busy} @click=${() => this._setDraft(event, toggleDraftNotACat)}>
-        <span class="chip-avatar">
-          <kibble-avatar .name=${null}></kibble-avatar>
-          ${draft.notACat ? html`<span class="chip-check">${mdiIcon("check")}</span>` : nothing}
-        </span>
-        <span class="chip-label">Not a cat</span>
-      </button>`;
+    return html`<kibble-choice
+      label="Not a cat"
+      .icon=${"cancel"}
+      .state=${draft.notACat ? "selected" : "neutral"}
+      ?disabled=${this.busy}
+      @click=${() => this._setDraft(event, toggleDraftNotACat)}
+    ></kibble-choice>`;
   }
 
   // ---- Photos ----
@@ -706,7 +685,7 @@ export class KibbleLabelSheet extends LitElement {
 
   private _renderFooter(event: TimelineEvent, saved: readonly SessionCat[], draft: SessionDraft) {
     const action = confirmAction(draft, saved, event.identity);
-    const onClick = action.kind === "save" ? () => this._requestSessionLabel({ uid: event.uid, ...action.request }, "confirm", true) : this._close;
+    const onClick = action.kind === "save" ? () => this._requestSessionLabel({ uid: event.uid, ...action.request }, true) : this._close;
     return html`<footer><button type="button" class="primary-btn" ?disabled=${this.busy || action.kind === "blocked"} @click=${onClick}>${this.busy && action.kind === "save" ? "Saving" : action.text}</button></footer>`;
   }
 
@@ -789,7 +768,7 @@ export class KibbleLabelSheet extends LitElement {
       display: flex;
       align-items: center;
       gap: 8px;
-      font-size: 13px;
+      font-size: 14px;
       color: var(--secondary-text-color);
       font-variant-numeric: tabular-nums;
     }
@@ -874,15 +853,13 @@ export class KibbleLabelSheet extends LitElement {
       transform: rotate(-90deg);
     }
     .pager-count {
-      font-size: 13px;
+      font-size: 14px;
       font-weight: 600;
       color: var(--secondary-text-color);
       font-variant-numeric: tabular-nums;
     }
     .close:focus-visible,
     .pager-btn:focus-visible,
-    .chip:focus-visible,
-    .not-sure:focus-visible,
     .photo-tile:focus-visible,
     .primary-btn:focus-visible,
     .stage-zoom:focus-visible,
@@ -958,11 +935,11 @@ export class KibbleLabelSheet extends LitElement {
       width: 100%;
       min-height: 48px;
       border: none;
-      border-radius: 12px;
+      border-radius: 8px;
       background: var(--kibble-feed, #43a96a);
       color: var(--kibble-ink-on-feed, #10301d);
       font: inherit;
-      font-size: 15px;
+      font-size: 16px;
       font-weight: 700;
       cursor: pointer;
     }
@@ -974,7 +951,7 @@ export class KibbleLabelSheet extends LitElement {
       position: relative;
       width: 100%;
       aspect-ratio: 1.6;
-      border-radius: 12px;
+      border-radius: 8px;
       overflow: hidden;
       background: #000;
       display: flex;
@@ -1121,111 +1098,9 @@ export class KibbleLabelSheet extends LitElement {
       font-weight: 500;
     }
     .chip-grid {
-      display: flex;
-      flex-wrap: wrap;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
       gap: 8px;
-    }
-    .chip {
-      flex: 1 1 72px;
-      min-width: 72px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 4px;
-      padding: 8px 4px;
-      border: 2px solid transparent;
-      border-radius: 12px;
-      background: color-mix(in srgb, var(--primary-text-color) 5%, transparent);
-      color: var(--primary-text-color);
-      font: inherit;
-      font-size: 12px;
-      cursor: pointer;
-      min-height: 48px;
-    }
-    .chip:disabled {
-      opacity: 0.6;
-      cursor: default;
-    }
-    .chip-suggested {
-      border-style: dashed;
-      border-color: var(--chip-color, var(--secondary-text-color));
-      background: none;
-    }
-    .chip-confirmed {
-      border-color: var(--chip-color, var(--secondary-text-color));
-      background: color-mix(in srgb, var(--chip-color, var(--secondary-text-color)) 18%, transparent);
-    }
-    .chip-avatar {
-      position: relative;
-    }
-    .chip-avatar kibble-avatar {
-      --kibble-avatar-size: 34px;
-    }
-    .chip-check,
-    .chip-spinner {
-      position: absolute;
-      right: -2px;
-      bottom: -2px;
-      width: 16px;
-      height: 16px;
-      border-radius: 50%;
-      background: var(--kibble-feed, #43a96a);
-      color: var(--kibble-ink-on-feed, #10301d);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 11px;
-      box-shadow: 0 0 0 2px var(--ha-card-background, var(--card-background-color, #fff));
-    }
-    .chip-spinner {
-      background: color-mix(in srgb, var(--primary-text-color) 60%, transparent);
-      color: #fff;
-    }
-    @media (prefers-reduced-motion: no-preference) {
-      .chip-spinner svg {
-        animation: kibble-sheet-spin 0.9s linear infinite;
-      }
-      .chip-check.just-saved {
-        animation: kibble-sheet-check-pop 400ms ease;
-      }
-    }
-    @keyframes kibble-sheet-spin {
-      to {
-        transform: rotate(360deg);
-      }
-    }
-    @keyframes kibble-sheet-check-pop {
-      0% {
-        transform: scale(0.4);
-      }
-      60% {
-        transform: scale(1.25);
-      }
-      100% {
-        transform: scale(1);
-      }
-    }
-    .chip-label {
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      max-width: 100%;
-    }
-    .not-sure {
-      align-self: center;
-      border: none;
-      background: none;
-      color: var(--secondary-text-color);
-      font: inherit;
-      font-size: 13px;
-      text-decoration: underline;
-      cursor: pointer;
-      min-height: 48px;
-      padding: 0 8px;
-    }
-    .not-sure:disabled {
-      opacity: 0.5;
-      cursor: default;
     }
     .meal-roles {
       display: grid;
@@ -1242,7 +1117,7 @@ export class KibbleLabelSheet extends LitElement {
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
-      font-size: 13px;
+      font-size: 14px;
       font-weight: 600;
     }
     .meal-role-options {
@@ -1254,7 +1129,7 @@ export class KibbleLabelSheet extends LitElement {
       min-height: 48px;
       padding: 0 8px;
       border: 1px solid var(--divider-color);
-      border-radius: 10px;
+      border-radius: 8px;
       background: transparent;
       color: var(--primary-text-color);
       font: inherit;
@@ -1274,7 +1149,7 @@ export class KibbleLabelSheet extends LitElement {
       border-radius: 8px;
       background: color-mix(in srgb, var(--error-color, #db4437) 10%, transparent);
       color: var(--error-color, #db4437);
-      font-size: 13px;
+      font-size: 14px;
     }
     .photos {
       display: flex;
@@ -1303,7 +1178,7 @@ export class KibbleLabelSheet extends LitElement {
       display: flex;
       align-items: baseline;
       gap: 6px;
-      font-size: 13px;
+      font-size: 14px;
       font-weight: 600;
       color: var(--primary-text-color);
     }
@@ -1321,7 +1196,7 @@ export class KibbleLabelSheet extends LitElement {
       aspect-ratio: 1;
       padding: 0;
       border: none;
-      border-radius: 10px;
+      border-radius: 8px;
       overflow: hidden;
       background: color-mix(in srgb, var(--primary-text-color) 8%, transparent);
       cursor: pointer;
@@ -1346,7 +1221,7 @@ export class KibbleLabelSheet extends LitElement {
       align-items: center;
       justify-content: center;
       font: inherit;
-      font-size: 15px;
+      font-size: 16px;
       font-weight: 700;
       color: var(--primary-text-color);
       background: color-mix(in srgb, var(--primary-text-color) 10%, transparent);
@@ -1378,7 +1253,7 @@ export class KibbleLabelSheet extends LitElement {
     }
     .photo-skeleton {
       aspect-ratio: 1;
-      border-radius: 10px;
+      border-radius: 8px;
       background: color-mix(in srgb, var(--primary-text-color) 8%, transparent);
     }
     @media (prefers-reduced-motion: no-preference) {
@@ -1400,7 +1275,7 @@ export class KibbleLabelSheet extends LitElement {
       align-items: center;
       gap: 8px;
       margin: 0;
-      font-size: 13px;
+      font-size: 14px;
       color: var(--secondary-text-color);
     }
     .photos-error button {

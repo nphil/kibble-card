@@ -91,20 +91,4 @@ describe("PagedFeed", () => {
     await settle();
     expect(calls).toHaveLength(1);
   });
-
-  test("removeItem drops matching entries from the current page and decrements total", () => {
-    const feed = new PagedFeed<Item>("kibble/review", () => {});
-    feed.state = { items: [{ uid: "a" }, { uid: "b" }, { uid: "c" }], total: 10, pageIndex: 0, hasNext: true, hasPrevious: false, loading: false, error: null };
-    feed.removeItem((item) => item.uid === "b" || item.uid === "c");
-    expect(feed.state.items).toEqual([{ uid: "a" }]);
-    expect(feed.state.total).toBe(8);
-  });
-
-  test("removeItem is a no-op when nothing matches", () => {
-    const feed = new PagedFeed<Item>("kibble/review", () => {});
-    const initial = { items: [{ uid: "a" }], total: 1, pageIndex: 0, hasNext: false, hasPrevious: false, loading: false, error: null };
-    feed.state = initial;
-    feed.removeItem((item) => item.uid === "missing");
-    expect(feed.state).toBe(initial);
-  });
 });

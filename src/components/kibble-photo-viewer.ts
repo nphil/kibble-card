@@ -31,7 +31,7 @@ import { fallbackCatColor } from "../lib/cat-colors";
 import { boxInCrop, type OverlayBox } from "../lib/boxes";
 import { mdiIcon } from "../lib/mdi-icons";
 import "./kibble-image";
-import "./kibble-avatar";
+import "./kibble-choice";
 import "./kibble-box-overlay";
 
 const FOCUSABLE_SELECTOR = [
@@ -280,33 +280,18 @@ export class KibblePhotoViewer extends LitElement {
 
   private _renderChoice(option: string, cat: CatSummary | null, sample: Sample, rowBusy: boolean) {
     const state = this._choiceState(option, sample);
-    const pending = rowBusy && this.busyUid === sample.uid && this._pendingOption === option;
-    const justSaved = this._justSavedUid === sample.uid && state === "confirmed";
-    const label = cat ? cat.name : option === "skip" ? "Don\u2019t use" : "Not a cat";
-    return html`
-      <button
-        type="button"
-        class="choice choice-${state}"
-        aria-pressed=${state === "confirmed"}
-        style=${cat ? `--chip-color:${this._catColor(cat.name)}` : ""}
-        ?disabled=${rowBusy}
-        @click=${() => this._choose(option, sample)}
-      >
-        <span class="choice-glyph">
-          ${option === "skip"
-            ? mdiIcon("eyeOff")
-            : cat
-              ? html`<kibble-avatar .hass=${this.hass} .name=${cat.name} .colorIndex=${cat.color} .asset=${cat.avatar} .cache=${this.cache}></kibble-avatar>`
-              : html`<kibble-avatar .name=${null}></kibble-avatar>`}
-          ${pending
-            ? html`<span class="choice-spinner">${mdiIcon("refresh")}</span>`
-            : state === "confirmed"
-              ? html`<span class="choice-check ${justSaved ? "just-saved" : ""}">${mdiIcon("check")}</span>`
-              : nothing}
-        </span>
-        <span class="choice-label">${label}</span>
-      </button>
-    `;
+    return html`<kibble-choice
+      .hass=${this.hass}
+      .cache=${this.cache}
+      .label=${cat ? cat.name : option === "skip" ? "Don\u2019t use" : "Not a cat"}
+      .cats=${cat ? [cat] : []}
+      .icon=${cat ? null : option === "skip" ? "eyeOff" : "cancel"}
+      .state=${state === "confirmed" ? "selected" : state}
+      .busy=${rowBusy && this.busyUid === sample.uid && this._pendingOption === option}
+      .pop=${this._justSavedUid === sample.uid && state === "confirmed"}
+      ?disabled=${rowBusy}
+      @click=${() => this._choose(option, sample)}
+    ></kibble-choice>`;
   }
 
   private _choose(option: string, sample: Sample): void {
@@ -361,7 +346,7 @@ export class KibblePhotoViewer extends LitElement {
       padding: max(12px, env(safe-area-inset-top)) 12px 8px;
     }
     .counter {
-      font-size: 13px;
+      font-size: 14px;
       font-variant-numeric: tabular-nums;
       color: rgba(255, 255, 255, 0.75);
     }
@@ -477,115 +462,20 @@ export class KibblePhotoViewer extends LitElement {
       display: inline-flex;
       transform: rotate(-90deg);
     }
-    /* The chip row is its own solid HA-theme surface, deliberately distinct from the black
-     * photo-viewing chrome above it (image on top, flexing; chips beneath, never overlapping)
-     * -- the theme tokens are what keep the labels legible in both light and dark, exactly like
-     * every other chip in this card set, rather than a fixed light-on-dark scheme that only
-     * worked against a black backdrop. */
+    /* The answers sit on their own solid HA-theme surface, distinct from the black photo
+     * chrome above (image on top, flexing; answers beneath, never overlapping), so the shared
+     * answer buttons read the same here as everywhere else in light and dark. */
     .chip-row {
       flex-shrink: 0;
       display: flex;
-      gap: 6px;
+      gap: 8px;
       overflow-x: auto;
-      padding: 10px 12px max(10px, env(safe-area-inset-bottom));
+      padding: 12px 12px max(12px, env(safe-area-inset-bottom));
       background: var(--ha-card-background, var(--card-background-color, #fff));
     }
-    .choice {
+    .chip-row kibble-choice {
       flex: 1 1 0;
-      min-width: 60px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 4px;
-      padding: 6px 2px;
-      border: 2px solid transparent;
-      border-radius: 12px;
-      background: color-mix(in srgb, var(--primary-text-color) 5%, transparent);
-      color: var(--primary-text-color);
-      font: inherit;
-      font-size: 11px;
-      cursor: pointer;
-      min-height: 44px;
-    }
-    .choice:disabled {
-      cursor: default;
-      opacity: 0.6;
-    }
-    .choice-suggested {
-      border-style: dashed;
-      border-color: var(--chip-color, var(--secondary-text-color));
-      background: none;
-    }
-    .choice-confirmed {
-      border-color: var(--chip-color, var(--secondary-text-color));
-      background: color-mix(in srgb, var(--chip-color, var(--secondary-text-color)) 18%, transparent);
-    }
-    .choice-glyph {
-      position: relative;
-      width: 30px;
-      height: 30px;
-    }
-    .choice-glyph kibble-avatar {
-      --kibble-avatar-size: 30px;
-    }
-    .choice-glyph > svg {
-      width: 30px;
-      height: 30px;
-      border-radius: 50%;
-      background: color-mix(in srgb, var(--primary-text-color) 10%, transparent);
-      color: var(--secondary-text-color);
-      padding: 6px;
-      box-sizing: border-box;
-    }
-    .choice-check,
-    .choice-spinner {
-      position: absolute;
-      right: -2px;
-      bottom: -2px;
-      width: 15px;
-      height: 15px;
-      border-radius: 50%;
-      background: var(--kibble-feed, #43a96a);
-      color: var(--kibble-ink-on-feed, #10301d);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 11px;
-      box-shadow: 0 0 0 2px var(--ha-card-background, var(--card-background-color, #fff));
-    }
-    .choice-spinner {
-      background: color-mix(in srgb, var(--primary-text-color) 60%, transparent);
-      color: #fff;
-    }
-    @media (prefers-reduced-motion: no-preference) {
-      .choice-spinner svg {
-        animation: kibble-viewer-spin 0.9s linear infinite;
-      }
-      .choice-check.just-saved {
-        animation: kibble-viewer-pop 400ms ease;
-      }
-    }
-    @keyframes kibble-viewer-spin {
-      to {
-        transform: rotate(360deg);
-      }
-    }
-    @keyframes kibble-viewer-pop {
-      0% {
-        transform: scale(0.4);
-      }
-      60% {
-        transform: scale(1.25);
-      }
-      100% {
-        transform: scale(1);
-      }
-    }
-    .choice-label {
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      max-width: 100%;
+      min-width: 76px;
     }
     .viewer-error {
       flex-shrink: 0;
@@ -594,16 +484,12 @@ export class KibblePhotoViewer extends LitElement {
       border-radius: 8px;
       background: rgba(219, 68, 55, 0.25);
       color: #ffb4ac;
-      font-size: 13px;
+      font-size: 14px;
     }
     .box-toggle:focus-visible,
     .close:focus-visible,
     .nav:focus-visible {
       outline: 2px solid #fff;
-      outline-offset: 2px;
-    }
-    .choice:focus-visible {
-      outline: 2px solid var(--primary-color, #03a9f4);
       outline-offset: 2px;
     }
   `;

@@ -21,7 +21,7 @@
 
 import type { Asset, CalibrationHopper, CalibrationState, CatSummary, HomeAssistant, Sample, Storage, TimelineEvent, TrainingSample } from "../src/types";
 import { resolveKibbleEntities } from "../src/lib/resolve-entities";
-import { buildFixture, CAMERA_ENTITY_ID, CATS, DEVICE_ID, ENTRY_ID, EVENT_SAMPLES, INITIAL_CALIBRATION, MULTICAT_FIXTURES, MULTICAT_LIVE_DETECTIONS, REVIEW_EVENTS, STORAGE_FIXTURE, TIMELINE_EVENTS, TRAINING_BY_CAT, type HarnessFixture, type ScenarioName } from "./fixtures";
+import { buildFixture, CAMERA_ENTITY_ID, CATS, DEVICE_ID, ENTRY_ID, EVENT_SAMPLES, INITIAL_CALIBRATION, MULTICAT_FIXTURES, MULTICAT_LIVE_DETECTIONS, REVIEW_EVENTS, REVIEW_FIXTURES, STORAGE_FIXTURE, TIMELINE_EVENTS, TRAINING_BY_CAT, type HarnessFixture, type ScenarioName } from "./fixtures";
 
 /** Deep-enough clone for `CalibrationState`: every mutating action hands the caller a fresh
  * snapshot rather than the live mutable record, matching the daemon's own "every action
@@ -61,7 +61,8 @@ declare global {
 
 export function createMockHass(scenario: ScenarioName, onChange?: () => void, harnessFixture: HarnessFixture = "default"): HomeAssistant {
   const fixture = buildFixture(scenario);
-  const activeMultiFixture = harnessFixture === "default" ? null : MULTICAT_FIXTURES[harnessFixture];
+  const activeMultiFixture = harnessFixture === "multicat-a" || harnessFixture === "multicat-b" || harnessFixture === "multicat-c" ? MULTICAT_FIXTURES[harnessFixture] : null;
+  const reviewFixture = harnessFixture === "review" || harnessFixture === "review-empty" ? REVIEW_FIXTURES[harnessFixture] : null;
   const states = { ...fixture.states };
   if (activeMultiFixture) {
     const camera = states[CAMERA_ENTITY_ID]!;
@@ -69,10 +70,11 @@ export function createMockHass(scenario: ScenarioName, onChange?: () => void, ha
   }
   const resolved = resolveKibbleEntities(fixture.entities, fixture.device.id);
 
-  const cats: CatSummary[] = CATS.map((cat) => ({ ...cat }));
-  const timelineEvents = activeMultiFixture?.events ?? TIMELINE_EVENTS;
-  const events: TimelineEvent[] = [...timelineEvents, ...REVIEW_EVENTS.filter((event) => event.kind === "import")].map((event) => ({ ...event }));
-  const sampleFixtures = { ...EVENT_SAMPLES, ...(activeMultiFixture?.samples ?? {}) };
+  const cats: CatSummary[] = CATS.filter((cat) => !reviewFixture || reviewFixture.cats.includes(cat.name)).map((cat) => ({ ...cat }));
+  const timelineEvents = reviewFixture?.events ?? activeMultiFixture?.events ?? TIMELINE_EVENTS;
+  const importEvents = reviewFixture ? [] : REVIEW_EVENTS.filter((event) => event.kind === "import");
+  const events: TimelineEvent[] = [...timelineEvents, ...importEvents].map((event) => ({ ...event }));
+  const sampleFixtures = { ...EVENT_SAMPLES, ...(activeMultiFixture?.samples ?? {}), ...(reviewFixture?.samples ?? {}) };
   const eventSamples: Record<string, Sample[]> = Object.fromEntries(Object.entries(sampleFixtures).map(([uid, samples]) => [uid, samples.map((sample) => ({ ...sample }))]));
   const trainingByCat: Record<string, TrainingSample[]> = Object.fromEntries(Object.entries(TRAINING_BY_CAT).map(([cat, samples]) => [cat, [...samples]]));
   /** Per-photo override (`kibble/sample/label`'s own `review`, mirrored here) and the cat/
@@ -390,8 +392,11 @@ export function createMockHass(scenario: ScenarioName, onChange?: () => void, ha
           }
           for (const sample of sessionSamples) {
             if (sampleReview[sample.uid] != null) continue;
-            if (requestedCats.length === 1) sample.cat = requestedCats[0]!.cat;
-            else if (sample.cat && !requestedCats.some((cat) => cat.cat === sample.cat)) sample.cat = null;
+            if (requestedCats.length === 1) {
+              sample.cat = requestedCats[0]!.cat;
+              // One cat named for the whole visit: every photo that follows it trains as that cat.
+              setTrained(sample, sample.cat);
+            } else if (sample.cat && !requestedCats.some((cat) => cat.cat === sample.cat)) sample.cat = null;
           }
           if (details) details.cats.splice(0, details.cats.length, ...requestedCats.map((cat) => ({ ...cat, confirmed: true, confidence: null, photos: sessionSamples.filter((sample) => sample.cat === cat.cat).length })));
         } else {
@@ -673,6 +678,10 @@ export function createMockHass(scenario: ScenarioName, onChange?: () => void, ha
         // Multi-cat scene and body crops are the actual fixture photo; other media uses stable
         // placeholders with distinct before/after and face/scene treatments.
         const id = path.slice(path.lastIndexOf("/") + 1);
+        if (id.includes("-rq-") && id.endsWith("-scene")) return fetch("./multicat-scene.jpg");
+        if (id.includes("-rq-broken-")) return new Response(null, { status: 404 });
+        if (id.includes("-rq-kitty-")) return fetch("./multicat-kitty-body.jpg");
+        if (id.includes("-rq-pancake-")) return fetch("./multicat-pancake-body.jpg");
         if (id === "e2060-scene-1") return fetch("./e2060-scene-1.jpg");
         if (id === "e1713-scene-1") return fetch("./multicat-scene.jpg");
         if (id.includes("-e2060-")) return fetch("./multicat-kitty-body.jpg");

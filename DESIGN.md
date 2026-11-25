@@ -100,26 +100,71 @@ View "Cats":
 
 ```
 +------------------------------------------------------------------+
-| (o) Kitty   12 samples   seen 4 min ago                          |
-| (o) Pancake  9 samples   seen 4 h ago              + Add a cat   |
+| (o) Kitty    152 photos trained   57% recognized, still learning  |
+| (o) Pancake   24 photos trained   86% recognized, learned         |
+|                                                     + Add a cat   |
 +------------------------------------------------------------------+
-| 14 to review                       [Select]  [Confirm all Pancake]|
-| [face][face][face][face][face][face][face]                       |
-|  Pan?  Pan?  Kit?   ?    Pan?  Pan?  Kit?     <- suggestion chip  |
-| tap confirms the suggestion; long press to choose                 |
+| (?) Check visits                                         [8]  >   |
 +------------------------------------------------------------------+
-| Kitty, 12 samples        [crop][crop][crop]...  x removes         |
-| Pancake, 9 samples       [crop][crop][crop]...                    |
+| Kitty, 152 photos       [crop][crop][crop]...  x removes          |
 +------------------------------------------------------------------+
 ```
 
-One card, `kibble-cats-card`, full width. The suggestion under each crop is Kibble's classifier
-when it is confident, else the feeder's own identifier, else nothing; the chip carries a small
-mark saying which. Tap confirms with a five-second undo; long press (or the chooser button) opens
-the picker: each cat, "Not a cat", "Skip". Select mode adds checkboxes and a bulk bar. Removing
-a sample from a cat's gallery returns it to the inbox. Empty inbox: "Nothing to review. New
-crops arrive when a cat is identified at the bowl." Empty cats: "No cats yet. Add one to start
-training." Errors say what failed and what to do.
+One card, `kibble-cats-card`, full width. It no longer names visits itself: the "Check visits"
+bar opens the review queue below, the one place a visit gets a name. Empty cats: "No cats yet.
+Add one to start training." Errors say what failed and what to do.
+
+## Checking visits: one way to name a cat
+
+Naming who was at the bowl is the job that makes recognition better, and it is repetitive, so
+it gets one purpose-built screen (`components/kibble-review-queue.ts`, a native top-layer
+`<dialog>`) and every other surface leads into it.
+
+```
+phone                              tablet, desktop
++---------------------------+      +-------------------------+----------------+
+| Who was here?   3 of 20  x|      |                         | Who was here? x|
+| =====----------------     |      |                         | 3 of 20        |
+| +-----------------------+ |      |        photo            | [ Kitty  Guess]|
+| |        photo          | |      |   (tap: whole scene)    | [ Pancake     ]|
+| | 7:02 PM  Meal         | |      |                         | [ Both        ]|
+| +-----------------------+ |      |                         | [ Not a cat   ]|
+| [o][o][o][o]              |      | 7:02 PM  Meal           | [ Can't tell  ]|
+| [ Kitty Guess ][ Pancake ]|      +-------------------------+                |
+| [Both][Not a cat][Can't  ]|      | [o][o][o][o]            | Undo           |
+| Undo                      |      +-------------------------+----------------+
++---------------------------+
+```
+
+- **The unit is the visit**, not the photo: one answer names every photo in it
+  (`kibble/session/label`). Single photos are still corrected in the event sheet's viewer.
+- **One decision per screen, one action per answer.** Tap a button, press its number key, or
+  (two cats) swipe the photo towards that cat. It saves and moves on; there is no confirm step.
+  Enter agrees with the highlighted guess. A meal that both cats attended asks one extra
+  question, "Who ate?".
+- **Order**: visits Kibble could not name, then guesses under 75% sure, then confident guesses
+  nobody confirmed; newest first in each group. Built in `lib/review-queue.ts` from
+  `kibble/review` plus `kibble/timeline`; a visit a person already answered never comes back.
+- **Saving** is optimistic and serial. An answer that fails stays in the list, shows "N not
+  saved" with Retry, and is retried with the next answer; it is never dropped or sent twice. A
+  visit that no longer exists is skipped quietly.
+- **Undo** steps back to the last visit with its answer shown; a new answer replaces it.
+- **Batches of 20** end on a "Batch done" card (Keep going, Stop here). The end shows visits
+  per cat and how many photos each cat learned (read from `kibble/cats` before and after).
+- **Entry points** are one component, `kibble-review-entry`: a "Check visits" bar on the
+  timeline and cats cards, an "N to check" chip on the hero. An unnamed timeline row opens the
+  queue at that visit. Every save announces itself (`lib/review-bus.ts`) so the other cards
+  refresh without a reload.
+- **One answer button everywhere**, `components/kibble-choice.ts`: the queue, the event sheet
+  and the photo viewer use it, with three states (plain, dashed "Guess", filled "Your answer")
+  in the cat's own colour.
+- **Wording**, the same on every surface: "Check visits", "Who was here?", the cats' names,
+  "Both", "Not a cat", "Can't tell", "Who ate?", "Undo".
+
+Borrowed, deliberately: the swipe deck with a name stamp from dating apps (Tinder), the fixed
+number-key answers and pre-selected model guess from labelling tools (Label Studio, Prodigy),
+short batches with a running count and an end card from Anki and Duolingo, and the outbox that
+keeps unsent answers from offline-first mail and chat apps.
 
 ## Review against the generic defaults
 

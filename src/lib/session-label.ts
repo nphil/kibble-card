@@ -102,7 +102,7 @@ function joinNames(names: readonly string[]): string {
 /** Live sheet title from the session cats. */
 export function sessionTitle(cats: readonly Pick<SessionCat, "cat" | "ate">[], event: Pick<TimelineEvent, "identity" | "open">): string {
   if (event.identity === "not_a_cat") return "Not a cat";
-  if (cats.length === 0) return "Who was this?";
+  if (cats.length === 0) return "Who was here?";
   const groups = new Map<string, string[]>();
   for (const cat of cats) {
     const verb = event.open ? (cat.ate ? "is eating" : "is here") : (cat.ate ? "ate" : "came by");

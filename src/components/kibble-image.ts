@@ -12,9 +12,10 @@
  * is never itself a reason to refetch: only `asset?.id` changing drives a new acquire.
  */
 
-import { LitElement, css, html, type PropertyValues } from "lit";
+import { LitElement, css, html, nothing, type PropertyValues } from "lit";
 import type { Asset, HomeAssistant } from "../types";
 import { AssetRef, type ImageUrlCache } from "../lib/image-cache";
+import { mdiIcon } from "../lib/mdi-icons";
 
 export class KibbleImage extends LitElement {
   static properties = {
@@ -24,6 +25,7 @@ export class KibbleImage extends LitElement {
     alt: { type: String },
     rounded: { type: Boolean },
     fit: { type: String },
+    eager: { type: Boolean },
   };
 
   declare hass: HomeAssistant | undefined;
@@ -32,16 +34,20 @@ export class KibbleImage extends LitElement {
   declare alt: string;
   declare rounded: boolean;
   declare fit: "cover" | "contain";
+  /** Skip the wait for "on screen" and fetch at once: for the one photo a screen is about. */
+  declare eager: boolean;
 
   private readonly _ref = new AssetRef();
   private _visible = false;
   private _observer: IntersectionObserver | null = null;
+  private _reportedFailure: string | null = null;
 
   constructor() {
     super();
     this.alt = "";
     this.rounded = false;
     this.fit = "cover";
+    this.eager = false;
   }
 
   connectedCallback(): void {
@@ -90,6 +96,7 @@ export class KibbleImage extends LitElement {
   }
 
   protected willUpdate(changed: PropertyValues): void {
+    if (this.eager && !this._visible) this._markVisible();
     if (changed.has("asset") || changed.has("cache") || changed.has("hass")) this._sync();
   }
 
@@ -98,11 +105,32 @@ export class KibbleImage extends LitElement {
     this._ref.sync(this.hass, this.cache, this.asset, () => this.requestUpdate());
   }
 
+  protected updated(): void {
+    const failedId = this._ref.failed ? (this.asset?.id ?? null) : null;
+    if (failedId === this._reportedFailure) return;
+    this._reportedFailure = failedId;
+    if (failedId) this.dispatchEvent(new CustomEvent("image-failed", { bubbles: true, composed: true }));
+  }
+
+  /** True when the current photo could not be loaded. */
+  get failed(): boolean {
+    return this._ref.failed;
+  }
+
+  /** Fetches the current photo again after a failure. */
+  retry(): void {
+    this._reportedFailure = null;
+    this._ref.retry(this.hass, this.cache, this.asset, () => this.requestUpdate());
+    this.requestUpdate();
+  }
+
   render() {
     const url = this._ref.url;
     return html`
       <div class="box ${this.rounded ? "rounded" : ""}">
-        ${url ? html`<img src=${url} alt=${this.alt} loading="lazy" style="object-fit:${this.fit}" />` : html`<div class="placeholder"></div>`}
+        ${url
+          ? html`<img src=${url} alt=${this.alt} style="object-fit:${this.fit}" />`
+          : html`<div class="placeholder">${this._ref.failed ? mdiIcon("imageBroken") : nothing}</div>`}
       </div>
     `;
   }
@@ -144,6 +172,15 @@ export class KibbleImage extends LitElement {
     .placeholder {
       width: 100%;
       height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      color: color-mix(in srgb, var(--primary-text-color) 32%, transparent);
+      container-type: size;
+    }
+    .placeholder svg {
+      font-size: min(32px, 40cqmin);
     }
   `;
 }

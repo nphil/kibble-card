@@ -251,7 +251,7 @@ export class KibbleAddPhotosSheet extends LitElement {
     if (tally.no_cat) parts.push(`${tally.no_cat} not a cat`);
     if (tally.error) parts.push(`${tally.error} failed`);
     if (tally.canceled) parts.push(`${tally.canceled} canceled`);
-    return parts.length > 0 ? parts.join(" \u00b7 ") : "Nothing added.";
+    return parts.length > 0 ? parts.join(", ") : "Nothing added.";
   }
 
   private _renderAdjust(tile: PhotoTile) {
@@ -345,7 +345,7 @@ export class KibbleAddPhotosSheet extends LitElement {
       padding: 0;
       border: none;
       background: none;
-      border-radius: 10px;
+      border-radius: 8px;
       overflow: hidden;
       cursor: pointer;
     }
@@ -362,7 +362,7 @@ export class KibbleAddPhotosSheet extends LitElement {
       border: none;
       background: #222;
       color: #fff;
-      font-size: 13px;
+      font-size: 14px;
       line-height: 1;
       cursor: pointer;
     }
@@ -375,7 +375,7 @@ export class KibbleAddPhotosSheet extends LitElement {
       gap: 4px;
       padding: 3px 8px;
       border-radius: 999px;
-      font-size: 11px;
+      font-size: 12px;
       font-weight: 600;
       background: rgba(0, 0, 0, 0.6);
       color: #fff;
@@ -417,7 +417,7 @@ export class KibbleAddPhotosSheet extends LitElement {
     }
     .primary {
       min-height: 44px;
-      border-radius: 10px;
+      border-radius: 8px;
       border: none;
       background: var(--kibble-feed, #43a96a);
       color: var(--kibble-ink-on-feed, #10301d);
